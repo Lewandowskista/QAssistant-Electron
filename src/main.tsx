@@ -16,6 +16,7 @@ import TestDataPage from '@/pages/TestDataPage'
 import ChecklistsPage from '@/pages/ChecklistsPage'
 import ApiPage from '@/pages/ApiPage'
 import SapPage from '@/pages/SapPage'
+import RunbooksPage from '@/pages/RunbooksPage'
 
 console.log("App starting...")
 
@@ -42,6 +43,7 @@ createRoot(rootElement).render(
           <Route path="checklists" element={<ChecklistsPage />} />
           <Route path="sap" element={<SapPage />} />
           <Route path="api" element={<ApiPage />} />
+          <Route path="runbooks" element={<RunbooksPage />} />
           <Route path="notes" element={<NotesPage />} />
           <Route path="files" element={<FilesPage />} />
           <Route path="environments" element={<EnvironmentsPage />} />

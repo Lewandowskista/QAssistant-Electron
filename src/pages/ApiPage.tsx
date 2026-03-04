@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
-import { useProjectStore, ApiRequest } from "@/store/useProjectStore"
-import { Plus, Search, Play, Save, Trash2, ArrowRightLeft, ShieldQuestion, Loader2, Code2, Server, Globe, History, Copy, Clock, Database, Key, Layout, ChevronRight, FileJson, Zap } from "lucide-react"
+import { useProjectStore } from "@/store/useProjectStore"
+import { Plus, Search, Trash2, Loader2, Code2, Server, Key, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import FormattedText from "@/components/FormattedText"
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 type ResponseTab = 'Body' | 'Headers' | 'History' | 'Compare'
@@ -79,7 +80,7 @@ export default function ApiPage() {
         if (selectedReqId) {
             await updateApiRequest(activeProjectId, selectedReqId, payload)
         } else {
-            const newId = await addApiRequest(activeProjectId, payload)
+            const newId = await addApiRequest(activeProjectId, payload) as string
             setSelectedReqId(newId)
         }
     }
@@ -337,9 +338,17 @@ export default function ApiPage() {
                 <div className="h-[250px] bg-[#0F0F13] flex-none overflow-hidden relative group">
                     <div className="h-full overflow-y-auto p-4 custom-scrollbar">
                         {activeRespTab === 'Body' && (
-                            <pre className="font-mono text-xs text-[#E2E8F0] selection:bg-[#A78BFA]/20">
-                                {response ? (typeof response === 'object' ? JSON.stringify(response, null, 2) : response) : "// Awaiting payload dispatch..."}
-                            </pre>
+                            <div className="font-mono text-xs text-[#E2E8F0] selection:bg-[#A78BFA]/20">
+                                {response ? (
+                                    typeof response === 'object' ? (
+                                        <pre>{JSON.stringify(response, null, 2)}</pre>
+                                    ) : (
+                                        <FormattedText content={response} />
+                                    )
+                                ) : (
+                                    <span className="opacity-40">// Awaiting payload dispatch...</span>
+                                )}
+                            </div>
                         )}
                         {activeRespTab === 'Headers' && (
                             <div className="space-y-1">

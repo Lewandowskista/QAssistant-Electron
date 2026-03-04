@@ -50,8 +50,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getJiraHistory: (args: any) => ipcRenderer.invoke('get-jira-history', args),
 
     // ── AI / Gemini ───────────────────────────────────────────────────────
-    aiGenerateCases: (args: any) => ipcRenderer.invoke('ai-generate-cases', args),
-    aiAnalyzeIssue: (args: any) => ipcRenderer.invoke('ai-analyze-issue', args),
+    aiGenerateCases: (apiKey: string, tasks: any[], sourceName?: string, project?: any, designDoc?: string) =>
+        ipcRenderer.invoke('ai-generate-cases', { apiKey, tasks, sourceName, project, designDoc }),
+    aiAnalyzeIssue: (apiKey: string, task: any, comments?: any[], project?: any) =>
+        ipcRenderer.invoke('ai-analyze-issue', { apiKey, task, comments, project }),
     aiAnalyze: (apiKey: string, context: string) => ipcRenderer.invoke('ai-analyze', { apiKey, context }),
     aiCriticality: (apiKey: string, tasks: any[], testPlans: any[], executions: any[], project?: any) =>
         ipcRenderer.invoke('ai-criticality', { apiKey, tasks, testPlans, executions, project }),

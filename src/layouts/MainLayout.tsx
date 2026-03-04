@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
@@ -31,7 +31,7 @@ export default function MainLayout() {
     const [searchQuery, setSearchQuery] = useState("")
 
     // Routes that use h-full flex layouts and need the full content area (no padding/max-width)
-    const FULL_BLEED_ROUTES = ['/links', '/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap']
+    const FULL_BLEED_ROUTES = ['/links', '/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks']
     const isFullBleedRoute = FULL_BLEED_ROUTES.some(r => location.pathname.startsWith(r))
 
     useEffect(() => {
@@ -90,6 +90,7 @@ export default function MainLayout() {
             items: [
                 { name: "Environments", href: "/environments", icon: Globe },
                 { name: "API", href: "/api", icon: Code },
+                { name: "Runbooks", href: "/runbooks", icon: BookOpen },
                 { name: "SAP HAC", href: "/sap", icon: ServerCog },
             ]
         }

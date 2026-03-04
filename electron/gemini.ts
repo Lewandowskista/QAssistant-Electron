@@ -363,26 +363,26 @@ export class GeminiService {
     async analyzeIssue(task: any, comments: any[] = [], project?: any): Promise<string> {
         const prompt = GeminiService.buildToonPrompt(task, comments, project)
         try {
-            const model = this.getModel('gemini-2.5-flash')
+            const model = this.getModel('gemini-3.0-flash')
             const result = await model.generateContent(prompt)
             return result.response.text()
         } catch {
-            const model = this.getModel('gemini-2.0-flash')
+            const model = this.getModel('gemini-2.5-flash')
             const result = await model.generateContent(prompt)
             return result.response.text()
         }
     }
 
     /** Generate test cases from tasks using TOON prompts */
-    async generateTestCases(tasks: any[], sourceName: string, project?: any, designDoc?: string): Promise<any[]> {
-        const prompt = GeminiService.buildTestCaseGenerationPrompt(tasks, sourceName, project, designDoc)
+    async generateTestCases(tasks: any[] = [], sourceName: string, project?: any, designDoc?: string): Promise<any[]> {
+        const prompt = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc)
         let text = ''
         try {
-            const model = this.getModel('gemini-2.5-flash')
+            const model = this.getModel('gemini-3.0-flash')
             const result = await model.generateContent(prompt)
             text = result.response.text()
         } catch {
-            const model = this.getModel('gemini-2.0-flash')
+            const model = this.getModel('gemini-2.5-flash')
             const result = await model.generateContent(prompt)
             text = result.response.text()
         }
@@ -407,11 +407,11 @@ export class GeminiService {
     async assessCriticality(tasks: any[], testPlans: any[], executions: any[], project?: any): Promise<string> {
         const prompt = GeminiService.buildCriticalityAssessmentPrompt(tasks, testPlans, executions, project)
         try {
-            const model = this.getModel('gemini-2.5-flash')
+            const model = this.getModel('gemini-3.0-flash')
             const result = await model.generateContent(prompt)
             return result.response.text()
         } catch {
-            const model = this.getModel('gemini-2.0-flash')
+            const model = this.getModel('gemini-2.5-flash')
             const result = await model.generateContent(prompt)
             return result.response.text()
         }
@@ -421,11 +421,11 @@ export class GeminiService {
     async getTestRunSuggestions(testPlans: any[], executions: any[], project?: any): Promise<string> {
         const prompt = GeminiService.buildTestRunSuggestionsPrompt(testPlans, executions, project)
         try {
-            const model = this.getModel('gemini-2.5-flash')
+            const model = this.getModel('gemini-3.0-flash')
             const result = await model.generateContent(prompt)
             return result.response.text()
         } catch {
-            const model = this.getModel('gemini-2.0-flash')
+            const model = this.getModel('gemini-2.5-flash')
             const result = await model.generateContent(prompt)
             return result.response.text()
         }
@@ -436,11 +436,11 @@ export class GeminiService {
         const prompt = GeminiService.buildSmokeSubsetPrompt(candidates, doneTasks, project)
         let text = ''
         try {
-            const model = this.getModel('gemini-2.5-flash')
+            const model = this.getModel('gemini-3.0-flash')
             const result = await model.generateContent(prompt)
             text = result.response.text()
         } catch {
-            const model = this.getModel('gemini-2.0-flash')
+            const model = this.getModel('gemini-2.5-flash')
             const result = await model.generateContent(prompt)
             text = result.response.text()
         }
@@ -452,7 +452,7 @@ export class GeminiService {
 
     /** Legacy compat wrapper for simple project analysis */
     async analyzeProject(projectContext: string): Promise<string> {
-        const model = this.getModel('gemini-2.0-flash')
+        const model = this.getModel('gemini-3.0-flash')
         const prompt = `You are a senior QA engineer. Analyze the following project context and suggest 3 key strategic improvements for the QA cycle:\n\n${projectContext}\n\nProvide output in these sections:\n## Strategic Gaps\n## Coverage Optimization\n## Risk Assessment`
         const result = await model.generateContent(prompt)
         return result.response.text()

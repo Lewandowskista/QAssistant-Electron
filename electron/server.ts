@@ -267,13 +267,24 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     if (serverInstance) return // already running
 
-    serverInstance = server.listen(port, () => {
-        console.log(`[QAssistant] Automation API running on port ${port}`)
-    })
+    const tryListen = (p: number) => {
+        const instance = server.listen(p, () => {
+            console.log(`[QAssistant] Automation API running on port ${p}`)
+            serverInstance = instance
+        })
 
-    serverInstance.on('error', (err: any) => {
-        console.error('[QAssistant] API server error:', err.message)
-    })
+        instance.on('error', (err: any) => {
+            if (err.code === 'EADDRINUSE') {
+                console.warn(`[QAssistant] Port ${p} in use, trying ${p + 1}...`)
+                instance.close()
+                tryListen(p + 1)
+            } else {
+                console.error('[QAssistant] API server error:', err.message)
+            }
+        })
+    }
+
+    tryListen(port)
 }
 
 export function stopServer() {

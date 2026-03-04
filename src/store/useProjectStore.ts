@@ -33,6 +33,39 @@ export type TestExecution = {
     notes: string
     executedAt: number
     snapshotTestCaseTitle: string
+    snapshotPreConditions?: string
+    snapshotSteps?: string
+    snapshotTestData?: string
+    snapshotExpectedResult?: string
+    snapshotPriority?: TestCasePriority
+}
+
+export type TestCaseExecution = {
+    id: string
+    testCaseId: string
+    result: TestCaseStatus
+    actualResult: string
+    notes: string
+    snapshotTestCaseTitle: string
+    snapshotPreConditions?: string
+    snapshotSteps?: string
+    snapshotTestData?: string
+    snapshotExpectedResult?: string
+    snapshotPriority?: TestCasePriority
+}
+
+export type TestPlanExecution = {
+    id: string
+    testPlanId: string
+    snapshotTestPlanName: string
+    caseExecutions: TestCaseExecution[]
+}
+
+export type TestRunSession = {
+    id: string
+    timestamp: number
+    isArchived?: boolean
+    planExecutions: TestPlanExecution[]
 }
 
 export type TestPlan = {
@@ -114,7 +147,7 @@ export type QaEnvironment = {
     notes: string
     healthCheckUrl: string
     hacUrl: string
-    backofficeUrl: string
+    backOfficeUrl: string
     storefrontUrl: string
     solrAdminUrl: string
     occBasePath: string
@@ -167,6 +200,28 @@ export type ApiRequest = {
     updatedAt: number
 }
 
+export type RunbookStepStatus = 'pending' | 'in-progress' | 'done' | 'failed' | 'skipped'
+export type RunbookCategory = 'deployment' | 'maintenance' | 'testing' | 'other'
+
+export interface RunbookStep {
+    id: string
+    title: string
+    description?: string
+    status: RunbookStepStatus
+    order: number
+    updatedAt: number
+}
+
+export interface Runbook {
+    id: string
+    name: string
+    description?: string
+    category: RunbookCategory
+    steps: RunbookStep[]
+    createdAt: number
+    updatedAt: number
+}
+
 export type LinearConnection = {
     id: string
     label: string
@@ -192,11 +247,14 @@ export type Project = {
     links: ProjectLink[]
     testPlans: TestPlan[]
     environments: QaEnvironment[]
-    testExecutions: TestExecution[]
+    testExecutions: TestExecution[] // Legacy mapping
+    testRunSessions: TestRunSession[]
+
     files: any[]
     testDataGroups: TestDataGroup[]
     checklists: Checklist[]
     apiRequests: ApiRequest[]
+    runbooks: Runbook[]
     // Multiple named connections (C# model)
     linearConnections: LinearConnection[]
     jiraConnections: JiraConnection[]
@@ -228,7 +286,7 @@ interface ProjectState {
     deleteNote: (projectId: string, noteId: string) => Promise<void>
 
     // Task Actions
-    addTask: (projectId: string, title: string, description?: string) => Promise<void>
+    addTask: (projectId: string, title: string, description?: string) => Promise<string>
     updateTask: (projectId: string, taskId: string, updates: Partial<Task>) => Promise<void>
     deleteTask: (projectId: string, taskId: string) => Promise<void>
     moveTask: (projectId: string, taskId: string, status: TaskStatus) => Promise<void>
@@ -241,16 +299,21 @@ interface ProjectState {
     archiveTestPlan: (projectId: string, planId: string, archive: boolean) => Promise<void>
 
     // Test Case Actions
-    addTestCase: (projectId: string, planId: string, data: Partial<TestCase>) => Promise<void>
+    addTestCase: (projectId: string, planId: string, data: Partial<TestCase>) => Promise<string>
     updateTestCase: (projectId: string, planId: string, caseId: string, updates: Partial<TestCase>) => Promise<void>
     deleteTestCase: (projectId: string, planId: string, caseId: string) => Promise<void>
 
     // Test Execution Actions
     addTestExecution: (projectId: string, execution: Omit<TestExecution, 'id' | 'executedAt'>) => Promise<void>
+    addTestRunSession: (projectId: string, session: Omit<TestRunSession, 'id' | 'timestamp'>) => Promise<void>
+    deleteTestRunSession: (projectId: string, sessionId: string) => Promise<void>
+    archiveTestRunSession: (projectId: string, sessionId: string, archive: boolean) => Promise<void>
+    deleteTestCaseExecution: (projectId: string, sessionId: string, planExecutionId: string, caseExecutionId: string) => Promise<void>
+    deleteLegacyExecution: (projectId: string, executionId: string) => Promise<void>
     clearExecutionHistory: (projectId: string, testCaseId?: string) => Promise<void>
 
     // Environment Actions
-    addEnvironment: (projectId: string, name: string) => Promise<void>
+    addEnvironment: (projectId: string, name: string) => Promise<string>
     updateEnvironment: (projectId: string, envId: string, updates: Partial<QaEnvironment>) => Promise<void>
     deleteEnvironment: (projectId: string, envId: string) => Promise<void>
     setEnvironmentDefault: (projectId: string, envId: string) => Promise<void>
@@ -258,21 +321,29 @@ interface ProjectState {
     setActiveProject: (id: string) => void
 
     // --- NEW EXPERIMENTAL ACTIONS ---
-    addTestDataGroup: (projectId: string, name: string, category: string) => Promise<void>
+    addTestDataGroup: (projectId: string, name: string, category: string) => Promise<string>
     deleteTestDataGroup: (projectId: string, groupId: string) => Promise<void>
-    addTestDataEntry: (projectId: string, groupId: string, data: Partial<TestDataEntry>) => Promise<void>
+    addTestDataEntry: (projectId: string, groupId: string, data: Partial<TestDataEntry>) => Promise<string>
     deleteTestDataEntry: (projectId: string, groupId: string, entryId: string) => Promise<void>
 
     addChecklist: (projectId: string, name: string, category: string) => Promise<Checklist>
     updateChecklist: (projectId: string, checklistId: string, updates: Partial<Checklist>) => Promise<void>
     deleteChecklist: (projectId: string, checklistId: string) => Promise<void>
     toggleChecklistItem: (projectId: string, checklistId: string, itemId: string) => Promise<void>
-    addChecklistItem: (projectId: string, checklistId: string, text: string) => Promise<void>
+    addChecklistItem: (projectId: string, checklistId: string, text: string) => Promise<string>
     deleteChecklistItem: (projectId: string, checklistId: string, itemId: string) => Promise<void>
 
-    addApiRequest: (projectId: string, data: Partial<ApiRequest>) => Promise<void>
+    addApiRequest: (projectId: string, data: Partial<ApiRequest>) => Promise<string>
     updateApiRequest: (projectId: string, requestId: string, updates: Partial<ApiRequest>) => Promise<void>
     deleteApiRequest: (projectId: string, requestId: string) => Promise<void>
+
+    // Runbooks
+    addRunbook: (projectId: string, name: string, category: RunbookCategory) => Promise<Runbook>
+    updateRunbook: (projectId: string, runbookId: string, updates: Partial<Runbook>) => Promise<void>
+    deleteRunbook: (projectId: string, runbookId: string) => Promise<void>
+    addRunbookStep: (projectId: string, runbookId: string, title: string) => Promise<string>
+    updateRunbookStep: (projectId: string, runbookId: string, stepId: string, updates: Partial<RunbookStep>) => Promise<void>
+    deleteRunbookStep: (projectId: string, runbookId: string, stepId: string) => Promise<void>
 }
 
 // Ensure electronAPI is typed
@@ -365,8 +436,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 testDataGroups: p.testDataGroups || [],
                 checklists: p.checklists || [],
                 apiRequests: p.apiRequests || [],
+                runbooks: p.runbooks || [],
                 linearConnections: p.linearConnections || [],
                 jiraConnections: p.jiraConnections || [],
+                testRunSessions: p.testRunSessions || [],
             }))
 
             set({
@@ -395,8 +468,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             testDataGroups: [],
             checklists: [],
             apiRequests: [],
+            runbooks: [],
             linearConnections: [],
             jiraConnections: [],
+            testRunSessions: []
         }
 
         const updatedProjects = [...get().projects, newProject]
@@ -578,6 +653,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             await window.electronAPI.writeProjectsFile(updatedProjects)
         }
         set({ projects: updatedProjects })
+        return task.id
     },
 
     updateTask: async (projectId: string, taskId: string, updates: Partial<Task>) => {
@@ -742,7 +818,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set({ projects: updatedProjects })
     },
 
-    addTestCase: async (projectId: string, planId: string, data: Partial<TestCase>) => {
+    addTestCase: async (projectId: string, planId: string, data: Partial<TestCase>): Promise<string> => {
         const activeProject = get().projects.find(p => p.id === projectId)
         const activePlan = activeProject?.testPlans.find(tp => tp.id === planId)
         const testCase: TestCase = {
@@ -776,6 +852,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             await window.electronAPI.writeProjectsFile(updatedProjects)
         }
         set({ projects: updatedProjects })
+        return testCase.id
     },
 
     updateTestCase: async (projectId: string, planId: string, caseId: string, updates: Partial<TestCase>) => {
@@ -820,7 +897,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set({ projects: updatedProjects })
     },
 
-    addEnvironment: async (projectId: string, name: string) => {
+    addEnvironment: async (projectId: string, name: string): Promise<string> => {
         const env: QaEnvironment = {
             id: crypto.randomUUID(),
             name,
@@ -832,7 +909,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             notes: "",
             healthCheckUrl: "",
             hacUrl: "",
-            backofficeUrl: "",
+            backOfficeUrl: "",
             storefrontUrl: "",
             solrAdminUrl: "",
             occBasePath: "",
@@ -851,6 +928,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             await window.electronAPI.writeProjectsFile(updatedProjects)
         }
         set({ projects: updatedProjects })
+        return env.id
     },
 
     updateEnvironment: async (projectId: string, envId: string, updates: Partial<QaEnvironment>) => {
@@ -903,14 +981,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     addTestExecution: async (projectId: string, execution: Omit<TestExecution, 'id' | 'executedAt'>) => {
-        const newExecution: TestExecution = {
-            ...execution,
-            id: crypto.randomUUID(),
-            executedAt: Date.now()
-        }
-
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
+                // Find test case metadata for snapshotting
+                const targetPlan = p.testPlans.find(tp => tp.id === execution.testPlanId)
+                const targetCase = targetPlan?.testCases.find(tc => tc.id === execution.testCaseId)
+
+                const newExecution: TestExecution = {
+                    ...execution,
+                    id: crypto.randomUUID(),
+                    executedAt: Date.now(),
+                    snapshotPreConditions: targetCase?.preConditions,
+                    snapshotSteps: targetCase?.steps,
+                    snapshotTestData: targetCase?.testData,
+                    snapshotExpectedResult: targetCase?.expectedResult,
+                    snapshotPriority: targetCase?.priority
+                }
+
                 // Add to executions history
                 const testExecutions = [newExecution, ...(p.testExecutions || [])]
 
@@ -938,6 +1025,117 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set({ projects: updatedProjects })
     },
 
+    addTestRunSession: async (projectId: string, session: Omit<TestRunSession, 'id' | 'timestamp'>) => {
+        const newSession: TestRunSession = {
+            ...session,
+            id: crypto.randomUUID(),
+            timestamp: Date.now()
+        }
+
+        const updatedProjects = get().projects.map(p => {
+            if (p.id === projectId) {
+                // Add to sessions history
+                const testRunSessions = [newSession, ...(p.testRunSessions || [])]
+
+                // Also update the test case status in the plan
+                const testPlans = p.testPlans.map(tp => {
+                    const planExecution = newSession.planExecutions.find(pe => pe.testPlanId === tp.id)
+                    if (planExecution) {
+                        const testCases = tp.testCases.map(tc => {
+                            const caseExec = planExecution.caseExecutions.find(ce => ce.testCaseId === tc.id)
+                            if (caseExec) {
+                                return { ...tc, status: caseExec.result, actualResult: caseExec.actualResult, updatedAt: Date.now() }
+                            }
+                            return tc
+                        })
+                        return { ...tp, testCases, updatedAt: Date.now() }
+                    }
+                    return tp
+                })
+
+                return { ...p, testRunSessions, testPlans }
+            }
+            return p
+        })
+
+        if (window.electronAPI) {
+            await window.electronAPI.writeProjectsFile(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
+    deleteTestRunSession: async (projectId: string, sessionId: string) => {
+        const updatedProjects = get().projects.map(p => {
+            if (p.id === projectId) {
+                const testRunSessions = (p.testRunSessions || []).filter(s => s.id !== sessionId)
+                return { ...p, testRunSessions }
+            }
+            return p
+        })
+        if (window.electronAPI) {
+            await window.electronAPI.writeProjectsFile(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
+    archiveTestRunSession: async (projectId: string, sessionId: string, archive: boolean) => {
+        const updatedProjects = get().projects.map(p => {
+            if (p.id === projectId) {
+                const testRunSessions = (p.testRunSessions || []).map(s =>
+                    s.id === sessionId ? { ...s, isArchived: archive } : s
+                )
+                return { ...p, testRunSessions }
+            }
+            return p
+        })
+        if (window.electronAPI) {
+            await window.electronAPI.writeProjectsFile(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
+    deleteTestCaseExecution: async (projectId: string, sessionId: string, planExecutionId: string, caseExecutionId: string) => {
+        const updatedProjects = get().projects.map(p => {
+            if (p.id === projectId) {
+                const testRunSessions = (p.testRunSessions || []).map(s => {
+                    if (s.id === sessionId) {
+                        const planExecutions = s.planExecutions.map(pe => {
+                            if (pe.id === planExecutionId) {
+                                return {
+                                    ...pe,
+                                    caseExecutions: pe.caseExecutions.filter(ce => ce.id !== caseExecutionId)
+                                }
+                            }
+                            return pe
+                        })
+                        return { ...s, planExecutions }
+                    }
+                    return s
+                })
+                return { ...p, testRunSessions }
+            }
+            return p
+        })
+        if (window.electronAPI) {
+            await window.electronAPI.writeProjectsFile(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
+    deleteLegacyExecution: async (projectId: string, executionId: string) => {
+        const updatedProjects = get().projects.map(p => {
+            if (p.id === projectId) {
+                const testExecutions = (p.testExecutions || []).filter(ex => ex.id !== executionId)
+                return { ...p, testExecutions }
+            }
+            return p
+        })
+        if (window.electronAPI) {
+            await window.electronAPI.writeProjectsFile(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
     clearExecutionHistory: async (projectId: string, testCaseId?: string) => {
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
@@ -958,24 +1156,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set({ activeProjectId: id })
     },
 
-    addTestDataGroup: async (projectId: string, name: string, category: string) => {
+    addTestDataGroup: async (projectId: string, name: string, category: string): Promise<string> => {
         const group: TestDataGroup = { id: crypto.randomUUID(), name, category, entries: [], createdAt: Date.now() }
         const projects = get().projects.map(p => p.id === projectId ? { ...p, testDataGroups: [...(p.testDataGroups || []), group] } : p)
         if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
         set({ projects })
+        return group.id
     },
     deleteTestDataGroup: async (projectId: string, groupId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, testDataGroups: p.testDataGroups.filter(g => g.id !== groupId) } : p)
         if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
         set({ projects })
     },
-    addTestDataEntry: async (projectId: string, groupId: string, data: Partial<TestDataEntry>) => {
-        const entry = { id: crypto.randomUUID(), ...data } as TestDataEntry
+    addTestDataEntry: async (projectId: string, groupId: string, data: Partial<TestDataEntry>): Promise<string> => {
+        const id = crypto.randomUUID()
+        const entry = { id, ...data } as TestDataEntry
         const projects = get().projects.map(p => p.id === projectId ? {
             ...p, testDataGroups: p.testDataGroups.map(g => g.id === groupId ? { ...g, entries: [...g.entries, entry] } : g)
         } : p)
         if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
         set({ projects })
+        return id
     },
     deleteTestDataEntry: async (projectId: string, groupId: string, entryId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? {
@@ -1016,6 +1217,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         } : p)
         if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
         set({ projects })
+        return item.id
     },
     deleteChecklistItem: async (projectId: string, checklistId: string, itemId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? {
@@ -1030,6 +1232,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: [...(p.apiRequests || []), req] } : p)
         if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
         set({ projects })
+        return req.id
     },
     updateApiRequest: async (projectId: string, requestId: string, updates: Partial<ApiRequest>) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: p.apiRequests.map(r => r.id === requestId ? { ...r, ...updates, updatedAt: Date.now() } : r) } : p)
@@ -1038,6 +1241,93 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
     deleteApiRequest: async (projectId: string, requestId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: p.apiRequests.filter(r => r.id !== requestId) } : p)
+        if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
+        set({ projects })
+    },
+
+    addRunbook: async (projectId: string, name: string, category: RunbookCategory) => {
+        const runbook: Runbook = {
+            id: crypto.randomUUID(),
+            name,
+            category,
+            steps: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        }
+        const projects = get().projects.map(p => p.id === projectId ? { ...p, runbooks: [...(p.runbooks || []), runbook] } : p)
+        if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
+        set({ projects })
+        return runbook
+    },
+    updateRunbook: async (projectId: string, runbookId: string, updates: Partial<Runbook>) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            runbooks: (p.runbooks || []).map(r => r.id === runbookId ? { ...r, ...updates, updatedAt: Date.now() } : r)
+        } : p)
+        if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
+        set({ projects })
+    },
+    deleteRunbook: async (projectId: string, runbookId: string) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            runbooks: (p.runbooks || []).filter(r => r.id !== runbookId)
+        } : p)
+        if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
+        set({ projects })
+    },
+    addRunbookStep: async (projectId: string, runbookId: string, title: string) => {
+        const id = crypto.randomUUID()
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            runbooks: (p.runbooks || []).map(r => {
+                if (r.id === runbookId) {
+                    const step: RunbookStep = {
+                        id,
+                        title,
+                        status: 'pending',
+                        order: r.steps.length,
+                        updatedAt: Date.now()
+                    }
+                    return { ...r, steps: [...r.steps, step], updatedAt: Date.now() }
+                }
+                return r
+            })
+        } : p)
+        if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
+        set({ projects })
+        return id
+    },
+    updateRunbookStep: async (projectId: string, runbookId: string, stepId: string, updates: Partial<RunbookStep>) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            runbooks: (p.runbooks || []).map(r => {
+                if (r.id === runbookId) {
+                    return {
+                        ...r,
+                        steps: r.steps.map(s => s.id === stepId ? { ...s, ...updates, updatedAt: Date.now() } : s),
+                        updatedAt: Date.now()
+                    }
+                }
+                return r
+            })
+        } : p)
+        if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
+        set({ projects })
+    },
+    deleteRunbookStep: async (projectId: string, runbookId: string, stepId: string) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            runbooks: (p.runbooks || []).map(r => {
+                if (r.id === runbookId) {
+                    return {
+                        ...r,
+                        steps: r.steps.filter(s => s.id !== stepId),
+                        updatedAt: Date.now()
+                    }
+                }
+                return r
+            })
+        } : p)
         if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
         set({ projects })
     }

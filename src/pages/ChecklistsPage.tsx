@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "../components/ui/progress"
 import { cn } from "@/lib/utils"
+import FormattedText from "@/components/FormattedText"
 import {
     Select,
     SelectContent,
@@ -166,7 +167,7 @@ export default function ChecklistsPage() {
                                         className={cn("h-6 w-6 rounded-lg", item.isChecked && "bg-[#10B981] border-[#10B981] text-[#0F0F13]")}
                                     />
                                     <div className={cn("flex-1 text-sm font-bold transition-all", item.isChecked ? "text-[#6B7280] line-through" : "text-[#E2E8F0]")}>
-                                        {item.text}
+                                        <FormattedText content={item.text} />
                                     </div>
                                     <Button
                                         variant="ghost"

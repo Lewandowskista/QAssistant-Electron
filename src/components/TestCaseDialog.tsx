@@ -12,8 +12,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { FlaskConical, Clipboard, CheckCircle2, XCircle, AlertCircle, Info, Database } from "lucide-react"
+import { FlaskConical, Clipboard, CheckCircle2, XCircle, Info, Database, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
+import FormattedText from "./FormattedText"
 
 interface TestCaseDialogProps {
     open: boolean
@@ -39,6 +40,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
         sapModule: undefined as SapModule | undefined,
         sourceIssueId: ""
     })
+    const [previewField, setPreviewField] = useState<string | null>(null)
 
     useEffect(() => {
         if (editingCase) {
@@ -166,29 +168,63 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                 <Label htmlFor="case-pre" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2">
                                     <Info className="h-3 w-3" /> Pre-conditions
                                 </Label>
-                                <Textarea
-                                    id="case-pre"
-                                    value={form.preConditions}
-                                    onChange={(e) => setForm(f => ({ ...f, preConditions: e.target.value }))}
-                                    placeholder="User session active, cart populated..."
-                                    className="bg-background/50 resize-none min-h-[100px]"
-                                />
+                                <div className="relative group">
+                                    <Textarea
+                                        id="case-pre"
+                                        value={form.preConditions}
+                                        onChange={(e) => setForm(f => ({ ...f, preConditions: e.target.value }))}
+                                        placeholder="User session active, cart populated..."
+                                        className={cn("bg-background/50 resize-none min-h-[100px]", previewField === 'pre' && "hidden")}
+                                    />
+                                    {previewField === 'pre' && (
+                                        <div className="bg-background/50 rounded-md p-3 min-h-[100px] border border-input text-sm">
+                                            <FormattedText content={form.preConditions} />
+                                        </div>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="absolute right-2 top-2 h-7 px-2 text-[10px] font-bold"
+                                        onClick={() => setPreviewField(previewField === 'pre' ? null : 'pre')}
+                                    >
+                                        {previewField === 'pre' ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                                        {previewField === 'pre' ? 'EDITOR' : 'PREVIEW'}
+                                    </Button>
+                                </div>
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="case-data" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2">
                                     <Database className="h-3 w-3" /> Test Data
                                 </Label>
-                                <Textarea
-                                    id="case-data"
-                                    value={form.testData}
-                                    onChange={(e) => setForm(f => ({ ...f, testData: e.target.value }))}
-                                    placeholder="Username: test_qa_01&#10;SKU: 13948..."
-                                    className="bg-background/50 resize-none min-h-[100px]"
-                                />
+                                <div className="relative group">
+                                    <Textarea
+                                        id="case-data"
+                                        value={form.testData}
+                                        onChange={(e) => setForm(f => ({ ...f, testData: e.target.value }))}
+                                        placeholder="Username: test_qa_01&#10;SKU: 13948..."
+                                        className={cn("bg-background/50 resize-none min-h-[100px]", previewField === 'data' && "hidden")}
+                                    />
+                                    {previewField === 'data' && (
+                                        <div className="bg-background/50 rounded-md p-3 min-h-[100px] border border-input text-sm">
+                                            <FormattedText content={form.testData} />
+                                        </div>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="absolute right-2 top-2 h-7 px-2 text-[10px] font-bold"
+                                        onClick={() => setPreviewField(previewField === 'data' ? null : 'data')}
+                                    >
+                                        {previewField === 'data' ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                                        {previewField === 'data' ? 'EDITOR' : 'PREVIEW'}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid gap-2">
+                        <div className="grid gap-2 relative group">
                             <Label htmlFor="case-steps" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2">
                                 <Clipboard className="h-3 w-3" /> Execution Steps
                             </Label>
@@ -197,8 +233,23 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                 value={form.steps}
                                 onChange={(e) => setForm(f => ({ ...f, steps: e.target.value }))}
                                 placeholder="1. Navigate to checkout&#10;2. Apply coupon SUMMER24&#10;3. Verify subtotal..."
-                                className="bg-background/50 min-h-[120px] font-mono text-sm"
+                                className={cn("bg-background/50 min-h-[120px] font-mono text-sm", previewField === 'steps' && "hidden")}
                             />
+                            {previewField === 'steps' && (
+                                <div className="bg-background/50 rounded-md p-3 min-h-[120px] border border-input text-sm">
+                                    <FormattedText content={form.steps} />
+                                </div>
+                            )}
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-2 top-8 h-7 px-2 text-[10px] font-bold"
+                                onClick={() => setPreviewField(previewField === 'steps' ? null : 'steps')}
+                            >
+                                {previewField === 'steps' ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                                {previewField === 'steps' ? 'EDITOR' : 'PREVIEW'}
+                            </Button>
                         </div>
 
                         <div className="grid gap-4 sm:grid-cols-2">

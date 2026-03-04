@@ -4,6 +4,7 @@ import {
     Bug,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import FormattedText from "./FormattedText"
 
 interface TestCaseCardProps {
     plan: TestPlan
@@ -35,13 +36,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
         }
     }
 
-    const renderTextContent = (content: any) => {
-        if (!content) return null;
-        if (typeof content === 'object') {
-            return JSON.stringify(content, null, 2);
-        }
-        return String(content);
-    };
+
 
     return (
         <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-[10px] p-4 flex flex-col gap-3">
@@ -91,31 +86,31 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 {testCase.preConditions && (
                     <div>
                         <div className="text-[10px] font-bold text-[#A78BFA]/70 uppercase tracking-wider mb-1">Pre-conditions</div>
-                        <div className="text-xs text-[#E2E8F0] bg-[#13131A]/50 p-2 rounded whitespace-pre-wrap">{renderTextContent(testCase.preConditions)}</div>
+                        <div className="text-xs text-[#E2E8F0] bg-[#13131A]/50 p-2 rounded whitespace-pre-wrap"><FormattedText content={testCase.preConditions} /></div>
                     </div>
                 )}
                 {testCase.steps && (
                     <div>
                         <div className="text-[10px] font-bold text-[#A78BFA]/70 uppercase tracking-wider mb-1">Test Steps</div>
-                        <div className="text-xs text-[#E2E8F0] bg-[#13131A]/50 p-2 rounded whitespace-pre-wrap font-mono leading-relaxed">{renderTextContent(testCase.steps)}</div>
+                        <div className="text-xs text-[#E2E8F0] bg-[#13131A]/50 p-2 rounded whitespace-pre-wrap leading-relaxed"><FormattedText content={testCase.steps} /></div>
                     </div>
                 )}
                 {testCase.testData && (
                     <div>
                         <div className="text-[10px] font-bold text-[#A78BFA]/70 uppercase tracking-wider mb-1">Test Data</div>
-                        <div className="text-xs text-[#E2E8F0] bg-[#13131A]/50 p-2 rounded whitespace-pre-wrap italic opacity-80">{renderTextContent(testCase.testData)}</div>
+                        <div className="text-xs text-[#E2E8F0] bg-[#13131A]/50 p-2 rounded whitespace-pre-wrap italic opacity-80"><FormattedText content={testCase.testData} /></div>
                     </div>
                 )}
                 {testCase.expectedResult && (
                     <div>
                         <div className="text-[10px] font-bold text-[#A78BFA]/70 uppercase tracking-wider mb-1">Expected Result</div>
-                        <div className="text-xs text-[#10B981] bg-[#10B981]/5 border border-[#10B981]/20 p-2 rounded font-semibold whitespace-pre-wrap">{renderTextContent(testCase.expectedResult)}</div>
+                        <div className="text-xs text-[#10B981] bg-[#10B981]/5 border border-[#10B981]/20 p-2 rounded font-semibold whitespace-pre-wrap"><FormattedText content={testCase.expectedResult} /></div>
                     </div>
                 )}
                 {testCase.actualResult && (
                     <div>
                         <div className="text-[10px] font-bold text-[#A78BFA]/70 uppercase tracking-wider mb-1">Actual Result</div>
-                        <div className="text-xs text-[#E2E8F0] bg-[#13131A]/50 p-2 rounded whitespace-pre-wrap">{renderTextContent(testCase.actualResult)}</div>
+                        <div className="text-xs text-[#E2E8F0] bg-[#13131A]/50 p-2 rounded whitespace-pre-wrap"><FormattedText content={testCase.actualResult} /></div>
                     </div>
                 )}
             </div>

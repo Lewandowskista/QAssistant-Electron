@@ -1,6 +1,7 @@
 import { useState } from "react"
+/* cspell:ignore IMPEX */
 import { useProjectStore } from "@/store/useProjectStore"
-import { Database, Plus, Trash2, Copy, Search, Layout, DatabaseZap, TerminalSquare, Layers, ShieldCheck, Zap, History, ChevronRight, FileJson, Settings2, Trash, Pin, Star, MoreVertical } from "lucide-react"
+import { DatabaseZap, Plus, Trash2, Search, TerminalSquare, Layers, ShieldCheck, Trash } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -11,6 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import FormattedText from "@/components/FormattedText"
 
 type ViewState = 'Groups' | 'ImpEx'
 
@@ -22,7 +24,7 @@ export default function TestDataPage() {
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
     // Mock data groups for parity
-    const [groups, setGroups] = useState([
+    const [groups] = useState([
         { id: '1', name: 'Standard Customers', category: 'Users', entries: 15 },
         { id: '2', name: 'Electronics Storefront Prods', category: 'Products', entries: 42 },
         { id: '3', name: 'Promotion Vouchers - EU', category: 'Promotions', entries: 8 }
@@ -51,6 +53,7 @@ export default function TestDataPage() {
             <aside className="w-[280px] flex-none bg-[#13131A] border-r border-[#2A2A3A] flex flex-col">
                 <div className="p-4 border-b border-[#2A2A3A] space-y-1">
                     <h3 className="text-[10px] font-black text-[#6B7280] uppercase tracking-[0.2em]">{view === 'Groups' ? 'DATA GROUPS' : 'IMPEX TEMPLATES'}</h3>
+                    {/* cspell:ignore IMPEX */}
                     <p className="text-[11px] text-[#6B7280] leading-tight">Reusable test data sets</p>
                 </div>
 
@@ -77,7 +80,9 @@ export default function TestDataPage() {
                                     selectedGroupId === group.id ? "bg-[#1A1A24] border-[#A78BFA]/40 shadow-lg shadow-[#A78BFA]/5" : "bg-transparent border-transparent hover:bg-[#1A1A24]/50"
                                 )}
                             >
-                                <div className="text-xs font-bold text-[#E2E8F0] mb-1 truncate">{group.name}</div>
+                                <div className="text-xs font-bold text-[#E2E8F0] mb-1 truncate">
+                                    <FormattedText content={group.name} />
+                                </div>
                                 <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
                                     <span className="text-[#A78BFA]">{group.category}</span>
                                     <span className="text-[#6B7280]">{group.entries} RECORDS</span>

@@ -40,6 +40,7 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import FormattedText from "@/components/FormattedText"
 
 const COLUMNS: { id: TaskStatus; title: string, color: string, textColor: string }[] = [
     { id: 'backlog', title: 'BACKLOG', color: 'bg-[#9CA3AF]', textColor: 'text-[#9CA3AF]' },
@@ -189,10 +190,31 @@ export default function TasksPage() {
             }
             const result = await api.aiAnalyzeIssue({ apiKey, task: selectedTask, comments: currentComments, project: activeProject })
             setAnalysisResult(result)
-        } catch (e: any) {
-            alert(`Analysis failed: ${e.message}`)
         } finally {
             setIsAnalyzing(false)
+        }
+    }
+
+    const handleGenerateBugReport = async () => {
+        if (!selectedTask || !activeProject) return
+
+        try {
+            const api = window.electronAPI as any
+            const result = await api.generateBugReportTask({
+                task: selectedTask,
+                environment: activeProject.environments.find((e: any) => e.isDefault)?.name || 'N/A',
+                reporter: 'QAssistant User',
+                aiAnalysis: analysisResult || ""
+            })
+
+            if (result.success) {
+                alert(`Bug report generated: ${result.fileName}`)
+                if (result.path) api.openFile(result.path)
+            } else {
+                alert(`Failed to generate bug report: ${result.error}`)
+            }
+        } catch (e: any) {
+            alert(`Error: ${e.message}`)
         }
     }
 
@@ -450,9 +472,9 @@ export default function TasksPage() {
                                 </TabsList>
                                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                     <TabsContent value="description" className="m-0 focus-visible:ring-0">
-                                        <p className="text-sm text-[#E2E8F0] leading-relaxed whitespace-pre-wrap">
-                                            {selectedTask.description || "No description provided."}
-                                        </p>
+                                        <div className="text-sm text-[#E2E8F0] leading-relaxed">
+                                            <FormattedText content={selectedTask.description} />
+                                        </div>
                                     </TabsContent>
                                     <TabsContent value="details" className="m-0 focus-visible:ring-0 space-y-6">
                                         <div className="space-y-4">
@@ -485,7 +507,7 @@ export default function TasksPage() {
                                                             <span className="text-[10px] font-bold text-[#A78BFA]">{c.authorName}</span>
                                                             <span className="text-[9px] text-[#6B7280]">{new Date(c.createdAt).toLocaleString()}</span>
                                                         </div>
-                                                        <p className="text-xs text-[#E2E8F0] leading-relaxed whitespace-pre-wrap">{c.body}</p>
+                                                        <div className="text-xs text-[#E2E8F0] leading-relaxed"><FormattedText content={c.body} /></div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -562,8 +584,8 @@ export default function TasksPage() {
 
                             <div className="flex-none p-5 border-t border-[#2A2A3A] bg-[#0F0F13] space-y-2">
                                 {analysisResult ? (
-                                    <div className="mb-3 bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-4 text-xs text-[#C4B5FD] leading-relaxed max-h-[200px] overflow-y-auto custom-scrollbar whitespace-pre-wrap">
-                                        {analysisResult}
+                                    <div className="mb-3 bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-4 text-xs text-[#C4B5FD] leading-relaxed max-h-[200px] overflow-y-auto custom-scrollbar">
+                                        <FormattedText content={analysisResult} />
                                     </div>
                                 ) : null}
                                 <Button
@@ -574,7 +596,10 @@ export default function TasksPage() {
                                     {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
                                     {isAnalyzing ? 'Analyzing...' : 'ANALYZE ISSUE'}
                                 </Button>
-                                <Button className="w-full h-10 bg-[#1E2A1E] hover:bg-[#2A3A2A] text-[#10B981] border border-[#10B981]/20 font-bold gap-2">
+                                <Button
+                                    className="w-full h-10 bg-[#1E2A1E] hover:bg-[#2A3A2A] text-[#10B981] border border-[#10B981]/20 font-bold gap-2"
+                                    onClick={handleGenerateBugReport}
+                                >
                                     <Target className="h-4 w-4" /> GENERATE BUG REPORT
                                 </Button>
                                 <div className="grid grid-cols-2 gap-2 pt-2">

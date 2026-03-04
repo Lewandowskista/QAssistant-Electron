@@ -243,10 +243,10 @@ export default function EnvironmentsPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Backoffice</Label>
+                                        <Label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Back Office</Label>
                                         <Input
-                                            value={localEnv.backofficeUrl}
-                                            onChange={e => setLocalEnv({ ...localEnv, backofficeUrl: e.target.value })}
+                                            value={localEnv.backOfficeUrl}
+                                            onChange={e => setLocalEnv({ ...localEnv, backOfficeUrl: e.target.value })}
                                             className="h-10 bg-[#13131A] border-[#2A2A3A] text-[#E2E8F0] text-xs"
                                         />
                                     </div>

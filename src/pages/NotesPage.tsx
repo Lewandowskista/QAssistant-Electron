@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "../components/ui/progress"
 import { format } from "date-fns"
+import FormattedText from "@/components/FormattedText"
 
 type SidebarTab = 'Notes' | 'Runbooks'
 
@@ -22,6 +23,7 @@ export default function NotesPage() {
     const [activeTab, setActiveTab] = useState<SidebarTab>('Notes')
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
     const [isEditing, setIsEditing] = useState(false)
+    const [isPreview, setIsPreview] = useState(false)
 
     const selectedNote = notes.find(n => n.id === selectedItemId)
     const selectedRunbook = runbooks.find(r => r.id === selectedItemId)
@@ -141,6 +143,15 @@ export default function NotesPage() {
                                 className="bg-transparent border-none text-2xl font-black text-[#E2E8F0] focus-visible:ring-0 px-0 h-auto"
                             />
                             <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsPreview(!isPreview)}
+                                    className={cn("h-9 border-[#2A2A3A] text-xs font-black uppercase tracking-widest px-4 transition-all",
+                                        isPreview ? "bg-[#A78BFA] text-[#0F0F13] border-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}
+                                >
+                                    {isPreview ? 'EDITOR' : 'PREVIEW'}
+                                </Button>
                                 <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-[#EF4444] hover:bg-[#EF4444]/10">
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -148,11 +159,17 @@ export default function NotesPage() {
                             </div>
                         </header>
                         <div className="flex-1 flex overflow-hidden">
-                            <textarea
-                                className="flex-1 p-8 bg-transparent text-[#E2E8F0] font-sans text-base leading-relaxed resize-none focus:outline-none custom-scrollbar"
-                                value={selectedNote.content}
-                                placeholder="Start documenting..."
-                            />
+                            {isPreview ? (
+                                <div className="flex-1 p-8 bg-transparent overflow-y-auto custom-scrollbar">
+                                    <FormattedText content={selectedNote.content} />
+                                </div>
+                            ) : (
+                                <textarea
+                                    className="flex-1 p-8 bg-transparent text-[#E2E8F0] font-sans text-base leading-relaxed resize-none focus:outline-none custom-scrollbar"
+                                    value={selectedNote.content}
+                                    placeholder="Start documenting..."
+                                />
+                            )}
                             <aside className="w-64 border-l border-[#2A2A3A] bg-[#13131A]/30 flex flex-col">
                                 <div className="p-4 border-b border-[#2A2A3A] flex items-center justify-between">
                                     <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Attachments</span>

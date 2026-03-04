@@ -3,7 +3,6 @@ import {
     LayoutDashboard,
     CheckSquare,
     Target,
-    Activity,
     AlertOctagon,
     Clock,
     Folder,
@@ -13,6 +12,7 @@ import {
     ListChecks
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import FormattedText from "@/components/FormattedText"
 // import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 
@@ -200,7 +200,9 @@ export default function DashboardPage() {
                                 const dueLabel = daysLeft === 0 ? "Today" : daysLeft === 1 ? "Tomorrow" : `in ${daysLeft} days`
                                 return (
                                     <div key={t.id} className="flex items-center justify-between group">
-                                        <span className="text-xs font-medium text-[#E2E8F0] truncate flex-1 group-hover:text-[#A78BFA] transition-colors">{t.title}</span>
+                                        <span className="text-xs font-medium text-[#E2E8F0] truncate flex-1 group-hover:text-[#A78BFA] transition-colors">
+                                            <FormattedText content={t.title} />
+                                        </span>
                                         <span className={cn(
                                             "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
                                             daysLeft <= 1 ? "text-[#EF4444]" : "text-[#10B981]"
@@ -233,7 +235,9 @@ export default function DashboardPage() {
                                         <Folder className="h-5 w-5 text-[#A78BFA]" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold text-[#E2E8F0] truncate">{plan.name}</p>
+                                        <div className="text-xs font-bold text-[#E2E8F0] truncate">
+                                            <FormattedText content={plan.name} />
+                                        </div>
                                         <p className="text-[10px] text-[#6B7280] font-bold uppercase tracking-wider">{cases.length} Cases • {planPassRate}% Pass</p>
                                     </div>
                                     <div className="shrink-0 text-right">
@@ -255,7 +259,9 @@ export default function DashboardPage() {
                             {notes.length > 0 ? notes.map(note => (
                                 <div key={note.id} className="flex items-center gap-2 group cursor-pointer">
                                     <FileText className="h-3 w-3 text-[#A78BFA]" />
-                                    <span className="text-xs text-[#6B7280] group-hover:text-[#E2E8F0] truncate transition-colors">{note.title}</span>
+                                    <span className="text-xs text-[#6B7280] group-hover:text-[#E2E8F0] truncate transition-colors">
+                                        <FormattedText content={note.title} />
+                                    </span>
                                 </div>
                             )) : (
                                 <p className="text-[11px] text-[#6B7280] italic">No notes found.</p>
@@ -268,7 +274,9 @@ export default function DashboardPage() {
                             {checklists.length > 0 ? checklists.map(checklist => (
                                 <div key={checklist.id} className="flex items-center gap-2 group cursor-pointer">
                                     <ListChecks className="h-3 w-3 text-[#10B981]" />
-                                    <span className="text-xs text-[#6B7280] group-hover:text-[#E2E8F0] truncate transition-colors font-semibold">{checklist.name}</span>
+                                    <span className="text-xs text-[#6B7280] group-hover:text-[#E2E8F0] truncate transition-colors font-semibold">
+                                        <FormattedText content={checklist.name} />
+                                    </span>
                                 </div>
                             )) : (
                                 <p className="text-[11px] text-[#6B7280] italic">No active runbooks detected.</p>

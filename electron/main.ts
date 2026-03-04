@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, Tray, Menu, globalShortcut, Notification, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Tray, Menu, globalShortcut, Notification, dialog, safeStorage } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -138,11 +138,18 @@ function setupIpc() {
     // ── Credentials store ──────────────────────────────────────────────────
     ipcMain.handle('secure-store-set', async (_: any, key: string, value: string) => {
         try {
+            if (!safeStorage.isEncryptionAvailable()) {
+                return { success: false, error: 'Encryption is not available on this system.' };
+            }
+
             let credentials: Record<string, string> = {};
             if (fs.existsSync(CREDENTIALS_FILE)) {
                 credentials = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
             }
-            credentials[key] = value;
+
+            const encrypted = safeStorage.encryptString(value);
+            credentials[key] = encrypted.toString('hex');
+
             fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2));
             return { success: true };
         } catch (err: any) {
@@ -154,7 +161,23 @@ function setupIpc() {
         try {
             if (!fs.existsSync(CREDENTIALS_FILE)) return null;
             const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
-            return credentials[key] || null;
+            const encryptedValue = credentials[key];
+            if (!encryptedValue) return null;
+
+            if (!safeStorage.isEncryptionAvailable()) {
+                console.error("Encryption not available, cannot decrypt credential.");
+                return null;
+            }
+
+            try {
+                const buffer = Buffer.from(encryptedValue, 'hex');
+                return safeStorage.decryptString(buffer);
+            } catch (e) {
+                // Fallback: if decryption fails, maybe it's still plaintext from old version
+                // We return null to force re-entry or handle gracefully in UI
+                console.error(`Decryption failed for key ${key}:`, e);
+                return null;
+            }
         } catch {
             return null;
         }
