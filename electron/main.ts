@@ -1,7 +1,63 @@
 import { app, BrowserWindow, ipcMain, shell, Tray, Menu, globalShortcut, Notification, dialog, safeStorage } from 'electron';
+import { saveFile, saveBytes, deleteFile, openFile, initFileStorage } from './fileStorage';
+import { SapHacService } from './sapHac';
+import type { FlexibleSearchResult, ImpExResult } from './sapHac';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
+
+// ── Chromium disk-cache suppression ───────────────────────────────────────────
+// Root cause of "Unable to move the cache: Access is denied" on Windows:
+//   Hot-reload kills the main process but lingering GPU/network sub-processes
+//   still hold file handles.  Windows marks those directories "pending delete" —
+//   rmSync succeeds without error yet the path still exists.  Chromium's
+//   MoveCache() then sees the old path, tries to migrate it, and gets 0x5.
+// Fix: give every run its own fresh subdirectory in %TEMP%.  A path that never
+//   existed before skips MoveCache entirely.  Previous-run dirs are cleaned up
+//   at startup (they are no longer locked by then).
+// Make the run id highly unlikely to collide across quick restarts by
+// incorporating the pid and a random component.
+const _cacheRunId = `${Date.now().toString(36)}-${process.pid}-${Math.floor(Math.random() * 0x100000).toString(36)}`;
+const _chromiumCacheRoot = path.join(os.tmpdir(), 'qassistant-chrome-cache');
+const _runCacheDir = path.join(_chromiumCacheRoot, _cacheRunId);
+
+// Ensure the cache root exists before Chromium starts. IMPORTANT: do NOT
+// pre-create the per-run cache directory `_runCacheDir`. Chromium's MoveCache
+// logic will attempt to migrate an existing userData cache into the
+// `--disk-cache-dir` path — if that target path already exists and is locked
+// it can trigger "Access is denied". By ensuring the *run* directory does
+// NOT exist (but the root does), we avoid MoveCache and let Chromium create
+// the run directory itself.
+try {
+    if (!fs.existsSync(_chromiumCacheRoot)) fs.mkdirSync(_chromiumCacheRoot, { recursive: true });
+    // Intentionally do not create `_runCacheDir` here.
+} catch (e) {
+    try { console.warn('Could not prepare Chromium cache root directory:', e); } catch { /* ignore */ }
+}
+
+// Try to proactively remove any leftover per-run cache dirs from previous
+// runs before Chromium starts. If some directories are still locked this
+// will throw or silently fail; that's acceptable — the goal is to reduce the
+// chance that Chromium's MoveCache sees an existing target directory.
+try {
+    if (fs.existsSync(_chromiumCacheRoot)) {
+        for (const entry of fs.readdirSync(_chromiumCacheRoot)) {
+            const p = path.join(_chromiumCacheRoot, entry);
+            if (entry === _cacheRunId) continue;
+            try { fs.rmSync(p, { recursive: true, force: true }); } catch { /* ignore */ }
+        }
+    }
+} catch { /* ignore */ }
+
+// All switches must be set before app.whenReady().
+app.commandLine.appendSwitch('disk-cache-dir', _runCacheDir);        // HTTP/network cache → unique temp path
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');        // GPU shader / program cache
+app.commandLine.appendSwitch('disable-cache');                        // Network response cache
+app.commandLine.appendSwitch('disable-application-cache');            // HTML5 application cache
+app.commandLine.appendSwitch('media-cache-size', '0');                // Media disk cache
+app.commandLine.appendSwitch('disable-background-networking');        // Background network requests
+app.commandLine.appendSwitch('disable-features', 'JsCodeCache');     // V8 bytecode / code cache
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,22 +74,14 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 
-// Blocked file extensions (mirrors C# FileStorageService.cs)
-const BLOCKED_EXTENSIONS = new Set([
-    '.exe', '.bat', '.cmd', '.com', '.msi', '.ps1', '.psm1', '.psd1',
-    '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.scr', '.pif',
-    '.application', '.gadget', '.msp', '.mst', '.jar', '.reg', '.inf',
-    '.lnk', '.url', '.sh', '.bash', '.zsh', '.fish', '.ksh',
-    '.elf', '.bin', '.dmg', '.pkg', '.deb', '.rpm', '.apk',
-    '.dll', '.so', '.dylib', '.sys', '.drv',
-]);
-
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1300,
         height: 900,
         minWidth: 900,
         minHeight: 600,
+        show: false,
+        backgroundColor: '#0F0F13',
         titleBarStyle: 'hidden',
         vibrancy: 'under-window',
         visualEffectState: 'active',
@@ -51,6 +99,12 @@ function createWindow() {
     } else {
         mainWindow?.loadFile(path.join(__dirname, '../renderer/index.html'));
     }
+
+    // Show window only once content is painted — eliminates the white-screen flash
+    mainWindow?.once('ready-to-show', () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+    });
 
     mainWindow?.on('maximize', () => {
         mainWindow?.webContents.send('window-maximized-status', true);
@@ -223,52 +277,22 @@ function setupIpc() {
     });
 
     ipcMain.handle('copy-to-attachments', async (_: any, sourcePath: string) => {
-        try {
-            if (!fs.existsSync(sourcePath)) {
-                return { success: false, error: 'Source file does not exist.' };
-            }
+        // delegate to shared fileStorage service
+        return await saveFile(sourcePath);
+    });
 
-            const ext = path.extname(sourcePath).toLowerCase();
-            if (BLOCKED_EXTENSIONS.has(ext)) {
-                return { success: false, error: `File type '${ext}' is not allowed for security reasons.` };
-            }
-
-            const fileName = `${Date.now()}-${path.basename(sourcePath)}`;
-            const destPath = path.join(ATTACHMENTS_DIR, fileName);
-
-            // Check file size (max 50MB)
-            const stats = fs.statSync(sourcePath);
-            if (stats.size > 50 * 1024 * 1024) {
-                return { success: false, error: 'File size exceeds 50MB limit.' };
-            }
-
-            fs.copyFileSync(sourcePath, destPath);
-            return { success: true, path: destPath, fileName };
-        } catch (err: any) {
-            return { success: false, error: err.message };
-        }
+    ipcMain.handle('save-bytes-attachment', async (_: any, { bytes, fileName }: { bytes: Uint8Array; fileName: string }) => {
+        // convert Uint8Array to Buffer for fs
+        const buf = Buffer.from(bytes);
+        return await saveBytes(buf, fileName);
     });
 
     ipcMain.handle('delete-attachment', async (_: any, filePath: string) => {
-        try {
-            // Only allow deletion of files within the attachments directory
-            if (!filePath.startsWith(ATTACHMENTS_DIR)) {
-                return { success: false, error: 'Access denied: path is outside attachments directory.' };
-            }
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            return { success: true };
-        } catch (err: any) {
-            return { success: false, error: err.message };
-        }
+        return deleteFile(filePath);
     });
 
     ipcMain.handle('open-file', async (_: any, filePath: string) => {
-        try {
-            await shell.openPath(filePath);
-            return { success: true };
-        } catch (err: any) {
-            return { success: false, error: err.message };
-        }
+        return openFile(filePath);
     });
 
     ipcMain.handle('open-url', async (_: any, url: string) => {
@@ -400,6 +424,51 @@ function setupIpc() {
             const res = await fetch(url, fetchOpts);
             const text = await res.text();
             return { success: true, status: res.status, body: text, headers: Object.fromEntries(res.headers.entries()) };
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // high-level SAP HAC operations
+    const sapServiceMap: Record<string, SapHacService> = {};
+
+    ipcMain.handle('sap-hac-login', async (_: any, { baseUrl, username, password, ignoreSsl }: any) => {
+        try {
+            const key = baseUrl;
+            if (!sapServiceMap[key]) sapServiceMap[key] = new SapHacService(baseUrl);
+            const svc = sapServiceMap[key];
+            const ok = await svc.login(username, password);
+            return { success: ok };
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    });
+    ipcMain.handle('sap-hac-cronjobs', async (_: any, { baseUrl }: any) => {
+        try {
+            const svc = sapServiceMap[baseUrl];
+            if (!svc) throw new Error('Not logged in');
+            const data = await svc.getCronJobs();
+            return { success: true, data };
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    });
+    ipcMain.handle('sap-hac-flexsearch', async (_: any, { baseUrl, query, max }: any) => {
+        try {
+            const svc = sapServiceMap[baseUrl];
+            if (!svc) throw new Error('Not logged in');
+            const result: FlexibleSearchResult = await svc.runFlexibleSearch(query, max || 100);
+            return { success: true, result };
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    });
+    ipcMain.handle('sap-hac-impex', async (_: any, { baseUrl, script, enableCodeExecution }: any) => {
+        try {
+            const svc = sapServiceMap[baseUrl];
+            if (!svc) throw new Error('Not logged in');
+            const res: ImpExResult = await svc.importImpEx(script, !!enableCodeExecution);
+            return { success: true, result: res };
         } catch (err: any) {
             return { success: false, error: err.message };
         }
@@ -653,8 +722,32 @@ app.whenReady().then(() => {
     ATTACHMENTS_DIR = path.join(APP_DATA_DIR, 'attachments');
     SETTINGS_FILE = path.join(APP_DATA_DIR, 'settings.json');
 
+    // ── Chromium cache cleanup ─────────────────────────────────────────────
+    // 1. Remove temp cache dirs from previous runs (they are no longer locked).
+    try {
+        if (fs.existsSync(_chromiumCacheRoot)) {
+            for (const entry of fs.readdirSync(_chromiumCacheRoot)) {
+                if (entry !== _cacheRunId) {
+                    try { fs.rmSync(path.join(_chromiumCacheRoot, entry), { recursive: true, force: true }); } catch { /* ignore */ }
+                }
+            }
+        }
+    } catch { /* ignore */ }
+
+    // 2. Remove userData-based caches (GPU/Dawn/Code/Network) that are not
+    //    controlled by --disk-cache-dir.  These can only be locked by a previous
+    //    run; by the time app.whenReady() fires, those processes have exited.
+    const userData = app.getPath('userData');
+    for (const dir of ['Cache', 'Code Cache', 'GPUCache', 'ShaderCache', 'DawnCache', 'Network']) {
+        const p = path.join(userData, dir);
+        if (fs.existsSync(p)) {
+            try { fs.rmSync(p, { recursive: true, force: true }); } catch { /* ignore if still locked */ }
+        }
+    }
+
     if (!fs.existsSync(APP_DATA_DIR)) fs.mkdirSync(APP_DATA_DIR, { recursive: true });
     if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
+    initFileStorage(ATTACHMENTS_DIR);
 
     setupIpc();
     createWindow();
@@ -675,6 +768,15 @@ app.whenReady().then(() => {
         startServer(apiToken, port);
     }).catch(console.error);
 
+    // Ensure the Automation API port is released when the process exits.
+    // 'before-quit' fires before windows close; 'will-quit' fires after all
+    // windows are destroyed — using both covers every exit path (normal quit,
+    // Tray quit, SIGTERM from dev runner, etc.).
+    app.once('before-quit', async () => {
+        const { stopServer } = await import('./server.js');
+        stopServer();
+    });
+
     import('./reminders.js').then(({ startReminderService }) => {
         startReminderService(PROJECTS_FILE);
     }).catch(console.error);
@@ -692,4 +794,6 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
     globalShortcut.unregisterAll();
+    // Belt-and-suspenders: also stop the server here in case before-quit was skipped
+    import('./server.js').then(({ stopServer }) => stopServer()).catch(() => {});
 });
