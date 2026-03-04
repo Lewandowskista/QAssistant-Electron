@@ -7,31 +7,67 @@ import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
 export default function FilesPage() {
-    const { projects, activeProjectId } = useProjectStore()
+    const { projects, activeProjectId, addProjectFile, deleteProjectFile } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
+    const api = (window as any).electronAPI
     const [searchQuery, setSearchQuery] = useState("")
     const [isDragging, setIsDragging] = useState(false)
 
-    // Mocking project-wide files based on notes/tasks attachments
+    // Combine project files and note attachments
     const allFiles: Attachment[] = []
+    activeProject?.files.forEach(f => allFiles.push(f))
     activeProject?.notes.forEach(n => allFiles.push(...n.attachments))
-    activeProject?.tasks.forEach(t => {
-        // Assuming tasks might have files in a real scenario
-    })
 
     const filtered = allFiles.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
     const handleBrowse = async () => {
-        if (!window.electronAPI) return
-        const path = await window.electronAPI.selectFile()
-        if (path) {
-            // In a real app, we'd copy this to a project-specific attachments folder
-            console.log("Selected file:", path)
+        if (!window.electronAPI || !activeProjectId) return
+        const sourcePath = await window.electronAPI.selectFile()
+        if (sourcePath) {
+            const res = await window.electronAPI.copyToAttachments(sourcePath)
+            if (res.success && res.attachment) {
+                const newFile: Attachment = {
+                    id: crypto.randomUUID(),
+                    name: res.attachment.fileName,
+                    path: res.attachment.filePath,
+                    mimeType: res.attachment.mimeType,
+                    sizeBytes: res.attachment.fileSizeBytes
+                }
+                await addProjectFile(activeProjectId, newFile)
+            } else {
+                alert(res.error || 'Failed to copy file')
+            }
         }
     }
 
     const handlePaste = async () => {
-        console.log("Pasting screenshot...")
+        if (!window.electronAPI || !activeProjectId) return
+        try {
+            const clipboard = await navigator.clipboard.read();
+            for (const item of clipboard) {
+                if (item.types.includes('image/png')) {
+                    const blob = await item.getType('image/png');
+                    const arrayBuffer = await blob.arrayBuffer();
+                    const bytes = new Uint8Array(arrayBuffer);
+                    const fileName = `screenshot-${Date.now()}.png`;
+                    const res = await window.electronAPI.saveBytesAttachment(bytes, fileName);
+                    if (res.success && res.attachment) {
+                        const newFile: Attachment = {
+                            id: crypto.randomUUID(),
+                            name: res.attachment.fileName,
+                            path: res.attachment.filePath,
+                            mimeType: res.attachment.mimeType,
+                            sizeBytes: res.attachment.fileSizeBytes
+                        }
+                        await addProjectFile(activeProjectId, newFile);
+                    }
+                    return;
+                }
+            }
+            alert('No image in clipboard');
+        } catch (e: any) {
+            console.error('Paste failed', e);
+        }
     }
 
     if (!activeProject) {
@@ -96,14 +132,21 @@ export default function FilesPage() {
                                     <div className="w-12 h-12 rounded-xl bg-[#1A1A24] flex items-center justify-center mb-3 text-[#A78BFA]">
                                         {file.name.match(/\.(jpg|jpeg|png|gif)$/i) ? <LucideImage className="h-6 w-6" /> : <File className="h-6 w-6" />}
                                     </div>
-                                    <div className="text-xs font-bold text-[#E2E8F0] truncate w-full mb-1">{file.name}</div>
-                                    <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest">2.4 MB • KB-892</div>
+                                    <div className="text-xs font-bold text-[#E2E8F0] truncate w-full mb-1" onClick={() => api.openFile(file.path)}>{file.name}</div>
+                                    <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest">
+                                        {file.sizeBytes ? `${(file.sizeBytes/1024/1024).toFixed(1)} MB` : ''}
+                                    </div>
                                 </div>
                                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
-                                    <button className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#A78BFA] border border-[#2A2A3A] hover:border-[#A78BFA]/30">
+                                    <button onClick={() => api.openFile(file.path)} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#A78BFA] border border-[#2A2A3A] hover:border-[#A78BFA]/30">
                                         <ExternalLink className="h-3 w-3" />
                                     </button>
-                                    <button className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#EF4444] border border-[#2A2A3A] hover:border-[#EF4444]/30">
+                                    <button onClick={async () => {
+                                        if (!activeProjectId) return;
+                                        // remove from project.files if present
+                                        await deleteProjectFile(activeProjectId, file.id);
+                                        api.deleteAttachment(file.path);
+                                    }} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#EF4444] border border-[#2A2A3A] hover:border-[#EF4444]/30">
                                         <Trash2 className="h-3 w-3" />
                                     </button>
                                 </div>

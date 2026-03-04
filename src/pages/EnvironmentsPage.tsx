@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react"
 import { useProjectStore, QaEnvironment, EnvironmentType } from "@/store/useProjectStore"
+
+// Health entry shape returned from IPC
+interface HealthEntry {
+    status: 'unknown' | 'healthy' | 'unhealthy';
+    lastChecked: string;
+    latencyMs?: number;
+}
 import { Plus, Trash2, Save, Activity, Server, ShieldCheck, Globe, Database, Layout, Key, StickyNote, Star, Bug, Monitor, Lock, Unlock } from "lucide-react"
 import { BugReportDialog } from "@/components/BugReportDialog"
 import { cn } from "@/lib/utils"
@@ -31,7 +38,7 @@ export default function EnvironmentsPage() {
 
     const [selectedEnvId, setSelectedEnvId] = useState<string | null>(environments.length > 0 ? (environments.find(e => e.isDefault)?.id || environments[0].id) : null)
     const [localEnv, setLocalEnv] = useState<QaEnvironment | null>(null)
-    const [healthStatuses, setHealthStatuses] = useState<Record<string, 'healthy' | 'unhealthy' | 'unknown'>>({})
+    const [healthStatuses, setHealthStatuses] = useState<Record<string, HealthEntry>>({})
     const [bugDialogOpen, setBugDialogOpen] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
 
@@ -66,14 +73,26 @@ export default function EnvironmentsPage() {
         }
     }
 
-    const handleCheckAll = () => {
-        // Mock health check for now, in a real app this would trigger IPC
-        setHealthStatuses(prev => {
-            const next = { ...prev }
-            environments.forEach(e => next[e.id] = Math.random() > 0.1 ? 'healthy' : 'unhealthy')
-            return next
-        })
+    const handleCheckAll = async () => {
+        if (!environments || environments.length === 0) return;
+        try {
+            const result: Record<string, HealthEntry> = await api.checkEnvironmentsHealth(environments);
+            setHealthStatuses(result);
+        } catch (e: any) {
+            console.error('Health check failed', e);
+        }
     }
+
+    // automatically start the periodic health service when env list changes
+    useEffect(() => {
+        if (environments && environments.length > 0) {
+            api.startHealthService(environments, 30000);
+            handleCheckAll();
+        }
+        return () => {
+            api.stopHealthService();
+        };
+    }, [environments]);
 
     if (!activeProject) {
         return (
@@ -117,10 +136,16 @@ export default function EnvironmentsPage() {
                                     {env.isDefault && <Star className="h-3 w-3 fill-[#F59E0B] text-[#F59E0B] flex-none" />}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                    <div className={cn("w-2 h-2 rounded-full",
-                                        healthStatuses[env.id] === 'healthy' ? "bg-[#10B981]" :
-                                            healthStatuses[env.id] === 'unhealthy' ? "bg-[#EF4444]" : "bg-[#6B7280]"
-                                    )} />
+                                    <div
+                                        title={
+                                            healthStatuses[env.id]
+                                                ? `Last checked: ${healthStatuses[env.id].lastChecked}${healthStatuses[env.id].latencyMs != null ? ` (~${healthStatuses[env.id].latencyMs}ms)` : ''}`
+                                                : ''
+                                        }
+                                        className={cn("w-2 h-2 rounded-full",
+                                            healthStatuses[env.id]?.status === 'healthy' ? "bg-[#10B981]" :
+                                            healthStatuses[env.id]?.status === 'unhealthy' ? "bg-[#EF4444]" : "bg-[#6B7280]"
+                                        )} />
                                     <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">
                                         {ENV_TYPES.find(t => t.id === env.type)?.label || 'Custom'}
                                     </span>

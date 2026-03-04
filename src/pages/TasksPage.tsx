@@ -104,11 +104,12 @@ export default function TasksPage() {
         if (!activeProjectId || !activeProject) return
         setIsSyncing(true)
         try {
+            const prefix = activeProject ? `project:${activeProject.id}:` : ''
             if (sourceMode === 'linear') {
                 const conns = activeProject.linearConnections || []
                 if (conns.length === 0) {
                     // Try legacy global key
-                    const apiKey = await api.secureStoreGet('linear_api_key')
+                    const apiKey = await api.secureStoreGet(`${prefix}linear_api_key`) || await api.secureStoreGet('linear_api_key')
                     if (!apiKey) { alert('Please set your Linear API key in Settings.'); return }
                     const tasks = await api.syncLinear({ apiKey, teamKey: '' })
                     const existing = activeProject.tasks || []
@@ -118,7 +119,7 @@ export default function TasksPage() {
                 } else {
                     let allSyncedTasks: any[] = []
                     for (const conn of conns) {
-                        const apiKey = await api.secureStoreGet(`linear_api_key_${conn.id}`)
+                        const apiKey = await api.secureStoreGet(`${prefix}linear_api_key_${conn.id}`) || await api.secureStoreGet(`linear_api_key_${conn.id}`)
                         if (apiKey) {
                             const tasks = await api.syncLinear({ apiKey, teamKey: conn.teamId, connectionId: conn.id })
                             allSyncedTasks = [...allSyncedTasks, ...tasks]
@@ -133,9 +134,9 @@ export default function TasksPage() {
             } else if (sourceMode === 'jira') {
                 const conns = activeProject.jiraConnections || []
                 if (conns.length === 0) {
-                    const domain = await api.secureStoreGet('jira_domain') || ''
-                    const email = await api.secureStoreGet('jira_email') || ''
-                    const apiKey = await api.secureStoreGet('jira_api_key')
+                    const domain = await api.secureStoreGet(`${prefix}jira_domain`) || await api.secureStoreGet('jira_domain') || ''
+                    const email = await api.secureStoreGet(`${prefix}jira_email`) || await api.secureStoreGet('jira_email') || ''
+                    const apiKey = await api.secureStoreGet(`${prefix}jira_api_key`) || await api.secureStoreGet('jira_api_key')
                     if (!domain || !email || !apiKey) { alert('Please configure Jira credentials in Settings.'); return }
                     const tasks = await api.syncJira({ domain, email, apiKey, projectKey: '' })
                     const existing = activeProject.tasks || []
@@ -145,7 +146,7 @@ export default function TasksPage() {
                 } else {
                     let allSyncedTasks: any[] = []
                     for (const conn of conns) {
-                        const apiKey = await api.secureStoreGet(`jira_api_token_${conn.id}`)
+                        const apiKey = await api.secureStoreGet(`${prefix}jira_api_token_${conn.id}`) || await api.secureStoreGet(`jira_api_token_${conn.id}`)
                         if (apiKey) {
                             const tasks = await api.syncJira({ domain: conn.domain, email: conn.email, apiKey, projectKey: conn.projectKey, connectionId: conn.id })
                             allSyncedTasks = [...allSyncedTasks, ...tasks]
@@ -167,7 +168,8 @@ export default function TasksPage() {
 
     const handleAnalyzeIssue = async () => {
         if (!selectedTask || !activeProject) return
-        const apiKey = await api.secureStoreGet('gemini_api_key')
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        const apiKey = await api.secureStoreGet(`${prefix}gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
         if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
 
         setIsAnalyzing(true)
@@ -177,13 +179,13 @@ export default function TasksPage() {
             let currentComments: any[] = []
             const connId = selectedTask.connectionId
             if (selectedTask.externalId && selectedTask.source === 'linear') {
-                const key = await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
+                const key = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
                 if (key) {
                     try { currentComments = await api.getLinearComments({ apiKey: key, issueId: selectedTask.externalId }) } catch { /* ignore */ }
                 }
             } else if (selectedTask.externalId && selectedTask.source === 'jira') {
                 const conn = activeProject?.jiraConnections.find(c => c.id === connId)
-                const key = await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
+                const key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
                 if (conn && key) {
                     try { currentComments = await api.getJiraComments({ domain: conn.domain, email: conn.email, apiKey: key, issueKey: selectedTask.sourceIssueId }) } catch { /* ignore */ }
                 }
@@ -223,22 +225,23 @@ export default function TasksPage() {
         setIsLoadingTab(true)
         try {
             const connId = selectedTask.connectionId
+            const prefix = activeProject ? `project:${activeProject.id}:` : ''
             if (tab === 'comments') {
                 if (selectedTask.source === 'linear') {
-                    const key = await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
+                    const key = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${conn.id}` : 'linear_api_key')
                     if (key) setComments(await api.getLinearComments({ apiKey: key, issueId: selectedTask.externalId }))
                 } else if (selectedTask.source === 'jira') {
                     const conn = activeProject?.jiraConnections.find(c => c.id === connId)
-                    const key = await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
+                    const key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
                     if (conn && key) setComments(await api.getJiraComments({ domain: conn.domain, email: conn.email, apiKey: key, issueKey: selectedTask.sourceIssueId }))
                 }
             } else if (tab === 'worklog') {
                 if (selectedTask.source === 'linear') {
-                    const key = await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
+                    const key = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
                     if (key) setWorklog(await api.getLinearHistory({ apiKey: key, issueId: selectedTask.externalId }))
                 } else if (selectedTask.source === 'jira') {
                     const conn = activeProject?.jiraConnections.find(c => c.id === connId)
-                    const key = await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
+                    const key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
                     if (conn && key) setWorklog(await api.getJiraHistory({ domain: conn.domain, email: conn.email, apiKey: key, issueKey: selectedTask.sourceIssueId }))
                 }
             } else if (tab === 'history') {
@@ -257,7 +260,8 @@ export default function TasksPage() {
         const connId = selectedTask.connectionId
         try {
             if (selectedTask.source === 'linear') {
-                const key = await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
+                const prefix = activeProject ? `project:${activeProject.id}:` : ''
+                const key = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
                 if (key) {
                     await api.addLinearComment({ apiKey: key, issueId: selectedTask.externalId, body: newComment })
                     setNewComment("")
@@ -265,7 +269,8 @@ export default function TasksPage() {
                 }
             } else if (selectedTask.source === 'jira') {
                 const conn = activeProject?.jiraConnections.find(c => c.id === connId)
-                const key = await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
+                const prefix = activeProject ? `project:${activeProject.id}:` : ''
+                const key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
                 if (conn && key) {
                     await api.addJiraComment({ domain: conn.domain, email: conn.email, apiKey: key, issueKey: selectedTask.sourceIssueId, body: newComment })
                     setNewComment("")
@@ -310,7 +315,8 @@ export default function TasksPage() {
         const connId = task.connectionId
         try {
             if (task.source === 'linear') {
-                const apiKey = await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
+                const prefix = activeProject ? `project:${activeProject.id}:` : ''
+                const apiKey = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
                 if (!apiKey) return
                 const states = await api.getLinearWorkflowStates({ apiKey })
                 // Simple heuristic: match state name to our status
@@ -318,7 +324,8 @@ export default function TasksPage() {
                 if (match) await api.updateLinearStatus({ apiKey, issueId: task.externalId, stateId: match.id })
             } else if (task.source === 'jira') {
                 const conn = activeProject?.jiraConnections.find(c => c.id === connId)
-                const key = await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
+                const prefix = activeProject ? `project:${activeProject.id}:` : ''
+                const key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
                 if (conn && key) {
                     await api.transitionJiraIssue({ domain: conn.domain, email: conn.email, apiKey: key, issueKey: task.sourceIssueId, transitionName: newStatus.replace('-', ' ') })
                 }

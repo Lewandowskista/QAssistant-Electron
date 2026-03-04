@@ -11,9 +11,10 @@ import FormattedText from "@/components/FormattedText"
 type SidebarTab = 'Notes' | 'Runbooks'
 
 export default function NotesPage() {
-    const { projects, activeProjectId, addNote, deleteNote } = useProjectStore()
+    const { projects, activeProjectId, addNote, deleteNote, addAttachmentToNote, removeAttachmentFromNote, attachFileToNote } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const notes = activeProject?.notes || []
+    const api = (window as any).electronAPI
     // Mock runbooks for UI parity as they might not be in store yet
     const [runbooks] = useState<any[]>([
         { id: '1', title: 'v2.4.0 Release Plan', category: 'Deployment', steps: 12, completed: 8, updatedAt: new Date() },
@@ -173,7 +174,17 @@ export default function NotesPage() {
                             <aside className="w-64 border-l border-[#2A2A3A] bg-[#13131A]/30 flex flex-col">
                                 <div className="p-4 border-b border-[#2A2A3A] flex items-center justify-between">
                                     <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Attachments</span>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-[#A78BFA]"><Paperclip className="h-3.5 w-3.5" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-[#A78BFA]" onClick={async () => {
+                                        if (!activeProjectId || !selectedNote) return;
+                                        const filePath = await api.selectFile();
+                                        if (filePath) {
+                                            try {
+                                                await attachFileToNote(activeProjectId, selectedNote.id, filePath);
+                                            } catch (e: any) {
+                                                alert('Attachment failed: ' + e.message);
+                                            }
+                                        }
+                                    }}><Paperclip className="h-3.5 w-3.5" /></Button>
                                 </div>
                                 <div className="p-4 space-y-2 overflow-y-auto custom-scrollbar">
                                     {selectedNote.attachments.length === 0 ? (
@@ -181,8 +192,16 @@ export default function NotesPage() {
                                     ) : (
                                         selectedNote.attachments.map(at => (
                                             <div key={at.id} className="p-2 border border-[#2A2A3A] rounded-lg flex items-center justify-between group hover:border-[#A78BFA]/50 transition-all cursor-pointer">
-                                                <span className="text-xs text-[#E2E8F0] truncate flex-1">{at.name}</span>
-                                                <ExternalLink className="h-3 w-3 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                <span className="text-xs text-[#E2E8F0] truncate flex-1" onClick={() => api.openFile(at.path)}>{at.name}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <ExternalLink className="h-3 w-3 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => api.openFile(at.path)} />
+                                                    <Trash2 className="h-3 w-3 text-[#EF4444] opacity-0 group-hover:opacity-100 transition-opacity" onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        if (!activeProjectId || !selectedNote) return;
+                                                        await removeAttachmentFromNote(activeProjectId, selectedNote.id, at.id);
+                                                        api.deleteAttachment(at.path);
+                                                    }} />
+                                                </div>
                                             </div>
                                         ))
                                     )}

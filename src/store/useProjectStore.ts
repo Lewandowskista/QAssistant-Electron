@@ -124,6 +124,8 @@ export type Attachment = {
     id: string
     name: string
     path: string
+    mimeType?: string
+    sizeBytes?: number
 }
 
 export type Note = {
@@ -250,7 +252,7 @@ export type Project = {
     testExecutions: TestExecution[] // Legacy mapping
     testRunSessions: TestRunSession[]
 
-    files: any[]
+    files: Attachment[]
     testDataGroups: TestDataGroup[]
     checklists: Checklist[]
     apiRequests: ApiRequest[]
@@ -284,6 +286,9 @@ interface ProjectState {
     addNote: (projectId: string, title: string) => Promise<Note>
     updateNote: (projectId: string, noteId: string, updates: Partial<Note>) => Promise<void>
     deleteNote: (projectId: string, noteId: string) => Promise<void>
+    addAttachmentToNote: (projectId: string, noteId: string, attachment: Attachment) => Promise<void>
+    removeAttachmentFromNote: (projectId: string, noteId: string, attachmentId: string) => Promise<void>
+    attachFileToNote: (projectId: string, noteId: string, sourcePath: string) => Promise<Attachment | undefined>
 
     // Task Actions
     addTask: (projectId: string, title: string, description?: string) => Promise<string>
@@ -326,6 +331,10 @@ interface ProjectState {
     addTestDataEntry: (projectId: string, groupId: string, data: Partial<TestDataEntry>) => Promise<string>
     deleteTestDataEntry: (projectId: string, groupId: string, entryId: string) => Promise<void>
 
+    // File storage actions
+    addProjectFile: (projectId: string, file: Attachment) => Promise<void>
+    deleteProjectFile: (projectId: string, fileId: string) => Promise<void>
+
     addChecklist: (projectId: string, name: string, category: string) => Promise<Checklist>
     updateChecklist: (projectId: string, checklistId: string, updates: Partial<Checklist>) => Promise<void>
     deleteChecklist: (projectId: string, checklistId: string) => Promise<void>
@@ -367,7 +376,8 @@ declare global {
             onMaximizedStatus: (callback: (status: boolean) => void) => () => void
             // File operations
             selectFile: () => Promise<string | null>
-            copyToAttachments: (sourcePath: string) => Promise<{ success: boolean; path?: string; fileName?: string; error?: string }>
+            copyToAttachments: (sourcePath: string) => Promise<{ success: boolean; attachment?: { fileName: string; filePath: string; mimeType: string; fileSizeBytes: number }; error?: string }>
+            saveBytesAttachment: (bytes: Uint8Array, fileName: string) => Promise<{ success: boolean; attachment?: { fileName: string; filePath: string; mimeType: string; fileSizeBytes: number }; error?: string }>
             deleteAttachment: (filePath: string) => Promise<{ success: boolean; error?: string }>
             openFile: (filePath: string) => Promise<void>
             openUrl: (url: string) => Promise<{ success: boolean; error?: string }>
@@ -396,6 +406,10 @@ declare global {
             aiSmokeSubset: (apiKey: string, candidates: any[], doneTasks: any[], project?: any) => Promise<string[]>
             // SAP HAC
             sapHacRequest: (opts: { url: string; method: string; headers?: Record<string, string>; body?: string; ignoreSsl?: boolean }) => Promise<{ success: boolean; status?: number; body?: string; error?: string }>
+            sapHacLogin: (baseUrl: string, username: string, password: string, ignoreSsl?: boolean) => Promise<{ success: boolean; error?: string }>
+            sapHacGetCronJobs: (baseUrl: string) => Promise<{ success: boolean; data?: any; error?: string }>
+            sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) => Promise<{ success: boolean; result?: any; error?: string }>
+            sapHacImportImpEx: (baseUrl: string, script: string, enableCodeExecution?: boolean) => Promise<{ success: boolean; result?: any; error?: string }>
             // Notifications & shortcuts
             showNotification: (title: string, body: string) => void
             onCommandPalette: (callback: () => void) => () => void
@@ -631,6 +645,58 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
         set({ projects: updatedProjects })
     },
+
+    // Attachments --------------------------------------------------------
+    addAttachmentToNote: async (projectId: string, noteId: string, attachment: Attachment) => {
+        const updatedProjects = get().projects.map(p => {
+            if (p.id === projectId) {
+                const notes = p.notes.map(n =>
+                    n.id === noteId ? { ...n, attachments: [...n.attachments, attachment], updatedAt: Date.now() } : n
+                )
+                return { ...p, notes }
+            }
+            return p
+        })
+        if (window.electronAPI) {
+            await window.electronAPI.writeProjectsFile(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
+    removeAttachmentFromNote: async (projectId: string, noteId: string, attachmentId: string) => {
+        const updatedProjects = get().projects.map(p => {
+            if (p.id === projectId) {
+                const notes = p.notes.map(n =>
+                    n.id === noteId ? { ...n, attachments: n.attachments.filter(a => a.id !== attachmentId), updatedAt: Date.now() } : n
+                )
+                return { ...p, notes }
+            }
+            return p
+        })
+        if (window.electronAPI) {
+            await window.electronAPI.writeProjectsFile(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
+    // convenience helper that copies file and attaches to note
+    attachFileToNote: async (projectId: string, noteId: string, sourcePath: string) => {
+        if (!window.electronAPI) return
+        const res = await window.electronAPI.copyToAttachments(sourcePath)
+        if (res.success && res.attachment) {
+            const attachment: Attachment = {
+                id: crypto.randomUUID(),
+                name: res.attachment.fileName,
+                path: res.attachment.filePath,
+                mimeType: res.attachment.mimeType,
+                sizeBytes: res.attachment.fileSizeBytes
+            }
+            await get().addAttachmentToNote(projectId, noteId, attachment)
+            return attachment
+        }
+        throw new Error(res.error || 'Failed to copy attachment')
+    },
+
 
     addTask: async (projectId: string, title: string, description: string = "") => {
         const task: Task = {
@@ -1182,6 +1248,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const projects = get().projects.map(p => p.id === projectId ? {
             ...p, testDataGroups: p.testDataGroups.map(g => g.id === groupId ? { ...g, entries: g.entries.filter(e => e.id !== entryId) } : g)
         } : p)
+        if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
+        set({ projects })
+    },
+
+    // file attachments at project-level
+    addProjectFile: async (projectId: string, file: Attachment) => {
+        const projects = get().projects.map(p => p.id === projectId ? { ...p, files: [...(p.files || []), file] } : p)
+        if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
+        set({ projects })
+    },
+    deleteProjectFile: async (projectId: string, fileId: string) => {
+        const projects = get().projects.map(p => p.id === projectId ? { ...p, files: p.files.filter(f => f.id !== fileId) } : p)
         if (window.electronAPI) await window.electronAPI.writeProjectsFile(projects)
         set({ projects })
     },

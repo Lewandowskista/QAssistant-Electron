@@ -24,15 +24,15 @@ export const TEST_CASE_IMPORT_FIELDS = [
 
 const AUTO_MAP_ALIASES: Record<string, string[]> = {
     'title': ['Title', 'Name', 'Summary', 'Test Name', 'Test Case Name', 'Test Case', 'Subject'],
-    'displayId': ['Test Case ID', 'ID', 'TC ID', 'Key', 'TC_ID'],
-    'preConditions': ['Pre-conditions', 'Preconditions', 'Setup', 'Prerequisites'],
-    'testSteps': ['Test Steps', 'Steps', 'Action', 'Actions', 'Execution Steps'],
-    'testData': ['Test Data', 'Data', 'Input Data'],
-    'expectedResult': ['Expected Result', 'Expected', 'Expected Outcome'],
-    'actualResult': ['Actual Result', 'Actual', 'Result'],
-    'status': ['Status', 'State', 'Result Status'],
-    'priority': ['Priority', 'Severity', 'Importance'],
-    'sourceIssueId': ['Source Issue ID', 'Jira ID', 'Linear ID', 'Ticket ID', 'Issue Key']
+    'displayId': ['Test Case ID', 'Test ID', 'ID', 'TC ID', 'TestCaseId', 'Identifier', 'Key', 'Case ID', 'Ref', 'Number'],
+    'preConditions': ['Pre-conditions', 'Preconditions', 'Pre Conditions', 'Setup', 'Prerequisites'],
+    'testSteps': ['Test Steps', 'Steps', 'Steps to Reproduce', 'Actions', 'Test Actions', 'Action', 'Execution Steps'],
+    'testData': ['Test Data', 'Data', 'Input Data', 'Test Input', 'Inputs'],
+    'expectedResult': ['Expected Result', 'Expected', 'Expected Outcome', 'Expected Output', 'Pass Criteria', 'Expected Behaviour'],
+    'actualResult': ['Actual Result', 'Actual', 'Actual Outcome', 'Actual Output'],
+    'status': ['Status', 'Result', 'Test Result', 'Execution Status', 'Outcome', 'Run Status'],
+    'priority': ['Priority', 'Severity', 'Importance', 'Level', 'Criticality'],
+    'sourceIssueId': ['Source Issue ID', 'Issue ID', 'Issue Key', 'Linked Issue', 'Related Issue', 'Jira ID', 'Linear ID', 'Requirement']
 }
 
 export function autoDetectMappings(headers: string[]): Record<string, string> {

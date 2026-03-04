@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import { ServerCog, Play, RefreshCw, TerminalSquare, CheckCircle2, Zap, Activity, ShieldQuestion, Globe, Layers } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+
+// types for SAP HAC
+import { CronJobEntry, FlexibleSearchResult, ImpExResult } from "@/lib/sapHac"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -24,13 +29,44 @@ export default function SapPage() {
     const activeProject = projects.find(p => p.id === activeProjectId)
     const environments = activeProject?.environments || []
 
+    // electron API bridge
+    const api = (window as any).electronAPI
+
     const [activeTab, setActiveTab] = useState<SapTab>('Cronjobs')
     const [selectedEnvId, setSelectedEnvId] = useState<string>("")
     const [isConnected, setIsConnected] = useState(false)
     const [isConnecting, setIsConnecting] = useState(false)
 
+    // SAP HAC credentials/url
+    const [hacBaseUrl, setHacBaseUrl] = useState<string>('')
+    const [hacUser, setHacUser] = useState<string>('')
+    const [hacPass, setHacPass] = useState<string>('')
+
+    // Cronjob data
+    const [cronJobs, setCronJobs] = useState<CronJobEntry[]>([])
+
     // Sub-states
     const [cronFilter, setCronFilter] = useState("All")
+
+    // FlexSearch state
+    const [flexQuery, setFlexQuery] = useState<string>('')
+    const [flexResult, setFlexResult] = useState<FlexibleSearchResult | null>(null)
+    const [flexLoading, setFlexLoading] = useState(false)
+
+    // ImpEx state
+    const [impExScript, setImpExScript] = useState<string>('')
+    const [impExResult, setImpExResult] = useState<string>('')
+    const [impExExecuting, setImpExExecuting] = useState(false)
+    const [impExEnableCode, setImpExEnableCode] = useState(false)
+
+    // CCv2 state
+    const [ccv2Sub, setCcv2Sub] = useState<string>('')
+    const [ccv2Token, setCcv2Token] = useState<string>('')
+    const [ccv2Envs, setCcv2Envs] = useState<any[]>([])
+    const [selectedCcv2Env, setSelectedCcv2Env] = useState<string>('')
+    const [ccv2Deployments, setCcv2Deployments] = useState<any[]>([])
+    const [ccv2BuildCode, setCcv2BuildCode] = useState<string>('')
+    const [ccv2BuildInfo, setCcv2BuildInfo] = useState<any | null>(null)
 
     useEffect(() => {
         if (environments.length > 0 && !selectedEnvId) {
@@ -38,6 +74,43 @@ export default function SapPage() {
             setSelectedEnvId(defaultEnv.id)
         }
     }, [environments])
+
+    // load saved HAC credentials for a base URL
+    useEffect(() => {
+        if (!hacBaseUrl) return;
+        (async () => {
+            try {
+                const stored = await api.secureStoreGet(`sapHac:${hacBaseUrl}`);
+                if (stored) {
+                    const obj = JSON.parse(stored);
+                    if (obj.user) setHacUser(obj.user);
+                    if (obj.pass) setHacPass(obj.pass);
+                }
+            } catch {}
+        })();
+    }, [hacBaseUrl])
+
+    // load saved CCv2 token when subscription changes
+    useEffect(() => {
+        if (!ccv2Sub) {
+            setCcv2Token('');
+            return;
+        }
+        (async () => {
+            try {
+                const saved = await api.secureStoreGet(`ccv2:${ccv2Sub}`);
+                if (saved) {
+                    setCcv2Token(saved);
+                }
+            } catch {}
+        })();
+    }, [ccv2Sub])
+
+    useEffect(() => {
+        if (isConnected) {
+            fetchCronJobs();
+        }
+    }, [isConnected])
 
     if (!activeProject) {
         return (
@@ -49,12 +122,122 @@ export default function SapPage() {
         )
     }
 
-    const handleConnect = () => {
-        setIsConnecting(true)
-        setTimeout(() => {
-            setIsConnected(true)
-            setIsConnecting(false)
-        }, 1200)
+    const handleConnect = async () => {
+        if (!hacBaseUrl || !hacUser || !hacPass) {
+            alert('Please enter HAC URL, username and password.');
+            return;
+        }
+        setIsConnecting(true);
+        try {
+            const res = await api.sapHacLogin(hacBaseUrl, hacUser, hacPass, false);
+            if (res.success) {
+                setIsConnected(true);
+                // save credentials locally for convenience
+                try {
+                    await api.secureStoreSet(`sapHac:${hacBaseUrl}`, JSON.stringify({ user: hacUser, pass: hacPass }));
+                } catch {}
+                await fetchCronJobs();
+            } else {
+                alert('Login failed: ' + (res.error || 'unknown'));
+            }
+        } catch (e: any) {
+            alert('Login error: ' + e.message);
+        } finally {
+            setIsConnecting(false);
+        }
+    }
+
+    const fetchCronJobs = async () => {
+        if (!hacBaseUrl) return;
+        try {
+            const r = await api.sapHacGetCronJobs(hacBaseUrl);
+            if (r.success && r.data) {
+                setCronJobs(r.data as CronJobEntry[]);
+            } else {
+                console.error('Cronjobs fetch failed', r.error);
+            }
+        } catch (e) {
+            console.error('error fetching cronjobs', e);
+        }
+    }
+
+    const runFlexSearch = async () => {
+        if (!hacBaseUrl) return;
+        setFlexLoading(true);
+        try {
+            const r = await api.sapHacFlexibleSearch(hacBaseUrl, flexQuery, 500);
+            if (r.success && r.result) {
+                setFlexResult(r.result as FlexibleSearchResult);
+            } else {
+                setFlexResult({ Headers: [], Rows: [], Error: r.error || 'unknown' });
+            }
+        } catch (e: any) {
+            setFlexResult({ Headers: [], Rows: [], Error: e.message || String(e) });
+        } finally {
+            setFlexLoading(false);
+        }
+    }
+
+    const runImpEx = async () => {
+        if (!hacBaseUrl) return;
+        setImpExExecuting(true);
+        try {
+            const r = await api.sapHacImportImpEx(hacBaseUrl, impExScript, impExEnableCode);
+            if (r.success && r.result) {
+                setImpExResult(JSON.stringify(r.result, null, 2));
+            } else {
+                setImpExResult('Error: ' + (r.error || 'unknown'));
+            }
+        } catch (e: any) {
+            setImpExResult('Error: ' + (e.message || String(e)));
+        } finally {
+            setImpExExecuting(false);
+        }
+    }
+
+    const fetchCcv2Envs = async () => {
+        try {
+            const r = await api.ccv2GetEnvironments(ccv2Sub, ccv2Token);
+            if (r.success && Array.isArray(r)) {
+                setCcv2Envs(r as any[]);
+                // save token for this subscription
+                try {
+                    await api.secureStoreSet(`ccv2:${ccv2Sub}`, ccv2Token);
+                } catch {}
+            } else {
+                setCcv2Envs([]);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    const fetchCcv2Deployments = async () => {
+        if (!selectedCcv2Env) return;
+        try {
+            const r = await api.ccv2GetDeployments(ccv2Sub, ccv2Token, selectedCcv2Env);
+            if (r.success && Array.isArray(r)) {
+                setCcv2Deployments(r as any[]);
+            } else {
+                setCcv2Deployments([]);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    const fetchCcv2Build = async () => {
+        if (!ccv2BuildCode) return;
+        try {
+            const r = await api.ccv2GetBuild(ccv2Sub, ccv2Token, ccv2BuildCode);
+            if (r.success && r.result) {
+                setCcv2BuildInfo(r.result);
+            } else {
+                setCcv2BuildInfo(null);
+            }
+        } catch (e) {
+            console.error(e);
+        }
     }
 
     return (
@@ -94,6 +277,30 @@ export default function SapPage() {
                                 ))}
                             </SelectContent>
                         </Select>
+                        {/* HAC credentials inputs */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                placeholder="HAC URL"
+                                value={hacBaseUrl}
+                                onChange={e => setHacBaseUrl(e.target.value)}
+                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs"
+                            />
+                            <input
+                                type="text"
+                                placeholder="User"
+                                value={hacUser}
+                                onChange={e => setHacUser(e.target.value)}
+                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs"
+                            />
+                            <input
+                                type="password"
+                                placeholder="Pass"
+                                value={hacPass}
+                                onChange={e => setHacPass(e.target.value)}
+                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs"
+                            />
+                        </div>
                         <Button
                             onClick={handleConnect}
                             disabled={isConnected || isConnecting}
@@ -147,7 +354,7 @@ export default function SapPage() {
                                             </button>
                                         ))}
                                     </div>
-                                    <Button variant="ghost" size="sm" className="h-8 text-[10px] font-black uppercase text-[#A78BFA] gap-2">
+                                    <Button variant="ghost" size="sm" onClick={fetchCronJobs} className="h-8 text-[10px] font-black uppercase text-[#A78BFA] gap-2">
                                         <RefreshCw className="h-3 w-3" /> REFRESH COLLECTIONS
                                     </Button>
                                 </div>
@@ -156,34 +363,40 @@ export default function SapPage() {
                                         <thead>
                                             <tr className="text-[10px] uppercase text-[#6B7280] font-black tracking-widest border-b border-[#2A2A3A] pb-2">
                                                 <th className="pb-3 px-4">STATUS</th>
-                                                <th className="pb-3 px-4">JOB IDENTIFIER</th>
-                                                <th className="pb-3 px-4">START TIME</th>
-                                                <th className="pb-3 px-4 text-right">STATUS</th>
+                                                <th className="pb-3 px-4">JOB CODE</th>
+                                                <th className="pb-3 px-4">LAST RESULT</th>
+                                                <th className="pb-3 px-4">NEXT ACTIVATION</th>
                                             </tr>
                                         </thead>
                                         <tbody className="text-xs">
-                                            {[
-                                                { code: 'full-solr-index-electronics', status: 'RUNNING', color: 'text-[#3B82F6]' },
-                                                { code: 'sync-staged-to-online-products', status: 'SUCCESS', color: 'text-[#10B981]' },
-                                                { code: 'b2b-order-fulfillment-job', status: 'FAILURE', color: 'text-[#EF4444]' },
-                                                { code: 'abandoned-cart-cleanup', status: 'IDLE', color: 'text-[#6B7280]' },
-                                            ].map((row, i) => (
-                                                <tr key={i} className="border-b border-[#2A2A3A]/50 hover:bg-[#1A1A24]/50 transition-colors group cursor-pointer">
-                                                    <td className="py-4 px-4 font-black">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className={cn("h-1.5 w-1.5 rounded-full", row.color.replace('text-', 'bg-'))} />
-                                                            <span className={cn("text-[10px] tracking-widest font-black", row.color)}>{row.status}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-4 px-4 font-bold text-[#E2E8F0] font-mono group-hover:text-[#A78BFA]">{row.code}</td>
-                                                    <td className="py-4 px-4 text-[#6B7280] font-medium">10:42 PM (12m ago)</td>
-                                                    <td className="py-4 px-4 text-right">
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#A78BFA]">
-                                                            <Activity className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {cronJobs
+                                                .filter(job => {
+                                                    if (cronFilter === 'All') return true;
+                                                    if (cronFilter === 'Running') return job.Status === 'RUNNING';
+                                                    if (cronFilter === 'Failed') return job.Status === 'FAILURE';
+                                                    if (cronFilter === 'Critical') return job.Status === 'CRITICAL';
+                                                    return true;
+                                                })
+                                                .map((row, i) => {
+                                                    let color = 'text-[#6B7280]';
+                                                    if (row.Status === 'RUNNING') color = 'text-[#3B82F6]';
+                                                    else if (row.Status === 'SUCCESS') color = 'text-[#10B981]';
+                                                    else if (row.Status === 'FAILURE') color = 'text-[#EF4444]';
+                                                    else if (row.Status === 'CRITICAL') color = 'text-[#E11D48]';
+                                                    return (
+                                                        <tr key={i} className="border-b border-[#2A2A3A]/50 hover:bg-[#1A1A24]/50 transition-colors group cursor-pointer">
+                                                            <td className="py-4 px-4 font-black">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={cn("h-1.5 w-1.5 rounded-full", color.replace('text-', 'bg-'))} />
+                                                                    <span className={cn("text-[10px] tracking-widest font-black", color)}>{row.Status}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 px-4 font-bold text-[#E2E8F0] font-mono group-hover:text-[#A78BFA]">{row.Code}</td>
+                                                            <td className="py-4 px-4 text-[#6B7280] font-medium">{row.LastResult || '-'}</td>
+                                                            <td className="py-4 px-4 text-[#6B7280] font-medium">{row.NextActivationTime || '-'}</td>
+                                                        </tr>
+                                                    );
+                                                })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -209,18 +422,55 @@ export default function SapPage() {
                                 </div>
                                 <div className="h-48 bg-[#0F0F13] border-b border-[#2A2A3A] p-4 relative">
                                     <textarea
+                                        value={flexQuery}
+                                        onChange={e => setFlexQuery(e.target.value)}
                                         className="w-full h-full bg-transparent border-none text-[#A78BFA] font-mono text-sm resize-none focus:outline-none custom-scrollbar"
                                         placeholder="SELECT {p:pk}, {p:code} FROM {Product AS p} WHERE {p:approvalStatus} = 'approved'"
                                         spellCheck={false}
                                     />
-                                    <Button className="absolute bottom-6 right-8 h-10 px-8 bg-[#A78BFA] text-[#0F0F13] font-black text-xs gap-2 shadow-2xl shadow-[#A78BFA]/20">
+                                    <Button
+                                        onClick={runFlexSearch}
+                                        disabled={!flexQuery || flexLoading}
+                                        className="absolute bottom-6 right-8 h-10 px-8 bg-[#A78BFA] text-[#0F0F13] font-black text-xs gap-2 shadow-2xl shadow-[#A78BFA]/20"
+                                    >
                                         <Play className="h-4 w-4 fill-current text-[#0F0F13]" /> EXECUTE QUERY
                                     </Button>
                                 </div>
-                                <div className="flex-1 flex flex-col items-center justify-center text-[#6B7280] opacity-40">
-                                    <TerminalSquare className="h-12 w-12 mb-4" strokeWidth={1} />
-                                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">No results yet</p>
-                                </div>
+                                {flexLoading && (
+                                    <div className="p-4 text-xs text-[#A78BFA]">Running query...</div>
+                                )}
+                                {flexResult && (
+                                    flexResult.Error ? (
+                                        <div className="p-4 text-red-400">{flexResult.Error}</div>
+                                    ) : (
+                                        <div className="flex-1 p-4 overflow-auto">
+                                            <table className="w-full table-auto text-xs">
+                                                <thead>
+                                                    <tr className="bg-[#13131A]">
+                                                        {flexResult.Headers.map((h, idx) => (
+                                                            <th key={idx} className="px-2 py-1">{h}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {flexResult.Rows.map((row, i) => (
+                                                        <tr key={i} className="hover:bg-[#1A1A24]">
+                                                            {row.map((c, j) => (
+                                                                <td key={j} className="px-2 py-1">{c}</td>
+                                                            ))}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )
+                                )}
+                                {!flexResult && !flexLoading && (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-[#6B7280] opacity-40">
+                                        <TerminalSquare className="h-12 w-12 mb-4" strokeWidth={1} />
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em]">No results yet</p>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -237,11 +487,27 @@ export default function SapPage() {
                                 <div className="p-4 bg-[#13131A] border-b border-[#2A2A3A] flex items-center gap-4">
                                     <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest whitespace-nowrap">ImpEx Playground</span>
                                     <div className="flex-1" />
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox
+                                            checked={impExEnableCode}
+                                            onCheckedChange={val => setImpExEnableCode(!!val)}
+                                            className="h-4 w-4 border-[#2A2A3A] data-[state=checked]:bg-[#A78BFA]"
+                                        />
+                                        <span className="text-[10px] text-[#6B7280]">Enable Code Exec</span>
+                                    </div>
                                     <Button variant="ghost" className="h-8 border-[#2A2A3A] text-[10px] font-black text-[#A78BFA] uppercase hover:bg-[#A78BFA]/5 border">Validate Syntax</Button>
-                                    <Button className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase">Import Script</Button>
+                                    <Button
+                                        onClick={runImpEx}
+                                        disabled={impExExecuting || !impExScript}
+                                        className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase"
+                                    >
+                                        {impExExecuting ? 'IMPORTING...' : 'Import Script'}
+                                    </Button>
                                 </div>
                                 <div className="flex-1 bg-[#0F0F13] p-4">
                                     <textarea
+                                        value={impExScript}
+                                        onChange={e => setImpExScript(e.target.value)}
                                         className="w-full h-full bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-6 text-[#E2E8F0] font-mono text-sm resize-none focus:outline-none selection:bg-[#A78BFA]/20"
                                         placeholder="# ImpEx Script&#10;INSERT_UPDATE Product;code[unique=true];name[lang=en]&#10;;test_p001;High Fidelity Component"
                                         spellCheck={false}
@@ -250,21 +516,116 @@ export default function SapPage() {
                                 <div className="h-32 bg-[#0A0A0E] border-t border-[#2A2A3A] p-4 custom-scrollbar overflow-y-auto">
                                     <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest mb-2 border-b border-[#2A2A3A]/30 pb-1">Console Log</div>
                                     <div className="font-mono text-[10px] text-[#A78BFA]/60 leading-relaxed">
-                                        Ready for ImpEx import...<br />
-                                        Session: Active ({selectedEnvId})
+                                        {impExResult || `Ready for ImpEx import...\nSession: Active (${selectedEnvId})`}
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'Ccv2' && (
-                            <div className="flex-1 flex flex-col items-center justify-center text-[#6B7280]/30">
-                                <Activity className="h-20 w-20 mb-6 animate-pulse" strokeWidth={1} />
-                                <h3 className="text-xl font-black uppercase tracking-widest text-[#6B7280]">CCV2 DEPLOYMENT PIPELINE</h3>
-                                <p className="text-xs font-bold mt-2 max-w-sm text-center leading-relaxed">Fetch live builds and cluster deployment status directly from the SAP Cloud Portal API.</p>
-                                <Button className="mt-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#6B7280] hover:bg-[#2A2A3A] font-black text-[10px] uppercase tracking-widest px-8 h-10">
-                                    Authorize Cloud Portal Access
-                                </Button>
+                            <div className="flex-1 overflow-auto p-4 bg-[#0F0F13] space-y-4">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Input
+                                        placeholder="Subscription Code"
+                                        value={ccv2Sub}
+                                        onChange={e => setCcv2Sub(e.target.value)}
+                                        className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                    />
+                                    <Input
+                                        placeholder="API Token"
+                                        value={ccv2Token}
+                                        onChange={e => setCcv2Token(e.target.value)}
+                                        className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                    />
+                                    <Button
+                                        onClick={fetchCcv2Envs}
+                                        disabled={!ccv2Sub || !ccv2Token}
+                                        className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase"
+                                    >
+                                        Get Environments
+                                    </Button>
+                                </div>
+                                {ccv2Envs.length > 0 && (
+                                    <div className="mt-2 overflow-auto max-h-40 border border-[#2A2A3A]">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-[#13131A]"><tr>
+                                                <th className="px-2 py-1">Code</th>
+                                                <th className="px-2 py-1">Name</th>
+                                                <th className="px-2 py-1">Status</th>
+                                                <th className="px-2 py-1">DeployStatus</th>
+                                            </tr></thead>
+                                            <tbody>
+                                                {ccv2Envs.map((env, i) => (
+                                                    <tr
+                                                        key={i}
+                                                        className="hover:bg-[#1A1A24] cursor-pointer"
+                                                        onClick={() => {
+                                                            setSelectedCcv2Env(env.code);
+                                                            setCcv2Deployments([]);
+                                                        }}
+                                                    >
+                                                        <td className="px-2 py-1">{env.code}</td>
+                                                        <td className="px-2 py-1">{env.name}</td>
+                                                        <td className="px-2 py-1">{env.status}</td>
+                                                        <td className="px-2 py-1">{env.deploymentStatus}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                                {selectedCcv2Env && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-[#E2E8F0]">Selected: {selectedCcv2Env}</span>
+                                        <Button
+                                            onClick={fetchCcv2Deployments}
+                                            className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase"
+                                        >
+                                            Load Deployments
+                                        </Button>
+                                    </div>
+                                )}
+                                {ccv2Deployments.length > 0 && (
+                                    <div className="mt-2 overflow-auto max-h-40 border border-[#2A2A3A]">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-[#13131A]"><tr>
+                                                <th className="px-2 py-1">Code</th>
+                                                <th className="px-2 py-1">Env</th>
+                                                <th className="px-2 py-1">Build</th>
+                                                <th className="px-2 py-1">Status</th>
+                                                <th className="px-2 py-1">Strategy</th>
+                                            </tr></thead>
+                                            <tbody>
+                                                {ccv2Deployments.map((d, i) => (
+                                                    <tr key={i} className="hover:bg-[#1A1A24]">
+                                                        <td className="px-2 py-1">{d.code}</td>
+                                                        <td className="px-2 py-1">{d.environmentCode}</td>
+                                                        <td className="px-2 py-1">{d.buildCode}</td>
+                                                        <td className="px-2 py-1">{d.status}</td>
+                                                        <td className="px-2 py-1">{d.strategy}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                                <div className="mt-4 flex items-center gap-2">
+                                    <Input
+                                        placeholder="Build Code"
+                                        value={ccv2BuildCode}
+                                        onChange={e => setCcv2BuildCode(e.target.value)}
+                                        className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                    />
+                                    <Button
+                                        onClick={fetchCcv2Build}
+                                        className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase"
+                                    >
+                                        Get Build
+                                    </Button>
+                                </div>
+                                {ccv2BuildInfo && (
+                                    <pre className="text-xs bg-[#13131A] p-2 rounded">{JSON.stringify(ccv2BuildInfo, null, 2)}</pre>
+                                )}
                             </div>
                         )}
                     </div>

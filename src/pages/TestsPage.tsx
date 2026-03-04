@@ -131,7 +131,7 @@ export default function TestsPage() {
     const handleAiGenerate = async () => {
         if (!activeProjectId) return
 
-        const apiKey = await api.secureStoreGet('gemini_api_key')
+        const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
         if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
 
         const tasksToUse = activeProject?.tasks?.filter(t => selectedTaskIds.includes(t.id)) || []
@@ -212,7 +212,7 @@ export default function TestsPage() {
 
     const handleAiCriticality = async () => {
         if (!activeProject) return
-        const apiKey = await api.secureStoreGet('gemini_api_key')
+        const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
         if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
@@ -227,7 +227,7 @@ export default function TestsPage() {
 
     const handleAiTestRunSuggestions = async () => {
         if (!activeProject) return
-        const apiKey = await api.secureStoreGet('gemini_api_key')
+        const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
         if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
@@ -734,7 +734,7 @@ export default function TestsPage() {
                                         disabled={isGenerating}
                                         onClick={async () => {
                                             if (!activeProject) return
-                                            const apiKey = await api.secureStoreGet('gemini_api_key')
+                                            const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
                                             if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
                                             const allCases = testPlans.flatMap(tp => tp.testCases || [])
                                             const doneTasks = (activeProject.tasks || []).filter((t: any) => t.status === 'done')

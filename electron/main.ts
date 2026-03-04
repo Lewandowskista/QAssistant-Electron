@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, Tray, Menu, globalShortcut, Notification, dialog, safeStorage } from 'electron';
+import { setCredential, getCredential, deleteCredential, listCredentials } from './credentialService';
 import { saveFile, saveBytes, deleteFile, openFile, initFileStorage } from './fileStorage';
 import { SapHacService } from './sapHac';
 import type { FlexibleSearchResult, ImpExResult } from './sapHac';
@@ -189,22 +190,10 @@ function setupIpc() {
         }
     });
 
-    // ── Credentials store ──────────────────────────────────────────────────
+    // ── Credentials store (OS credential manager via keytar) ────────────────
     ipcMain.handle('secure-store-set', async (_: any, key: string, value: string) => {
         try {
-            if (!safeStorage.isEncryptionAvailable()) {
-                return { success: false, error: 'Encryption is not available on this system.' };
-            }
-
-            let credentials: Record<string, string> = {};
-            if (fs.existsSync(CREDENTIALS_FILE)) {
-                credentials = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
-            }
-
-            const encrypted = safeStorage.encryptString(value);
-            credentials[key] = encrypted.toString('hex');
-
-            fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2));
+            await setCredential(key, value);
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err.message };
@@ -213,39 +202,29 @@ function setupIpc() {
 
     ipcMain.handle('secure-store-get', async (_: any, key: string) => {
         try {
-            if (!fs.existsSync(CREDENTIALS_FILE)) return null;
-            const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
-            const encryptedValue = credentials[key];
-            if (!encryptedValue) return null;
-
-            if (!safeStorage.isEncryptionAvailable()) {
-                console.error("Encryption not available, cannot decrypt credential.");
-                return null;
-            }
-
-            try {
-                const buffer = Buffer.from(encryptedValue, 'hex');
-                return safeStorage.decryptString(buffer);
-            } catch (e) {
-                // Fallback: if decryption fails, maybe it's still plaintext from old version
-                // We return null to force re-entry or handle gracefully in UI
-                console.error(`Decryption failed for key ${key}:`, e);
-                return null;
-            }
-        } catch {
+            const val = await getCredential(key);
+            return val;
+        } catch (err: any) {
+            console.error('secure-store-get error', err);
             return null;
         }
     });
 
     ipcMain.handle('secure-store-delete', async (_: any, key: string) => {
         try {
-            if (!fs.existsSync(CREDENTIALS_FILE)) return { success: true };
-            const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
-            delete credentials[key];
-            fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2));
-            return { success: true };
+            const ok = await deleteCredential(key);
+            return { success: ok };
         } catch (err: any) {
             return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('secure-store-list', async () => {
+        try {
+            const creds = await listCredentials();
+            return creds;
+        } catch (err: any) {
+            return [];
         }
     });
 
@@ -715,7 +694,7 @@ function createTray() {
     });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     APP_DATA_DIR = path.join(app.getPath('userData'), 'QAssistantData');
     PROJECTS_FILE = path.join(APP_DATA_DIR, 'projects.json');
     CREDENTIALS_FILE = path.join(APP_DATA_DIR, 'credentials.json');
@@ -748,6 +727,40 @@ app.whenReady().then(() => {
     if (!fs.existsSync(APP_DATA_DIR)) fs.mkdirSync(APP_DATA_DIR, { recursive: true });
     if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
     initFileStorage(ATTACHMENTS_DIR);
+
+    // Migrate any existing on-disk credentials (safeStorage encrypted hex) into OS credential manager
+    try {
+        if (fs.existsSync(CREDENTIALS_FILE)) {
+            try {
+                const raw = fs.readFileSync(CREDENTIALS_FILE, 'utf8');
+                const parsed = JSON.parse(raw || '{}');
+                for (const k of Object.keys(parsed)) {
+                    try {
+                        const v = parsed[k];
+                        let plain = v;
+                        if (safeStorage.isEncryptionAvailable() && typeof v === 'string' && /^[0-9a-fA-F]+$/.test(v)) {
+                            try {
+                                const buf = Buffer.from(v, 'hex');
+                                plain = safeStorage.decryptString(buf);
+                            } catch (e) {
+                                // leave plain as-is
+                            }
+                        }
+                        // Write into OS credential store using the same account key
+                        await setCredential(k, plain as string);
+                    } catch (e) {
+                        console.warn('Credential migration: failed to migrate key', k, e);
+                    }
+                }
+                // Remove legacy file after migration
+                try { fs.unlinkSync(CREDENTIALS_FILE); } catch { /* ignore */ }
+            } catch (e) {
+                console.warn('Credential migration failed:', e);
+            }
+        }
+    } catch (e) {
+        console.warn('Credential migration encountered error:', e);
+    }
 
     setupIpc();
     createWindow();

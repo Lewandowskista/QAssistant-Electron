@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     secureStoreSet: (key: string, value: string) => ipcRenderer.invoke('secure-store-set', key, value),
     secureStoreGet: (key: string) => ipcRenderer.invoke('secure-store-get', key),
     secureStoreDelete: (key: string) => ipcRenderer.invoke('secure-store-delete', key),
+    secureStoreList: () => ipcRenderer.invoke('secure-store-list'),
 
     // ── Window controls ──────────────────────────────────────────────────
     minimize: () => ipcRenderer.send('window-minimize'),
@@ -27,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ── File operations ──────────────────────────────────────────────────
     selectFile: () => ipcRenderer.invoke('select-file'),
     copyToAttachments: (sourcePath: string) => ipcRenderer.invoke('copy-to-attachments', sourcePath),
+    saveBytesAttachment: (bytes: Uint8Array, fileName: string) => ipcRenderer.invoke('save-bytes-attachment', { bytes, fileName }),
     deleteAttachment: (filePath: string) => ipcRenderer.invoke('delete-attachment', filePath),
     openFile: (filePath: string) => ipcRenderer.invoke('open-file', filePath),
     openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
@@ -65,6 +67,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ── SAP HAC ──────────────────────────────────────────────────────────
     sapHacRequest: (opts: { url: string; method: string; headers?: Record<string, string>; body?: string; ignoreSsl?: boolean }) =>
         ipcRenderer.invoke('sap-hac-request', opts),
+    sapHacLogin: (baseUrl: string, username: string, password: string, ignoreSsl?: boolean) =>
+        ipcRenderer.invoke('sap-hac-login', { baseUrl, username, password, ignoreSsl }),
+    sapHacGetCronJobs: (baseUrl: string) =>
+        ipcRenderer.invoke('sap-hac-cronjobs', { baseUrl }),
+    sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) =>
+        ipcRenderer.invoke('sap-hac-flexsearch', { baseUrl, query, max }),
+    sapHacImportImpEx: (baseUrl: string, script: string, enableCodeExecution?: boolean) =>
+        ipcRenderer.invoke('sap-hac-impex', { baseUrl, script, enableCodeExecution }),
 
     // ── Bug Report service ────────────────────────────────────────────────
     generateBugReportFromTask: (task: any, environment?: string, reporter?: string, aiAnalysis?: string) =>

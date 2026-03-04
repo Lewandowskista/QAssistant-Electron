@@ -96,6 +96,7 @@ export default function SettingsPage() {
     const [ccv2Token, setCcv2Token] = useState('')
     const [ccv2Status, setCcv2Status] = useState<StatusState>(null)
     const [ccv2Testing, setCcv2Testing] = useState(false)
+    const [storedCreds, setStoredCreds] = useState<string[]>([])
 
     // ── Project sharing ───────────────────────────────────────────────────────
     const [shareStatus, setShareStatus] = useState<StatusState>(null)
@@ -109,11 +110,13 @@ export default function SettingsPage() {
             setApiEnabled(!!settings.automationApiEnabled)
             setApiPort(settings.automationPort || '5248')
 
+            const projectPrefix = activeProject ? `project:${activeProject.id}:` : ''
+
             const [storedKey, storedGemini, storedCcv2Sub, storedCcv2Token, ver, path, info] = await Promise.all([
-                api.secureStoreGet('automation_api_key'),
-                api.secureStoreGet('gemini_api_key'),
-                api.secureStoreGet('ccv2_subscription_code'),
-                api.secureStoreGet('ccv2_api_token'),
+                activeProject ? api.secureStoreGet(`${projectPrefix}automation_api_key`) : Promise.resolve(null),
+                activeProject ? api.secureStoreGet(`${projectPrefix}gemini_api_key`) : Promise.resolve(null),
+                activeProject ? api.secureStoreGet(`${projectPrefix}ccv2_subscription_code`) : Promise.resolve(null),
+                activeProject ? api.secureStoreGet(`${projectPrefix}ccv2_api_token`) : Promise.resolve(null),
                 api.getAppVersion(),
                 api.getAppDataPath(),
                 api.getSystemInfo(),
@@ -127,7 +130,7 @@ export default function SettingsPage() {
             setSysInfo(info)
         }
         load()
-    }, [])
+    }, [activeProjectId])
 
     const saveSetting = useCallback(async (patch: Record<string, any>) => {
         const cur = await api.readSettingsFile()
@@ -171,7 +174,8 @@ export default function SettingsPage() {
 
     const handleRegenerateKey = async () => {
         const newKey = crypto.randomUUID().replace(/-/g, '')
-        await api.secureStoreSet('automation_api_key', newKey)
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        await api.secureStoreSet(`${prefix}automation_api_key`, newKey)
         setApiKey(newKey)
         if (apiEnabled) {
             await api.automationApiRestart(newKey, parseInt(apiPort))
@@ -189,7 +193,8 @@ export default function SettingsPage() {
     // ── Linear helpers ────────────────────────────────────────────────────────
     const openLinearAdd = () => setLinearForm({ open: true, editId: null, label: '', apiKey: '', teamId: '' })
     const openLinearEdit = async (c: LinearConnection) => {
-        const storedKey = await api.secureStoreGet(`linear_api_key_${c.id}`) || ''
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        const storedKey = await api.secureStoreGet(`${prefix}linear_api_key_${c.id}`) || ''
         setLinearForm({ open: true, editId: c.id, label: c.label, apiKey: storedKey, teamId: c.teamId })
     }
     const cancelLinear = () => { setLinearForm(f => ({ ...f, open: false })); setLinearStatus(null) }
@@ -203,11 +208,15 @@ export default function SettingsPage() {
         let conns = [...linearConns]
         if (!editId) {
             const conn: LinearConnection = { id: crypto.randomUUID(), label: label.trim(), teamId: teamId.trim() }
-            await api.secureStoreSet(`linear_api_key_${conn.id}`, key.trim())
+            const prefix = activeProject ? `project:${activeProject.id}:` : ''
+            await api.secureStoreSet(`${prefix}linear_api_key_${conn.id}`, key.trim())
             conns = [...conns, conn]
         } else {
             conns = conns.map(c => c.id === editId ? { ...c, label: label.trim(), teamId: teamId.trim() } : c)
-            if (key.trim()) await api.secureStoreSet(`linear_api_key_${editId}`, key.trim())
+            if (key.trim()) {
+                const prefix = activeProject ? `project:${activeProject.id}:` : ''
+                await api.secureStoreSet(`${prefix}linear_api_key_${editId}`, key.trim())
+            }
         }
         await updateProject(activeProject.id, { linearConnections: conns })
         setLinearForm(f => ({ ...f, open: false }))
@@ -216,13 +225,15 @@ export default function SettingsPage() {
 
     const deleteLinear = async (id: string) => {
         if (!activeProject) return
-        await api.secureStoreDelete(`linear_api_key_${id}`)
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        await api.secureStoreDelete(`${prefix}linear_api_key_${id}`)
         await updateProject(activeProject.id, { linearConnections: linearConns.filter(c => c.id !== id) })
         flash(setLinearStatus, 'Connection removed.', true)
     }
 
     const testLinear = async () => {
-        const key = linearForm.apiKey || (linearForm.editId ? await api.secureStoreGet(`linear_api_key_${linearForm.editId}`) : '')
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        const key = linearForm.apiKey || (linearForm.editId ? await api.secureStoreGet(`${prefix}linear_api_key_${linearForm.editId}`) : '')
         if (!key) { flash(setLinearStatus, 'Enter an API Key first.', false); return }
         flash(setLinearStatus, 'Testing connection…', true)
         try {
@@ -236,7 +247,8 @@ export default function SettingsPage() {
     // ── Jira helpers ─────────────────────────────────────────────────────────
     const openJiraAdd = () => setJiraForm({ open: true, editId: null, label: '', domain: '', email: '', apiToken: '', projectKey: '' })
     const openJiraEdit = async (c: JiraConnection) => {
-        const token = await api.secureStoreGet(`jira_api_token_${c.id}`) || ''
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        const token = await api.secureStoreGet(`${prefix}jira_api_token_${c.id}`) || ''
         setJiraForm({ open: true, editId: c.id, label: c.label, domain: c.domain, email: c.email, apiToken: token, projectKey: c.projectKey })
     }
     const cancelJira = () => { setJiraForm(f => ({ ...f, open: false })); setJiraStatus(null) }
@@ -252,11 +264,15 @@ export default function SettingsPage() {
         let conns = [...jiraConns]
         if (!editId) {
             const conn: JiraConnection = { id: crypto.randomUUID(), label: label.trim(), domain: domain.trim(), email: email.trim(), projectKey: projectKey.trim() }
-            await api.secureStoreSet(`jira_api_token_${conn.id}`, apiToken.trim())
+            const prefix = activeProject ? `project:${activeProject.id}:` : ''
+            await api.secureStoreSet(`${prefix}jira_api_token_${conn.id}`, apiToken.trim())
             conns = [...conns, conn]
         } else {
             conns = conns.map(c => c.id === editId ? { ...c, label: label.trim(), domain: domain.trim(), email: email.trim(), projectKey: projectKey.trim() } : c)
-            if (apiToken.trim()) await api.secureStoreSet(`jira_api_token_${editId}`, apiToken.trim())
+            if (apiToken.trim()) {
+                const prefix = activeProject ? `project:${activeProject.id}:` : ''
+                await api.secureStoreSet(`${prefix}jira_api_token_${editId}`, apiToken.trim())
+            }
         }
         await updateProject(activeProject.id, { jiraConnections: conns })
         setJiraForm(f => ({ ...f, open: false }))
@@ -265,14 +281,16 @@ export default function SettingsPage() {
 
     const deleteJira = async (id: string) => {
         if (!activeProject) return
-        await api.secureStoreDelete(`jira_api_token_${id}`)
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        await api.secureStoreDelete(`${prefix}jira_api_token_${id}`)
         await updateProject(activeProject.id, { jiraConnections: jiraConns.filter(c => c.id !== id) })
         flash(setJiraStatus, 'Connection removed.', true)
     }
 
     const testJira = async () => {
         const { domain, email, apiToken, editId } = jiraForm
-        const token = apiToken || (editId ? await api.secureStoreGet(`jira_api_token_${editId}`) : '')
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        const token = apiToken || (editId ? await api.secureStoreGet(`${prefix}jira_api_token_${editId}`) : '')
         if (!domain || !email || !token) { flash(setJiraStatus, 'Fill in Domain, Email and API Token first.', false); return }
         flash(setJiraStatus, 'Testing connection…', true)
         try {
@@ -286,13 +304,15 @@ export default function SettingsPage() {
     // ── CCv2 ─────────────────────────────────────────────────────────────────
     const saveCcv2 = async () => {
         if (!ccv2Sub.trim() || !ccv2Token.trim()) { flash(setCcv2Status, 'Fill in both Subscription Code and API Token.', false); return }
-        await api.secureStoreSet('ccv2_subscription_code', ccv2Sub.trim())
-        await api.secureStoreSet('ccv2_api_token', ccv2Token.trim())
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        await api.secureStoreSet(`${prefix}ccv2_subscription_code`, ccv2Sub.trim())
+        await api.secureStoreSet(`${prefix}ccv2_api_token`, ccv2Token.trim())
         flash(setCcv2Status, 'CCv2 credentials saved.', true)
     }
     const testCcv2 = async () => {
-        const sub = await api.secureStoreGet('ccv2_subscription_code')
-        const tok = await api.secureStoreGet('ccv2_api_token')
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        const sub = await api.secureStoreGet(`${prefix}ccv2_subscription_code`)
+        const tok = await api.secureStoreGet(`${prefix}ccv2_api_token`)
         if (!sub || !tok) { flash(setCcv2Status, 'Save credentials first.', false); return }
         setCcv2Testing(true)
         try {
@@ -303,8 +323,9 @@ export default function SettingsPage() {
         } finally { setCcv2Testing(false) }
     }
     const disconnectCcv2 = async () => {
-        await api.secureStoreDelete('ccv2_subscription_code')
-        await api.secureStoreDelete('ccv2_api_token')
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        await api.secureStoreDelete(`${prefix}ccv2_subscription_code`)
+        await api.secureStoreDelete(`${prefix}ccv2_api_token`)
         setCcv2Sub(''); setCcv2Token('')
         flash(setCcv2Status, 'CCv2 credentials removed.', true)
     }
@@ -312,9 +333,22 @@ export default function SettingsPage() {
     // ── Gemini ────────────────────────────────────────────────────────────────
     const saveGemini = async () => {
         if (!geminiKey.trim()) { flash(setGeminiStatus, 'Enter your API key.', false); return }
-        await api.secureStoreSet('gemini_api_key', geminiKey.trim())
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        await api.secureStoreSet(`${prefix}gemini_api_key`, geminiKey.trim())
         flash(setGeminiStatus, 'Google AI Studio API key saved.', true)
     }
+
+    const refreshStoredCreds = async () => {
+        if (!activeProject) { setStoredCreds([]); return }
+        const all = await api.secureStoreList()
+        const prefix = `project:${activeProject.id}:`
+        const filtered = (all || []).map((c: any) => typeof c === 'string' ? c : c.account).filter((a: string) => a.startsWith(prefix))
+        setStoredCreds(filtered.map((a: string) => a.replace(prefix, '')))
+    }
+
+    useEffect(() => {
+        refreshStoredCreds()
+    }, [activeProjectId])
 
     // ── Project sharing ───────────────────────────────────────────────────────
     const exportProject = async () => {
@@ -677,6 +711,32 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3 mb-4">
                             <p className="text-[10px] font-bold uppercase text-[#6B7280] mb-1">Data Storage Path</p>
                             <p className="text-[11px] font-mono text-[#A78BFA] break-all">{dataPath}</p>
+                        </div>
+                    )}
+                    {/* Stored credentials for active project */}
+                    {activeProject && (
+                        <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3 mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-[10px] font-bold uppercase text-[#6B7280]">Stored Credentials</p>
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" className="h-8 border-[#2A2A3A] text-[#9CA3AF] font-bold" onClick={refreshStoredCreds}>Refresh</Button>
+                                </div>
+                            </div>
+                            {storedCreds.length === 0 && <p className="text-xs text-[#6B7280] italic">No stored secrets for this project.</p>}
+                            <div className="space-y-2">
+                                {storedCreds.map(k => (
+                                    <div key={k} className="flex items-center justify-between bg-[#0A0A0D] border border-[#1F1F24] rounded-md px-3 py-2">
+                                        <div className="text-sm text-[#E2E8F0]">{k}</div>
+                                        <div className="flex items-center gap-2">
+                                            <Button variant="ghost" size="sm" className="h-7 text-red-400" onClick={async () => {
+                                                const prefix = `project:${activeProject.id}:`
+                                                await api.secureStoreDelete(`${prefix}${k}`)
+                                                refreshStoredCreds()
+                                            }}>Delete</Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                     <div className="flex items-center gap-2">

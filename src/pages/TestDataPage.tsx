@@ -17,19 +17,13 @@ import FormattedText from "@/components/FormattedText"
 type ViewState = 'Groups' | 'ImpEx'
 
 export default function TestDataPage() {
-    const { projects, activeProjectId } = useProjectStore()
+    const { projects, activeProjectId, addTestDataGroup, deleteTestDataGroup, addTestDataEntry, deleteTestDataEntry } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const [view, setView] = useState<ViewState>('Groups')
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
-    // Mock data groups for parity
-    const [groups] = useState([
-        { id: '1', name: 'Standard Customers', category: 'Users', entries: 15 },
-        { id: '2', name: 'Electronics Storefront Prods', category: 'Products', entries: 42 },
-        { id: '3', name: 'Promotion Vouchers - EU', category: 'Promotions', entries: 8 }
-    ])
-
+    const groups = activeProject?.testDataGroups || []
     const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchQuery.toLowerCase()))
     const selectedGroup = groups.find(g => g.id === selectedGroupId)
 
@@ -80,12 +74,19 @@ export default function TestDataPage() {
                                     selectedGroupId === group.id ? "bg-[#1A1A24] border-[#A78BFA]/40 shadow-lg shadow-[#A78BFA]/5" : "bg-transparent border-transparent hover:bg-[#1A1A24]/50"
                                 )}
                             >
-                                <div className="text-xs font-bold text-[#E2E8F0] mb-1 truncate">
-                                    <FormattedText content={group.name} />
+                                <div className="flex items-center justify-between">
+                                    <div className="text-xs font-bold text-[#E2E8F0] mb-1 truncate">
+                                        <FormattedText content={group.name} />
+                                    </div>
+                                    <Trash2 className="h-4 w-4 text-[#EF4444] opacity-0 group-hover:opacity-100" onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (activeProjectId) deleteTestDataGroup(activeProjectId, group.id);
+                                        if (selectedGroupId === group.id) setSelectedGroupId(null);
+                                    }} />
                                 </div>
                                 <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
                                     <span className="text-[#A78BFA]">{group.category}</span>
-                                    <span className="text-[#6B7280]">{group.entries} RECORDS</span>
+                                    <span className="text-[#6B7280]">{group.entries.length} RECORDS</span>
                                 </div>
                             </div>
                         ))
@@ -99,7 +100,12 @@ export default function TestDataPage() {
                 </div>
 
                 <div className="p-4 bg-[#0F0F13] border-t border-[#2A2A3A] space-y-2">
-                    <Button onClick={() => setView('Groups')} className={cn("w-full h-10 font-black text-xs gap-2", view === 'Groups' ? "bg-[#A78BFA] text-[#0F0F13]" : "bg-[#A78BFA]/10 text-[#A78BFA] border border-[#A78BFA]/20")}>
+                    <Button onClick={async () => {
+                        const name = prompt('Group name:')
+                        if (name && activeProjectId) {
+                            await addTestDataGroup(activeProjectId, name, 'Custom')
+                        }
+                    }} className={cn("w-full h-10 font-black text-xs gap-2", view === 'Groups' ? "bg-[#A78BFA] text-[#0F0F13]" : "bg-[#A78BFA]/10 text-[#A78BFA] border border-[#A78BFA]/20")}>
                         <Plus className="h-4 w-4" /> NEW DATA GROUP
                     </Button>
                     <Button onClick={() => setView('ImpEx')} className={cn("w-full h-10 font-black text-xs gap-2", view === 'ImpEx' ? "bg-[#A78BFA] text-[#0F0F13]" : "bg-[#1A1A2E] text-[#A78BFA] border border-[#A78BFA]/20")}>
@@ -187,16 +193,26 @@ export default function TestDataPage() {
                             </div>
                             <div className="flex gap-2">
                                 <Button variant="ghost" size="sm" className="h-7 text-[#6B7280] text-[10px] font-black uppercase tracking-widest hover:text-[#E2E8F0]">COPY ALL</Button>
-                                <Button size="sm" className="h-7 bg-[#A78BFA]/10 text-[#A78BFA] border border-[#A78BFA]/20 hover:bg-[#A78BFA]/20 text-[10px] font-black uppercase tracking-widest">+ ADD ENTRY</Button>
+                                <Button size="sm" onClick={async () => {
+                                    if (!activeProjectId || !selectedGroupId) return;
+                                    const key = prompt('Entry key:');
+                                    if (!key) return;
+                                    const value = prompt('Entry value:');
+                                    if (value === null) return;
+                                    await addTestDataEntry(activeProjectId, selectedGroupId, { key, value, description: '', tags: '', environment: 'All' });
+                                }} className="h-7 bg-[#A78BFA]/10 text-[#A78BFA] border border-[#A78BFA]/20 hover:bg-[#A78BFA]/20 text-[10px] font-black uppercase tracking-widest">+ ADD ENTRY</Button>
                             </div>
                         </div>
 
                         <div className="flex-1 p-6 overflow-y-auto custom-scrollbar space-y-3">
-                            {[1, 2, 3, 4, 5].map(i => (
-                                <div key={i} className="flex gap-3 animate-in fade-in slide-in-from-top-2 duration-300" style={{ animationDelay: `${i * 50}ms` }}>
-                                    <Input placeholder="Key" className="h-10 bg-[#1A1A24] border-[#2A2A3A] text-xs font-mono text-[#A78BFA] uppercase tracking-wider" defaultValue={`PARAM_${i}`} />
-                                    <Input placeholder="Value" className="h-10 flex-1 bg-[#1A1A24] border-[#2A2A3A] text-xs font-mono text-[#E2E8F0]" defaultValue={`SECURE_TOKEN_00${i}`} />
-                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-[#6B7280] hover:text-[#EF4444] transition-colors">
+                            {selectedGroup?.entries.map((entry) => (
+                                <div key={entry.id} className="flex gap-3 items-center animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex-1 text-sm font-mono text-[#A78BFA] truncate">{entry.key}</div>
+                                    <div className="flex-1 text-sm text-[#E2E8F0] truncate">{entry.value}</div>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#EF4444] transition-colors" onClick={async () => {
+                                        if (!activeProjectId || !selectedGroupId) return;
+                                        await deleteTestDataEntry(activeProjectId, selectedGroupId, entry.id);
+                                    }}>
                                         <Trash className="h-3.5 w-3.5" />
                                     </Button>
                                 </div>

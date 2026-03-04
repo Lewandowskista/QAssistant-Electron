@@ -16,6 +16,11 @@ let authToken = 'qassistant-default-token'
 let serverInstance: any = null
 
 export function startServer(apiToken: string, port: number = 3030) {
+    // Prevent double-start (e.g. called from both IPC handler and app.whenReady)
+    if (serverInstance) {
+        console.log('[QAssistant] API server already running, skipping restart.')
+        return
+    }
     authToken = apiToken
 
     const getDataPath = (): string =>
@@ -271,6 +276,12 @@ export function startServer(apiToken: string, port: number = 3030) {
         const instance = server.listen(p, () => {
             console.log(`[QAssistant] Automation API running on port ${p}`)
             serverInstance = instance
+
+            // Track keep-alive sockets so we can destroy them on shutdown
+            instance.on('connection', (socket: any) => {
+                openSockets.add(socket)
+                socket.once('close', () => openSockets.delete(socket))
+            })
         })
 
         instance.on('error', (err: any) => {
@@ -289,7 +300,15 @@ export function startServer(apiToken: string, port: number = 3030) {
 
 export function stopServer() {
     if (serverInstance) {
-        serverInstance.close()
+        // Destroy all open keep-alive connections immediately so the port is freed
+        // synchronously rather than waiting for socket idle timeouts.
+        for (const socket of openSockets) {
+            try { socket.destroy() } catch { /* ignore */ }
+        }
+        openSockets.clear()
+        serverInstance.close(() => {
+            console.log('[QAssistant] Automation API stopped.')
+        })
         serverInstance = null
     }
 }
