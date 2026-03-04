@@ -1,0 +1,244 @@
+import { useState, useEffect } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { useProjectStore, TestCase, TestPlan, SapModule, TestCasePriority } from "@/store/useProjectStore"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { FlaskConical, Clipboard, CheckCircle2, XCircle, AlertCircle, Info, Database } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+interface TestCaseDialogProps {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    activePlan: TestPlan | null
+    editingCase: TestCase | null
+}
+
+const SAP_MODULES: SapModule[] = ['Cart', 'Checkout', 'Pricing', 'Promotions', 'CatalogSync', 'B2B', 'OMS', 'Personalization', 'CPQ']
+
+export default function TestCaseDialog({ open, onOpenChange, activePlan, editingCase }: TestCaseDialogProps) {
+    const { activeProjectId, addTestCase, updateTestCase } = useProjectStore()
+
+    const [form, setForm] = useState({
+        title: "",
+        preConditions: "",
+        steps: "",
+        testData: "",
+        expectedResult: "",
+        actualResult: "",
+        priority: "medium" as TestCasePriority,
+        status: "not-run" as TestCase['status'],
+        sapModule: undefined as SapModule | undefined,
+        sourceIssueId: ""
+    })
+
+    useEffect(() => {
+        if (editingCase) {
+            setForm({
+                title: editingCase.title,
+                preConditions: editingCase.preConditions,
+                steps: editingCase.steps,
+                testData: editingCase.testData,
+                expectedResult: editingCase.expectedResult,
+                actualResult: editingCase.actualResult,
+                priority: editingCase.priority,
+                status: editingCase.status,
+                sapModule: editingCase.sapModule,
+                sourceIssueId: editingCase.sourceIssueId || ""
+            })
+        } else {
+            setForm({
+                title: "",
+                preConditions: "",
+                steps: "",
+                testData: "",
+                expectedResult: "",
+                actualResult: "",
+                priority: "medium",
+                status: "not-run",
+                sapModule: undefined,
+                sourceIssueId: ""
+            })
+        }
+    }, [editingCase, open])
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!activeProjectId || !activePlan || !form.title.trim()) return
+
+        if (editingCase) {
+            await updateTestCase(activeProjectId, activePlan.id, editingCase.id, form)
+        } else {
+            await addTestCase(activeProjectId, activePlan.id, form)
+        }
+        onOpenChange(false)
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl">
+                <div className="h-2 bg-indigo-500 w-full" />
+                <form onSubmit={handleSubmit} className="p-8">
+                    <DialogHeader className="mb-6">
+                        <div className="flex items-center gap-3 text-indigo-500 mb-2">
+                            <div className="p-2 bg-indigo-500/10 rounded-lg">
+                                <FlaskConical className="h-6 w-6" />
+                            </div>
+                            <DialogTitle className="text-2xl font-black tracking-tight">
+                                {editingCase ? `Edit ${editingCase.displayId}` : "Create New Test Case"}
+                            </DialogTitle>
+                        </div>
+                        <DialogDescription>
+                            Define clear acceptance criteria and steps for reliable quality assurance.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-6">
+                        <div className="grid gap-2">
+                            <Label htmlFor="case-title" className="text-xs font-bold uppercase text-muted-foreground px-1">Case Summary</Label>
+                            <Input
+                                id="case-title"
+                                value={form.title}
+                                onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
+                                placeholder="[SAP-123] Verify discount application on checkout"
+                                className="bg-background/50 h-11 text-lg font-semibold focus-visible:ring-indigo-500/40"
+                                required
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold uppercase text-muted-foreground px-1">Priority</Label>
+                                <Select
+                                    value={form.priority}
+                                    onValueChange={(v: any) => setForm(f => ({ ...f, priority: v }))}
+                                >
+                                    <SelectTrigger className="bg-background/50">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="low">Low</SelectItem>
+                                        <SelectItem value="medium">Medium</SelectItem>
+                                        <SelectItem value="major">Major</SelectItem>
+                                        <SelectItem value="blocker">Blocker</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold uppercase text-muted-foreground px-1">SAP Module</Label>
+                                <Select
+                                    value={form.sapModule || "none"}
+                                    onValueChange={(v: any) => setForm(f => ({ ...f, sapModule: v === "none" ? undefined : v }))}
+                                >
+                                    <SelectTrigger className="bg-background/50">
+                                        <SelectValue placeholder="General" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">General / Core</SelectItem>
+                                        {SAP_MODULES.map(m => (
+                                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="source-id" className="text-xs font-bold uppercase text-muted-foreground px-1">Source ID</Label>
+                                <Input
+                                    id="source-id"
+                                    value={form.sourceIssueId}
+                                    onChange={(e) => setForm(f => ({ ...f, sourceIssueId: e.target.value }))}
+                                    placeholder="Jira/Linear ID"
+                                    className="bg-background/50"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label htmlFor="case-pre" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2">
+                                    <Info className="h-3 w-3" /> Pre-conditions
+                                </Label>
+                                <Textarea
+                                    id="case-pre"
+                                    value={form.preConditions}
+                                    onChange={(e) => setForm(f => ({ ...f, preConditions: e.target.value }))}
+                                    placeholder="User session active, cart populated..."
+                                    className="bg-background/50 resize-none min-h-[100px]"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="case-data" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2">
+                                    <Database className="h-3 w-3" /> Test Data
+                                </Label>
+                                <Textarea
+                                    id="case-data"
+                                    value={form.testData}
+                                    onChange={(e) => setForm(f => ({ ...f, testData: e.target.value }))}
+                                    placeholder="Username: test_qa_01&#10;SKU: 13948..."
+                                    className="bg-background/50 resize-none min-h-[100px]"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="case-steps" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2">
+                                <Clipboard className="h-3 w-3" /> Execution Steps
+                            </Label>
+                            <Textarea
+                                id="case-steps"
+                                value={form.steps}
+                                onChange={(e) => setForm(f => ({ ...f, steps: e.target.value }))}
+                                placeholder="1. Navigate to checkout&#10;2. Apply coupon SUMMER24&#10;3. Verify subtotal..."
+                                className="bg-background/50 min-h-[120px] font-mono text-sm"
+                            />
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-2">
+                                <Label htmlFor="case-expected" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2 text-green-600">
+                                    <CheckCircle2 className="h-3 w-3" /> Expected Result
+                                </Label>
+                                <Textarea
+                                    id="case-expected"
+                                    value={form.expectedResult}
+                                    onChange={(e) => setForm(f => ({ ...f, expectedResult: e.target.value }))}
+                                    placeholder="Success message displayed, total reduced by 20%"
+                                    className="bg-green-50/10 border-green-500/20 text-green-700 dark:text-green-400 min-h-[100px]"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="case-actual" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2 text-red-600">
+                                    <XCircle className="h-3 w-3" /> Actual Result
+                                </Label>
+                                <Textarea
+                                    id="case-actual"
+                                    value={form.actualResult}
+                                    onChange={(e) => setForm(f => ({ ...f, actualResult: e.target.value }))}
+                                    placeholder="Populated automatically during test runs"
+                                    className="bg-red-50/10 border-red-500/20 text-red-700 dark:text-red-400 min-h-[100px]"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="mt-10 pt-6 border-t border-border/50 gap-2">
+                        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="font-bold">
+                            Cancel
+                        </Button>
+                        <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-black shadow-lg shadow-indigo-600/20 px-8">
+                            {editingCase ? "Update Telemetry" : "Publish Case"}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}

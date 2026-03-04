@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 240 16% 9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 240 16% 9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 255 92% 76%;
+    --primary-foreground: 240 10% 4%;
+
+    --secondary: 240 16% 15%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 240 16% 15%;
+    --muted-foreground: 240 5% 64%;
+
+    --accent: 240 16% 15%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 240 16% 20%;
+    --input: 240 16% 20%;
+    --ring: 255 92% 76%;
+
+    --radius: 0.75rem;
+
+    --surface: 240 16% 9%;
+    --surface-hover: 240 16% 15%;
+  }
+
+  .dark {
+    --background: 240 10% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 240 16% 9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 240 16% 9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 255 92% 76%;
+    --primary-foreground: 240 10% 4%;
+
+    --secondary: 240 16% 15%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 240 16% 15%;
+    --muted-foreground: 240 5% 64%;
+
+    --accent: 240 16% 15%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 240 16% 20%;
+    --input: 240 16% 20%;
+    --ring: 255 92% 76%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Electron App Region Drag */
+.app-region-drag {
+  -webkit-app-region: drag;
+}
+
+.app-region-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsla(255, 92%, 76%, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsla(255, 92%, 76%, 0.2);
+}
+
+/* Utility Classes */
+.glass-card {
+  @apply bg-card/40 backdrop-blur-xl border border-white/5;
+}
+
+.neural-border {
+  @apply border border-[#A78BFA]/20 shadow-[0_0_15px_rgba(167,139,250,0.05)];
+}
+
+.text-glow {
+  text-shadow: 0 0 10px hsla(255, 92%, 76%, 0.5);
+}
+
+/* Animations */
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-[#A78BFA]/20 rounded-full;
+}
