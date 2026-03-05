@@ -39,10 +39,17 @@ export const RichTextEditor = ({ content, onChange }: RichTextEditorProps) => {
         },
     })
 
-    // Synchronize content when selected note changes
+    // Synchronize content when selected note changes.
+    // Avoid calling setContent while the editor is focused to prevent
+    // resetting the selection / caret (which causes a vibrating caret).
     useEffect(() => {
         if (editor && content !== editor.getHTML()) {
-            editor.commands.setContent(content)
+            // Only update external content when the editor is not focused.
+            // This prevents a sync loop: parent updates -> prop changes ->
+            // setContent() which resets selection while the user types.
+            if (!editor.isFocused()) {
+                editor.commands.setContent(content)
+            }
         }
     }, [content, editor])
 

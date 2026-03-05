@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import { Plus, Trash2, Paperclip, ExternalLink, CheckCircle2, StickyNote, BookOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -26,6 +26,38 @@ export default function NotesPage() {
 
     const selectedNote = notes.find(n => n.id === selectedItemId)
     const selectedRunbook = runbooks.find(r => r.id === selectedItemId)
+
+    // Local editor state to avoid persisting on every keystroke.
+    const [titleState, setTitleState] = useState<string>(selectedNote?.title || '')
+    const [contentState, setContentState] = useState<string>(selectedNote?.content || '')
+    const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const contentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // Initialize local state whenever a different note is selected.
+    useEffect(() => {
+        setTitleState(selectedNote?.title || '')
+        setContentState(selectedNote?.content || '')
+    }, [selectedItemId])
+
+    // Debounced save for title
+    useEffect(() => {
+        if (!selectedNote || !activeProjectId) return
+        if (titleTimer.current) clearTimeout(titleTimer.current)
+        titleTimer.current = setTimeout(() => {
+            updateNote(activeProjectId!, selectedNote.id, { title: titleState })
+        }, 600)
+        return () => { if (titleTimer.current) clearTimeout(titleTimer.current) }
+    }, [titleState, selectedNote, activeProjectId])
+
+    // Debounced save for content
+    useEffect(() => {
+        if (!selectedNote || !activeProjectId) return
+        if (contentTimer.current) clearTimeout(contentTimer.current)
+        contentTimer.current = setTimeout(() => {
+            updateNote(activeProjectId!, selectedNote.id, { content: contentState })
+        }, 800)
+        return () => { if (contentTimer.current) clearTimeout(contentTimer.current) }
+    }, [contentState, selectedNote, activeProjectId])
 
     const handleAddNote = async () => {
         if (!activeProjectId) return
@@ -136,11 +168,16 @@ export default function NotesPage() {
                 ) : activeTab === 'Notes' && selectedNote ? (
                     <div className="flex-1 flex flex-col overflow-hidden">
                         <header className="p-6 bg-[#13131A] border-b border-[#2A2A3A] flex items-center justify-between">
-                            <Input
-                                value={selectedNote.title}
-                                onChange={(e) => activeProjectId && updateNote(activeProjectId, selectedNote.id, { title: e.target.value })}
-                                className="bg-transparent border-none text-2xl font-black text-[#E2E8F0] focus-visible:ring-0 px-0 h-auto"
-                            />
+                                    <Input
+                                        value={titleState}
+                                        onChange={(e) => setTitleState(e.target.value)}
+                                        onBlur={() => {
+                                            if (!activeProjectId || !selectedNote) return
+                                            // flush immediate save on blur
+                                            updateNote(activeProjectId, selectedNote.id, { title: titleState })
+                                        }}
+                                        className="bg-transparent border-none text-2xl font-black text-[#E2E8F0] focus-visible:ring-0 px-0 h-auto"
+                                    />
                             <div className="flex gap-2">
                                 <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-[#EF4444] hover:bg-[#EF4444]/10">
                                     <Trash2 className="h-4 w-4" />
@@ -150,8 +187,8 @@ export default function NotesPage() {
                         </header>
                         <div className="flex-1 flex overflow-hidden">
                             <RichTextEditor
-                                content={selectedNote.content}
-                                onChange={(content) => activeProjectId && updateNote(activeProjectId, selectedNote.id, { content })}
+                                content={contentState}
+                                onChange={(content) => setContentState(content)}
                             />
                             <aside className="w-64 border-l border-[#2A2A3A] bg-[#13131A]/30 flex flex-col">
                                 <div className="p-4 border-b border-[#2A2A3A] flex items-center justify-between">
