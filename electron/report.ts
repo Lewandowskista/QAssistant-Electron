@@ -260,6 +260,166 @@ export function generateTestSummaryMarkdown(
     return lines.join('\n');
 }
 
+export function generateTestSummaryHtml(
+    project: Project,
+    filterPlanIds?: string[],
+    criticalityAssessment?: string
+): string {
+    const plans = filterPlanIds
+        ? (project.testPlans || []).filter(p => filterPlanIds.includes(p.id))
+        : (project.testPlans || []);
+
+    const allExecs = project.testExecutions || [];
+    const allCases = plans.flatMap(p => p.testCases || []);
+
+    const passed = allCases.filter(c => c.status === 'passed').length;
+    const failed = allCases.filter(c => c.status === 'failed').length;
+    const blocked = allCases.filter(c => c.status === 'blocked').length;
+    const skipped = allCases.filter(c => c.status === 'skipped').length;
+    const notRun = allCases.filter(c => !c.status || c.status === 'not-run').length;
+    const total = allCases.length;
+    const passRate = total > 0 ? ((passed / total) * 100).toFixed(1) : '0.0';
+
+    const now = new Date().toLocaleString();
+
+    let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 40px; color: #1a1a24; line-height: 1.5; }
+            h1, h2, h3 { color: #0f0f13; margin-top: 1.5em; font-weight: 700; }
+            h1 { font-size: 28px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-top: 0; }
+            h2 { font-size: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+            h3 { font-size: 16px; margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px; page-break-inside: avoid; }
+            th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; }
+            th { background-color: #f8fafc; font-weight: 600; color: #475569; }
+            tr:nth-child(even) { background-color: #f8fafc; }
+            .header-info { color: #64748b; font-size: 14px; margin-bottom: 30px; }
+            .metric-box { display: inline-block; padding: 15px 25px; margin: 0 15px 15px 0; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; min-width: 120px; }
+            .metric-value { font-size: 24px; font-weight: 700; color: #0f0f13; }
+            .metric-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-top: 4px; }
+            .status-icon { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; }
+            .bg-passed { background-color: #10b981; }
+            .bg-failed { background-color: #ef4444; }
+            .bg-blocked { background-color: #f59e0b; }
+            .bg-skipped { background-color: #64748b; }
+            .bg-notrun { background-color: #cbd5e1; }
+            .text-passed { color: #10b981; font-weight: 600; }
+            .text-failed { color: #ef4444; font-weight: 600; }
+            .text-blocked { color: #f59e0b; font-weight: 600; }
+            .text-skipped { color: #64748b; font-weight: 600; }
+            .text-notrun { color: #64748b; font-weight: 600; opacity: 0.6; }
+            .footer { margin-top: 50px; font-size: 11px; color: #94a3b8; text-align: center; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+            .ai-block { background: #fdf4ff; border-left: 4px solid #d946ef; padding: 15px 20px; margin: 20px 0; margin-bottom: 20px; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+            code { background-color: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-size: 11px; color: #334155; }
+        </style>
+    </head>
+    <body>
+        <h1>Test Summary Report</h1>
+        <div class="header-info">
+            <strong>Project:</strong> ${project.name} <br/>
+            <strong>Generated:</strong> ${now}
+        </div>
+
+        <h2>Overview</h2>
+        <div>
+            <div class="metric-box"><div class="metric-value">${plans.length}</div><div class="metric-label">Test Plans</div></div>
+            <div class="metric-box"><div class="metric-value">${total}</div><div class="metric-label">Test Cases</div></div>
+            <div class="metric-box"><div class="metric-value">${allExecs.length}</div><div class="metric-label">Executions</div></div>
+            <div class="metric-box"><div class="metric-value" style="color: ${Number(passRate) >= 80 ? '#10b981' : Number(passRate) >= 60 ? '#f59e0b' : '#ef4444'}">${passRate}%</div><div class="metric-label">Pass Rate</div></div>
+        </div>
+
+        <h2>Status Breakdown</h2>
+        <table>
+            <tr><th>Status</th><th>Count</th><th>Percentage</th></tr>
+            <tr><td><span class="status-icon bg-passed"></span> Passed</td><td>${passed}</td><td>${total > 0 ? ((passed / total) * 100).toFixed(1) : '0.0'}%</td></tr>
+            <tr><td><span class="status-icon bg-failed"></span> Failed</td><td>${failed}</td><td>${total > 0 ? ((failed / total) * 100).toFixed(1) : '0.0'}%</td></tr>
+            <tr><td><span class="status-icon bg-blocked"></span> Blocked</td><td>${blocked}</td><td>${total > 0 ? ((blocked / total) * 100).toFixed(1) : '0.0'}%</td></tr>
+            <tr><td><span class="status-icon bg-skipped"></span> Skipped</td><td>${skipped}</td><td>${total > 0 ? ((skipped / total) * 100).toFixed(1) : '0.0'}%</td></tr>
+            <tr><td><span class="status-icon bg-notrun"></span> Not Run</td><td>${notRun}</td><td>${total > 0 ? ((notRun / total) * 100).toFixed(1) : '0.0'}%</td></tr>
+        </table>
+
+        <h2>Test Plans</h2>
+    `;
+
+    for (const plan of [...plans].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())) {
+        const cases = plan.testCases || [];
+        const planPassed = cases.filter(c => c.status === 'passed').length;
+        const planFailed = cases.filter(c => c.status === 'failed').length;
+        const planRate = cases.length > 0 ? ((planPassed / cases.length) * 100).toFixed(0) : '0';
+
+        html += `
+        <h3>${plan.testPlanId || ''} — ${plan.name}</h3>
+        <p style="color: #64748b; font-size: 13px; margin-top: 0;">${cases.length} cases &middot; ${planRate}% pass rate (${planPassed} passed, ${planFailed} failed)</p>
+        `;
+
+        if (cases.length > 0) {
+            html += `
+            <table>
+                <tr><th style="width: 15%">ID</th><th style="width: 55%">Title</th><th style="width: 15%">Status</th><th style="width: 15%">Priority</th></tr>
+            `;
+            for (const tc of [...cases].sort((a, b) => (a.testCaseId || '').localeCompare(b.testCaseId || ''))) {
+                let sClass = "text-notrun", sText = "Not Run";
+                if (tc.status === 'passed') { sClass = "text-passed"; sText = "Passed"; }
+                else if (tc.status === 'failed') { sClass = "text-failed"; sText = "Failed"; }
+                else if (tc.status === 'blocked') { sClass = "text-blocked"; sText = "Blocked"; }
+                else if (tc.status === 'skipped') { sClass = "text-skipped"; sText = "Skipped"; }
+
+                const shortTitle = tc.title.length > 70 ? tc.title.substring(0, 67) + '...' : tc.title;
+                html += `<tr><td><code>${tc.testCaseId || ''}</code></td><td>${shortTitle}</td><td class="${sClass}">${sText}</td><td>${tc.priority || 'medium'}</td></tr>`;
+            }
+            html += `</table>`;
+        }
+    }
+
+    const recentExecs = [...allExecs]
+        .sort((a, b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime())
+        .slice(0, 30);
+
+    if (recentExecs.length > 0) {
+        const testCaseLookup = new Map<string, TestCase>();
+        for (const plan of plans) {
+            for (const tc of plan.testCases || []) {
+                if (tc.id) testCaseLookup.set(tc.id, tc);
+            }
+        }
+
+        html += `<h2>Recent Executions</h2><table><tr><th style="width: 20%">Execution</th><th style="width: 45%">Test Case</th><th style="width: 15%">Result</th><th style="width: 20%">Date</th></tr>`;
+        for (const exec of recentExecs) {
+            const tc = exec.testCaseId ? testCaseLookup.get(exec.testCaseId) : undefined;
+            const tcLabel = tc ? `<code>${tc.testCaseId}</code> ${tc.title.substring(0, 40)}...` : 'Deleted';
+            const date = exec.executedAt ? exec.executedAt.substring(0, 16).replace('T', ' ') : '';
+
+            let sClass = "text-notrun", sText = "Not Run";
+            if (exec.result === 'passed') { sClass = "text-passed"; sText = "Passed"; }
+            else if (exec.result === 'failed') { sClass = "text-failed"; sText = "Failed"; }
+            else if (exec.result === 'blocked') { sClass = "text-blocked"; sText = "Blocked"; }
+
+            html += `<tr><td><code>${exec.executionId || exec.id || ''}</code></td><td>${tcLabel}</td><td class="${sClass}">${sText}</td><td>${date}</td></tr>`;
+        }
+        html += `</table>`;
+    }
+
+    if (criticalityAssessment) {
+        html += `
+        <h2>AI Criticality Assessment</h2>
+        <p style="color: #64748b; font-size: 12px; margin-top: 0; margin-bottom: 2px;"><em>AI-generated analysis based on project data, test cases, and execution results</em></p>
+        <div class="ai-block">${criticalityAssessment.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+        `;
+    }
+
+    html += `
+        <div class="footer">QAssistant &middot; ${project.name} &middot; ${new Date().toISOString().substring(0, 10)}</div>
+    </body>
+    </html>
+    `;
+
+    return html;
+}
+
 /**
  * Auto-detect column mappings from CSV headers.
  * Returns a map of { csvHeader -> tcFieldName }.

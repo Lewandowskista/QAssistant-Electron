@@ -5,15 +5,9 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 
 // types for SAP HAC
-import { CronJobEntry, FlexibleSearchResult, ImpExResult } from "@/lib/sapHac"
+import { CronJobEntry, FlexibleSearchResult } from "@/lib/sapHac"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import {
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from "@/components/ui/tabs"
 import {
     Select,
     SelectContent,
@@ -59,6 +53,12 @@ export default function SapPage() {
     const [impExExecuting, setImpExExecuting] = useState(false)
     const [impExEnableCode, setImpExEnableCode] = useState(false)
 
+    // Catalog state
+    const [catalogIds, setCatalogIds] = useState<string[]>([])
+    const [selectedCatalog, setSelectedCatalog] = useState<string>('')
+    const [catalogDiff, setCatalogDiff] = useState<any>(null)
+    const [catalogDiffLoading, setCatalogDiffLoading] = useState(false)
+
     // CCv2 state
     const [ccv2Sub, setCcv2Sub] = useState<string>('')
     const [ccv2Token, setCcv2Token] = useState<string>('')
@@ -86,7 +86,7 @@ export default function SapPage() {
                     if (obj.user) setHacUser(obj.user);
                     if (obj.pass) setHacPass(obj.pass);
                 }
-            } catch {}
+            } catch { }
         })();
     }, [hacBaseUrl])
 
@@ -102,7 +102,7 @@ export default function SapPage() {
                 if (saved) {
                     setCcv2Token(saved);
                 }
-            } catch {}
+            } catch { }
         })();
     }, [ccv2Sub])
 
@@ -111,6 +111,18 @@ export default function SapPage() {
             fetchCronJobs();
         }
     }, [isConnected])
+
+    useEffect(() => {
+        if (isConnected && activeTab === 'Catalog' && catalogIds.length === 0) {
+            (async () => {
+                const res = await api.sapHacGetCatalogIds(hacBaseUrl)
+                if (res.success && res.data) {
+                    setCatalogIds(res.data)
+                    if (res.data.length > 0 && !selectedCatalog) setSelectedCatalog(res.data[0])
+                }
+            })()
+        }
+    }, [isConnected, activeTab, hacBaseUrl, catalogIds.length, selectedCatalog])
 
     if (!activeProject) {
         return (
@@ -135,7 +147,7 @@ export default function SapPage() {
                 // save credentials locally for convenience
                 try {
                     await api.secureStoreSet(`sapHac:${hacBaseUrl}`, JSON.stringify({ user: hacUser, pass: hacPass }));
-                } catch {}
+                } catch { }
                 await fetchCronJobs();
             } else {
                 alert('Login failed: ' + (res.error || 'unknown'));
@@ -195,6 +207,24 @@ export default function SapPage() {
         }
     }
 
+    const runCatalogDiff = async () => {
+        if (!hacBaseUrl || !selectedCatalog) return
+        setCatalogDiffLoading(true)
+        setCatalogDiff(null)
+        try {
+            const res = await api.sapHacGetCatalogSyncDiff(hacBaseUrl, selectedCatalog, 200)
+            if (res.success && res.data) {
+                setCatalogDiff(res.data)
+            } else {
+                alert('Diff failed: ' + res.error)
+            }
+        } catch (e: any) {
+            alert('Error: ' + e.message)
+        } finally {
+            setCatalogDiffLoading(false)
+        }
+    }
+
     const fetchCcv2Envs = async () => {
         try {
             const r = await api.ccv2GetEnvironments(ccv2Sub, ccv2Token);
@@ -203,7 +233,7 @@ export default function SapPage() {
                 // save token for this subscription
                 try {
                     await api.secureStoreSet(`ccv2:${ccv2Sub}`, ccv2Token);
-                } catch {}
+                } catch { }
             } else {
                 setCcv2Envs([]);
             }
@@ -475,10 +505,85 @@ export default function SapPage() {
                         )}
 
                         {activeTab === 'Catalog' && (
-                            <div className="flex-1 flex flex-col items-center justify-center text-[#6B7280] opacity-20">
-                                <Layers className="h-20 w-20 mb-6" strokeWidth={1} />
-                                <h3 className="text-xl font-black uppercase tracking-widest">Catalog Delta Engine</h3>
-                                <p className="text-xs font-bold mt-2">Comparing catalog versions...</p>
+                            <div className="flex-1 flex flex-col overflow-hidden bg-[#0F0F13]">
+                                <div className="p-4 bg-[#13131A] border-b border-[#2A2A3A] flex items-center gap-4">
+                                    <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest whitespace-nowrap">Catalog Delta Engine</span>
+                                    <div className="flex-1" />
+                                    {catalogIds.length > 0 ? (
+                                        <Select value={selectedCatalog} onValueChange={setSelectedCatalog}>
+                                            <SelectTrigger className="w-[250px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[10px] font-bold text-[#6B7280]">
+                                                <SelectValue placeholder="Select Catalog" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0] text-[10px]">
+                                                {catalogIds.map(id => (
+                                                    <SelectItem key={id} value={id}>{id}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    ) : (
+                                        <span className="text-[10px] text-[#A78BFA] animate-pulse">Loading catalogs...</span>
+                                    )}
+                                    <Button
+                                        onClick={runCatalogDiff}
+                                        disabled={!selectedCatalog || catalogDiffLoading}
+                                        className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase gap-2"
+                                    >
+                                        {catalogDiffLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                                        Compare Staged vs Online
+                                    </Button>
+                                </div>
+
+                                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                                    {!catalogDiff && !catalogDiffLoading && (
+                                        <div className="h-full flex flex-col items-center justify-center text-[#6B7280] opacity-30">
+                                            <Layers className="h-16 w-16 mb-6" strokeWidth={1} />
+                                            <h3 className="text-sm font-black uppercase tracking-widest">Select a catalog to compare</h3>
+                                        </div>
+                                    )}
+                                    {catalogDiffLoading && (
+                                        <div className="h-full flex flex-col items-center justify-center text-[#A78BFA] gap-4">
+                                            <RefreshCw className="h-8 w-8 animate-spin" />
+                                            <span className="text-xs font-bold uppercase tracking-widest animate-pulse">Running Delta Queries...</span>
+                                        </div>
+                                    )}
+                                    {catalogDiff && (
+                                        <div className="space-y-6 max-w-4xl mx-auto">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-2xl p-6 flex flex-col items-center justify-center gap-2">
+                                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Staged Items</span>
+                                                    <span className="text-4xl font-black text-[#E2E8F0]">{catalogDiff.stagedCount}</span>
+                                                </div>
+                                                <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-2xl p-6 flex flex-col items-center justify-center gap-2">
+                                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Online Items</span>
+                                                    <span className="text-4xl font-black text-[#A78BFA]">{catalogDiff.onlineCount}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-[#13131A] border border-[#2A2A3A] rounded-2xl overflow-hidden shadow-xl">
+                                                <div className="px-6 py-4 border-b border-[#2A2A3A] flex items-center justify-between">
+                                                    <span className="text-xs font-bold text-[#E2E8F0] uppercase tracking-widest">Missing in Online ({catalogDiff.missingStagedToOnline?.length || 0})</span>
+                                                    <span className="text-[10px] text-[#6B7280]">Top 200 items</span>
+                                                </div>
+                                                <div className="p-6 bg-[#0F0F13]">
+                                                    {catalogDiff.missingStagedToOnline?.length === 0 ? (
+                                                        <div className="flex items-center gap-3 text-[#10B981]">
+                                                            <CheckCircle2 className="h-5 w-5" />
+                                                            <span className="text-xs font-bold uppercase tracking-widest">Catalog is fully synchronized</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {catalogDiff.missingStagedToOnline?.map((code: string, i: number) => (
+                                                                <span key={i} className="px-2 py-1 bg-[#1A1A24] border border-[#2A2A3A] rounded text-[10px] font-mono text-[#E2E8F0]">
+                                                                    {code}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
 

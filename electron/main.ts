@@ -354,6 +354,11 @@ function setupIpc() {
         return await getJiraIssueHistory(domain, email, apiKey, issueKey);
     });
 
+    ipcMain.handle('create-jira-issue', async (_: any, { domain, email, apiKey, projectKey, title, description, issueTypeName }: any) => {
+        const { createJiraIssue } = await import('./integrations.js');
+        return await createJiraIssue(domain, email, apiKey, projectKey, title, description, issueTypeName);
+    });
+
     // ── AI / Gemini ────────────────────────────────────────────────────────
     ipcMain.handle('ai-generate-cases', async (_: any, { apiKey, tasks, sourceName, project, designDoc }: any) => {
         const { GeminiService } = await import('./gemini.js');
@@ -361,10 +366,10 @@ function setupIpc() {
         return await service.generateTestCases(tasks, sourceName || 'Manual', project, designDoc);
     });
 
-    ipcMain.handle('ai-analyze-issue', async (_: any, { apiKey, task, comments, project }: any) => {
+    ipcMain.handle('ai-analyze-issue', async (_: any, { apiKey, task, comments, project, attachedImageCount }: any) => {
         const { GeminiService } = await import('./gemini.js');
         const service = new GeminiService(apiKey);
-        return await service.analyzeIssue(task, comments || [], project);
+        return await service.analyzeIssue(task, comments || [], project, attachedImageCount || 0);
     });
 
     ipcMain.handle('ai-analyze', async (_: any, { apiKey, context }: any) => {
@@ -448,6 +453,39 @@ function setupIpc() {
             if (!svc) throw new Error('Not logged in');
             const res: ImpExResult = await svc.importImpEx(script, !!enableCodeExecution);
             return { success: true, result: res };
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('sap-hac-catalog-versions', async (_: any, { baseUrl }: any) => {
+        try {
+            const svc = sapServiceMap[baseUrl];
+            if (!svc) throw new Error('Not logged in');
+            const data = await svc.getCatalogVersions();
+            return { success: true, data };
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('sap-hac-catalog-ids', async (_: any, { baseUrl }: any) => {
+        try {
+            const svc = sapServiceMap[baseUrl];
+            if (!svc) throw new Error('Not logged in');
+            const data = await svc.getCatalogIds();
+            return { success: true, data };
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('sap-hac-catalog-sync-diff', async (_: any, { baseUrl, catalogId, maxMissing }: any) => {
+        try {
+            const svc = sapServiceMap[baseUrl];
+            if (!svc) throw new Error('Not logged in');
+            const data = await svc.getCatalogSyncDiff(catalogId, maxMissing);
+            return { success: true, data };
         } catch (err: any) {
             return { success: false, error: err.message };
         }
@@ -808,5 +846,5 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
     globalShortcut.unregisterAll();
     // Belt-and-suspenders: also stop the server here in case before-quit was skipped
-    import('./server.js').then(({ stopServer }) => stopServer()).catch(() => {});
+    import('./server.js').then(({ stopServer }) => stopServer()).catch(() => { });
 });

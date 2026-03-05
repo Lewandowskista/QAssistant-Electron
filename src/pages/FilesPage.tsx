@@ -1,10 +1,9 @@
 import { useState } from "react"
 import { useProjectStore, Attachment } from "@/store/useProjectStore"
-import { FileText, Plus, Trash2, Download, Upload, FileIcon, ImageIcon, FileCode, Monitor, Globe, Search, MoreVertical, Layout, Trash, File, Copy, Image as LucideImage, ExternalLink } from "lucide-react"
+import { Trash2, Upload, FileIcon, Search, File, LucideImage, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { format } from "date-fns"
 
 export default function FilesPage() {
     const { projects, activeProjectId, addProjectFile, deleteProjectFile } = useProjectStore()
@@ -84,7 +83,7 @@ export default function FilesPage() {
                         <div className="w-1 h-1 rounded-full bg-[#A78BFA] animate-pulse" />
                     </div>
                     <div className="relative w-64">
-                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280]" />
+                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280] pointer-events-none" />
                         <Input
                             placeholder="Filter artifacts..."
                             value={searchQuery}
@@ -111,7 +110,31 @@ export default function FilesPage() {
                 )}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setIsDragging(false); }}
+                onDrop={async (e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    if (!window.electronAPI || !activeProjectId) return;
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        for (const file of e.dataTransfer.files) {
+                            // Assuming electronAPI can handle web File objects via path if it's available
+                            // Note: Web File object in Electron usually exposes the `path` property.
+                            const webFile = file as any;
+                            if (webFile.path) {
+                                const res = await window.electronAPI.copyToAttachments(webFile.path);
+                                if (res.success && res.attachment) {
+                                    const newFile: Attachment = {
+                                        id: crypto.randomUUID(),
+                                        name: res.attachment.fileName,
+                                        path: res.attachment.filePath,
+                                        mimeType: res.attachment.mimeType,
+                                        sizeBytes: res.attachment.fileSizeBytes
+                                    }
+                                    await addProjectFile(activeProjectId, newFile)
+                                }
+                            }
+                        }
+                    }
+                }}
             >
                 {allFiles.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
@@ -125,7 +148,7 @@ export default function FilesPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {filtered.map((file, i) => (
+                        {filtered.map((file) => (
                             <div key={file.id} className="group bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-4 hover:border-[#A78BFA]/50 transition-all cursor-pointer relative overflow-hidden shadow-sm">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-[#A78BFA]/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <div className="flex flex-col items-center text-center">
@@ -134,7 +157,7 @@ export default function FilesPage() {
                                     </div>
                                     <div className="text-xs font-bold text-[#E2E8F0] truncate w-full mb-1" onClick={() => api.openFile(file.path)}>{file.name}</div>
                                     <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest">
-                                        {file.sizeBytes ? `${(file.sizeBytes/1024/1024).toFixed(1)} MB` : ''}
+                                        {file.sizeBytes ? `${(file.sizeBytes / 1024 / 1024).toFixed(1)} MB` : ''}
                                     </div>
                                 </div>
                                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">

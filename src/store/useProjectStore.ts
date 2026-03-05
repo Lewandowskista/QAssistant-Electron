@@ -397,6 +397,7 @@ declare global {
             addJiraComment: (args: { domain: string, email: string, apiKey: string, issueKey: string, body: string }) => Promise<{ success: boolean }>
             transitionJiraIssue: (args: { domain: string, email: string, apiKey: string, issueKey: string, transitionName: string }) => Promise<{ success: boolean }>
             getJiraHistory: (args: { domain: string, email: string, apiKey: string, issueKey: string }) => Promise<any[]>
+            createJiraIssue: (args: { domain: string, email: string, apiKey: string, projectKey: string, title: string, description: string, issueTypeName?: string }) => Promise<string | null>
             // AI / Gemini
             aiGenerateCases: (apiKey: string, tasks: any[], sourceName?: string, project?: any) => Promise<any[]>
             aiAnalyzeIssue: (apiKey: string, task: any, comments?: any[], project?: any) => Promise<string>
@@ -410,6 +411,9 @@ declare global {
             sapHacGetCronJobs: (baseUrl: string) => Promise<{ success: boolean; data?: any; error?: string }>
             sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) => Promise<{ success: boolean; result?: any; error?: string }>
             sapHacImportImpEx: (baseUrl: string, script: string, enableCodeExecution?: boolean) => Promise<{ success: boolean; result?: any; error?: string }>
+            sapHacGetCatalogVersions: (baseUrl: string) => Promise<{ success: boolean; data?: { catalogId: string, version: string }[]; error?: string }>
+            sapHacGetCatalogIds: (baseUrl: string) => Promise<{ success: boolean; data?: string[]; error?: string }>
+            sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) => Promise<{ success: boolean; data?: { catalogId: string, stagedCount: number, onlineCount: number, missingStagedToOnline: string[], timestamp: string }; error?: string }>
             // Notifications & shortcuts
             showNotification: (title: string, body: string) => void
             onCommandPalette: (callback: () => void) => () => void
@@ -705,6 +709,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             description,
             status: 'todo',
             priority: 'medium',
+            source: 'manual',
             createdAt: Date.now(),
             updatedAt: Date.now()
         }

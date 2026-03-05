@@ -14,6 +14,7 @@ server.use(bodyParser.json())
 
 let authToken = 'qassistant-default-token'
 let serverInstance: any = null
+const openSockets = new Set<any>()
 
 export function startServer(apiToken: string, port: number = 3030) {
     // Prevent double-start (e.g. called from both IPC handler and app.whenReady)
@@ -60,24 +61,25 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── GET /projects ── list all projects ─────────────────────────────────
-    server.get('/projects', (_req: any, res: any) => {
+    // ── GET /api/projects ── list all projects ──────────────────────────────
+    server.get('/api/projects', (_req: any, res: any) => {
         try {
             const projects = readProjects()
             res.json(projects.map((p: any) => ({
                 id: p.id,
                 name: p.name,
-                taskCount: p.tasks?.length || 0,
+                description: p.description,
                 testPlanCount: p.testPlans?.length || 0,
-                testCaseCount: p.testPlans?.flatMap((tp: any) => tp.testCases || []).length || 0
+                testCaseCount: p.testPlans?.flatMap((tp: any) => tp.testCases || []).length || 0,
+                testExecutionCount: p.testExecutions?.length || 0
             })))
         } catch (e: any) {
             res.status(500).json({ error: 'Failed to read project data.', detail: e.message })
         }
     })
 
-    // ── GET /projects/:id ── single project detail ──────────────────────────
-    server.get('/projects/:id', (req: any, res: any) => {
+    // ── GET /api/projects/:id ── single project detail ───────────────────────
+    server.get('/api/projects/:id', (req: any, res: any) => {
         try {
             const projects = readProjects()
             const project = projects.find((p: any) => p.id === req.params.id)
@@ -88,8 +90,8 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── GET /testcases ── all test cases across all projects ────────────────
-    server.get('/testcases', (req: any, res: any) => {
+    // ── GET /api/testcases ── all test cases across all projects ─────────────
+    server.get('/api/testcases', (req: any, res: any) => {
         try {
             const projects = readProjects()
             const projectId = req.query.projectId as string | undefined
@@ -119,8 +121,8 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── GET /testcases/:displayId ── find by display ID (e.g. TC-001) ───────
-    server.get('/testcases/:displayId', (req: any, res: any) => {
+    // ── GET /api/testcases/:displayId ── find by display ID (e.g. TC-001) ──────
+    server.get('/api/testcases/:displayId', (req: any, res: any) => {
         try {
             const projects = readProjects()
             const displayId = req.params.displayId
@@ -139,8 +141,8 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── POST /results ── submit a single test execution result ────────────
-    server.post('/results', (req: any, res: any) => {
+    // ── POST /api/results ── submit a single test execution result ───────────
+    server.post('/api/results', (req: any, res: any) => {
         const { displayId, status, actualResult, notes } = req.body
 
         if (!displayId || !status) {
@@ -192,8 +194,8 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── POST /results/batch ── submit multiple results at once ────────────
-    server.post('/results/batch', (req: any, res: any) => {
+    // ── POST /api/results/batch ── submit multiple results at once ───────────
+    server.post('/api/results/batch', (req: any, res: any) => {
         const results: any[] = req.body?.results
 
         if (!Array.isArray(results) || results.length === 0) {
@@ -248,8 +250,8 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── GET /executions ── list executions with optional filtering ──────────
-    server.get('/executions', (req: any, res: any) => {
+    // ── GET /api/executions ── list executions with optional filtering ───────
+    server.get('/api/executions', (req: any, res: any) => {
         try {
             const projects = readProjects()
             const projectId = req.query.projectId as string | undefined

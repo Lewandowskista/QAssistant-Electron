@@ -246,7 +246,14 @@ export default function TestsPage() {
         try {
             let content = ''
             let filename = ''
-            if (reportType === 'Summary') {
+            if (reportType === 'SummaryPdf') {
+                const res = await api.exportTestSummaryPdf(activeProject, undefined, aiAnalysisResult || undefined)
+                if (res && res.success) {
+                    alert(`PDF exported to: ${res.path}`)
+                } else if (res && res.error) {
+                    throw new Error(res.error)
+                }
+            } else if (reportType === 'Summary') {
                 content = await api.generateTestSummaryMarkdown(activeProject, undefined, aiAnalysisResult || undefined)
                 filename = `${activeProject.name.replace(/\s+/g, '-')}-test-summary.md`
             } else if (reportType === 'TestCasesCsv') {
@@ -256,7 +263,7 @@ export default function TestsPage() {
                 content = await api.generateExecutionsCsv(activeProject)
                 filename = `${activeProject.name.replace(/\s+/g, '-')}-executions.csv`
             }
-            if (content) await api.saveFileDialog(filename, content)
+            if (content && reportType !== 'SummaryPdf') await api.saveFileDialog(filename, content)
         } catch (e: any) {
             alert(`Export failed: ${e.message}`)
         } finally {
@@ -611,6 +618,7 @@ export default function TestsPage() {
                                                 </SelectTrigger>
                                                 <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
                                                     <SelectItem value="Summary">Test Summary (Markdown)</SelectItem>
+                                                    <SelectItem value="SummaryPdf">Test Summary (PDF)</SelectItem>
                                                     <SelectItem value="TestCasesCsv">Test Cases (CSV)</SelectItem>
                                                     <SelectItem value="ExecutionsCsv">Execution History (CSV)</SelectItem>
                                                 </SelectContent>

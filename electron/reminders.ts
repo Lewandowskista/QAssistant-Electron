@@ -4,26 +4,26 @@ const { Notification, BrowserWindow } = electron as any
 import fs from 'fs'
 import path from 'path'
 
+const notifiedIds = new Map<string, number>()
+const COOLDOWN = 4 * 60 * 60 * 1000 // 4 hours
 let projectsFilePath = ''
 
 export function startReminderService(filePath: string) {
     projectsFilePath = filePath
 
-    // Check every minute
+    // Check periodically
     setInterval(() => {
         checkDueDateReminders()
     }, 60_000)
 
-    // Daily summary at a minute boundary (check every minute if we should send daily summary)
+    // Daily summary at 9:00 AM
     setInterval(() => {
         const now = new Date()
-        // Send daily summary at 9:00 AM
         if (now.getHours() === 9 && now.getMinutes() === 0) {
             sendDailySummary()
         }
     }, 60_000)
 
-    // Initial check after 30 seconds (to give app time to fully load)
     setTimeout(() => {
         checkDueDateReminders()
     }, 30_000)
@@ -55,14 +55,19 @@ function checkDueDateReminders() {
                 !['done', 'canceled', 'duplicate'].includes(t.status)
             )
 
-            if (overdue.length > 0) {
-                showNotification(
-                    `Overdue Tasks — ${project.name}`,
-                    `${overdue.length} task${overdue.length === 1 ? '' : 's'} overdue: ${overdue.slice(0, 2).map((t: any) => t.title).join(', ')}${overdue.length > 2 ? '...' : ''}`
-                )
+            for (const t of overdue) {
+                const id = `overdue-${project.id}-${t.id}`
+                const last = notifiedIds.get(id) || 0
+                if (now - last > COOLDOWN) {
+                    showNotification(
+                        `Overdue Task — ${project.name}`,
+                        `"${t.title}" was due on ${new Date(t.dueDate).toLocaleDateString()}`
+                    )
+                    notifiedIds.set(id, now)
+                }
             }
 
-            // Check for tasks due within 3 days
+            // Check for tasks due soon
             const dueSoon = tasks.filter((t: any) =>
                 t.dueDate &&
                 t.dueDate >= now &&
@@ -70,26 +75,34 @@ function checkDueDateReminders() {
                 !['done', 'canceled', 'duplicate'].includes(t.status)
             )
 
-            if (dueSoon.length > 0) {
-                const nearest = dueSoon.sort((a: any, b: any) => a.dueDate - b.dueDate)[0]
-                const daysLeft = Math.ceil((nearest.dueDate - now) / ONE_DAY)
-                showNotification(
-                    `Due Soon — ${project.name}`,
-                    `"${nearest.title}" is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`
-                )
+            for (const t of dueSoon) {
+                const id = `soon-${project.id}-${t.id}`
+                const last = notifiedIds.get(id) || 0
+                if (now - last > COOLDOWN) {
+                    const daysLeft = Math.ceil((t.dueDate - now) / ONE_DAY)
+                    showNotification(
+                        `Due Soon — ${project.name}`,
+                        `"${t.title}" is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`
+                    )
+                    notifiedIds.set(id, now)
+                }
             }
 
-            // Check for runbook steps that are overdue
             const runbooks = project.runbooks || []
             for (const rb of runbooks) {
                 const overdueSteps = (rb.steps || []).filter((s: any) =>
                     s.dueDate && s.dueDate < now && s.status !== 'done'
                 )
-                if (overdueSteps.length > 0) {
-                    showNotification(
-                        `Runbook Alert — ${project.name}`,
-                        `${overdueSteps.length} overdue step(s) in runbook: ${rb.name}`
-                    )
+                for (const s of overdueSteps) {
+                    const id = `overdue-rb-${project.id}-${rb.id}-${s.id}`
+                    const last = notifiedIds.get(id) || 0
+                    if (now - last > COOLDOWN) {
+                        showNotification(
+                            `Runbook Alert — ${project.name}`,
+                            `Overdue step "${s.text}" in ${rb.name}`
+                        )
+                        notifiedIds.set(id, now)
+                    }
                 }
             }
         }
@@ -112,7 +125,6 @@ function sendDailySummary() {
         for (const project of projects) {
             const tasks = (project.tasks || []).filter((t: any) => !['done', 'canceled', 'duplicate'].includes(t.status))
             totalTasks += tasks.length
-
             overdue += tasks.filter((t: any) => t.dueDate && t.dueDate < now).length
             dueToday += tasks.filter((t: any) => t.dueDate && t.dueDate >= now && t.dueDate <= now + ONE_DAY).length
 
@@ -120,17 +132,16 @@ function sendDailySummary() {
             failedTests += allCases.filter((tc: any) => tc.status === 'failed').length
         }
 
-        if (totalTasks === 0 && failedTests === 0) return
+        if (totalTasks === 0 && failedTests === 0 && overdue === 0 && dueToday === 0) return
 
         const parts: string[] = []
-        if (totalTasks > 0) parts.push(`${totalTasks} active task${totalTasks === 1 ? '' : 's'}`)
-        if (overdue > 0) parts.push(`${overdue} overdue`)
-        if (dueToday > 0) parts.push(`${dueToday} due today`)
-        if (failedTests > 0) parts.push(`${failedTests} failed test${failedTests === 1 ? '' : 's'}`)
+        if (overdue > 0) parts.push(`❗ ${overdue} Overdue`)
+        if (dueToday > 0) parts.push(`📅 ${dueToday} Due Today`)
+        if (failedTests > 0) parts.push(`❌ ${failedTests} Failed Tests`)
 
         showNotification(
-            'QAssistant Daily Summary',
-            parts.join(' · ')
+            'QAssistant Daily Briefing',
+            parts.length > 0 ? parts.join(' · ') : `You have ${totalTasks} active tasks.`
         )
     } catch (e) {
         console.error('[Reminders] Daily summary error:', e)
@@ -140,8 +151,6 @@ function sendDailySummary() {
 export function showNotification(title: string, body: string) {
     if (Notification.isSupported()) {
         const n = new Notification({ title, body, silent: false })
-
-        // Click to show main window
         n.on('click', () => {
             const wins = BrowserWindow.getAllWindows()
             if (wins.length > 0) {
@@ -149,7 +158,6 @@ export function showNotification(title: string, body: string) {
                 wins[0].focus()
             }
         })
-
         n.show()
     }
 }

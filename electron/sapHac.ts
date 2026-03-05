@@ -108,7 +108,7 @@ export class SapHacService {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private async postWithCsrfRetry(csrfPage: string, postPath: string, buildForm: (csrf: string|null) => URLSearchParams): Promise<any> {
+    private async postWithCsrfRetry(csrfPage: string, postPath: string, buildForm: (csrf: string | null) => URLSearchParams): Promise<any> {
         let page = await this.cookieJar.fetch(this.baseUrl + csrfPage);
         let html = await page.text();
         let csrf = extractCsrfToken(html);
@@ -176,7 +176,7 @@ export class SapHacService {
     async runFlexibleSearch(query: string, maxResults = 100): Promise<FlexibleSearchResult> {
         if (!this.loggedIn) throw new Error('Not logged in');
         try {
-            const form = (csrf: string|null) => {
+            const form = (csrf: string | null) => {
                 const p = new URLSearchParams();
                 p.append('flexibleSearchQuery', query);
                 p.append('maxCount', maxResults.toString());
@@ -196,8 +196,8 @@ export class SapHacService {
             }
             return { Headers: headers, Rows: rows, Error: '' };
         } catch (
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ex: any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ex: any
         ) {
             return { Headers: [], Rows: [], Error: ex.message };
         }
@@ -206,7 +206,7 @@ export class SapHacService {
     async importImpEx(script: string, enableCodeExecution = false): Promise<ImpExResult> {
         if (!this.loggedIn) throw new Error('Not logged in');
         try {
-            const form = (csrf: string|null) => {
+            const form = (csrf: string | null) => {
                 const p = new URLSearchParams();
                 p.append('scriptContent', script);
                 p.append('encoding', 'UTF-8');
@@ -222,15 +222,61 @@ export class SapHacService {
                     const hasError = root.hasError || false;
                     const log = root.initMessage || root.exceptionMessage || root.log || body;
                     return { Success: !hasError, Log: log };
-                // eslint-disable-next-line no-empty
+                    // eslint-disable-next-line no-empty
                 } catch {
-        }
+                }
             }
             const success = body.includes('Import finished successfully') || resp.ok;
             return { Success: success, Log: body };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (ex: any) {
             return { Success: false, Log: ex.message };
         }
     }
+
+    async getCatalogVersions(): Promise<{ catalogId: string, version: string }[]> {
+        const query = "SELECT {catalog(id)}, {version} FROM {CatalogVersion}";
+        const res = await this.runFlexibleSearch(query, 1000);
+        if (res.Error) throw new Error(res.Error);
+        return res.Rows.map((r: string[]) => ({ catalogId: r[0], version: r[1] }));
+    }
+
+    async getCatalogIds(): Promise<string[]> {
+        const query = "SELECT {id} FROM {Catalog}";
+        const res = await this.runFlexibleSearch(query, 1000);
+        if (res.Error) throw new Error(res.Error);
+        return res.Rows.map((r: string[]) => r[0]).filter(Boolean);
+    }
+
+    async getCatalogSyncDiff(catalogId: string, maxMissing = 200): Promise<{ catalogId: string, stagedCount: number, onlineCount: number, missingStagedToOnline: string[], timestamp: string }> {
+        const safeId = catalogId.replace(/'/g, "''");
+        const stagedQ = `SELECT {p.code} FROM {Product AS p JOIN CatalogVersion AS cv ON {p.catalogVersion}={cv.pk}} WHERE {cv.catalog(id)}='${safeId}' AND {cv.version}='Staged'`;
+        const onlineQ = `SELECT {p.code} FROM {Product AS p JOIN CatalogVersion AS cv ON {p.catalogVersion}={cv.pk}} WHERE {cv.catalog(id)}='${safeId}' AND {cv.version}='Online'`;
+
+        const stagedResult = await this.runFlexibleSearch(stagedQ, 5000);
+        const onlineResult = await this.runFlexibleSearch(onlineQ, 5000);
+
+        if (stagedResult.Error) throw new Error(`Staged query error: ${stagedResult.Error}`);
+        if (onlineResult.Error) throw new Error(`Online query error: ${onlineResult.Error}`);
+
+        const stagedCodes = new Set(stagedResult.Rows.map((r: string[]) => r[0]).filter(Boolean));
+        const onlineCodes = new Set(onlineResult.Rows.map((r: string[]) => r[0]).filter(Boolean));
+
+        const missing: string[] = [];
+        for (const code of stagedCodes) {
+            if (!onlineCodes.has(code)) {
+                missing.push(code);
+                if (missing.length >= maxMissing) break;
+            }
+        }
+
+        return {
+            catalogId,
+            stagedCount: stagedCodes.size,
+            onlineCount: onlineCodes.size,
+            missingStagedToOnline: missing,
+            timestamp: new Date().toISOString()
+        };
+    }
 }
+

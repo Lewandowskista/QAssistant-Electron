@@ -167,7 +167,7 @@ export default function MainLayout() {
                 <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
                     <div className="px-1">
                         <div className="relative group">
-                            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[#6B7280] opacity-50 group-focus-within:text-[#A78BFA] transition-colors" />
+                            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280] opacity-50 group-focus-within:text-[#A78BFA] transition-colors pointer-events-none" />
                             <Input
                                 placeholder="Search..."
                                 value={searchQuery}

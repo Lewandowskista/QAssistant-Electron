@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     addJiraComment: (args: any) => ipcRenderer.invoke('add-jira-comment', args),
     transitionJiraIssue: (args: any) => ipcRenderer.invoke('transition-jira-issue', args),
     getJiraHistory: (args: any) => ipcRenderer.invoke('get-jira-history', args),
+    createJiraIssue: (args: any) => ipcRenderer.invoke('create-jira-issue', args),
 
     // ── AI / Gemini ───────────────────────────────────────────────────────
     aiGenerateCases: (apiKey: string, tasks: any[], sourceName?: string, project?: any, designDoc?: string) =>
@@ -75,6 +76,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('sap-hac-flexsearch', { baseUrl, query, max }),
     sapHacImportImpEx: (baseUrl: string, script: string, enableCodeExecution?: boolean) =>
         ipcRenderer.invoke('sap-hac-impex', { baseUrl, script, enableCodeExecution }),
+    sapHacGetCatalogVersions: (baseUrl: string) =>
+        ipcRenderer.invoke('sap-hac-catalog-versions', { baseUrl }),
+    sapHacGetCatalogIds: (baseUrl: string) =>
+        ipcRenderer.invoke('sap-hac-catalog-ids', { baseUrl }),
+    sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) =>
+        ipcRenderer.invoke('sap-hac-catalog-sync-diff', { baseUrl, catalogId, maxMissing }),
 
     // ── Bug Report service ────────────────────────────────────────────────
     generateBugReportFromTask: (task: any, environment?: string, reporter?: string, aiAnalysis?: string) =>
@@ -89,6 +96,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('generate-executions-csv', { project, filterIds }),
     generateTestSummaryMarkdown: (project: any, filterPlanIds?: string[], criticalityAssessment?: string) =>
         ipcRenderer.invoke('generate-test-summary-markdown', { project, filterPlanIds, criticalityAssessment }),
+    exportTestSummaryPdf: (project: any, filterPlanIds?: string[], criticalityAssessment?: string) =>
+        ipcRenderer.invoke('export-test-summary-pdf', { project, filterPlanIds, criticalityAssessment }),
     parseCsvString: (content: string) =>
         ipcRenderer.invoke('parse-csv-string', { content }),
     readCsvFile: (filePath: string) =>

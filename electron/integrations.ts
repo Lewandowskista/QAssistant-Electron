@@ -360,6 +360,7 @@ export async function fetchJiraIssues(domain: string, email: string, apiKey: str
                 source: 'jira',
                 connectionId: connectionId,
                 attachmentUrls,
+                rawDescription: extractJiraDescription(f.description),
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
             })
@@ -475,4 +476,41 @@ export async function getJiraProjects(domain: string, email: string, apiKey: str
     if (!resp.ok) throw new Error(`Jira API returned ${resp.status}: ${resp.statusText}`)
     const data: any = await resp.json()
     return Array.isArray(data) ? data.map((p: any) => ({ id: p.id, key: p.key, name: p.name })) : []
+}
+
+export async function createJiraIssue(domain: string, email: string, apiKey: string, projectKey: string, title: string, description: string, issueTypeName: string = 'Bug'): Promise<string | null> {
+    const creds = Buffer.from(`${email}:${apiKey}`).toString('base64')
+    const baseUrl = `https://${domain}.atlassian.net/rest/api/3`
+
+    // First, resolve the issue type ID. 
+    // Jira requires the ID, so we fetch project metadata unless we just guess 'Bug' name works for /issue endpoints.
+    // Instead of raw ID guessing, we can check the project or use the name directly in the issue creation if Jira allows it (it does!)
+    // Wait, Jira API 3 `issuetype` field accepts `name` or `id`.
+
+    const body = {
+        fields: {
+            project: { key: projectKey },
+            summary: title,
+            description: {
+                type: 'doc',
+                version: 1,
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: description || 'No description provided.' }] }]
+            },
+            issuetype: { name: issueTypeName }
+        }
+    }
+
+    const doResp = await fetch(`${baseUrl}/issue`, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body)
+    })
+
+    if (!doResp.ok) {
+        const text = await doResp.text()
+        throw new Error(`Failed to create Jira issue: ${doResp.status} - ${text}`)
+    }
+
+    const data: any = await doResp.json()
+    return data.key // e.g. "PROJ-123"
 }

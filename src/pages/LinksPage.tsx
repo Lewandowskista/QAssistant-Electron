@@ -109,7 +109,7 @@ export default function LinksPage() {
                                 <Button variant="ghost" size="icon" className="text-[#EF4444] hover:bg-[#EF4444]/10">
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
-                                <Button className="h-10 px-8 bg-[#A78BFA] text-[#0F0F13] font-black text-xs gap-2 shadow-2xl shadow-[#A78BFA]/20">
+                                <Button onClick={() => (window as any).electronAPI.openUrl(selectedLink.url)} className="h-10 px-8 bg-[#A78BFA] text-[#0F0F13] font-black text-xs gap-2 shadow-2xl shadow-[#A78BFA]/20">
                                     <Zap className="h-4 w-4 fill-current" /> LAUNCH PORTAL
                                 </Button>
                             </div>

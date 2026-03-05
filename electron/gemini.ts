@@ -1,4 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
+
+const PRIMARY_MODEL = 'gemini-2.0-flash';
+const FALLBACK_MODEL = 'gemini-1.5-flash';
 
 /**
  * AI Service for Gemini integration with full TOON (Token-Oriented Object Notation) prompt system.
@@ -11,7 +15,7 @@ export class GeminiService {
         this.genAI = new GoogleGenerativeAI(apiKey)
     }
 
-    private getModel(modelName = 'gemini-2.5-flash') {
+    private getModel(modelName = PRIMARY_MODEL) {
         return this.genAI.getGenerativeModel({
             model: modelName,
             generationConfig: {
@@ -49,6 +53,9 @@ export class GeminiService {
 
         lines.push('qa_context{')
         lines.push(` project:${GeminiService.sanitizeToonValue(project.name, 200)}`)
+        if (project.description) {
+            lines.push(` project_desc:${GeminiService.sanitizeToonValue(project.description, 300)}`)
+        }
 
         const activeEnv = project.environments?.find((e: any) => e.isDefault) ?? project.environments?.[0]
         if (activeEnv) {
@@ -84,11 +91,17 @@ export class GeminiService {
 
         lines.push('}')
         lines.push('---')
+
+        // Conditionally append SAP Commerce context if the project appears related
+        if (project.sapHac && project.sapHac.length > 0) {
+            lines.push(SAP_COMMERCE_CONTEXT_BLOCK)
+            lines.push('---')
+        }
     }
 
     // ── Prompt Builders (matching C# GeminiService.cs exactly) ──────────────
 
-    static buildToonPrompt(task: any, comments: any[] = [], project?: any): string {
+    static buildToonPrompt(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0): string {
         const lines: string[] = []
         lines.push('@role:sr_qa_engineer')
         lines.push('@task:deep_issue_analysis')
@@ -118,6 +131,10 @@ export class GeminiService {
             lines.push(']')
         }
 
+        if (attachedImageCount > 0) {
+            lines.push(`@media:${attachedImageCount}_image(s)_attached—analyze visual content for additional context (screenshots, error messages, UI state, logs)`)
+        }
+
         return lines.join('\n')
     }
 
@@ -127,7 +144,7 @@ export class GeminiService {
         lines.push('@task:generate_test_cases')
         lines.push('@perspective:qa_engineer—generate tests a QA engineer would write for regression,smoke,functional,integration suites')
         lines.push(`@source:${sourceName}`)
-        lines.push('@out_fmt:json_array[{testCaseId,title,preConditions,testSteps,testData,expectedResult,priority,sourceIssueId,sapModule}]')
+        lines.push('@out_fmt:json_array[{testCaseId,title,preConditions,testSteps,testData,expectedResult,priority,sourceIssueId}]')
         lines.push('@out_rules:raw_json_only|no_markdown_wrap|no_code_block')
         lines.push('@rules:comprehensive|all_fields_required|specific_actionable|realistic_test_data|cover_positive_negative_edge|no_generic|env_aware|use_known_test_data_when_applicable')
         if (designDoc) {
@@ -153,7 +170,6 @@ export class GeminiService {
         lines.push(' expectedResult:pass_criteria')
         lines.push(' priority:one_of(Blocker,Major,Medium,Low)_based_on_issue_severity_and_impact')
         lines.push(' sourceIssueId:exact_id_of_the_source_issue_this_test_case_covers(IssueIdentifier_field_value)')
-        lines.push(' sapModule:one_of(Cart,Checkout,Pricing,Promotions,CatalogSync,B2B,OMS,Personalization,CPQ)_only_if_applicable')
         lines.push('}')
         lines.push('---')
 
@@ -179,7 +195,7 @@ export class GeminiService {
         lines.push('@task:criticality_assessment')
         lines.push('@perspective:qa_engineer—assess release risk from QA standpoint considering environment health,test coverage gaps,checklist completion,blocker density')
         lines.push('@out_fmt:md_sections[## Failure Summary by Priority,## Overall Risk Level,## Key Areas of Concern,## Recommended Actions,## Release Readiness]')
-        lines.push('@rules:concise|actionable|data_driven|risk_focused|all_sections_required|include_counts_per_priority(Blocker,Major,Medium,Low)|risk_level_one_of(Critical,High,Moderate,Low)|actions_ordered_by_severity|no_skip|no_merge')
+        lines.push('@rules:concise|actionable|data_driven|risk_focused|all_sections_required|include_counts_per_priority(Blocker,Major,Medium,Low)|risk_level_one_of(Critical,High,Moderate,Low)|actions_ordered_by_severity|no_skip|no_merge|factor_env_coverage|factor_checklist_gaps')
         lines.push('---')
 
         GeminiService.appendQaContext(lines, project)
@@ -204,7 +220,10 @@ export class GeminiService {
         if (tasks.length > 0) {
             lines.push('project_tasks[')
             for (const task of tasks.slice(0, 50)) {
-                lines.push(` {id:${GeminiService.sanitizeToonValue(task.sourceIssueId, 100)},title:${GeminiService.sanitizeToonValue(task.title, 300)},status:${task.status},priority:${task.priority}}`)
+                let entry = ` {id:${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId, 100)},title:${GeminiService.sanitizeToonValue(task.title, 300)},status:${task.status},priority:${task.priority}`
+                if (task.issueType) entry += `,type:${GeminiService.sanitizeToonValue(task.issueType, 100)}`
+                entry += '}'
+                lines.push(entry)
             }
             lines.push(']')
         }
@@ -212,12 +231,21 @@ export class GeminiService {
         if (failedCases.length > 0) {
             lines.push('failed_test_cases[')
             for (const tc of failedCases.slice(0, 50)) {
-                let entry = ` {id:${GeminiService.sanitizeToonValue(tc.displayId, 100)},title:${GeminiService.sanitizeToonValue(tc.title, 300)},priority:${tc.priority}`
+                let entry = ` {id:${GeminiService.sanitizeToonValue(tc.displayId, 100)},title:${GeminiService.sanitizeToonValue(tc.title, 300)},priority:${tc.priority},source:${tc.source || 'Manual'}`
                 if (tc.actualResult) entry += `,actual_result:${GeminiService.sanitizeToonValue(tc.actualResult, 200)}`
                 entry += '}'
                 lines.push(entry)
             }
             lines.push(']')
+        }
+
+        if (executions && executions.length > 0) {
+            const resultGroups = executions.reduce((acc: any, e: any) => {
+                acc[e.result] = (acc[e.result] || 0) + 1
+                return acc
+            }, {})
+            const groupStrs = Object.entries(resultGroups).map(([k, v]) => `${k}:${v}`)
+            lines.push(`exec_results{${groupStrs.join(',')}}`)
         }
 
         return lines.join('\n')
@@ -238,7 +266,8 @@ export class GeminiService {
         lines.push('@task:test_run_suggestions')
         lines.push('@perspective:qa_engineer—give specific,actionable QA gate and deployment suggestions based on test run results,pass rates per plan,and failed test case impact')
         lines.push('@out_fmt:md_sections[## Overall Status,## Deployment Readiness,## Key Risks,## Suggestions]')
-        lines.push('@rules:concise|specific|data_driven|bold_decisions|deployment_verdict_prominent|reference_failing_areas|no_generic_advice|all_sections_required')
+        lines.push('@rules:concise|specific|data_driven|bold_decisions|deployment_verdict_prominent|reference_failing_areas|no_generic_advice|all_sections_required|suggestions_imperative_sentences_referencing_actual_data')
+        lines.push('@example_output:Do not deploy to UAT — 3 blocker failures in the Checkout UI module|Retest Payment flow before promoting to staging — 2 major failures detected|UI regression suite is at 45% pass rate — address before UAT')
         lines.push('---')
 
         GeminiService.appendQaContext(lines, project)
@@ -263,7 +292,7 @@ export class GeminiService {
                 const planFailed = planCases.filter((tc: any) => tc.status === 'failed').length
                 const planBlocked = planCases.filter((tc: any) => tc.status === 'blocked').length
                 const planRate = planTotal > 0 ? (planPassed / planTotal * 100).toFixed(1) : '0.0'
-                lines.push(` {name:${GeminiService.sanitizeToonValue(plan.name, 200)},total:${planTotal},passed:${planPassed},failed:${planFailed},blocked:${planBlocked},pass_rate:${planRate}%}`)
+                lines.push(` {name:${GeminiService.sanitizeToonValue(plan.name, 200)},total:${planTotal},passed:${planPassed},failed:${planFailed},blocked:${planBlocked},pass_rate:${planRate}%,source:${plan.source || 'Manual'}}`)
             }
             lines.push(']')
         }
@@ -280,6 +309,27 @@ export class GeminiService {
                 lines.push(entry)
             }
             lines.push(']')
+        }
+
+        const blockedCases = allCases.filter((tc: any) => tc.status === 'blocked')
+        if (blockedCases.length > 0) {
+            lines.push('blocked_cases[')
+            for (const tc of blockedCases.slice(0, 20)) {
+                let entry = ` {title:${GeminiService.sanitizeToonValue(tc.title, 200)},priority:${tc.priority}`
+                if (tc.sapModule) entry += `,module:${tc.sapModule}`
+                entry += '}'
+                lines.push(entry)
+            }
+            lines.push(']')
+        }
+
+        if (executions && executions.length > 0) {
+            const resultGroups = executions.reduce((acc: any, e: any) => {
+                acc[e.result] = (acc[e.result] || 0) + 1
+                return acc
+            }, {})
+            const groupStrs = Object.entries(resultGroups).map(([k, v]) => `${k}:${v}`)
+            lines.push(`exec_results{${groupStrs.join(',')}}`)
         }
 
         return lines.join('\n')
@@ -360,14 +410,15 @@ export class GeminiService {
     // ── Public API methods ───────────────────────────────────────────────────
 
     /** Analyze a task issue using TOON prompts */
-    async analyzeIssue(task: any, comments: any[] = [], project?: any): Promise<string> {
-        const prompt = GeminiService.buildToonPrompt(task, comments, project)
+    async analyzeIssue(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0): Promise<string> {
+        const prompt = GeminiService.buildToonPrompt(task, comments, project, attachedImageCount)
         try {
-            const model = this.getModel('gemini-3.0-flash')
+            const model = this.getModel(PRIMARY_MODEL)
             const result = await model.generateContent(prompt)
             return result.response.text()
-        } catch {
-            const model = this.getModel('gemini-2.5-flash')
+        } catch (err) {
+            console.error('Gemini primary model failed, trying fallback:', err)
+            const model = this.getModel(FALLBACK_MODEL)
             const result = await model.generateContent(prompt)
             return result.response.text()
         }
@@ -378,11 +429,12 @@ export class GeminiService {
         const prompt = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc)
         let text = ''
         try {
-            const model = this.getModel('gemini-3.0-flash')
+            const model = this.getModel(PRIMARY_MODEL)
             const result = await model.generateContent(prompt)
             text = result.response.text()
-        } catch {
-            const model = this.getModel('gemini-2.5-flash')
+        } catch (err) {
+            console.error('Gemini primary model failed, trying fallback:', err)
+            const model = this.getModel(FALLBACK_MODEL)
             const result = await model.generateContent(prompt)
             text = result.response.text()
         }
@@ -407,11 +459,12 @@ export class GeminiService {
     async assessCriticality(tasks: any[], testPlans: any[], executions: any[], project?: any): Promise<string> {
         const prompt = GeminiService.buildCriticalityAssessmentPrompt(tasks, testPlans, executions, project)
         try {
-            const model = this.getModel('gemini-3.0-flash')
+            const model = this.getModel(PRIMARY_MODEL)
             const result = await model.generateContent(prompt)
             return result.response.text()
-        } catch {
-            const model = this.getModel('gemini-2.5-flash')
+        } catch (err) {
+            console.error('Gemini primary model failed, trying fallback:', err)
+            const model = this.getModel(FALLBACK_MODEL)
             const result = await model.generateContent(prompt)
             return result.response.text()
         }
@@ -421,11 +474,12 @@ export class GeminiService {
     async getTestRunSuggestions(testPlans: any[], executions: any[], project?: any): Promise<string> {
         const prompt = GeminiService.buildTestRunSuggestionsPrompt(testPlans, executions, project)
         try {
-            const model = this.getModel('gemini-3.0-flash')
+            const model = this.getModel(PRIMARY_MODEL)
             const result = await model.generateContent(prompt)
             return result.response.text()
-        } catch {
-            const model = this.getModel('gemini-2.5-flash')
+        } catch (err) {
+            console.error('Gemini primary model failed, trying fallback:', err)
+            const model = this.getModel(FALLBACK_MODEL)
             const result = await model.generateContent(prompt)
             return result.response.text()
         }
@@ -436,11 +490,12 @@ export class GeminiService {
         const prompt = GeminiService.buildSmokeSubsetPrompt(candidates, doneTasks, project)
         let text = ''
         try {
-            const model = this.getModel('gemini-3.0-flash')
+            const model = this.getModel(PRIMARY_MODEL)
             const result = await model.generateContent(prompt)
             text = result.response.text()
-        } catch {
-            const model = this.getModel('gemini-2.5-flash')
+        } catch (err) {
+            console.error('Gemini primary model failed, trying fallback:', err)
+            const model = this.getModel(FALLBACK_MODEL)
             const result = await model.generateContent(prompt)
             text = result.response.text()
         }
@@ -452,7 +507,7 @@ export class GeminiService {
 
     /** Legacy compat wrapper for simple project analysis */
     async analyzeProject(projectContext: string): Promise<string> {
-        const model = this.getModel('gemini-3.0-flash')
+        const model = this.getModel(PRIMARY_MODEL)
         const prompt = `You are a senior QA engineer. Analyze the following project context and suggest 3 key strategic improvements for the QA cycle:\n\n${projectContext}\n\nProvide output in these sections:\n## Strategic Gaps\n## Coverage Optimization\n## Risk Assessment`
         const result = await model.generateContent(prompt)
         return result.response.text()
