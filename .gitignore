@@ -20,8 +20,6 @@ release
 .idea
 .DS_Store
 *.suo
-*.ntvs*
-*.njsproj
 *.sln
 *.sw?
 QAssistant_CS_Ref/
