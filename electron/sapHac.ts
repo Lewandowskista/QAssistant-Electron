@@ -26,24 +26,40 @@ class CookieJar {
         }
     }
 
-    async fetch(url: string, init?: RequestInit): Promise<Response> {
+    async fetch(url: string, init?: RequestInit, ignoreSsl = false): Promise<Response> {
         const cookieHeader = this.getCookieHeader()
         const headers: Record<string, string> = { ...(init?.headers as Record<string, string> || {}) }
         if (cookieHeader) headers['Cookie'] = cookieHeader
 
-        const resp = await globalThis.fetch(url, { ...init, headers, redirect: 'manual' })
-
-        const setCookie = resp.headers.get('set-cookie')
-        if (setCookie) this.parseSetCookie(setCookie)
-
-        // Follow 302 redirects manually so we keep our cookies
-        if ((resp.status === 301 || resp.status === 302 || resp.status === 303) && resp.headers.get('location')) {
-            const location = resp.headers.get('location')!
-            const redirectUrl = location.startsWith('http') ? location : new URL(location, url).toString()
-            return this.fetch(redirectUrl, { method: 'GET' })
+        let originalRejectUnauthorized: string | undefined;
+        if (ignoreSsl) {
+            originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
         }
 
-        return resp
+        try {
+            const resp = await globalThis.fetch(url, { ...init, headers, redirect: 'manual' })
+
+            const setCookie = resp.headers.get('set-cookie')
+            if (setCookie) this.parseSetCookie(setCookie)
+
+            // Follow 302 redirects manually so we keep our cookies
+            if ((resp.status === 301 || resp.status === 302 || resp.status === 303) && resp.headers.get('location')) {
+                const location = resp.headers.get('location')!
+                const redirectUrl = location.startsWith('http') ? location : new URL(location, url).toString()
+                return this.fetch(redirectUrl, { method: 'GET' }, ignoreSsl)
+            }
+
+            return resp;
+        } finally {
+            if (ignoreSsl) {
+                if (originalRejectUnauthorized === undefined) {
+                    delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                } else {
+                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                }
+            }
+        }
     }
 }
 
@@ -68,9 +84,11 @@ export class SapHacService {
     private baseUrl: string;
     private loggedIn = false;
     private cookieJar = new CookieJar()
+    private ignoreSsl = false;
 
-    constructor(hacBaseUrl: string) {
+    constructor(hacBaseUrl: string, ignoreSsl = false) {
         this.baseUrl = hacBaseUrl.replace(/\/+$/, '');
+        this.ignoreSsl = ignoreSsl;
     }
 
     async login(username: string, password: string): Promise<boolean> {
@@ -79,7 +97,7 @@ export class SapHacService {
         const paths = ['/login', '/hac/login', '/j_spring_security_check'];
         for (const p of paths) {
             try {
-                const resp = await this.cookieJar.fetch(this.baseUrl + p, { method: 'GET' });
+                const resp = await this.cookieJar.fetch(this.baseUrl + p, { method: 'GET' }, this.ignoreSsl);
                 const text = await resp.text();
                 csrf = extractCsrfToken(text);
                 if (csrf) break;
@@ -98,7 +116,7 @@ export class SapHacService {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
-            });
+            }, this.ignoreSsl);
             this.loggedIn = resp.ok || resp.status === 302 || resp.status === 200;
             return this.loggedIn;
         } catch {
@@ -109,15 +127,15 @@ export class SapHacService {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private async postWithCsrfRetry(csrfPage: string, postPath: string, buildForm: (csrf: string | null) => URLSearchParams): Promise<any> {
-        let page = await this.cookieJar.fetch(this.baseUrl + csrfPage);
+        let page = await this.cookieJar.fetch(this.baseUrl + csrfPage, { method: 'GET' }, this.ignoreSsl);
         let html = await page.text();
         let csrf = extractCsrfToken(html);
-        let res = await this.cookieJar.fetch(this.baseUrl + postPath, { method: 'POST', body: buildForm(csrf).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        let res = await this.cookieJar.fetch(this.baseUrl + postPath, { method: 'POST', body: buildForm(csrf).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, this.ignoreSsl);
         if (res.status === 403) {
-            page = await this.cookieJar.fetch(this.baseUrl + csrfPage);
+            page = await this.cookieJar.fetch(this.baseUrl + csrfPage, { method: 'GET' }, this.ignoreSsl);
             html = await page.text();
             csrf = extractCsrfToken(html);
-            res = await this.cookieJar.fetch(this.baseUrl + postPath, { method: 'POST', body: buildForm(csrf).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+            res = await this.cookieJar.fetch(this.baseUrl + postPath, { method: 'POST', body: buildForm(csrf).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }, this.ignoreSsl);
         }
         return res;
     }
@@ -126,7 +144,7 @@ export class SapHacService {
         if (!this.loggedIn) throw new Error('Not logged in');
         // try JSON endpoint
         try {
-            const r = await this.cookieJar.fetch(this.baseUrl + '/monitoring/cronjobs/data');
+            const r = await this.cookieJar.fetch(this.baseUrl + '/monitoring/cronjobs/data', { method: 'GET' }, this.ignoreSsl);
             if (r.ok) {
                 const text = await r.text();
                 const trimmed = text.trim();
@@ -149,7 +167,7 @@ export class SapHacService {
             // fall through to HTML scraping
         }
         // fallback to HTML parsing
-        const html = await this.cookieJar.fetch(this.baseUrl + '/monitoring/cronjobs').then((r: Response) => r.text());
+        const html = await this.cookieJar.fetch(this.baseUrl + '/monitoring/cronjobs', { method: 'GET' }, this.ignoreSsl).then((r: Response) => r.text());
         // very simplistic table scrape
         const rowRegex = /<tr[^>]*>(.*?)<\/tr>/gis;
         const cellRegex = /<t[dh][^>]*>(.*?)<\/t[dh]>/gis;

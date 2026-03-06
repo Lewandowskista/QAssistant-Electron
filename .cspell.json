@@ -1,0 +1,31 @@
+{
+    "version": "0.2",
+    "language": "en",
+    "words": [
+        "qassistant",
+        "unmaximize",
+        "keytar",
+        "creds",
+        "flexsearch",
+        "impex",
+        "tiptap",
+        "dnd-kit",
+        "clsx",
+        "cmdk",
+        "zustand",
+        "papaparse",
+        "JSESSIONID",
+        "csrf",
+        "hac",
+        "worklog",
+        "Worklog",
+        "youtu"
+    ],
+    "flagWords": [],
+    "ignorePaths": [
+        "node_modules",
+        "dist",
+        "out",
+        "*.mjs"
+    ]
+}

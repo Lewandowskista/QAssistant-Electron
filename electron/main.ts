@@ -95,6 +95,18 @@ function createWindow() {
         },
     });
 
+    // Apply alwaysOnTop if enabled in settings
+    try {
+        if (fs.existsSync(SETTINGS_FILE)) {
+            const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+            if (settings.alwaysOnTop) {
+                mainWindow.setAlwaysOnTop(true, 'screen-saver');
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to read alwaysOnTop setting:', e);
+    }
+
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
         mainWindow?.loadURL(process.env['ELECTRON_RENDERER_URL']);
     } else {
@@ -223,7 +235,7 @@ function setupIpc() {
         try {
             const creds = await listCredentials();
             return creds;
-        } catch (err: any) {
+        } catch {
             return [];
         }
     });
@@ -405,9 +417,25 @@ function setupIpc() {
             };
             if (body) fetchOpts.body = body;
 
-            const res = await fetch(url, fetchOpts);
-            const text = await res.text();
-            return { success: true, status: res.status, body: text, headers: Object.fromEntries(res.headers.entries()) };
+            let originalRejectUnauthorized: string | undefined;
+            if (ignoreSsl) {
+                originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+            }
+
+            try {
+                const res = await fetch(url, fetchOpts);
+                const text = await res.text();
+                return { success: true, status: res.status, body: text, headers: Object.fromEntries(res.headers.entries()) };
+            } finally {
+                if (ignoreSsl) {
+                    if (originalRejectUnauthorized === undefined) {
+                        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                    } else {
+                        process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                    }
+                }
+            }
         } catch (err: any) {
             return { success: false, error: err.message };
         }
@@ -419,7 +447,7 @@ function setupIpc() {
     ipcMain.handle('sap-hac-login', async (_: any, { baseUrl, username, password, ignoreSsl }: any) => {
         try {
             const key = baseUrl;
-            if (!sapServiceMap[key]) sapServiceMap[key] = new SapHacService(baseUrl);
+            if (!sapServiceMap[key]) sapServiceMap[key] = new SapHacService(baseUrl, !!ignoreSsl);
             const svc = sapServiceMap[key];
             const ok = await svc.login(username, password);
             return { success: ok };
@@ -728,7 +756,11 @@ function createTray() {
     tray?.setToolTip('QAssistant');
     tray?.setContextMenu(contextMenu);
     tray?.on('click', () => {
-        mainWindow?.isVisible() ? mainWindow.focus() : mainWindow?.show();
+        if (mainWindow?.isVisible()) {
+            mainWindow.focus();
+        } else {
+            mainWindow?.show();
+        }
     });
 }
 
@@ -780,7 +812,7 @@ app.whenReady().then(async () => {
                             try {
                                 const buf = Buffer.from(v, 'hex');
                                 plain = safeStorage.decryptString(buf);
-                            } catch (e) {
+                            } catch {
                                 // leave plain as-is
                             }
                         }

@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
@@ -25,7 +25,7 @@ export default function MainLayout() {
     const [editingProject, setEditingProject] = useState<Project | undefined>(undefined)
     const [paletteOpen, setPaletteOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
-    const [isPinned, setIsPinned] = useState(true)
+    const [isPinned, setIsPinned] = useState(false)
     const [isMaximized, setIsMaximized] = useState(false)
     const [toolsCollapsed, setToolsCollapsed] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
@@ -38,6 +38,13 @@ export default function MainLayout() {
         loadProjects()
         const api = window.electronAPI as any;
         if (api) {
+            // Load initial pin status
+            api.readSettingsFile().then((settings: any) => {
+                if (settings?.alwaysOnTop !== undefined) {
+                    setIsPinned(settings.alwaysOnTop)
+                }
+            })
+
             const removePaletteListener = api.onCommandPalette?.(() => setPaletteOpen(prev => !prev))
             const removeTaskListener = api.onAddTask?.(() => {
                 if (projects.length > 0 && !activeProjectId) setActiveProject(projects[0].id)
@@ -60,10 +67,17 @@ export default function MainLayout() {
         }
     }, [loadProjects, projects.length, activeProjectId, setActiveProject, navigate])
 
-    const handlePinToggle = () => {
+    const handlePinToggle = async () => {
         const next = !isPinned
         setIsPinned(next)
         window.electronAPI?.setAlwaysOnTop(next)
+
+        // Persist to settings
+        const api = window.electronAPI as any
+        if (api) {
+            const settings = await api.readSettingsFile()
+            await api.writeSettingsFile({ ...settings, alwaysOnTop: next })
+        }
     }
 
     const navGroups = [
@@ -237,11 +251,12 @@ export default function MainLayout() {
                         <button
                             onClick={handlePinToggle}
                             className={cn(
-                                "w-16 h-8 rounded-md mx-2 text-[10px] font-bold transition-all flex items-center justify-center",
-                                isPinned ? "bg-[#A78BFA] text-white shadow-lg shadow-[#A78BFA]/20" : "bg-[#252535] text-[#6B7280]"
+                                "w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors relative",
+                                isPinned ? "text-[#A78BFA]" : "text-[#6B7280]"
                             )}
+                            title={isPinned ? "Unpin Window" : "Pin Window"}
                         >
-                            Pin
+                            <Pin className={cn("h-4 w-4 transition-transform", isPinned ? "fill-current rotate-45" : "group-hover:text-[#A78BFA]")} />
                         </button>
 
                         {/* Windows Native-like Controls */}

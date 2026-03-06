@@ -1,6 +1,7 @@
 /**
  * Full Linear GraphQL integration — mirrors C# LinearService.cs
  */
+// cspell:ignore unstarted duedate issuetype
 
 // ── Status / Priority Mapping ────────────────────────────────────────────────
 
@@ -52,9 +53,12 @@ async function linearGraphQL(apiKey: string, query: string, variables?: Record<s
         body: JSON.stringify({ query, variables }),
     })
 
-    if (!res.ok) throw new Error(`Linear API HTTP ${res.status}: ${res.statusText}`)
-
     const result = await res.json() as any
+    if (!res.ok) {
+        const msg = result.errors?.[0]?.message || res.statusText
+        throw new Error(`Linear API HTTP ${res.status}: ${msg}`)
+    }
+
     if (result.errors?.length > 0) throw new Error(result.errors[0].message)
 
     return result
@@ -213,41 +217,77 @@ export async function updateLinearIssueStatus(apiKey: string, issueId: string, s
 }
 
 export async function getLinearIssueHistory(apiKey: string, issueId: string): Promise<any[]> {
+    console.log(`[Linear] Fetching history for issue ${issueId}`);
     const query = `
     query($issueId: String!) {
         issue(id: $issueId) {
             history(first: 50) {
                 nodes {
-                    createdAt actor { name }
+                    createdAt
+                    actor { 
+                        __typename
+                        ... on User { name } 
+                    }
                     fromState { name } toState { name }
                     fromPriority toPriority
                     fromAssignee { name } toAssignee { name }
+                    fromEstimate toEstimate
+                    fromProject { name } toProject { name }
+                    fromCycle { number } toCycle { number }
                 }
             }
         }
     }`
-    const result = await linearGraphQL(apiKey, query, { issueId })
-    const nodes = result.data?.issue?.history?.nodes || []
-    const entries: any[] = []
+    try {
+        const result = await linearGraphQL(apiKey, query, { issueId })
+        const nodes = result.data?.issue?.history?.nodes || []
+        console.log(`[Linear] Found ${nodes.length} history nodes`);
 
-    for (const node of nodes) {
-        const author = node.actor?.name || ''
-        const timestamp = node.createdAt ? new Date(node.createdAt).getTime() : Date.now()
+        const entries: any[] = []
+        for (const node of nodes) {
+            // Robust actor name resolution
+            let author = 'System'
+            const actor = (node as any).actor
+            if (actor) {
+                if (actor.__typename === 'User') author = actor.name || 'Unknown User'
+                else if (actor.name) author = actor.name // Fallback for other actor types that might have name
+                else author = actor.__typename || 'System'
 
-        if (node.fromState && node.toState) {
-            entries.push({ timestamp, author, field: 'Status', fromValue: node.fromState.name, toValue: node.toState.name })
+                // If it's a known non-user actor, try to be more specific
+                if (actor.__typename !== 'User') {
+                    console.log(`[Linear] Non-user actor detected: ${actor.__typename}`, actor);
+                }
+            }
+
+            const timestamp = node.createdAt ? new Date(node.createdAt).getTime() : Date.now()
+
+            if (node.fromState && node.toState) {
+                entries.push({ timestamp, author, field: 'Status', fromValue: node.fromState.name, toValue: node.toState.name })
+            }
+            if (node.fromPriority != null && node.toPriority != null) {
+                entries.push({ timestamp, author, field: 'Priority', fromValue: linearPriorityName(node.fromPriority), toValue: linearPriorityName(node.toPriority) })
+            }
+            if (node.fromAssignee !== undefined && node.toAssignee !== undefined) {
+                const from = node.fromAssignee?.name || 'Unassigned'
+                const to = node.toAssignee?.name || 'Unassigned'
+                if (from !== to) entries.push({ timestamp, author, field: 'Assignee', fromValue: from, toValue: to })
+            }
+            if (node.fromEstimate !== undefined && node.toEstimate !== undefined) {
+                const f = node.fromEstimate ?? 'No estimate'; const t = node.toEstimate ?? 'No estimate'
+                if (f !== t) entries.push({ timestamp, author, field: 'Estimate', fromValue: String(f), toValue: String(t) })
+            }
+            if (node.fromProject && node.toProject) {
+                entries.push({ timestamp, author, field: 'Project', fromValue: node.fromProject.name, toValue: node.toProject.name })
+            }
+            if (node.fromCycle && node.toCycle) {
+                entries.push({ timestamp, author, field: 'Cycle', fromValue: `Cycle ${node.fromCycle.number}`, toValue: `Cycle ${node.toCycle.number}` })
+            }
         }
-        if (node.fromPriority != null && node.toPriority != null) {
-            entries.push({ timestamp, author, field: 'Priority', fromValue: linearPriorityName(node.fromPriority), toValue: linearPriorityName(node.toPriority) })
-        }
-        if (node.fromAssignee !== undefined && node.toAssignee !== undefined) {
-            const from = node.fromAssignee?.name || 'Unassigned'
-            const to = node.toAssignee?.name || 'Unassigned'
-            if (from !== to) entries.push({ timestamp, author, field: 'Assignee', fromValue: from, toValue: to })
-        }
+        return entries;
+    } catch (e: any) {
+        console.error(`[Linear] History fetch failed: ${e.message}`);
+        return [];
     }
-
-    return entries
 }
 
 function linearPriorityName(priority: number): string {
@@ -429,39 +469,48 @@ export async function transitionJiraIssue(domain: string, email: string, apiKey:
 }
 
 export async function getJiraIssueHistory(domain: string, email: string, apiKey: string, issueKey: string): Promise<any[]> {
+    console.log(`[Jira] Fetching history for issue ${issueKey}`);
     const auth = Buffer.from(`${email}:${apiKey}`).toString('base64')
     const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
     const url = `${base}/rest/api/3/issue/${issueKey}?expand=changelog&fields=summary`
 
-    const res = await fetch(url, {
-        headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' }
-    })
+    try {
+        const res = await fetch(url, {
+            headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' }
+        })
 
-    if (!res.ok) return []
+        if (!res.ok) {
+            console.error(`[Jira] API error ${res.status}: ${res.statusText}`);
+            return [];
+        }
 
-    const data = await res.json() as any
-    const entries: any[] = []
+        const data = await res.json() as any
+        const entries: any[] = []
 
-    if (data.changelog && data.changelog.histories) {
-        for (const history of data.changelog.histories) {
-            const author = history.author?.displayName || 'Unknown'
-            const timestamp = new Date(history.created).getTime()
+        if (data.changelog && data.changelog.histories) {
+            console.log(`[Jira] Found ${data.changelog.histories.length} history events`);
+            for (const history of data.changelog.histories) {
+                const author = history.author?.displayName || 'Unknown'
+                const timestamp = new Date(history.created).getTime()
 
-            if (history.items) {
-                for (const item of history.items) {
-                    entries.push({
-                        timestamp,
-                        author,
-                        field: item.field || 'Unknown',
-                        fromValue: item.fromString || '',
-                        toValue: item.toString || '',
-                    })
+                if (history.items) {
+                    for (const item of history.items) {
+                        entries.push({
+                            timestamp,
+                            author,
+                            field: item.field || 'Unknown',
+                            fromValue: item.fromString || '',
+                            toValue: item.toString || '',
+                        })
+                    }
                 }
             }
         }
+        return entries
+    } catch (e: any) {
+        console.error(`[Jira] History fetch failed: ${e.message}`);
+        return [];
     }
-
-    return entries
 }
 
 /**

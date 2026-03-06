@@ -47,7 +47,7 @@ export const RichTextEditor = ({ content, onChange }: RichTextEditorProps) => {
             // Only update external content when the editor is not focused.
             // This prevents a sync loop: parent updates -> prop changes ->
             // setContent() which resets selection while the user types.
-            if (!editor.isFocused()) {
+            if (!editor.isFocused) {
                 editor.commands.setContent(content)
             }
         }
