@@ -2,7 +2,7 @@
   "name": "qassistant-electron",
   "private": true,
   "version": "0.0.0",
-  "main": "./out/main/main.js",
+  "main": "out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

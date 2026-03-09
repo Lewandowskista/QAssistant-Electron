@@ -75,7 +75,9 @@
         "Lewandowskista",
         "lewandowskista",
         "nsis",
-        "blockmap"
+        "blockmap",
+        "vite",
+        "eslintcache"
     ],
     "flagWords": [],
     "ignorePaths": [

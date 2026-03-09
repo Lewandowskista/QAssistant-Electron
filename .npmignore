@@ -1,0 +1,6 @@
+# Ignore source code but NOT build output
+src/
+.github/
+.vscode/
+.git/
+*.local
