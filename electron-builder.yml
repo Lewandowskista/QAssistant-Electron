@@ -4,7 +4,6 @@ copyright: Copyright © 2026 Lewandowskista
 
 directories:
   output: dist
-  buildResources: build
 
 files:
   - out/**/*

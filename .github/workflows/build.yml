@@ -30,13 +30,21 @@ jobs:
       - name: Build and Package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBUG: electron-builder
         run: |
           if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            npm run build:mac
+            npm run build:mac > build_log.txt 2>&1 || { cat build_log.txt; exit 1; }
           else
-            npm run build:win
+            npm run build:win > build_log.txt 2>&1 || { cat build_log.txt; exit 1; }
           fi
         shell: bash
+
+      - name: Upload Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.os }}
+          path: build_log.txt
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
