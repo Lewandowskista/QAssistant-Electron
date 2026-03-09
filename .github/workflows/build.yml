@@ -50,4 +50,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: QAssistant-${{ matrix.os }}
-          path: dist/**/*.{dmg,zip,exe,msi,blockmap}
+          path: |
+            dist/*.dmg
+            dist/**/*.dmg
+            dist/*.zip
+            dist/**/*.zip
+            dist/*.exe
+            dist/**/*.exe
+            dist/*.blockmap
+            dist/**/*.blockmap
