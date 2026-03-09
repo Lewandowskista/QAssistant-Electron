@@ -16,15 +16,12 @@ mac:
     - target: dmg
       arch:
         - x64
-        - arm64
-    - target: zip
-      arch:
-        - x64
-        - arm64
   category: public.app-category.developer-tools
   # icon: src/assets/tray-icon.png # Temporary: electron-builder will try to convert or user can provide better icon later
   darkModeSupport: true
-  type: distribution
+  gatekeeperAssess: false
+  hardenedRuntime: false
+  identity: null
 
 dmg:
   contents:
