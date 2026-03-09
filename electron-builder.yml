@@ -6,8 +6,12 @@ directories:
   output: dist
 
 files:
-  - "out/**"
-  - "package.json"
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.js,postcss.config.js,tailwind.config.js,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md,components.json}'
+  - '!{.env,.env.*,.npmrc,package-lock.json}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.app.json}'
 
 mac:
   target:
