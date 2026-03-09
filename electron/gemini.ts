@@ -1,8 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
 
-const PRIMARY_MODEL = 'gemini-2.0-flash';
-const FALLBACK_MODEL = 'gemini-1.5-flash';
+const MODEL_3_0_FLASH = 'gemini-3.0-flash';
+const MODEL_2_5_FLASH = 'gemini-2.5-flash';
+const MODEL_2_0_FLASH = 'gemini-2.0-flash';
+const MODEL_1_5_FLASH = 'gemini-1.5-flash';
+const MODEL_1_5_PRO = 'gemini-1.5-pro';
+
+let preferredModel = MODEL_2_0_FLASH;
 
 /**
  * AI Service for Gemini integration with full TOON (Token-Oriented Object Notation) prompt system.
@@ -10,12 +15,31 @@ const FALLBACK_MODEL = 'gemini-1.5-flash';
  */
 export class GeminiService {
     private genAI: GoogleGenerativeAI
+    private apiKey: string
 
     constructor(apiKey: string) {
+        this.apiKey = apiKey
         this.genAI = new GoogleGenerativeAI(apiKey)
     }
 
-    private getModel(modelName = PRIMARY_MODEL) {
+    /** List models available to this API key */
+    async listAvailableModels(): Promise<string[]> {
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+            }
+            const data = await response.json() as any;
+            // The API returns model names with "models/" prefix, e.g., "models/gemini-1.5-flash"
+            return data.models?.map((m: any) => m.name.replace('models/', '')) || [];
+        } catch (err) {
+            console.error('Failed to list Gemini models:', err);
+            return [];
+        }
+    }
+
+    private getModel(modelName: string) {
         return this.genAI.getGenerativeModel({
             model: modelName,
             generationConfig: {
@@ -24,6 +48,55 @@ export class GeminiService {
                 maxOutputTokens: 8192,
             }
         })
+    }
+
+    private async executeWithFallback(prompt: string | any, modelOverride?: string): Promise<string> {
+        // Build unique sequence of models starting with override, then preferred, then available ones
+        const models = Array.from(new Set([
+            modelOverride,
+            preferredModel,
+            MODEL_3_0_FLASH,
+            MODEL_2_5_FLASH,
+            MODEL_2_0_FLASH,
+            MODEL_1_5_FLASH,
+            MODEL_1_5_PRO
+        ].filter(Boolean) as string[]));
+        
+        let lastError: any;
+        for (const modelName of models) {
+            try {
+                const model = this.getModel(modelName);
+                const result = await model.generateContent(prompt);
+                
+                // If successful and we were using a non-preferred model, update it
+                if (modelName !== preferredModel) {
+                    console.log(`Gemini switching preferred model to ${modelName} after successful response`);
+                    preferredModel = modelName;
+                }
+                
+                return result.response.text();
+            } catch (err: any) {
+                lastError = err;
+                
+                const errorStr = JSON.stringify(err).toLowerCase();
+                const isRateLimit = err?.status === 429 || errorStr.includes('429') || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted') || errorStr.includes('too many requests');
+                const isUnavailable = err?.status === 404 || errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('not supported') || errorStr.includes('invalid') || errorStr.includes('permission');
+
+                if (isRateLimit || isUnavailable) {
+                    console.warn(`Gemini model ${modelName} ${isRateLimit ? 'rate limited' : 'unavailable/invalid'}. Trying next fallback...`);
+                    // Switch preferred model for future calls to avoid this one if it failed consistently
+                    if (modelName === preferredModel) {
+                        const nextIndex = (models.indexOf(modelName) + 1) % models.length;
+                        preferredModel = models[nextIndex];
+                    }
+                    continue;
+                }
+                
+                console.error(`Gemini model ${modelName} failed with unexpected error [DEBUG_TAG]:`, err);
+                continue;
+            }
+        }
+        throw lastError;
     }
 
     // ── TOON Sanitizers ──────────────────────────────────────────────────────
@@ -107,7 +180,7 @@ export class GeminiService {
         lines.push('@task:deep_issue_analysis')
         lines.push('@perspective:qa_engineer—focus on testability,reproducibility,regression_risk,environment_impact')
         lines.push('@out_fmt:md_sections[## Root Cause Analysis,## Impact Assessment,## Suggested Fix,## Prevention Recommendations]')
-        lines.push('@rules:all_sections_required|multi_sentence|specific_actionable|infer_if_brief|no_skip|no_merge|consider_env_context|reference_test_coverage')
+        lines.push('@rules:all_sections_required|multi_sentence|specific_actionable|infer_if_brief|no_skip|no_merge|consider_env_context|reference_test_coverage|use_tables_for_structured_data|bold_key_findings')
         lines.push('---')
 
         GeminiService.appendQaContext(lines, project)
@@ -216,6 +289,18 @@ export class GeminiService {
         lines.push(` total_executions:${executions.length}`)
         lines.push(` total_test_plans:${testPlans.length}`)
         lines.push('}')
+        lines.push('---')
+
+        if (testPlans.length > 0) {
+            lines.push('test_plans[')
+            for (const plan of testPlans.slice(0, 20)) {
+                const planCases = plan.testCases || []
+                const planFailed = planCases.filter((tc: any) => tc.status === 'failed').length
+                lines.push(` {name:${GeminiService.sanitizeToonValue(plan.name, 200)},total:${planCases.length},failed:${planFailed},source:${GeminiService.sanitizeToonValue(plan.source, 60)}}`)
+            }
+            lines.push(']')
+            lines.push('---')
+        }
 
         if (tasks.length > 0) {
             lines.push('project_tasks[')
@@ -410,40 +495,22 @@ export class GeminiService {
     // ── Public API methods ───────────────────────────────────────────────────
 
     /** Analyze a task issue using TOON prompts */
-    async analyzeIssue(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0): Promise<string> {
+    async analyzeIssue(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0, modelName?: string): Promise<string> {
         const prompt = GeminiService.buildToonPrompt(task, comments, project, attachedImageCount)
-        try {
-            const model = this.getModel(PRIMARY_MODEL)
-            const result = await model.generateContent(prompt)
-            return result.response.text()
-        } catch (err) {
-            console.error('Gemini primary model failed, trying fallback:', err)
-            const model = this.getModel(FALLBACK_MODEL)
-            const result = await model.generateContent(prompt)
-            return result.response.text()
-        }
+        return await this.executeWithFallback(prompt, modelName)
     }
 
     /** Generate test cases from tasks using TOON prompts */
-    async generateTestCases(tasks: any[] = [], sourceName: string, project?: any, designDoc?: string): Promise<any[]> {
+    async generateTestCases(tasks: any[] = [], sourceName: string, project?: any, designDoc?: string, modelName?: string): Promise<any[]> {
         const prompt = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc)
-        let text = ''
-        try {
-            const model = this.getModel(PRIMARY_MODEL)
-            const result = await model.generateContent(prompt)
-            text = result.response.text()
-        } catch (err) {
-            console.error('Gemini primary model failed, trying fallback:', err)
-            const model = this.getModel(FALLBACK_MODEL)
-            const result = await model.generateContent(prompt)
-            text = result.response.text()
-        }
+        const text = await this.executeWithFallback(prompt, modelName)
 
         const extracted = GeminiService.extractFirstJsonArray(text)
         if (!extracted) throw new Error('Could not locate a JSON array in the model response.')
 
         const parsed = JSON.parse(extracted)
         return parsed.map((item: any, i: number) => ({
+            testCaseId: item.testCaseId || `TC-${String(i + 1).padStart(3, '0')}`,
             title: item.title || `Test Case ${i + 1}`,
             preConditions: item.preConditions || '',
             steps: item.testSteps || item.steps || '',
@@ -456,60 +523,46 @@ export class GeminiService {
     }
 
     /** Criticality assessment for the current test state */
-    async assessCriticality(tasks: any[], testPlans: any[], executions: any[], project?: any): Promise<string> {
+    async assessCriticality(tasks: any[], testPlans: any[], executions: any[], project?: any, modelName?: string): Promise<string> {
         const prompt = GeminiService.buildCriticalityAssessmentPrompt(tasks, testPlans, executions, project)
-        try {
-            const model = this.getModel(PRIMARY_MODEL)
-            const result = await model.generateContent(prompt)
-            return result.response.text()
-        } catch (err) {
-            console.error('Gemini primary model failed, trying fallback:', err)
-            const model = this.getModel(FALLBACK_MODEL)
-            const result = await model.generateContent(prompt)
-            return result.response.text()
-        }
+        return await this.executeWithFallback(prompt, modelName)
     }
 
     /** Test run suggestions / deployment readiness */
-    async getTestRunSuggestions(testPlans: any[], executions: any[], project?: any): Promise<string> {
+    async getTestRunSuggestions(testPlans: any[], executions: any[], project?: any, modelName?: string): Promise<string> {
         const prompt = GeminiService.buildTestRunSuggestionsPrompt(testPlans, executions, project)
-        try {
-            const model = this.getModel(PRIMARY_MODEL)
-            const result = await model.generateContent(prompt)
-            return result.response.text()
-        } catch (err) {
-            console.error('Gemini primary model failed, trying fallback:', err)
-            const model = this.getModel(FALLBACK_MODEL)
-            const result = await model.generateContent(prompt)
-            return result.response.text()
-        }
+        return await this.executeWithFallback(prompt, modelName)
     }
 
     /** Select a minimal smoke test subset from candidates */
-    async selectSmokeSubset(candidates: any[], doneTasks: any[], project?: any): Promise<string[]> {
+    async selectSmokeSubset(candidates: any[], doneTasks: any[], project?: any, modelName?: string): Promise<string[]> {
         const prompt = GeminiService.buildSmokeSubsetPrompt(candidates, doneTasks, project)
-        let text = ''
-        try {
-            const model = this.getModel(PRIMARY_MODEL)
-            const result = await model.generateContent(prompt)
-            text = result.response.text()
-        } catch (err) {
-            console.error('Gemini primary model failed, trying fallback:', err)
-            const model = this.getModel(FALLBACK_MODEL)
-            const result = await model.generateContent(prompt)
-            text = result.response.text()
-        }
+        const text = await this.executeWithFallback(prompt, modelName)
 
         const extracted = GeminiService.extractFirstJsonArray(text)
         if (!extracted) return []
         return JSON.parse(extracted)
     }
 
-    /** Legacy compat wrapper for simple project analysis */
-    async analyzeProject(projectContext: string): Promise<string> {
-        const model = this.getModel(PRIMARY_MODEL)
-        const prompt = `You are a senior QA engineer. Analyze the following project context and suggest 3 key strategic improvements for the QA cycle:\n\n${projectContext}\n\nProvide output in these sections:\n## Strategic Gaps\n## Coverage Optimization\n## Risk Assessment`
-        const result = await model.generateContent(prompt)
-        return result.response.text()
+    /** Strategic project analysis using TOON prompts */
+    async analyzeProject(projectContext: string, project?: any, modelName?: string): Promise<string> {
+        const lines: string[] = []
+        lines.push('@role:sr_qa_engineer')
+        lines.push('@task:project_strategic_analysis')
+        lines.push('@perspective:qa_engineer—strategic,holistic view of project health and risk')
+        lines.push('@out_fmt:md_sections[## Strategic Gaps,## Coverage Optimization,## Risk Assessment]')
+        lines.push('@rules:strategic|actionable|data_driven|bold_decisions|no_generic_advice|all_sections_required|use_tables_for_structured_data|bold_key_findings')
+        lines.push('---')
+
+        if (project) {
+            GeminiService.appendQaContext(lines, project)
+        }
+
+        lines.push('analysis_context_and_data{')
+        lines.push(GeminiService.sanitizeToonValue(projectContext, 5000))
+        lines.push('}')
+
+        const prompt = lines.join('\n')
+        return await this.executeWithFallback(prompt, modelName)
     }
 }

@@ -23,7 +23,7 @@ interface TestPlanCardProps {
 }
 
 export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRunCases, onEditPlan }: TestPlanCardProps) {
-    const { archiveTestPlan, deleteTestPlan } = useProjectStore()
+    const { archiveTestPlan, deleteTestPlan, resetTestPlanStatuses, duplicateTestPlan } = useProjectStore()
     const [isCollapsed, setIsCollapsed] = useState(false)
 
     // Calculate Summary
@@ -40,12 +40,14 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
         'not-run': '#6B7280'
     }
 
-    const statusesRendered = Object.entries(statusCounts).map(([status, count]) => (
-        <div key={status} className="flex items-center gap-1.5 bg-[#1E1E32]/50 px-2 py-0.5 rounded-full border border-[#2A2A3A]/50">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColors[status as TestCaseStatus] }} />
-            <span className="text-[10px] font-bold text-[#9CA3AF] capitalize">{count} {status}</span>
-        </div>
-    ))
+    const statusesRendered = Object.entries(statusCounts)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([status, count]) => (
+            <div key={status} className="flex items-center gap-1.5 px-1">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColors[status as TestCaseStatus] }} />
+                <span className="text-[10px] text-[#6B7280]">{count} {status}</span>
+            </div>
+        ))
 
     return (
         <div className={cn(
@@ -57,48 +59,90 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                 className="flex items-center p-4 cursor-pointer hover:bg-[#1A1A24] transition-colors"
                 onClick={() => setIsCollapsed(!isCollapsed)}
             >
-                <div className="text-[#A78BFA] mr-3">
-                    {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <div className="text-[#A78BFA] mr-[10px]">
+                    {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 </div>
 
-                <div className="flex items-center gap-2 flex-1">
-                    <span className="font-mono text-[13px] font-bold text-[#A78BFA] tracking-tight">{plan.displayId || 'PLAN-XXX'}</span>
-                    <span className="text-sm font-semibold text-[#E2E8F0] ml-1">{plan.name}</span>
-                    <div className="bg-[#1E1E32] px-2 py-0.5 rounded ml-1 border border-[#2A2A3A]/50">
-                        <span className="text-[10px] font-bold text-[#9CA3AF]">{plan.testCases.length} case(s)</span>
+                <div className="flex flex-col flex-1">
+                    <div className="flex items-center gap-2">
+                        <span className="font-mono text-[14px] font-bold text-[#A78BFA] tracking-tight">{plan.displayId || 'PLAN-XXX'}</span>
+                        <span className="text-[14px] font-semibold text-[#E2E8F0]">{plan.name}</span>
+                        <div className="bg-[#1E1E32] px-[6px] py-[2px] rounded border border-[#2A2A3A]/50 self-center">
+                            <span className="text-[10px] text-[#9CA3AF] uppercase font-medium">{plan.testCases.length} case(s)</span>
+                        </div>
+                        {plan.isArchived && (
+                            <div className="bg-[#2D2010] px-[6px] py-[2px] rounded border border-[#FBBF24]/20 self-center">
+                                <span className="text-[9px] font-bold text-[#FBBF24] uppercase tracking-widest">ARCHIVED</span>
+                            </div>
+                        )}
+                        {plan.isRegressionSuite && (
+                            <div className="bg-[#10B981]/10 px-[6px] py-[2px] rounded border border-[#10B981]/20 self-center">
+                                <span className="text-[9px] font-bold text-[#10B981] uppercase tracking-widest">REGRESSION</span>
+                            </div>
+                        )}
                     </div>
-                    {plan.isArchived && (
-                        <div className="bg-[#FBBF24]/10 border border-[#FBBF24]/20 px-2 py-0.5 rounded ml-2">
-                            <span className="text-[9px] font-bold text-[#FBBF24] uppercase tracking-[0.2em]">Archived</span>
-                        </div>
-                    )}
-                    {plan.isRegressionSuite && (
-                        <div className="bg-[#10B981]/10 border border-[#10B981]/20 px-2 py-0.5 rounded ml-2">
-                            <span className="text-[9px] font-bold text-[#10B981] uppercase tracking-[0.2em]">Regression</span>
-                        </div>
-                    )}
-                    <div className="flex items-center gap-2 ml-4">
+                    {/* Status summary */}
+                    <div className="flex items-center mt-1">
                         {statusesRendered}
                     </div>
                 </div>
 
-                {/* Right Align Actions */}
-                <div className="flex items-center gap-1 ml-4" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-[#10B981] hover:bg-[#10B981]/10 hover:text-[#10B981]" onClick={() => onRunCases(plan)} title="Run all test cases">
-                        <PlayCircle className="h-4 w-4" />
+                {/* Action buttons (Reference: runAllBtn, resetBtn, duplicateBtn, renameBtn, archiveBtn, deletePlanBtn) */}
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                        onClick={() => onRunCases(plan)}
+                        title="Run all test cases"
+                    >
+                        <PlayCircle className="h-[14px] w-[14px]" />
                     </Button>
-                    {/* Placeholder for Duplicate button */}
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-[#6B7280] hover:text-[#E2E8F0]" title="Duplicate plan (TBD)">
-                        <Copy className="h-4 w-4" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                        onClick={() => resetTestPlanStatuses(activeProjectId, plan.id)}
+                        title="Reset all statuses to Not Run"
+                    >
+                        {/* Reference glyph \uE72C is Refresh/Reset */}
+                        <Plus className="h-[14px] w-[14px] rotate-45" /> {/* approximation of reset if Refresh icon missing */}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-[#6B7280] hover:text-[#E2E8F0]" onClick={() => onEditPlan(plan)} title="Rename / Edit plan">
-                        <Edit2 className="h-4 w-4" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                        onClick={() => duplicateTestPlan(activeProjectId, plan.id)}
+                        title="Duplicate plan for re-execution"
+                    >
+                        <Copy className="h-[14px] w-[14px]" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-[#6B7280] hover:text-[#E2E8F0]" onClick={() => archiveTestPlan(activeProjectId, plan.id, !plan.isArchived)} title={plan.isArchived ? "Unarchive plan" : "Archive plan"}>
-                        <Archive className="h-4 w-4" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                        onClick={() => onEditPlan(plan)}
+                        title="Rename plan"
+                    >
+                        <Edit2 className="h-[14px] w-[14px]" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-[#6B7280] hover:text-[#EF4444] hover:bg-[#EF4444]/10" onClick={() => deleteTestPlan(activeProjectId, plan.id)} title="Delete plan">
-                        <Trash2 className="h-4 w-4" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                        onClick={() => archiveTestPlan(activeProjectId, plan.id, !plan.isArchived)}
+                        title={plan.isArchived ? "Unarchive plan" : "Archive plan"}
+                    >
+                        <Archive className="h-[14px] w-[14px]" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-[#6B7280] hover:text-[#F87171] hover:bg-[#EF4444]/10"
+                        onClick={() => deleteTestPlan(activeProjectId, plan.id)}
+                        title="Delete plan"
+                    >
+                        <Trash2 className="h-[14px] w-[14px]" />
                     </Button>
                 </div>
             </div>
@@ -106,13 +150,18 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
             {/* Body */}
             {!isCollapsed && (
                 <div className="px-5 pb-4 pl-[42px] flex flex-col gap-2 bg-[#0F0F13]/50 border-t border-[#2A2A3A]">
-                    <div className="h-2" /> {/* Spacing */}
+                    <div className="h-3" />
                     {plan.testCases.map(tc => (
                         <TestCaseCard key={tc.id} testCase={tc} plan={plan} activeProjectId={activeProjectId} onRunCase={() => onRunCases(plan)} />
                     ))}
-                    <div className="pt-2">
-                        <Button variant="ghost" size="sm" onClick={() => onEditCases(plan)} className="h-8 text-[11px] font-bold text-[#A78BFA] hover:text-[#C4B5FD] hover:bg-transparent px-0 gap-1.5">
-                            <Plus className="h-3.5 w-3.5" /> ADD TEST CASE
+                    <div className="pt-1">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onEditCases(plan)}
+                            className="h-8 text-[11px] font-bold text-[#A78BFA] hover:text-[#C4B5FD] hover:bg-transparent px-0 gap-1.5"
+                        >
+                            <Plus className="h-[14px] w-[14px]" /> ADD TEST CASE
                         </Button>
                     </div>
                 </div>

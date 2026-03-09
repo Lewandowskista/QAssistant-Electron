@@ -27,7 +27,7 @@ function buildSlackPayload(title: string, message: string, color: string): strin
     });
 }
 
-function buildTeamsPayload(title: string, message: string, _color: string): string {
+function buildTeamsPayload(title: string, message: string): string {
     return JSON.stringify({
         type: 'message',
         attachments: [{
@@ -70,7 +70,7 @@ export async function sendWebhook(
             payload = buildSlackPayload(title, message, color);
             break;
         case 'Teams':
-            payload = buildTeamsPayload(title, message, color);
+            payload = buildTeamsPayload(title, message);
             break;
         default:
             payload = buildGenericPayload(title, message);
@@ -93,7 +93,6 @@ export async function notifyTestPlanResult(
     projectName: string,
     planName: string,
     passed: number,
-    failed: number,
     total: number
 ): Promise<void> {
     if (total === 0) return;

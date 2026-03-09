@@ -23,6 +23,13 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
 
 const CATEGORIES: { id: RunbookCategory; label: string; color: string }[] = [
     { id: 'deployment', label: 'Deployment', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
@@ -41,6 +48,11 @@ export default function RunbooksPage() {
     const [selectedRunbookId, setSelectedRunbookId] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState("")
     const [activeCategory, setActiveCategory] = useState<RunbookCategory | 'all'>('all')
+    const [isPromptOpen, setIsPromptOpen] = useState(false)
+    const [promptTitle, setPromptTitle] = useState("")
+    const [promptLabel, setPromptLabel] = useState("")
+    const [promptValue, setPromptValue] = useState("")
+    const [promptAction, setPromptAction] = useState<((val: string) => void) | null>(null)
 
     const filteredRunbooks = useMemo(() => {
         return runbooks.filter(r => {
@@ -54,16 +66,24 @@ export default function RunbooksPage() {
 
     const handleAddRunbook = () => {
         if (!activeProjectId) return
-        const name = prompt("Runbook Name:")
-        if (!name) return
-        addRunbook(activeProjectId, name, 'other').then(r => setSelectedRunbookId(r.id))
+        setPromptTitle("New Runbook")
+        setPromptLabel("Enter runbook name:")
+        setPromptValue("")
+        setPromptAction(() => (name: string) => {
+            if (name.trim()) addRunbook(activeProjectId, name.trim(), 'other').then(r => setSelectedRunbookId(r.id))
+        })
+        setIsPromptOpen(true)
     }
 
     const handleAddStep = () => {
         if (!activeProjectId || !selectedRunbookId) return
-        const title = prompt("Step Title:")
-        if (!title) return
-        addRunbookStep(activeProjectId, selectedRunbookId, title)
+        setPromptTitle("New Step")
+        setPromptLabel("Enter step title:")
+        setPromptValue("")
+        setPromptAction(() => (title: string) => {
+            if (title.trim()) addRunbookStep(activeProjectId, selectedRunbookId, title.trim())
+        })
+        setIsPromptOpen(true)
     }
 
     const getStatusIcon = (status: RunbookStepStatus) => {
@@ -314,6 +334,44 @@ export default function RunbooksPage() {
                     </div>
                 )}
             </div>
+
+            <Dialog open={isPromptOpen} onOpenChange={setIsPromptOpen}>
+                <DialogContent className="bg-[#13131A] border-[#2A2A3A] sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-[#E2E8F0]">{promptTitle}</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-3">
+                        <label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest px-1">{promptLabel}</label>
+                        <Input
+                            autoFocus
+                            value={promptValue}
+                            onChange={(e) => setPromptValue(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && promptValue.trim()) {
+                                    promptAction?.(promptValue)
+                                    setIsPromptOpen(false)
+                                }
+                            }}
+                            className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]"
+                        />
+                    </div>
+                    <DialogFooter className="bg-[#13131A]">
+                        <Button variant="ghost" onClick={() => setIsPromptOpen(false)} className="text-[#6B7280] hover:text-[#E2E8F0]">
+                            CANCEL
+                        </Button>
+                        <Button 
+                            onClick={() => {
+                                promptAction?.(promptValue)
+                                setIsPromptOpen(false)
+                            }}
+                            disabled={!promptValue.trim()}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
+                        >
+                            CONFIRM
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

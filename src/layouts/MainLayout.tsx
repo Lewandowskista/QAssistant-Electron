@@ -18,7 +18,14 @@ import {
 export default function MainLayout() {
     const location = useLocation()
     const navigate = useNavigate()
-    const { projects, activeProjectId, loadProjects, setActiveProject, deleteProject } = useProjectStore()
+    
+    // Use fine-grained selectors to prevent unnecessary re-renders
+    const projects = useProjectStore(state => state.projects)
+    const activeProjectId = useProjectStore(state => state.activeProjectId)
+    const loadProjects = useProjectStore(state => state.loadProjects)
+    const setActiveProject = useProjectStore(state => state.setActiveProject)
+    const deleteProject = useProjectStore(state => state.deleteProject)
+    
     const activeProject = projects.find(p => p.id === activeProjectId)
 
     const [dialogOpen, setDialogOpen] = useState(false)
@@ -29,21 +36,18 @@ export default function MainLayout() {
     const [isMaximized, setIsMaximized] = useState(false)
     const [toolsCollapsed, setToolsCollapsed] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
+    const [isSapActive, setIsSapActive] = useState(false)
+
+    const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0
 
     // Routes that use h-full flex layouts and need the full content area (no padding/max-width)
-    const FULL_BLEED_ROUTES = ['/links', '/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks']
+    const FULL_BLEED_ROUTES = ['/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks']
     const isFullBleedRoute = FULL_BLEED_ROUTES.some(r => location.pathname.startsWith(r))
 
     useEffect(() => {
         loadProjects()
         const api = window.electronAPI as any;
         if (api) {
-            // Load initial pin status
-            api.readSettingsFile().then((settings: any) => {
-                if (settings?.alwaysOnTop !== undefined) {
-                    setIsPinned(settings.alwaysOnTop)
-                }
-            })
 
             const removePaletteListener = api.onCommandPalette?.(() => setPaletteOpen(prev => !prev))
             const removeTaskListener = api.onAddTask?.(() => {
@@ -51,6 +55,7 @@ export default function MainLayout() {
                 navigate('/tasks')
             })
             const removeMaxListener = api.onMaximizedStatus?.((status: boolean) => setIsMaximized(status))
+            const removeSettingsListener = api.onOpenSettings?.(() => setSettingsOpen(true))
 
             const handleOpenDialog = () => {
                 setEditingProject(undefined)
@@ -58,11 +63,26 @@ export default function MainLayout() {
             }
             window.addEventListener('open-project-dialog', handleOpenDialog)
 
+            api.getSystemInfo().then(() => {
+                // platform state removed
+            })
+
+            const refreshSettings = async () => {
+                const settings = await api.readSettingsFile()
+                if (settings?.alwaysOnTop !== undefined) setIsPinned(settings.alwaysOnTop)
+                setIsSapActive(!!settings?.sapCommerceContext)
+            }
+
+            window.addEventListener('settings-updated', refreshSettings)
+            refreshSettings()
+
             return () => {
                 removePaletteListener?.()
                 removeTaskListener?.()
                 removeMaxListener?.()
+                removeSettingsListener?.()
                 window.removeEventListener('open-project-dialog', handleOpenDialog)
+                window.removeEventListener('settings-updated', refreshSettings)
             }
         }
     }, [loadProjects, projects.length, activeProjectId, setActiveProject, navigate])
@@ -77,6 +97,7 @@ export default function MainLayout() {
         if (api) {
             const settings = await api.readSettingsFile()
             await api.writeSettingsFile({ ...settings, alwaysOnTop: next })
+            window.dispatchEvent(new Event('settings-updated'))
         }
     }
 
@@ -85,7 +106,6 @@ export default function MainLayout() {
         {
             title: "ORGANIZATION",
             items: [
-                { name: "Links", href: "/links", icon: Globe },
                 { name: "Notes", href: "/notes", icon: FileText },
                 { name: "Files", href: "/files", icon: FileText }, // Should probably be Files/Images
             ]
@@ -111,9 +131,15 @@ export default function MainLayout() {
     ]
 
     return (
-        <div className="flex bg-[#0F0F13] text-[#E2E8F0] h-screen overflow-hidden selection:bg-primary/30">
+        <div className={cn(
+            "flex text-[#E2E8F0] h-screen overflow-hidden selection:bg-primary/30",
+            isMac ? "bg-[#0F0F13]/80 backdrop-blur-xl" : "bg-[#0F0F13]"
+        )}>
             {/* 1. PROJECTS SIDEBAR (200px) */}
-            <aside className="w-[200px] flex flex-col border-r border-[#2A2A3A] bg-[#13131A] shrink-0">
+            <aside className={cn(
+                "w-[200px] flex flex-col border-r border-[#2A2A3A] shrink-0",
+                isMac ? "bg-[#13131A]/50 backdrop-blur-md" : "bg-[#13131A]"
+            )}>
                 <div className="h-11 flex items-center px-4 border-b border-[#2A2A3A] text-[9px] font-black tracking-[0.2em] text-[#6B7280] uppercase">
                     Projects
                 </div>
@@ -132,7 +158,6 @@ export default function MainLayout() {
                                 <div className={cn("w-1 h-7 rounded-[2px] shrink-0", project.color)} />
                                 <div className="flex flex-col min-w-0">
                                     <span className="truncate">{project.name}</span>
-                                    <span className="text-[10px] opacity-40 truncate">Dashboard</span>
                                 </div>
                             </button>
                             <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -168,7 +193,8 @@ export default function MainLayout() {
             {/* 2. TOOLS SIDEBAR (200px or Collapsed) */}
             <aside
                 className={cn(
-                    "flex flex-col border-r border-[#2A2A3A] bg-[#13131A] transition-all duration-300 shrink-0",
+                    "flex flex-col border-r border-[#2A2A3A] transition-all duration-300 shrink-0",
+                    isMac ? "bg-[#13131A]/50 backdrop-blur-md" : "bg-[#13131A]",
                     toolsCollapsed ? "w-0 overflow-hidden opacity-0" : "w-[200px]"
                 )}
             >
@@ -225,7 +251,10 @@ export default function MainLayout() {
             {/* 3. MAIN CONTENT */}
             <div className="flex-1 flex flex-col min-w-0 bg-[#0F0F13] relative">
                 {/* TITLEBAR */}
-                <header className="h-12 border-b border-[#2A2A3A] bg-[#13131A] flex items-center justify-between px-4 app-region-drag shrink-0 relative z-50 shadow-sm">
+                <header className={cn(
+                    "h-12 border-b border-[#2A2A3A] bg-[#13131A]/80 backdrop-blur-md flex items-center justify-between px-4 app-region-drag shrink-0 relative z-50 shadow-sm",
+                    isMac && "pl-20" // Leave room for traffic lights
+                )}>
                     <div className="flex items-center gap-4">
                         {toolsCollapsed && (
                             <button onClick={() => setToolsCollapsed(false)} className="app-region-no-drag p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280]">
@@ -245,6 +274,12 @@ export default function MainLayout() {
                     </div>
 
                     <div className="flex items-center gap-0 app-region-no-drag">
+                        {isSapActive && (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#A78BFA]/10 border border-[#A78BFA]/20 rounded-full mr-2 group cursor-help transition-all hover:bg-[#A78BFA]/20" title="SAP Commerce Context is active and injected into AI analysis">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />
+                                <span className="text-[10px] font-black text-[#A78BFA] tracking-tighter uppercase">SAP ACTIVE</span>
+                            </div>
+                        )}
                         <button onClick={() => setSettingsOpen(true)} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors">
                             <Settings className="h-4 w-4 text-[#6B7280] group-hover:text-[#A78BFA]" />
                         </button>
@@ -259,16 +294,19 @@ export default function MainLayout() {
                             <Pin className={cn("h-4 w-4 transition-transform", isPinned ? "fill-current rotate-45" : "group-hover:text-[#A78BFA]")} />
                         </button>
 
-                        {/* Windows Native-like Controls */}
-                        <button onClick={() => window.electronAPI?.minimize()} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
-                            <Minus className="h-4 w-4 text-[#A78BFA]" />
-                        </button>
-                        <button onClick={() => window.electronAPI?.maximize()} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
-                            {isMaximized ? <Copy className="h-3.5 w-3.5 text-[#A78BFA] rotate-180" /> : <Square className="h-3.5 w-3.5 text-[#A78BFA]" />}
-                        </button>
-                        <button onClick={() => window.electronAPI?.close()} className="w-11 h-10 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">
-                            <X className="h-4 w-4" />
-                        </button>
+                        {!isMac && (
+                            <>
+                                <button onClick={() => window.electronAPI?.minimize()} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
+                                    <Minus className="h-4 w-4 text-[#A78BFA]" />
+                                </button>
+                                <button onClick={() => window.electronAPI?.maximize()} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
+                                    {isMaximized ? <Copy className="h-3.5 w-3.5 text-[#A78BFA] rotate-180" /> : <Square className="h-3.5 w-3.5 text-[#A78BFA]" />}
+                                </button>
+                                <button onClick={() => window.electronAPI?.close()} className="w-11 h-10 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </>
+                        )}
                     </div>
                 </header>
 

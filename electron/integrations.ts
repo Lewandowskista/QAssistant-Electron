@@ -48,7 +48,7 @@ async function linearGraphQL(apiKey: string, query: string, variables?: Record<s
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': apiKey,
+            'Authorization': apiKey.startsWith('lin_api_') || apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
         },
         body: JSON.stringify({ query, variables }),
     })

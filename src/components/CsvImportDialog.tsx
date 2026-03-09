@@ -1,7 +1,7 @@
 import { useState, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { UploadCloud, CheckCircle2, ChevronRight, AlertCircle, FileSpreadsheet } from "lucide-react"
+import { UploadCloud, ChevronRight, AlertCircle, FileSpreadsheet } from "lucide-react"
 import { ParsedImportData, TEST_CASE_IMPORT_FIELDS, autoDetectMappings, parseImportFile, prepareImportData } from "@/lib/import"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TestCase } from "@/store/useProjectStore"
@@ -15,7 +15,6 @@ interface CsvImportDialogProps {
 export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialogProps) {
     const defaultState = () => {
         setStep('upload')
-        setFile(null)
         setParsedData(null)
         setMappings({})
         setError(null)
@@ -23,7 +22,6 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
     }
 
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview'>('upload')
-    const [file, setFile] = useState<File | null>(null)
     const [parsedData, setParsedData] = useState<ParsedImportData | null>(null)
     const [mappings, setMappings] = useState<Record<string, string>>({})
     const [error, setError] = useState<string | null>(null)
@@ -35,7 +33,6 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
         const selectedFile = e.target.files?.[0]
         if (!selectedFile) return
 
-        setFile(selectedFile)
         setError(null)
         setIsProcessing(true)
 
@@ -46,9 +43,8 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
             setParsedData(data)
             setMappings(autoDetectMappings(data.headers))
             setStep('mapping')
-        } catch (err: any) {
-            setError(err.message || "Failed to parse file")
-            setFile(null)
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to parse file")
         } finally {
             setIsProcessing(false)
         }

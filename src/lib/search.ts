@@ -3,7 +3,7 @@ import { Project } from "@/store/useProjectStore"
 export type SearchResult = {
     id: string
     title: string
-    type: 'task' | 'note' | 'link' | 'testplan'
+    type: 'task' | 'note' | 'testplan'
     projectId: string
     projectName: string
     content?: string
@@ -47,19 +47,6 @@ export function searchProjects(projects: Project[], query: string): SearchResult
             }
         })
 
-        // Search Links
-        project.links.forEach(link => {
-            if (link.title.toLowerCase().includes(q) || link.url.toLowerCase().includes(q)) {
-                results.push({
-                    id: link.id,
-                    title: link.title,
-                    type: 'link',
-                    projectId: project.id,
-                    projectName: project.name,
-                    content: link.url
-                })
-            }
-        })
 
         // Search Test Plans
         project.testPlans.forEach(plan => {

@@ -10,7 +10,7 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command"
-import { Search, FileText, CheckCircle2, Link as LinkIcon, FlaskConical } from "lucide-react"
+import { Search, FileText, CheckCircle2, FlaskConical } from "lucide-react"
 
 export default function SearchPalette() {
     const [open, setOpen] = useState(false)
@@ -45,7 +45,6 @@ export default function SearchPalette() {
         switch (result.type) {
             case 'task': navigate('/tasks'); break
             case 'note': navigate('/notes'); break
-            case 'link': navigate('/links'); break
             case 'testplan': navigate('/tests'); break
         }
     }, [navigate, setActiveProject])
@@ -54,7 +53,6 @@ export default function SearchPalette() {
         switch (type) {
             case 'task': return <CheckCircle2 className="h-4 w-4 mr-2" />
             case 'note': return <FileText className="h-4 w-4 mr-2" />
-            case 'link': return <LinkIcon className="h-4 w-4 mr-2" />
             case 'testplan': return <FlaskConical className="h-4 w-4 mr-2" />
             default: return <Search className="h-4 w-4 mr-2" />
         }

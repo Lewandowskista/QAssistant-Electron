@@ -1,3 +1,4 @@
+// cspell:ignore youtu
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { useProjectStore, Task, TaskStatus } from "@/store/useProjectStore"
 import {
@@ -20,7 +21,12 @@ import {
     Image as ImageIcon,
     PlayCircle,
     HelpCircle,
-    Command
+    Command,
+    AlertCircle,
+    ChevronUp,
+    ChevronDown,
+    Minus,
+    Clock3
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -47,6 +53,22 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import FormattedText from "@/components/FormattedText"
 
 const COLUMNS: { id: TaskStatus; title: string, color: string, textColor: string }[] = [
@@ -61,9 +83,17 @@ const COLUMNS: { id: TaskStatus; title: string, color: string, textColor: string
 
 export default function TasksPage() {
     const api = window.electronAPI as any
-    const { projects, activeProjectId, addTask, deleteTask, moveTask, updateProject, loadProjects } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
-    const tasks = activeProject?.tasks || []
+    // Use selectors to prevent re-renders when other parts of the store change
+    const projects = useProjectStore(state => state.projects)
+    const activeProjectId = useProjectStore(state => state.activeProjectId)
+    const addTask = useProjectStore(state => state.addTask)
+    const deleteTask = useProjectStore(state => state.deleteTask)
+    const moveTask = useProjectStore(state => state.moveTask)
+    const updateProject = useProjectStore(state => state.updateProject)
+    const loadProjects = useProjectStore(state => state.loadProjects)
+    
+    const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId])
+    const tasks = useMemo(() => activeProject?.tasks || [], [activeProject?.tasks])
 
     const [activeTask, setActiveTask] = useState<Task | null>(null)
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -74,8 +104,9 @@ export default function TasksPage() {
     const [analysisModalResult, setAnalysisModalResult] = useState<string | null>(null)
     const [comments, setComments] = useState<any[]>([])
     const [history, setHistory] = useState<any[]>([])
-    const [worklog, setWorklog] = useState<any[]>([])
+    const [activity, setActivity] = useState<any[]>([])
     const [isLoadingTab, setIsLoadingTab] = useState(false)
+    const [tabError, setTabError] = useState<string | null>(null)
     const [newComment, setNewComment] = useState("")
     const [isPostingComment, setIsPostingComment] = useState(false)
     const [activeTab, setActiveTab] = useState('description')
@@ -83,6 +114,14 @@ export default function TasksPage() {
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false)
     const [rateLimitBanner, setRateLimitBanner] = useState<string | null>(null)
+    const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false)
+    const [newTaskTitle, setNewTaskTitle] = useState("")
+    const [newTaskDescription, setNewTaskDescription] = useState("")
+    const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>('todo')
+    const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
+    const [newTaskSource, setNewTaskSource] = useState<'manual' | 'linear' | 'jira'>('manual')
+    const [newTaskLabels, setNewTaskLabels] = useState("")
+    const [newTaskConnectionId, setNewTaskConnectionId] = useState("")
 
     // Edit states for manual tasks
     const [isEditing, setIsEditing] = useState(false)
@@ -160,56 +199,104 @@ export default function TasksPage() {
         }
     }, [rateLimitBanner])
 
+    const getLinearApiKey = useCallback(async (connId?: string) => {
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+
+        // 1. Try connection-specific key
+        if (connId) {
+            const key = await api.secureStoreGet(`${prefix}linear_api_key_${connId}`) || await api.secureStoreGet(`linear_api_key_${connId}`)
+            if (key) return key
+        }
+
+        // 2. Try project-specific or global legacy key
+        const legacyKey = await api.secureStoreGet(`${prefix}linear_api_key`) || await api.secureStoreGet('linear_api_key')
+        if (legacyKey) return legacyKey
+
+        // 3. Fallback to the first available connection key for this project
+        if (activeProject?.linearConnections && activeProject.linearConnections.length > 0) {
+            const firstId = activeProject.linearConnections[0].id
+            const firstKey = await api.secureStoreGet(`${prefix}linear_api_key_${firstId}`) || await api.secureStoreGet(`linear_api_key_${firstId}`)
+            if (firstKey) return firstKey
+        }
+
+        return null
+    }, [activeProject, api])
+
+    const getJiraCredentials = useCallback(async (connId?: string) => {
+        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+
+        // 1. Try connection-specific
+        if (connId) {
+            const conn = activeProject?.jiraConnections?.find(c => c.id === connId)
+            if (conn) {
+                const key = await api.secureStoreGet(`${prefix}jira_api_token_${connId}`) || await api.secureStoreGet(`jira_api_token_${connId}`)
+                if (key) return { domain: conn.domain, email: conn.email, apiKey: key }
+            }
+        }
+
+        // 2. Try project-specific or global legacy
+        const domain = await api.secureStoreGet(`${prefix}jira_domain`) || await api.secureStoreGet('jira_domain')
+        const email = await api.secureStoreGet(`${prefix}jira_email`) || await api.secureStoreGet('jira_email')
+        const key = await api.secureStoreGet(`${prefix}jira_api_token`) || await api.secureStoreGet(`${prefix}jira_api_key`) ||
+            await api.secureStoreGet('jira_api_token') || await api.secureStoreGet('jira_api_key')
+
+        if (domain && email && key) return { domain, email, apiKey: key }
+
+        // 3. Fallback to first connection
+        if (activeProject?.jiraConnections && activeProject.jiraConnections.length > 0) {
+            const c = activeProject.jiraConnections[0]
+            const ck = await api.secureStoreGet(`${prefix}jira_api_token_${c.id}`) || await api.secureStoreGet(`jira_api_token_${c.id}`)
+            if (ck) return { domain: c.domain, email: c.email, apiKey: ck }
+        }
+
+        return null
+    }, [activeProject, api])
+
     const loadTabContent = useCallback(async (tab: string) => {
         if (!selectedTask) return
         setActiveTab(tab)
         setIsLoadingTab(true)
+        setTabError(null)
+
+        // Clear previous content
+        if (tab === 'comments') setComments([])
+        else if (tab === 'activity') setActivity([])
+
         try {
-            const connId = selectedTask.connectionId
-            const prefix = activeProject ? `project:${activeProject.id}:` : ''
             if (tab === 'comments') {
                 if (selectedTask.source === 'linear') {
-                    const key = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
+                    const key = await getLinearApiKey(selectedTask.connectionId)
                     if (key) setComments(await api.getLinearComments({ apiKey: key, issueId: selectedTask.externalId }))
+                    else setTabError("Linear API key not found. Please check your settings.")
                 } else if (selectedTask.source === 'jira') {
-                    const conn = activeProject?.jiraConnections?.find(c => c.id === connId)
-                    let domain = '', email = '', key = ''
-                    if (conn) {
-                        domain = conn.domain; email = conn.email;
-                        key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
-                    } else {
-                        domain = await api.secureStoreGet(`${prefix}jira_domain`) || await api.secureStoreGet('jira_domain') || ''
-                        email = await api.secureStoreGet(`${prefix}jira_email`) || await api.secureStoreGet('jira_email') || ''
-                        key = await api.secureStoreGet(`${prefix}jira_api_key`) || await api.secureStoreGet('jira_api_key') || ''
-                    }
-                    if (domain && email && key) setComments(await api.getJiraComments({ domain, email, apiKey: key, issueKey: selectedTask.sourceIssueId }))
+                    const creds = await getJiraCredentials(selectedTask.connectionId)
+                    if (creds) setComments(await api.getJiraComments({ ...creds, issueKey: selectedTask.sourceIssueId }))
+                    else setTabError("Jira credentials not found. Please check your settings.")
                 }
-            } else if (tab === 'worklog') {
+            } else if (tab === 'activity') {
                 if (selectedTask.source === 'linear') {
-                    const key = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
-                    if (key) setWorklog(await api.getLinearHistory({ apiKey: key, issueId: selectedTask.externalId }))
+                    const key = await getLinearApiKey(selectedTask.connectionId)
+                    if (key) {
+                        const res = await api.getLinearHistory({ apiKey: key, issueId: selectedTask.externalId })
+                        setActivity(res)
+                    } else setTabError("Linear API key not found.")
                 } else if (selectedTask.source === 'jira') {
-                    const conn = activeProject?.jiraConnections?.find(c => c.id === connId)
-                    let domain = '', email = '', key = ''
-                    if (conn) {
-                        domain = conn.domain; email = conn.email;
-                        key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
-                    } else {
-                        domain = await api.secureStoreGet(`${prefix}jira_domain`) || await api.secureStoreGet('jira_domain') || ''
-                        email = await api.secureStoreGet(`${prefix}jira_email`) || await api.secureStoreGet('jira_email') || ''
-                        key = await api.secureStoreGet(`${prefix}jira_api_key`) || await api.secureStoreGet('jira_api_key') || ''
-                    }
-                    if (domain && email && key) setWorklog(await api.getJiraHistory({ domain, email, apiKey: key, issueKey: selectedTask.sourceIssueId }))
+                    const creds = await getJiraCredentials(selectedTask.connectionId)
+                    if (creds) {
+                        const res = await api.getJiraHistory({ ...creds, issueKey: selectedTask.sourceIssueId })
+                        setActivity(res)
+                    } else setTabError("Jira credentials not found.")
                 }
             } else if (tab === 'history') {
                 setHistory(selectedTask.analysisHistory || [])
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("Failed to load tab content:", e)
+            setTabError(e.message || "An unexpected error occurred.")
         } finally {
             setIsLoadingTab(false)
         }
-    }, [selectedTask, activeProject, api])
+    }, [selectedTask, api, getLinearApiKey, getJiraCredentials])
 
     // Load tab content when task or tab changes
     useEffect(() => {
@@ -242,18 +329,101 @@ export default function TasksPage() {
         }
     }
 
-    const handleAddTask = () => {
-        if (!activeProjectId) return
-        const title = prompt("Task title:")
-        if (title) addTask(activeProjectId, title).catch(console.error)
+    const resetNewTaskForm = () => {
+        setNewTaskTitle("")
+        setNewTaskDescription("")
+        setNewTaskStatus('todo')
+        setNewTaskPriority('medium')
+        setNewTaskSource('manual')
+        setNewTaskLabels("")
+        setNewTaskConnectionId("")
     }
 
-    const handleSync = async () => {
+    const handleAddTask = () => {
+        if (!activeProjectId) {
+            alert("Please select or create a project first before adding tasks.")
+            return
+        }
+        resetNewTaskForm()
+        setIsNewTaskModalOpen(true)
+    }
+
+    const handleConfirmAddTask = async () => {
+        if (!activeProjectId || !newTaskTitle.trim()) return
+        try {
+            const taskData: any = {
+                title: newTaskTitle.trim(),
+                description: newTaskDescription.trim(),
+                status: newTaskStatus,
+                priority: newTaskPriority,
+                labels: newTaskLabels.trim(),
+                source: newTaskSource
+            }
+
+            if (newTaskSource === 'manual') {
+                await addTask(activeProjectId, taskData)
+                setIsNewTaskModalOpen(false)
+                resetNewTaskForm()
+            } else if (newTaskSource === 'linear') {
+                const connId = newTaskConnectionId
+                if (!connId) throw new Error("Please select a Linear connection.")
+                const apiKey = await getLinearApiKey(connId)
+                if (!apiKey) throw new Error("Linear API key not found. Please check your settings.")
+                
+                const conn = activeProject?.linearConnections?.find(c => c.id === connId)
+                if (!conn) throw new Error("Linear connection not found.")
+
+                const url = await api.createLinearIssue({ 
+                    apiKey, 
+                    teamId: conn.teamId, 
+                    title: taskData.title, 
+                    description: taskData.description, 
+                    priority: newTaskPriority === 'critical' ? 1 : newTaskPriority === 'high' ? 2 : newTaskPriority === 'medium' ? 3 : 4
+                })
+                
+                if (url) {
+                    alert(`Linear issue created: ${url}`)
+                    setIsNewTaskModalOpen(false)
+                    resetNewTaskForm()
+                    handleSync('linear')
+                }
+            } else if (newTaskSource === 'jira') {
+                const connId = newTaskConnectionId
+                if (!connId) throw new Error("Please select a Jira connection.")
+                const creds = await getJiraCredentials(connId)
+                if (!creds) throw new Error("Jira credentials not found. Please check your settings.")
+                
+                const conn = activeProject?.jiraConnections?.find(c => c.id === connId)
+                if (!conn) throw new Error("Jira connection not found.")
+
+                const key = await api.createJiraIssue({ 
+                    ...creds, 
+                    projectKey: conn.projectKey,
+                    title: taskData.title, 
+                    description: taskData.description 
+                })
+                
+                if (key) {
+                    alert(`Jira issue ${key} created successfully!`)
+                    setIsNewTaskModalOpen(false)
+                    resetNewTaskForm()
+                    handleSync('jira')
+                }
+            }
+        } catch (e: any) {
+            alert(`Failed to create task: ${e.message}`)
+        }
+    }
+
+    const handleSync = async (specificSource?: 'linear' | 'jira') => {
         if (!activeProjectId || !activeProject) return
+        const mode = specificSource || sourceMode
+        if (mode === 'manual') return
+
         setIsSyncing(true)
         try {
             const prefix = activeProject ? `project:${activeProject.id}:` : ''
-            if (sourceMode === 'linear') {
+            if (mode === 'linear') {
                 const conns = activeProject.linearConnections || []
                 if (conns.length === 0) {
                     // Try legacy global key
@@ -324,15 +494,19 @@ export default function TasksPage() {
         }
 
         const api = window.electronAPI as any
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-
         setIsCreatingIssue(true)
         try {
             // Check Linear first
-            const linearKey = await api.secureStoreGet(`${prefix}linear_api_key`) || await api.secureStoreGet('linear_api_key')
-            if (linearKey && activeProject.linearConnections?.length > 0) {
+            const linearKey = await getLinearApiKey()
+            if (linearKey && activeProject.linearConnections && activeProject.linearConnections.length > 0) {
                 const conn = activeProject.linearConnections[0]
-                const url = await api.createLinearIssue(linearKey, conn.teamId, selectedTask.title, selectedTask.description || '')
+                const url = await api.createLinearIssue({
+                    apiKey: linearKey,
+                    teamId: conn.teamId,
+                    title: selectedTask.title,
+                    description: selectedTask.description || '',
+                    priority: selectedTask.priority === 'critical' ? 1 : selectedTask.priority === 'high' ? 2 : selectedTask.priority === 'medium' ? 3 : 4
+                })
                 if (url) {
                     alert('Linear issue created successfully! A sync is required to see it here.')
                     api.openUrl(url)
@@ -341,24 +515,21 @@ export default function TasksPage() {
             }
 
             // Check Jira
-            if (activeProject.jiraConnections?.length > 0) {
-                const conn = activeProject.jiraConnections[0]
-                const jiraKey = await api.secureStoreGet(`${prefix}jira_api_token_${conn.id}`) || await api.secureStoreGet(`jira_api_token_${conn.id}`) || await api.secureStoreGet('jira_api_key')
-                if (jiraKey) {
-                    const key = await api.createJiraIssue({
-                        domain: conn.domain,
-                        email: conn.email,
-                        apiKey: jiraKey,
-                        projectKey: conn.projectKey,
-                        title: selectedTask.title,
-                        description: selectedTask.description || ''
-                    })
-                    if (key) {
-                        alert(`Jira issue ${key} created successfully! A sync is required to see it here.`)
-                        api.openUrl(`https://${conn.domain}.atlassian.net/browse/${key}`)
-                    }
-                    return
+            const jiraCreds = await getJiraCredentials()
+            if (jiraCreds) {
+                const conn = activeProject.jiraConnections?.find(c => c.domain === jiraCreds.domain) || activeProject.jiraConnections?.[0]
+                const key = await api.createJiraIssue({
+                    ...jiraCreds,
+                    projectKey: conn?.projectKey || '',
+                    title: selectedTask.title,
+                    description: selectedTask.description || '',
+                    issueTypeName: 'Story' // Default
+                })
+                if (key) {
+                    alert(`Jira issue ${key} created successfully! A sync is required to see it here.`)
+                    api.openUrl(`https://${jiraCreds.domain}.atlassian.net/browse/${key}`)
                 }
+                return
             }
 
             alert('No Linear or Jira connections are fully configured to create an issue.')
@@ -380,20 +551,18 @@ export default function TasksPage() {
         try {
             // Fetch comments for context
             let currentComments: any[] = []
-            const connId = selectedTask.connectionId
             if (selectedTask.externalId && selectedTask.source === 'linear') {
-                const key = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
+                const key = await getLinearApiKey(selectedTask.connectionId)
                 if (key) {
                     try { currentComments = await api.getLinearComments({ apiKey: key, issueId: selectedTask.externalId }) } catch { /* ignore */ }
                 }
             } else if (selectedTask.externalId && selectedTask.source === 'jira') {
-                const conn = activeProject?.jiraConnections.find(c => c.id === connId)
-                const key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
-                if (conn && key) {
-                    try { currentComments = await api.getJiraComments({ domain: conn.domain, email: conn.email, apiKey: key, issueKey: selectedTask.sourceIssueId }) } catch { /* ignore */ }
+                const creds = await getJiraCredentials(selectedTask.connectionId)
+                if (creds) {
+                    try { currentComments = await api.getJiraComments({ ...creds, issueKey: selectedTask.sourceIssueId }) } catch { /* ignore */ }
                 }
             }
-            const result = await api.aiAnalyzeIssue(apiKey, selectedTask, currentComments, activeProject)
+            const result = await api.aiAnalyzeIssue({ apiKey, task: selectedTask, comments: currentComments, project: activeProject, modelName: activeProject?.geminiModel })
             setAnalysisModalResult(result)
 
             // Save to history
@@ -483,27 +652,16 @@ export default function TasksPage() {
         const connId = selectedTask.connectionId
         try {
             if (selectedTask.source === 'linear') {
-                const prefix = activeProject ? `project:${activeProject.id}:` : ''
-                const key = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
+                const key = await getLinearApiKey(connId)
                 if (key) {
                     await api.addLinearComment({ apiKey: key, issueId: selectedTask.externalId, body: newComment })
                     setNewComment("")
                     loadTabContent('comments')
                 }
             } else if (selectedTask.source === 'jira') {
-                const conn = activeProject?.jiraConnections?.find(c => c.id === connId)
-                const prefix = activeProject ? `project:${activeProject.id}:` : ''
-                let domain = '', email = '', key = ''
-                if (conn) {
-                    domain = conn.domain; email = conn.email;
-                    key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
-                } else {
-                    domain = await api.secureStoreGet(`${prefix}jira_domain`) || await api.secureStoreGet('jira_domain') || ''
-                    email = await api.secureStoreGet(`${prefix}jira_email`) || await api.secureStoreGet('jira_email') || ''
-                    key = await api.secureStoreGet(`${prefix}jira_api_key`) || await api.secureStoreGet('jira_api_key') || ''
-                }
-                if (domain && email && key) {
-                    await api.addJiraComment({ domain, email, apiKey: key, issueKey: selectedTask.sourceIssueId, body: newComment })
+                const creds = await getJiraCredentials(connId)
+                if (creds) {
+                    await api.addJiraComment({ ...creds, issueKey: selectedTask.sourceIssueId, body: newComment })
                     setNewComment("")
                     loadTabContent('comments')
                 }
@@ -545,36 +703,33 @@ export default function TasksPage() {
 
         // Are we hovering over another task?
         const overTask = tasks.find(t => t.id === overId)
-        if (overTask && activeTaskCandidate.status !== overTask.status) {
+        if (overTask) {
             if (activeProjectId) {
-                moveTask(activeProjectId, activeId.toString(), overTask.status as TaskStatus)
+                moveTask(activeProjectId, activeId.toString(), overTask.status as TaskStatus, overId.toString())
             }
         }
     }
 
     const handleRemoteStatusTransition = async (task: Task, newStatus: TaskStatus) => {
-        const connId = task.connectionId
         try {
+            const connId = task.connectionId
             if (task.source === 'linear') {
-                const prefix = activeProject ? `project:${activeProject.id}:` : ''
-                const apiKey = await api.secureStoreGet(connId ? `${prefix}linear_api_key_${connId}` : `${prefix}linear_api_key`) || await api.secureStoreGet(connId ? `linear_api_key_${connId}` : 'linear_api_key')
-                if (!apiKey) return
-                const states = await api.getLinearWorkflowStates({ apiKey })
+                const key = await getLinearApiKey(connId)
+                if (!key) return
+                const states = await api.getLinearWorkflowStates({ apiKey: key })
                 // Simple heuristic: match state name to our status
                 const match = states.find((s: any) => s.name.toLowerCase().includes(newStatus.toLowerCase()))
                 if (match) {
-                    await api.updateLinearStatus({ apiKey, issueId: task.externalId, stateId: match.id })
+                    await api.updateLinearStatus({ apiKey: key, issueId: task.externalId, stateId: match.id })
                     // Reflect change in local store
                     if (activeProjectId) {
                         moveTask(activeProjectId, task.id, newStatus)
                     }
                 }
             } else if (task.source === 'jira') {
-                const conn = activeProject?.jiraConnections.find(c => c.id === connId)
-                const prefix = activeProject ? `project:${activeProject.id}:` : ''
-                const key = await api.secureStoreGet(connId ? `${prefix}jira_api_token_${connId}` : `${prefix}jira_api_key`) || await api.secureStoreGet(connId ? `jira_api_token_${connId}` : 'jira_api_key')
-                if (conn && key) {
-                    await api.transitionJiraIssue({ domain: conn.domain, email: conn.email, apiKey: key, issueKey: task.sourceIssueId, transitionName: newStatus.replace('-', ' ') })
+                const creds = await getJiraCredentials(connId)
+                if (creds) {
+                    await api.transitionJiraIssue({ ...creds, issueKey: task.sourceIssueId, transitionName: newStatus.replace('-', ' ') })
                     // Reflect change in local store
                     if (activeProjectId) {
                         moveTask(activeProjectId, task.id, newStatus)
@@ -591,7 +746,7 @@ export default function TasksPage() {
         if (over && activeTask) {
             // Find final status
             const finalTask = tasks.find(t => t.id === active.id)
-            if (finalTask && finalTask.externalId) {
+            if (finalTask && finalTask.externalId && finalTask.status !== activeTask.status) {
                 handleRemoteStatusTransition(finalTask, finalTask.status)
             }
         }
@@ -623,7 +778,7 @@ export default function TasksPage() {
                     </div>
                     {sourceMode !== 'manual' && (
                         <Button
-                            onClick={handleSync}
+                            onClick={() => handleSync()}
                             disabled={isSyncing}
                             className="h-8 px-3 text-[11px] font-bold bg-[#A78BFA]/10 text-[#A78BFA] hover:bg-[#A78BFA]/20 gap-1.5 border border-[#A78BFA]/20"
                             variant="ghost"
@@ -654,7 +809,16 @@ export default function TasksPage() {
                         />
                     </div>
                     {sourceMode === 'manual' && (
-                        <Button onClick={handleAddTask} className="h-9 px-4 bg-[#1A1A24] hover:bg-[#252535] text-[#A78BFA] border border-[#A78BFA]/30 font-bold text-xs gap-2">
+                        <Button 
+                            onClick={handleAddTask} 
+                            disabled={!activeProjectId}
+                            className={cn(
+                                "h-9 px-4 font-bold text-xs gap-2 transition-all",
+                                !activeProjectId 
+                                    ? "bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed" 
+                                    : "bg-[#1A1A24] hover:bg-[#252535] text-[#A78BFA] border border-[#A78BFA]/30"
+                            )}
+                        >
                             <Plus className="h-3.5 w-3.5" /> NEW TASK
                         </Button>
                     )}
@@ -728,7 +892,7 @@ export default function TasksPage() {
                                     <TabsTrigger value="details" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Details</TabsTrigger>
                                     <TabsTrigger value="comments" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Comments</TabsTrigger>
                                     <TabsTrigger value="history" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">History</TabsTrigger>
-                                    <TabsTrigger value="worklog" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Worklog</TabsTrigger>
+                                    <TabsTrigger value="activity" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Activity</TabsTrigger>
                                 </TabsList>
                                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                     <TabsContent value="description" className="m-0 focus-visible:ring-0">
@@ -940,14 +1104,17 @@ export default function TasksPage() {
                                                 <p className="text-xs font-bold uppercase tracking-wider">No analysis history</p>
                                             </div>
                                         ) : (
-                                            history.map((h, i) => (
-                                                <div key={i} className="flex items-start gap-4 py-2 border-l-2 border-[#2A2A3A] pl-4 ml-2 group">
-                                                    <div className="w-2.5 h-2.5 rounded-full bg-[#A78BFA] -ml-[21.5px] mt-1.5 ring-4 ring-[#13131A] transition-transform group-hover:scale-125" />
-                                                    <div className="flex-1 bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-3 space-y-2">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-[10px] font-bold text-[#A78BFA] tracking-mono">v{h.version} · {h.hash || 'GEN'}</span>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[9px] text-[#6B7280]">{new Date(h.timestamp).toLocaleString()}</span>
+                                            [...history].sort((a, b) => b.version - a.version).map((h, i) => (
+                                                <div key={i} className="flex flex-col gap-0 group relative">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-2.5 h-2.5 rounded-full bg-[#A78BFA] shadow-[0_0_8px_rgba(167,139,250,0.5)] z-10 hover:ring-2 hover:ring-[#A78BFA]/30 transition-all shrink-0" />
+                                                        <span className="text-[11px] font-bold text-[#A78BFA] font-mono tracking-tight">v{h.version} · {h.hash || 'GEN'}</span>
+                                                    </div>
+
+                                                    <div className="ml-[5px] pl-4 pb-4 border-l border-[#2A2A3A] flex flex-col gap-1.5">
+                                                        <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-3 shadow-sm hover:border-[#A78BFA]/30 transition-all space-y-3 mt-1">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[9px] font-bold text-[#6B7280]">{new Date(h.timestamp).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                                                                 <Button
                                                                     size="icon"
                                                                     variant="ghost"
@@ -957,53 +1124,34 @@ export default function TasksPage() {
                                                                     <Trash2 className="h-3 w-3" />
                                                                 </Button>
                                                             </div>
-                                                        </div>
-                                                        <div className="text-xs text-[#E2E8F0] font-medium leading-relaxed">
-                                                            <FormattedText content={h.summary} />
-                                                        </div>
 
-                                                        <div className="pt-2 border-t border-[#2A2A3A]/50 mt-2">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-6 px-0 text-[10px] font-bold text-[#A78BFA] hover:text-[#C4B5FD] hover:bg-transparent"
-                                                                onClick={() => toggleHistoryExpand(i)}
-                                                            >
-                                                                {expandedHistory.has(i) ? 'COLLAPSE' : 'VIEW FULL ANALYSIS'}
-                                                            </Button>
-                                                            {expandedHistory.has(i) && (
-                                                                <div className="mt-3 p-3 bg-[#0F0F13] rounded-lg border border-[#2A2A3A] animate-in slide-in-from-top-2 duration-200">
-                                                                    <FormattedText content={h.fullResult} />
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <div className="px-2 py-0.5 bg-blue-900/30 border border-blue-500/20 rounded-md text-[9px] font-bold text-blue-400 uppercase">
+                                                                    {h.taskStatus}
                                                                 </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        )}
-                                    </TabsContent>
-                                    <TabsContent value="worklog" className="m-0 space-y-4">
-                                        {isLoadingTab ? (
-                                            <div className="flex-1 flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#A78BFA]" /></div>
-                                        ) : worklog.length === 0 ? (
-                                            <div className="text-center opacity-30 py-10">
-                                                <p className="text-xs font-bold uppercase tracking-wider">No activity recorded</p>
-                                            </div>
-                                        ) : (
-                                            worklog.map((w, i) => (
-                                                <div key={i} className="flex items-start gap-4 py-2 border-l-2 border-[#2A2A3A] pl-4 ml-2 group">
-                                                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500/80 -ml-[21.5px] mt-1.5 ring-4 ring-[#13131A]" />
-                                                    <div className="flex-1 space-y-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">{w.field}</span>
-                                                            <span className="text-[9px] text-[#6B7280]">{new Date(w.timestamp).toLocaleString()}</span>
-                                                        </div>
-                                                        <div className="text-[11px] text-[#E2E8F0] flex flex-wrap items-center gap-x-1.5">
-                                                            By <span className="font-bold text-[#A78BFA]">{w.author}</span>:
-                                                            <div className="flex items-center gap-1.5 bg-[#0F0F13]/50 px-2 py-0.5 rounded-md border border-[#2A2A3A]/50">
-                                                                <span className="opacity-50 line-through"><FormattedText content={w.fromValue || 'None'} className="inline prose-p:mb-0" /></span>
-                                                                <span className="text-blue-400">→</span>
-                                                                <span className="font-semibold text-blue-300"><FormattedText content={w.toValue} className="inline prose-p:mb-0" /></span>
+                                                                <div className="px-2 py-0.5 bg-amber-900/30 border border-amber-500/20 rounded-md text-[9px] font-bold text-amber-500 uppercase">
+                                                                    {h.taskPriority}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="text-[11px] text-[#E2E8F0] font-medium leading-relaxed">
+                                                                <FormattedText content={h.summary} />
+                                                            </div>
+
+                                                            <div className="pt-2 border-t border-[#2A2A3A]/50 mt-2">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-6 px-0 text-[10px] font-bold text-[#A78BFA] hover:text-[#C4B5FD] hover:bg-transparent"
+                                                                    onClick={() => toggleHistoryExpand(i)}
+                                                                >
+                                                                    {expandedHistory.has(i) ? 'COLLAPSE' : 'VIEW FULL ANALYSIS'}
+                                                                </Button>
+                                                                {expandedHistory.has(i) && (
+                                                                    <div className="mt-3 p-4 bg-[#0F0F13] rounded-lg border border-[#2A2A3A] animate-in slide-in-from-top-2 duration-200 overflow-x-auto text-[11px] leading-relaxed prose prose-invert max-w-none">
+                                                                        <FormattedText content={h.fullResult} />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1011,6 +1159,76 @@ export default function TasksPage() {
                                             ))
                                         )}
                                     </TabsContent>
+
+                                    <TabsContent value="activity" className="m-0 space-y-4">
+                                        {isLoadingTab ? (
+                                            <div className="flex-1 flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#A78BFA]" /></div>
+                                        ) : tabError ? (
+                                            <div className="text-center py-10 px-6">
+                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-950/30 text-red-400 mb-4">
+                                                    <Activity className="h-6 w-6" />
+                                                </div>
+                                                <p className="text-sm font-bold text-red-400/80 mb-1">Failed to load Activity</p>
+                                                <p className="text-xs text-[#6B7280] leading-relaxed max-w-[240px] mx-auto">{tabError}</p>
+                                            </div>
+                                        ) : activity.length === 0 ? (
+                                            <div className="text-center opacity-30 py-10">
+                                                <p className="text-xs font-bold uppercase tracking-wider">
+                                                    {selectedTask?.source === 'manual'
+                                                        ? 'No external provider active'
+                                                        : 'No activity recorded'}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-0.5 ml-1">
+                                                {[...activity].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((w, i) => (
+                                                    <div key={i} className="relative pl-6 pb-6 border-l border-[#2A2A3A] last:border-0 last:pb-2 group">
+                                                        {/* Timeline Dot */}
+                                                        <div className="absolute -left-[5.5px] top-1 w-2.5 h-2.5 rounded-full bg-[#1A1A24] border-2 border-[#3B82F6] shadow-[0_0_8px_rgba(59,130,246,0.5)] z-10 transition-transform group-hover:scale-110" />
+
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black text-[#A78BFA] uppercase tracking-wider bg-[#A78BFA]/10 px-1.5 py-0.5 rounded">
+                                                                    {w.field?.replace(/([A-Z])/g, ' $1').trim() || 'EVENT'}
+                                                                </span>
+                                                                <span className="text-[10px] text-[#6B7280] font-medium uppercase tracking-tighter">
+                                                                    {new Date(w.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="bg-[#1A1A24]/40 border border-[#2A2A3A] rounded-xl p-3 shadow-sm hover:border-[#3B82F6]/20 transition-all">
+                                                                <div className="flex items-center gap-1.5 mb-2">
+                                                                    <div className="p-1 bg-[#3B82F6]/10 rounded">
+                                                                        <User className="h-2.5 w-2.5 text-[#3B82F6]" />
+                                                                    </div>
+                                                                    <span className="text-[10px] font-bold text-[#E2E8F0] tracking-tight">{w.author}</span>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-2 flex-wrap min-h-[24px]">
+                                                                    {w.fromValue ? (
+                                                                        <>
+                                                                            <div className="px-2 py-1 bg-red-500/5 border border-red-500/10 rounded text-red-400 text-[10px] font-medium line-through decoration-red-500/50">
+                                                                                <FormattedText content={w.fromValue} className="inline prose-p:mb-0" />
+                                                                            </div>
+                                                                            <span className="text-[#3F3F46] hover:text-[#52525B] transition-colors">
+                                                                                <Send className="h-2.5 w-2.5" />
+                                                                            </span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <span className="text-[10px] text-[#6B7280] italic px-1">Initial value</span>
+                                                                    )}
+                                                                    <div className="px-2 py-1 bg-emerald-500/5 border border-emerald-500/10 rounded text-emerald-400 text-[10px] font-bold">
+                                                                        <FormattedText content={w.toValue} className="inline prose-p:mb-0" />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </TabsContent>
+
                                 </div>
                             </Tabs>
 
@@ -1161,7 +1379,7 @@ export default function TasksPage() {
             {/* AI Analysis Result Modal */}
             {analysisModalResult && (
                 <div
-                    className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 animate-in fade-in duration-300 backdrop-blur-md"
+                    className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-300 backdrop-blur-md"
                     onClick={() => setAnalysisModalResult(null)}
                 >
                     <div
@@ -1169,47 +1387,215 @@ export default function TasksPage() {
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="p-6 border-b border-[#2A2A3A] flex items-center justify-between bg-[#1A1A24]/50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-[#A78BFA]/10 rounded-lg">
-                                    <Activity className="h-5 w-5 text-[#A78BFA]" />
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-[#A78BFA]/10 rounded-xl border border-[#A78BFA]/20 shadow-[0_0_15px_rgba(167,139,250,0.1)]">
+                                    <Activity className="h-6 w-6 text-[#A78BFA]" />
                                 </div>
                                 <div className="min-w-0">
-                                    <h3 className="text-lg font-bold text-[#E2E8F0] truncate">AI Analysis Report</h3>
-                                    <p className="text-[10px] text-[#6B7280] font-bold uppercase tracking-wider truncate">{selectedTask?.title}</p>
+                                    <h3 className="text-xl font-bold text-[#E2E8F0] tracking-tight">AI Analysis Report</h3>
+                                    <p className="text-[11px] text-[#6B7280] font-bold uppercase tracking-widest mt-0.5 opacity-80">{selectedTask?.title}</p>
                                 </div>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-[#6B7280] hover:text-[#E2E8F0]"
-                                onClick={() => setAnalysisModalResult(null)}
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 px-4 text-xs font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-2 border border-[#A78BFA]/20"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(analysisModalResult)
+                                        alert("Report copied to clipboard!")
+                                    }}
+                                >
+                                    <MessageSquare className="h-4 w-4" /> COPY RAW
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9 text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#1A1A24]"
+                                    onClick={() => setAnalysisModalResult(null)}
+                                >
+                                    <X className="h-5 w-5" />
+                                </Button>
+                            </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-[#0F0F13]/30">
-                            <div className="prose prose-invert max-w-none text-sm text-[#E2E8F0] leading-relaxed">
+                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar bg-[#0F0F13]/20">
+                            <div className="max-w-3xl mx-auto">
                                 <FormattedText content={analysisModalResult} />
                             </div>
                         </div>
-                        <div className="p-4 bg-[#0F0F13] border-t border-[#2A2A3A] flex justify-end gap-3">
-                            <Button
-                                variant="ghost"
-                                className="text-xs font-bold text-[#6B7280] hover:text-[#E2E8F0]"
-                                onClick={() => setAnalysisModalResult(null)}
-                            >
-                                CLOSE
-                            </Button>
-                            <Button
-                                className="bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD] font-bold text-xs px-6"
-                                onClick={() => setAnalysisModalResult(null)}
-                            >
-                                GOT IT
-                            </Button>
+                        <div className="p-6 bg-[#13131A] border-t border-[#2A2A3A] flex justify-between items-center bg-gradient-to-t from-[#0F0F13] to-transparent">
+                            <p className="text-[10px] font-bold text-[#4B5563] uppercase tracking-[0.2em]">Generated by Gemini 2.0 Flash</p>
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="ghost"
+                                    className="text-xs font-bold text-[#6B7280] hover:text-[#E2E8F0] px-6"
+                                    onClick={() => setAnalysisModalResult(null)}
+                                >
+                                    DISMISS
+                                </Button>
+                                <Button
+                                    className="bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD] hover:scale-[1.02] active:scale-[0.98] transition-all font-bold text-xs px-8 h-10 shadow-lg shadow-[#A78BFA]/10"
+                                    onClick={() => setAnalysisModalResult(null)}
+                                >
+                                    ACKNOWLEDGE
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* New Task Modal */}
+            <Dialog open={isNewTaskModalOpen} onOpenChange={setIsNewTaskModalOpen}>
+                <DialogContent className="bg-[#13131A] border border-[#2A2A3A] sm:max-w-[550px] max-h-[90vh] overflow-y-auto custom-scrollbar">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-[#E2E8F0] flex items-center gap-2">
+                            <Plus className="h-5 w-5 text-[#A78BFA]" />
+                            Create New Task
+                        </DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="py-4 space-y-6">
+                        {/* Source Selection */}
+                        <div className="space-y-3">
+                            <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Source</Label>
+                            <div className="flex bg-[#1A1A24] p-1 rounded-lg border border-[#2A2A3A]">
+                                {(['manual', 'linear', 'jira'] as const).map(source => (
+                                    <Button
+                                        key={source}
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setNewTaskSource(source)}
+                                        className={cn(
+                                            "flex-1 h-8 text-[11px] font-bold transition-all",
+                                            newTaskSource === source
+                                                ? "bg-[#2A2A3A]/80 text-[#A78BFA]"
+                                                : "text-[#6B7280] hover:text-[#E2E8F0]"
+                                        )}
+                                    >
+                                        {source.charAt(0).toUpperCase() + source.slice(1)}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Connection Selection (if external) */}
+                        {newTaskSource !== 'manual' && (
+                            <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">
+                                    {newTaskSource.charAt(0).toUpperCase() + newTaskSource.slice(1)} Connection
+                                </Label>
+                                <Select value={newTaskConnectionId} onValueChange={setNewTaskConnectionId}>
+                                    <SelectTrigger className="bg-[#1A1A24] border-[#2A2A3A] text-xs h-10 text-[#E2E8F0]">
+                                        <SelectValue placeholder={`Select ${newTaskSource} connection...`} />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#1A1A24] border-[#2A2A3A]">
+                                        {newTaskSource === 'linear' ? (
+                                            activeProject?.linearConnections?.map(c => (
+                                                <SelectItem key={c.id} value={c.id} className="text-xs text-[#E2E8F0]">
+                                                    {c.label || c.teamId}
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            activeProject?.jiraConnections?.map(c => (
+                                                <SelectItem key={c.id} value={c.id} className="text-xs text-[#E2E8F0]">
+                                                    {c.label || `${c.domain} - ${c.projectKey}`}
+                                                </SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {/* Title */}
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Title</Label>
+                            <Input
+                                autoFocus
+                                value={newTaskTitle}
+                                onChange={(e) => setNewTaskTitle(e.target.value)}
+                                placeholder="What needs to be done?"
+                                className="bg-[#1A1A24] border-[#2A2A3A] text-sm h-10 focus:ring-[#A78BFA]/30"
+                            />
+                        </div>
+
+                        {/* Description */}
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Description</Label>
+                            <Textarea
+                                value={newTaskDescription}
+                                onChange={(e) => setNewTaskDescription(e.target.value)}
+                                placeholder="Add more details..."
+                                className="bg-[#1A1A24] border-[#2A2A3A] text-sm min-h-[100px] resize-none focus:ring-[#A78BFA]/30"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Status */}
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Status</Label>
+                                <Select value={newTaskStatus} onValueChange={(v: any) => setNewTaskStatus(v)}>
+                                    <SelectTrigger className="bg-[#1A1A24] border-[#2A2A3A] text-xs h-10 text-[#E2E8F0]">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#1A1A24] border-[#2A2A3A]">
+                                        {COLUMNS.map(col => (
+                                            <SelectItem key={col.id} value={col.id} className="text-xs text-[#E2E8F0]">
+                                                {col.title}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Priority */}
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Priority</Label>
+                                <Select value={newTaskPriority} onValueChange={(v: any) => setNewTaskPriority(v)}>
+                                    <SelectTrigger className="bg-[#1A1A24] border-[#2A2A3A] text-xs h-10 text-[#E2E8F0]">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#1A1A24] border-[#2A2A3A]">
+                                        <SelectItem value="low" className="text-xs text-[#E2E8F0]">Low</SelectItem>
+                                        <SelectItem value="medium" className="text-xs text-[#E2E8F0]">Medium</SelectItem>
+                                        <SelectItem value="high" className="text-xs text-[#E2E8F0]">High</SelectItem>
+                                        <SelectItem value="critical" className="text-xs text-[#E2E8F0]">Critical</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {/* Labels */}
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Labels (comma separated)</Label>
+                            <Input
+                                value={newTaskLabels}
+                                onChange={(e) => setNewTaskLabels(e.target.value)}
+                                placeholder="bug, ui, feature..."
+                                className="bg-[#1A1A24] border-[#2A2A3A] text-sm h-10 focus:ring-[#A78BFA]/30"
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="pt-4 border-t border-[#2A2A3A] gap-2 bg-[#13131A]">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setIsNewTaskModalOpen(false)}
+                            className="text-xs font-bold text-[#6B7280] hover:text-[#E2E8F0]"
+                        >
+                            CANCEL
+                        </Button>
+                        <Button
+                            onClick={handleConfirmAddTask}
+                            disabled={!newTaskTitle.trim() || (newTaskSource !== 'manual' && !newTaskConnectionId)}
+                            className="bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD] font-bold text-xs px-8 h-10"
+                        >
+                            {newTaskSource === 'manual' ? 'CREATE TASK' : `CREATE IN ${newTaskSource.toUpperCase()}`}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Rate Limit Banner */}
             {rateLimitBanner && (
@@ -1251,9 +1637,8 @@ function ShortcutItem({ keys, label }: { keys: string[], label: string }) {
 }
 
 function MediaSection({ rawDescription, onImageClick }: { rawDescription?: string, onImageClick: (url: string) => void }) {
-    if (!rawDescription) return null
-
     const mediaUrls = useMemo(() => {
+        if (!rawDescription) return []
         const urls: { type: 'image' | 'video', url: string, label?: string }[] = []
 
         // Match Markdown images: ![alt](url)
@@ -1280,7 +1665,7 @@ function MediaSection({ rawDescription, onImageClick }: { rawDescription?: strin
         return urls
     }, [rawDescription])
 
-    if (mediaUrls.length === 0) return null
+    if (!rawDescription || mediaUrls.length === 0) return null
 
     return (
         <div className="mt-6 pt-6 border-t border-[#2A2A3A] space-y-3">
@@ -1425,47 +1810,84 @@ function SortableTaskCard({ task, isSelected, onClick }: { task: Task, isSelecte
 }
 
 function TaskCard({ task, isOverlay, isSelected }: { task: Task, isOverlay?: boolean, isSelected?: boolean }) {
+    const priorityConfig = {
+        critical: { icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
+        high: { icon: ChevronUp, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "HIGH" },
+        medium: { icon: Minus, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "MEDIUM" },
+        low: { icon: ChevronDown, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" },
+    }
+
+    const config = priorityConfig[task.priority] || priorityConfig.medium
+    const PriorityIcon = config.icon
+
     return (
         <div className={cn(
-            "bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-4 shadow-sm hover:border-[#A78BFA]/40 transition-all select-none group space-y-3",
-            isSelected && "border-[#A78BFA] ring-1 ring-[#A78BFA]/20",
-            isOverlay && "opacity-90 shadow-2xl scale-[1.02] border-[#A78BFA]"
+            "bg-[#1A1A24]/60 backdrop-blur-md border border-[#2A2A3A] rounded-xl p-4 shadow-sm hover:border-[#A78BFA]/50 transition-all select-none group relative overflow-hidden",
+            isSelected && "border-[#A78BFA] ring-1 ring-[#A78BFA]/30 bg-[#1A1A24]/90",
+            isOverlay && "opacity-90 shadow-2xl scale-[1.02] border-[#A78BFA] z-[100]"
         )}>
-            <div className="space-y-1.5 flex-1 pr-1">
-                <div className="flex items-center justify-between mb-1">
-                    <span className="text-[9px] font-bold text-[#6B7280] tracking-wider">{task.sourceIssueId || 'MANUAL'}</span>
-                    <div className={cn(
-                        "h-1 w-8 rounded-full mb-3",
-                        task.priority === 'critical' ? "bg-red-500" :
-                            task.priority === 'high' ? "bg-orange-500" :
-                                task.priority === 'medium' ? "bg-yellow-400" :
-                                    "bg-gray-500"
-                    )} />
+            {/* Priority accent border */}
+            <div className={cn("absolute left-0 top-0 bottom-0 w-1", config.color.replace('text-', 'bg-'))} />
+
+            <div className="space-y-3">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        {task.source === 'jira' ? (
+                            <div className="p-1 px-1.5 rounded bg-blue-500/10 border border-blue-500/20">
+                                <span className="text-[9px] font-black text-blue-400">JIRA</span>
+                            </div>
+                        ) : task.source === 'linear' ? (
+                            <div className="p-1 px-1.5 rounded bg-[#5E6AD2]/10 border border-[#5E6AD2]/20">
+                                <span className="text-[9px] font-black text-[#5E6AD2]">LINEAR</span>
+                            </div>
+                        ) : (
+                            <div className="p-1 px-1.5 rounded bg-amber-500/10 border border-amber-500/20">
+                                <span className="text-[9px] font-black text-amber-400">MANUAL</span>
+                            </div>
+                        )}
+                        <span className="text-[9px] font-bold text-[#6B7280] tracking-tight uppercase">{task.sourceIssueId || 'Draft'}</span>
+                    </div>
+
+                    <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black", config.bg, config.color, config.border)}>
+                        <PriorityIcon className="h-2.5 w-2.5" />
+                        {config.label}
+                    </div>
                 </div>
-                <h4 className="text-[13px] font-semibold text-[#E2E8F0] leading-snug line-clamp-2 transition-colors">
+
+                {/* Title */}
+                <h4 className="text-[13px] font-bold text-[#E2E8F0] leading-snug line-clamp-2 group-hover:text-white transition-colors">
                     {task.title}
                 </h4>
-                {task.labels && (
-                    <div className="flex flex-wrap gap-1 mt-1">
+
+                {/* Labels */}
+                {task.labels && task.labels.trim() !== "" && (
+                    <div className="flex flex-wrap gap-1.5">
                         {task.labels.split(',').map((label, idx) => (
-                            <span key={idx} className="px-1.5 py-0.5 rounded bg-[#A78BFA]/10 border border-[#A78BFA]/20 text-[9px] font-bold text-[#A78BFA] uppercase truncate max-w-[100px]">
+                            <div key={idx} className="px-2 py-0.5 rounded-md bg-[#2A2A3A]/50 border border-[#3A3A4A] text-[9px] font-bold text-[#9CA3AF] uppercase tracking-wider">
                                 {label.trim()}
-                            </span>
+                            </div>
                         ))}
                     </div>
                 )}
-            </div>
 
-            <div className="flex items-center justify-between pt-1 border-t border-[#2A2A3A]/50">
-                <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-md bg-[#252535] flex items-center justify-center overflow-hidden border border-[#2A2A3A]">
-                        <User className="h-3 w-3 text-[#6B7280]" />
+                {/* Footer */}
+                <div className="flex items-center justify-between pt-3 border-t border-[#2A2A3A]/40">
+                    <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#A78BFA]/20 to-[#6366F1]/20 flex items-center justify-center overflow-hidden border border-[#A78BFA]/30">
+                            {task.assignee ? (
+                                <span className="text-[8px] font-bold text-[#A78BFA]">{task.assignee.substring(0, 2).toUpperCase()}</span>
+                            ) : (
+                                <User className="h-2.5 w-2.5 text-[#6B7280]" />
+                            )}
+                        </div>
+                        <span className="text-[10px] font-bold text-[#8E9196] truncate max-w-[80px]">{task.assignee || 'Unassigned'}</span>
                     </div>
-                    <span className="text-[10px] font-bold text-[#6B7280] truncate max-w-[80px]">{task.assignee || 'None'}</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[9px] font-bold text-[#6B7280] opacity-60">
-                    <Clock className="h-3 w-3" />
-                    {new Date(task.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    
+                    <div className="flex items-center gap-1.5 text-[9px] font-medium text-[#6B7280]">
+                        <Clock3 className="h-3 w-3 opacity-60" />
+                        {new Date(task.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    </div>
                 </div>
             </div>
         </div>

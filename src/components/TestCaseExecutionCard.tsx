@@ -62,14 +62,14 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
             <div className="h-[1px] bg-[#2A2A3A] w-full my-1" />
 
             {/* Snapshot Fields (Same as Generation Tab) */}
-            <div className="flex flex-col gap-4 mt-2">
+            <div className="flex flex-col gap-4 mt-1">
                 {caseExecution.snapshotPreConditions && (
                     <div>
                         <div className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-[#3B82F6]/50" /> PRE-CONDITIONS
                         </div>
-                        <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30 whitespace-pre-wrap">
-                            <FormattedText content={caseExecution.snapshotPreConditions} />
+                        <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
+                            <FormattedText content={caseExecution.snapshotPreConditions} compact />
                         </div>
                     </div>
                 )}
@@ -79,8 +79,8 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                         <div className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-[#10B981]/50" /> TEST STEPS
                         </div>
-                        <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30 whitespace-pre-wrap">
-                            <FormattedText content={caseExecution.snapshotSteps} />
+                        <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
+                            <FormattedText content={caseExecution.snapshotSteps} compact />
                         </div>
                     </div>
                 )}
@@ -90,8 +90,8 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                         <div className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-[#F59E0B]/50" /> TEST DATA
                         </div>
-                        <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30 whitespace-pre-wrap italic opacity-80">
-                            <FormattedText content={caseExecution.snapshotTestData} />
+                        <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30 italic opacity-80">
+                            <FormattedText content={caseExecution.snapshotTestData} compact />
                         </div>
                     </div>
                 )}
@@ -101,8 +101,8 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                         <div className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-[#A78BFA]/50" /> EXPECTED RESULT
                         </div>
-                        <div className="text-[11px] leading-relaxed text-[#D1D5DB] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30 whitespace-pre-wrap">
-                            <FormattedText content={caseExecution.snapshotExpectedResult} />
+                        <div className="text-[11px] leading-relaxed text-[#D1D5DB] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
+                            <FormattedText content={caseExecution.snapshotExpectedResult} compact />
                         </div>
                     </div>
                 )}
@@ -115,21 +115,21 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
             <div className="flex flex-col gap-3">
                 {caseExecution.actualResult && (
                     <div>
-                        <div className="text-[10px] font-bold text-[#34D399] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                        <div className="text-[10px] font-bold text-[#34D399] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                             <div className="w-1 h-3 rounded-full bg-[#34D399]" /> ACTUAL RESULT
                         </div>
-                        <div className="text-xs text-[#E2E8F0] bg-[#13131A] p-3 rounded-lg border border-[#34D399]/20 whitespace-pre-wrap leading-relaxed">
-                            <FormattedText content={caseExecution.actualResult} />
+                        <div className="text-[11px] text-[#E2E8F0] bg-[#13131A] p-3 rounded-lg border border-[#34D399]/20 leading-relaxed">
+                            <FormattedText content={caseExecution.actualResult} compact />
                         </div>
                     </div>
                 )}
                 {caseExecution.notes && (
                     <div>
-                        <div className="text-[10px] font-bold text-[#A78BFA] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                        <div className="text-[10px] font-bold text-[#A78BFA] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                             <div className="w-1 h-3 rounded-full bg-[#A78BFA]" /> EXECUTION NOTES
                         </div>
-                        <div className="text-xs text-[#E2E8F0] bg-[#13131A] p-3 rounded-lg border border-[#A78BFA]/20 whitespace-pre-wrap italic opacity-90">
-                            <FormattedText content={caseExecution.notes} />
+                        <div className="text-[11px] text-[#E2E8F0] bg-[#13131A] p-3 rounded-lg border border-[#A78BFA]/20 italic opacity-90">
+                            <FormattedText content={caseExecution.notes} compact />
                         </div>
                     </div>
                 )}

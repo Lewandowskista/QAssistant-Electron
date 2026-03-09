@@ -1,3 +1,6 @@
+import { safeStorage } from 'electron'
+import fs from 'node:fs'
+
 let keytar: any = null
 let KEYTAR_AVAILABLE = false
 try {
@@ -13,6 +16,44 @@ export const SERVICE_NAME = 'QAssistant'
 
 // Fallback in-memory store for local dev when keytar isn't installed.
 const fallbackStore: Record<string, string> = {}
+let storagePath: string | null = null
+
+export function initCredentials(path: string): void {
+    storagePath = path
+    if (fs.existsSync(path)) {
+        try {
+            const raw = fs.readFileSync(path)
+            if (raw.length > 0) {
+                let decrypted = ''
+                if (safeStorage.isEncryptionAvailable()) {
+                    decrypted = safeStorage.decryptString(raw)
+                } else {
+                    decrypted = raw.toString('utf8')
+                }
+                const parsed = JSON.parse(decrypted)
+                Object.assign(fallbackStore, parsed)
+            }
+        } catch (e) {
+            console.error('Failed to load credentials from file:', e)
+        }
+    }
+}
+
+async function saveToFile(): Promise<void> {
+    if (!storagePath) return
+    try {
+        const content = JSON.stringify(fallbackStore)
+        let encrypted: Buffer
+        if (safeStorage.isEncryptionAvailable()) {
+            encrypted = safeStorage.encryptString(content)
+        } else {
+            encrypted = Buffer.from(content, 'utf8')
+        }
+        fs.writeFileSync(storagePath, encrypted)
+    } catch (e) {
+        console.error('Failed to save credentials to file:', e)
+    }
+}
 
 export async function setCredential(account: string, secret: string): Promise<void> {
     if (KEYTAR_AVAILABLE && keytar && typeof keytar.setPassword === 'function') {
@@ -20,6 +61,7 @@ export async function setCredential(account: string, secret: string): Promise<vo
         return
     }
     fallbackStore[account] = secret
+    await saveToFile()
 }
 
 export async function getCredential(account: string): Promise<string | null> {
@@ -35,6 +77,7 @@ export async function deleteCredential(account: string): Promise<boolean> {
     }
     if (account in fallbackStore) {
         delete fallbackStore[account]
+        await saveToFile()
         return true
     }
     return false

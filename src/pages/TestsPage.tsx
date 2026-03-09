@@ -20,12 +20,12 @@ import {
     LayoutGrid,
     Zap,
     ChevronDown,
-    Trash2
+    Trash2,
+    Archive
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
     Select,
     SelectContent,
@@ -82,6 +82,7 @@ export default function TestsPage() {
         activeProjectId,
         addTestCase,
         addTestPlan,
+        batchAddTestCasesToPlan,
         deleteLegacyExecution
     } = useProjectStore()
 
@@ -94,10 +95,8 @@ export default function TestsPage() {
     const [isGenerating, setIsGenerating] = useState(false)
     const [showArchived, setShowArchived] = useState(false)
     const [source, setSource] = useState("Linear")
-    const [viewMode, setViewMode] = useState("AllPlans")
     const [aiAnalysisResult, setAiAnalysisResult] = useState<string | null>(null)
     const [aiSuggestionsExpanded, setAiSuggestionsExpanded] = useState(false)
-    const [regressionBuilderResult, setRegressionBuilderResult] = useState<string | null>(null)
     const [reportType, setReportType] = useState("Summary")
     const [designDocName, setDesignDocName] = useState<string | null>(null)
     const [designDocContent, setDesignDocContent] = useState<string | null>(null)
@@ -115,6 +114,141 @@ export default function TestsPage() {
     const [importDialogOpen, setImportDialogOpen] = useState(false)
     const [editingCase, setEditingCase] = useState<TestCase | null>(null)
     const [activePlanForCase, setActivePlanForCase] = useState<TestPlan | null>(null)
+
+    // Regression Builder States
+    const [regressionFromDate, setRegressionFromDate] = useState<string>("")
+    const [regressionToDate, setRegressionToDate] = useState<string>("")
+    const [smokeSubsetCaseIds, setSmokeSubsetCaseIds] = useState<string[]>([])
+    const [builderStatus, setBuilderStatus] = useState<string | null>(null)
+
+    const doneLinkedTestCases = useMemo(() => {
+        if (!activeProject) return []
+        const doneTasks = activeProject.tasks.filter(t => t.status === 'done')
+        const filteredTasks = doneTasks.filter(t => {
+            const taskDate = t.dueDate || t.updatedAt;
+            if (regressionFromDate && taskDate && new Date(taskDate) < new Date(regressionFromDate)) return false
+            if (regressionToDate && taskDate && new Date(taskDate) > new Date(regressionToDate)) return false
+            return true
+        })
+        const doneKeys = new Set(filteredTasks.flatMap(t => [t.sourceIssueId, t.externalId, t.id]).filter(Boolean))
+        const cases = activeProject.testPlans.flatMap(tp => tp.testCases || []).filter(tc => tc.sourceIssueId && doneKeys.has(tc.sourceIssueId))
+        
+        // Deduplicate by case ID in case they appear in multiple plans
+        const seen = new Set<string>()
+        return cases.filter(c => {
+            if (seen.has(c.id)) return false
+            seen.add(c.id)
+            return true
+        })
+    }, [activeProject, regressionFromDate, regressionToDate])
+
+    const previouslyFailedTestCases = useMemo(() => {
+        if (!activeProject) return []
+        const latestSessionWithFailures = projectRunSessions.find(s => 
+            s.planExecutions.some(pe => pe.caseExecutions.some(ce => ce.result === 'failed'))
+        )
+        if (!latestSessionWithFailures) return []
+        
+        const failedCaseIds = new Set<string>()
+        latestSessionWithFailures.planExecutions.forEach(pe => {
+            pe.caseExecutions.forEach(ce => {
+                if (ce.result === 'failed') failedCaseIds.add(ce.testCaseId)
+            })
+        })
+        
+        const cases = activeProject.testPlans.flatMap(tp => tp.testCases || []).filter(tc => failedCaseIds.has(tc.id))
+        const seen = new Set<string>()
+        return cases.filter(c => {
+            if (seen.has(c.id)) return false
+            seen.add(c.id)
+            return true
+        })
+    }, [activeProject, projectRunSessions])
+
+    const smokeSubsetTestCases = useMemo(() => {
+        if (!activeProject || smokeSubsetCaseIds.length === 0) return []
+        const idSet = new Set(smokeSubsetCaseIds)
+        const cases = activeProject.testPlans.flatMap(tp => tp.testCases || []).filter(tc => idSet.has(tc.displayId) || idSet.has(tc.id))
+        const seen = new Set<string>()
+        return cases.filter(c => {
+            if (seen.has(c.id)) return false
+            seen.add(c.id)
+            return true
+        })
+    }, [activeProject, smokeSubsetCaseIds])
+
+    const uniqueSelectedCases = useMemo(() => {
+        const all = [...doneLinkedTestCases, ...previouslyFailedTestCases, ...smokeSubsetTestCases]
+        const seen = new Set<string>()
+        const unique: TestCase[] = []
+        for (const tc of all) {
+            if (!seen.has(tc.id)) {
+                seen.add(tc.id)
+                unique.push(tc)
+            }
+        }
+        return unique
+    }, [doneLinkedTestCases, previouslyFailedTestCases, smokeSubsetTestCases])
+
+    const handleBuildRegressionSuite = async () => {
+        if (!activeProject || uniqueSelectedCases.length === 0) return
+
+        const timestamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        const name = `Regression Suite \u00B7 ${timestamp}`
+        
+        const parts = []
+        if (doneLinkedTestCases.length > 0) parts.push(`${doneLinkedTestCases.length} done-linked`)
+        if (previouslyFailedTestCases.length > 0) parts.push(`${previouslyFailedTestCases.length} previously failed`)
+        if (smokeSubsetTestCases.length > 0) parts.push(`${smokeSubsetTestCases.length} AI smoke`)
+        const description = `Regression suite: ${parts.join(', ')} \u2192 ${uniqueSelectedCases.length} unique test case(s).`
+
+        setIsGenerating(true)
+        try {
+            const planId = await addTestPlan(activeProjectId!, name, description, true, 'manual')
+            await batchAddTestCasesToPlan(activeProjectId!, planId, uniqueSelectedCases.map(tc => ({
+                title: tc.title,
+                preConditions: tc.preConditions,
+                steps: tc.steps,
+                testData: tc.testData,
+                expectedResult: tc.expectedResult,
+                actualResult: "",
+                priority: tc.priority,
+                status: 'not-run',
+                sapModule: tc.sapModule,
+                sourceIssueId: tc.sourceIssueId
+            })))
+
+            setBuilderStatus(`Successfully built ${name} with ${uniqueSelectedCases.length} cases.`)
+            setTimeout(() => setBuilderStatus(null), 5000)
+            setActiveSubTab('TestCaseGeneration')
+        } catch (e: any) {
+            alert(`Build failed: ${e.message}`)
+        } finally {
+            setIsGenerating(false)
+        }
+    }
+
+    const handleGenerateSmokeSubset = async () => {
+        if (!activeProject) return
+        const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
+        if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
+        
+        const allCases = activeProject.testPlans.flatMap(tp => tp.testCases || [])
+        const doneTasks = activeProject.tasks.filter(t => t.status === 'done')
+        
+        setIsGenerating(true)
+        try {
+            const ids = await api.aiSmokeSubset({ apiKey, candidates: allCases, doneTasks, project: activeProject, modelName: activeProject.geminiModel })
+            setSmokeSubsetCaseIds(ids || [])
+            if (!ids || ids.length === 0) {
+                alert('No specific smoke tests could be confidently identified.')
+            }
+        } catch (e: any) {
+            alert(`AI Analysis failed: ${e.message}`)
+        } finally {
+            setIsGenerating(false)
+        }
+    }
 
     const filteredPlans = useMemo(() => {
         let result = testPlans.filter(p => showArchived ? p.isArchived : !p.isArchived)
@@ -143,7 +277,7 @@ export default function TestsPage() {
 
         setIsGenerating(true)
         try {
-            const cases = await api.aiGenerateCases(apiKey, tasksToUse, source, activeProject, designDocContent || undefined)
+            const cases = await api.aiGenerateCases({ apiKey, tasks: tasksToUse, sourceName: source, project: activeProject, designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
 
             if (cases.length === 0) {
                 alert('No test cases could be generated.')
@@ -216,7 +350,7 @@ export default function TestsPage() {
         if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
-            const result = await api.aiCriticality(apiKey, activeProject.tasks || [], testPlans, projectExecutions, activeProject)
+            const result = await api.aiCriticality(apiKey, activeProject?.tasks || [], testPlans, projectExecutions, activeProject, activeProject?.geminiModel)
             setAiAnalysisResult(result)
         } catch (e: any) {
             alert(`Criticality assessment failed: ${e.message}`)
@@ -231,7 +365,7 @@ export default function TestsPage() {
         if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
-            const result = await api.aiTestRunSuggestions(apiKey, testPlans, projectExecutions, activeProject)
+            const result = await api.aiTestRunSuggestions(apiKey, testPlans, projectExecutions, activeProject, activeProject?.geminiModel)
             setAiAnalysisResult(result)
         } catch (e: any) {
             alert(`Test run suggestions failed: ${e.message}`)
@@ -284,9 +418,9 @@ export default function TestsPage() {
     return (
         <>
             <div className="h-full flex flex-col animate-in fade-in duration-500 overflow-hidden bg-[#0F0F13]">
-                {/* Primary Sub-Navigation */}
-                <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-2">
-                    <div className="flex items-center gap-2">
+                {/* Primary Sub-Navigation (Reference: toolbar style) */}
+                <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-1.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1">
                         {[
                             { id: 'TestCaseGeneration', label: 'Test Case Generation' },
                             { id: 'TestRuns', label: 'Test Runs' },
@@ -300,9 +434,9 @@ export default function TestsPage() {
                                 size="sm"
                                 onClick={() => setActiveSubTab(tab.id as SubTab)}
                                 className={cn(
-                                    "h-9 px-4 text-[11px] font-bold tracking-tight transition-all rounded-lg",
+                                    "h-8 px-4 text-[11px] font-bold tracking-tight transition-all rounded-md",
                                     activeSubTab === tab.id
-                                        ? "bg-[#2A2A3A] text-[#A78BFA] shadow-sm border border-[#A78BFA]/10"
+                                        ? "bg-[#2A2A3A] text-[#A78BFA] border border-[#A78BFA]/20"
                                         : "text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#1A1A24]"
                                 )}
                             >
@@ -316,13 +450,13 @@ export default function TestsPage() {
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
                     {activeSubTab === 'TestCaseGeneration' && (
                         <div className="flex-1 flex flex-col min-h-0">
-                            {/* Primary Toolbar */}
+                            {/* Primary Toolbar (Reference: Row 0) */}
                             <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between">
-                                <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-4">
                                     <div className="flex items-center gap-3">
-                                        <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em]">Source</span>
+                                        <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Source</span>
                                         <Select value={source} onValueChange={setSource}>
-                                            <SelectTrigger className="h-9 w-32 bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold text-[#E2E8F0] focus:ring-[#A78BFA]/20">
+                                            <SelectTrigger className="h-8 w-32 bg-[#1A1A24] border-[#2A2A3A] text-[11px] font-bold text-[#E2E8F0]">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
@@ -332,43 +466,38 @@ export default function TestsPage() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <Button onClick={() => setCtxDialogOpen(true)} variant="outline" className="h-9 px-4 bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold text-[#E2E8F0] gap-2">
-                                            <FileText className="h-4 w-4" />
-                                            {selectedTaskIds.length > 0 ? `${selectedTaskIds.length} SELECTED` : 'SELECT CONTEXT'}
-                                        </Button>
-                                        <Button onClick={handleAiGenerate} disabled={isGenerating || selectedTaskIds.length === 0} className="h-9 px-4 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold text-xs gap-2">
-                                            <Cpu className="h-4 w-4" /> {isGenerating ? 'GENERATING...' : 'GENERATE TEST CASES'}
-                                        </Button>
-                                    </div>
+                                    <Button
+                                        onClick={handleAiGenerate}
+                                        disabled={isGenerating || selectedTaskIds.length === 0}
+                                        className="h-8 px-4 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold text-[11px] gap-2"
+                                    >
+                                        <Cpu className="h-3.5 w-3.5" /> {isGenerating ? 'GENERATING...' : 'GENERATE TEST CASES'}
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setShowArchived(!showArchived)}
+                                        className={cn(
+                                            "h-8 px-3 text-[11px] font-bold gap-2 border border-transparent transition-all",
+                                            showArchived ? "bg-[#FBBF24]/10 text-[#FBBF24] border-[#FBBF24]/20" : "text-[#6B7280] hover:bg-[#1A1A24]"
+                                        )}
+                                    >
+                                        <Archive className="h-3.5 w-3.5" /> ARCHIVED
+                                    </Button>
+                                    <span className="text-[11px] font-bold text-[#6B7280] uppercase ml-1">Show Archived</span>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em]">View</span>
-                                        <Select value={viewMode} onValueChange={setViewMode}>
-                                            <SelectTrigger className="h-9 w-40 bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold text-[#E2E8F0] focus:ring-[#A78BFA]/20">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
-                                                <SelectItem value="AllPlans">All Plans</SelectItem>
-                                                <SelectItem value="RegressionSuites">Regression Suites</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Checkbox id="archived-toggle" checked={showArchived} onCheckedChange={val => setShowArchived(!!val)} />
-                                        <span className="text-xs font-bold text-[#6B7280]">Archived</span>
-                                    </div>
-                                    <div className="text-xs font-bold text-[#6B7280] bg-[#1A1A24] px-2 py-1 rounded border border-[#2A2A3A]">
-                                        {testPlans.length} PLANS
+
+                                <div className="flex items-center gap-3">
+                                    <div className="font-mono text-[11px] font-bold text-[#6B7280] bg-[#1A1A24] px-3 py-1 rounded border border-[#2A2A3A] tracking-tighter">
+                                        {testPlans.length} PLAN(S) · {testPlans.reduce((acc, p) => acc + (p.testCases || []).length, 0)} CASE(S)
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Secondary Toolbar */}
-                            <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-2 flex items-center gap-4">
-                                <div className="flex items-center gap-2 border-r border-[#2A2A3A] pr-4">
-                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Filter</span>
+                            {/* Secondary Toolbar (Reference: Row 1) */}
+                            <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-2 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest mr-2">Filters</span>
                                     {['All', 'Jira', 'Linear', 'Manual'].map(f => (
                                         <Button
                                             key={f}
@@ -376,29 +505,44 @@ export default function TestsPage() {
                                             size="sm"
                                             onClick={() => setSourceFilter(f)}
                                             className={cn(
-                                                "h-7 px-2 text-[10px] font-bold",
-                                                sourceFilter === f ? "text-[#A78BFA] bg-[#A78BFA]/5" : "text-[#6B7280]"
+                                                "h-7 px-3 text-[10px] font-bold rounded-md transition-all",
+                                                sourceFilter === f ? "text-[#A78BFA] bg-[#A78BFA]/10 border border-[#A78BFA]/20" : "text-[#6B7280] hover:text-[#E2E8F0]"
                                             )}
                                         >
                                             {f}
                                         </Button>
                                     ))}
+                                    <div className="w-[1px] h-4 bg-[#2A2A3A] mx-2" />
+                                    <Button onClick={() => setCtxDialogOpen(true)} variant="ghost" size="sm" className="h-7 px-3 text-[10px] font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-2">
+                                        <FileText className="h-3.5 w-3.5" />
+                                        {selectedTaskIds.length > 0 ? `${selectedTaskIds.length} SELECTED` : 'SELECT CONTEXT'}
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
+                                        <FileSpreadsheet className="h-3.5 w-3.5" /> IMPORT CSV
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
+                                        <Plus className="h-3.5 w-3.5" /> NEW PLAN
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={handleLoadDesignDoc} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2" title={designDocName || 'Load Design Document Text'}>
+                                        <FileText className={cn("h-3.5 w-3.5", designDocName ? "text-[#10B981]" : "")} /> {designDocName ? 'DOC LOADED' : 'DESIGN DOC'}
+                                        {designDocName && (
+                                            <XCircle
+                                                className="h-3 w-3 ml-1 hover:text-[#EF4444]"
+                                                onClick={(e) => { e.stopPropagation(); setDesignDocName(null); setDesignDocContent(null); }}
+                                            />
+                                        )}
+                                    </Button>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-8 text-[11px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
-                                    <FileSpreadsheet className="h-3.5 w-3.5" /> Import CSV
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-8 text-[11px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
-                                    <Plus className="h-3.5 w-3.5" /> New Plan
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={handleLoadDesignDoc} className="h-8 text-[11px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2" title={designDocName || 'Load Design Document Text'}>
-                                    <FileText className={cn("h-3.5 w-3.5", designDocName ? "text-[#10B981]" : "")} /> {designDocName ? 'Doc Loaded' : 'Design Doc'}
-                                    {designDocName && (
-                                        <XCircle
-                                            className="h-3 w-3 ml-1 hover:text-[#EF4444]"
-                                            onClick={(e) => { e.stopPropagation(); setDesignDocName(null); setDesignDocContent(null); }}
+
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Search test cases..."
+                                            className="h-7 w-64 bg-[#1A1A24] border-[#2A2A3A] text-[11px] placeholder:text-[#4B5563] pl-8 focus-visible:ring-[#A78BFA]/20"
                                         />
-                                    )}
-                                </Button>
+                                        <HelpCircle className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4B5563]" />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Content Area */}
@@ -460,17 +604,24 @@ export default function TestsPage() {
                         activeSubTab === 'TestRuns' && (
                             <div className="flex-1 flex flex-col min-h-0">
                                 <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em]">Execution History</span>
+                                    <span className="text-[11px] font-extrabold text-[#6B7280] uppercase tracking-[0.25em]">EXECUTION HISTORY</span>
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                checked={showArchived}
-                                                onCheckedChange={(val) => setShowArchived(!!val)}
-                                            />
-                                            <span className="text-xs font-bold text-[#6B7280]">Show Archived</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setShowArchived(!showArchived)}
+                                                className={cn(
+                                                    "h-8 px-3 text-[11px] font-bold gap-2 border border-transparent transition-all",
+                                                    showArchived ? "bg-[#FBBF24]/10 text-[#FBBF24] border-[#FBBF24]/20" : "text-[#6B7280] hover:bg-[#1A1A24]"
+                                                )}
+                                            >
+                                                <Archive className="h-3.5 w-3.5" /> ARCHIVED
+                                            </Button>
+                                            <span className="text-[11px] font-bold text-[#6B7280] uppercase ml-1">Show Archived</span>
                                         </div>
-                                        <div className="text-xs font-bold text-[#6B7280] bg-[#1A1A24] px-2 py-1 rounded border border-[#2A2A3A]">
-                                            {totalRuns} RUNS
+                                        <div className="font-mono text-[11px] font-bold text-[#6B7280] bg-[#1A1A24] px-3 py-1 rounded border border-[#2A2A3A] tracking-tighter">
+                                            {totalRuns} RUN(S)
                                         </div>
                                     </div>
                                 </div>
@@ -725,65 +876,233 @@ export default function TestsPage() {
                     {
                         activeSubTab === 'RegressionBuilder' && (
                             <div className="flex-1 flex flex-col min-h-0 bg-[#0F0F13]">
+                                {/* Toolbar */}
                                 <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between">
                                     <div className="flex items-center gap-6">
                                         <div className="flex items-center gap-3">
                                             <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em]">From</span>
-                                            <Input type="date" className="h-9 w-40 bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold text-[#E2E8F0]" />
+                                            <Input 
+                                                type="date" 
+                                                value={regressionFromDate}
+                                                onChange={(e) => setRegressionFromDate(e.target.value)}
+                                                className="h-9 w-44 bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold text-[#E2E8F0]" 
+                                            />
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em]">To</span>
-                                            <Input type="date" className="h-9 w-40 bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold text-[#E2E8F0]" />
+                                            <Input 
+                                                type="date" 
+                                                value={regressionToDate}
+                                                onChange={(e) => setRegressionToDate(e.target.value)}
+                                                className="h-9 w-44 bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold text-[#E2E8F0]" 
+                                            />
                                         </div>
-                                        <Button variant="ghost" size="sm" className="h-9 text-[11px] font-bold text-[#6B7280]">Clear</Button>
-                                    </div>
-                                    <Button
-                                        className="h-9 px-4 bg-[#A78BFA] text-[#0F0F13] font-bold text-xs gap-2"
-                                        disabled={isGenerating}
-                                        onClick={async () => {
-                                            if (!activeProject) return
-                                            const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
-                                            if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
-                                            const allCases = testPlans.flatMap(tp => tp.testCases || [])
-                                            const doneTasks = (activeProject.tasks || []).filter((t: any) => t.status === 'done')
-                                            setIsGenerating(true)
-                                            try {
-                                                const ids = await api.aiSmokeSubset(apiKey, allCases, doneTasks, activeProject)
-                                                if (ids && ids.length > 0) {
-                                                    setRegressionBuilderResult(`AI recommended ${ids.length} test cases for a smoke suite:\n\n${ids.join('\n')}`)
-                                                } else {
-                                                    setRegressionBuilderResult(`No specific smoke tests could be confidently identified.`)
-                                                }
-                                            } catch (e: any) {
-                                                setRegressionBuilderResult(`Failed: ${e.message}`)
-                                            } finally {
-                                                setIsGenerating(false)
-                                            }
-                                        }}
-                                    >
-                                        <Cpu className="h-3.5 w-3.5" />
-                                        {isGenerating ? 'BUILDING...' : 'BUILD SMOKE SUITE WITH AI'}
-                                    </Button>
-                                </div>
-                                {regressionBuilderResult ? (
-                                    <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                                        <div className="bg-[#1A1A24] border border-[#2A2A3A] border-l-4 border-l-[#A78BFA] rounded-r-xl p-6 text-sm text-[#E2E8F0] leading-relaxed whitespace-pre-wrap font-mono">
-                                            {regressionBuilderResult}
-                                        </div>
-                                        <Button
-                                            className="mt-6 h-9 px-4 bg-transparent border border-[#2A2A3A] text-[#6B7280] hover:text-[#EF4444] font-bold text-xs transition-all"
-                                            onClick={() => setRegressionBuilderResult(null)}
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            onClick={() => { setRegressionFromDate(""); setRegressionToDate(""); }}
+                                            className="h-9 text-[11px] font-bold text-[#6B7280]"
                                         >
-                                            CLEAR
+                                            Clear
                                         </Button>
                                     </div>
-                                ) : (
-                                    <div className="flex-1 flex flex-col items-center justify-center p-20 opacity-30">
-                                        <Zap className="h-16 w-16 mb-4" />
-                                        <h3 className="text-lg font-bold">Regression builder</h3>
-                                        <p className="text-sm max-w-sm">Click "Build Smoke Suite with AI" to produce a targeted subset from your test library based on recent issues and completion history.</p>
+                                    <div className="flex items-center gap-3">
+                                        <Button
+                                            variant="outline"
+                                            className="h-9 px-4 border-[#2A2A3A] text-[#A78BFA] font-bold text-xs gap-2 hover:bg-[#A78BFA]/10"
+                                            onClick={handleGenerateSmokeSubset}
+                                            disabled={isGenerating}
+                                        >
+                                            <Cpu className="h-3.5 w-3.5" />
+                                            {isGenerating ? 'ANALYZING...' : 'REFRESH AI SMOKE'}
+                                        </Button>
+                                        <Button
+                                            className="h-9 px-6 bg-[#A78BFA] text-[#0F0F13] font-bold text-xs gap-2"
+                                            disabled={isGenerating || uniqueSelectedCases.length === 0}
+                                            onClick={handleBuildRegressionSuite}
+                                        >
+                                            <Zap className="h-3.5 w-3.5" />
+                                            {isGenerating ? 'BUILDING...' : 'BUILD REGRESSION SUITE'}
+                                        </Button>
                                     </div>
-                                )}
+                                </div>
+
+                                {/* Content */}
+                                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                                    <div className="max-w-5xl mx-auto space-y-8">
+                                        {builderStatus && (
+                                            <div className="bg-[#10B981]/10 border border-[#10B981]/20 rounded-xl p-4 flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
+                                                <div className="flex items-center gap-3">
+                                                    <CheckCircle2 className="h-5 w-5 text-[#10B981]" />
+                                                    <span className="text-sm font-bold text-[#10B981]">{builderStatus}</span>
+                                                </div>
+                                                <Button variant="ghost" size="sm" onClick={() => setBuilderStatus(null)} className="h-7 w-7 p-0 text-[#10B981] hover:bg-[#10B981]/10">
+                                                    <XCircle className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        )}
+                                        {/* Summary Card */}
+                                        <div className="bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
+                                            <div className="absolute top-0 left-0 w-1 h-full bg-[#A78BFA]/50 group-hover:w-2 transition-all" />
+                                            <div className="space-y-6">
+                                                <div>
+                                                    <h2 className="text-[10px] font-black text-[#6B7280] uppercase tracking-[0.3em] mb-2">REGRESSION SUITE PREVIEW</h2>
+                                                    <p className="text-xl font-black text-[#E2E8F0] tracking-tight">
+                                                        {uniqueSelectedCases.length} unique test case(s) selected
+                                                    </p>
+                                                    <p className="text-xs text-[#6B7280] mt-1 font-medium italic opacity-80">
+                                                        {regressionFromDate || regressionToDate 
+                                                            ? `Filtering Done tasks ${regressionFromDate ? `from ${new Date(regressionFromDate).toLocaleDateString()}` : ""} ${regressionToDate ? `until ${new Date(regressionToDate).toLocaleDateString()}` : ""}`
+                                                            : "Aggregating all completed tasks and recent failures."}
+                                                    </p>
+                                                </div>
+
+                                                <div className="grid grid-cols-4 gap-4">
+                                                    {[
+                                                        { label: 'Done-Linked', value: doneLinkedTestCases.length, icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-[#10B981]', bg: 'bg-[#10B981]/10' },
+                                                        { label: 'Prev. Failed', value: previouslyFailedTestCases.length, icon: <XCircle className="h-4 w-4" />, color: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10' },
+                                                        { label: 'AI Recommended', value: smokeSubsetTestCases.length, icon: <Cpu className="h-4 w-4" />, color: 'text-[#A78BFA]', bg: 'bg-[#A78BFA]/10' },
+                                                        { label: 'Total (Unique)', value: uniqueSelectedCases.length, icon: <Zap className="h-4 w-4" />, color: 'text-[#FBBF24]', bg: 'bg-[#FBBF24]/10' },
+                                                    ].map((stat, idx) => (
+                                                        <div key={idx} className="bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-4 flex flex-col items-center text-center group cursor-default transition-all hover:translate-y-[-2px] hover:border-[#A78BFA]/20">
+                                                            <div className={cn("p-2 rounded-lg mb-3 shadow-inner transition-colors", stat.bg, stat.color)}>
+                                                                {stat.icon}
+                                                            </div>
+                                                            <div className={cn("text-2xl font-black mb-1", stat.color)}>{stat.value}</div>
+                                                            <div className="text-[9px] font-bold text-[#6B7280] uppercase tracking-widest">{stat.label}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Preview Sections */}
+                                        <div className="space-y-6 pb-20 mt-10">
+                                            {/* Done-Linked Section */}
+                                            <section className="space-y-4">
+                                                <div className="flex items-center gap-3 pl-1">
+                                                    <div className="h-4 w-1 bg-[#10B981] rounded-full" />
+                                                    <h3 className="text-xs font-black text-[#6B7280] uppercase tracking-widest flex items-center gap-2">
+                                                        DONE-LINKED TEST CASES <span className="opacity-40 tracking-tighter normal-case font-bold italic ml-2">({doneLinkedTestCases.length})</span>
+                                                    </h3>
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {doneLinkedTestCases.length === 0 ? (
+                                                        <div className="p-4 bg-[#1A1A24]/40 border border-dashed border-[#2A2A3A] rounded-xl text-center text-[10px] font-bold text-[#4B5563] uppercase tracking-widest">
+                                                            No linked test cases for done tasks
+                                                        </div>
+                                                    ) : (
+                                                        doneLinkedTestCases.map(tc => (
+                                                            <div key={tc.id} className="bg-[#13131A] border border-[#2A2A3A] rounded-lg p-3 flex items-center justify-between hover:bg-[#1A1A24] transition-colors group">
+                                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                                    <div className="bg-[#10B981]/10 text-[#10B981] p-1.5 rounded-md self-start shrink-0">
+                                                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                                                    </div>
+                                                                    <div className="overflow-hidden">
+                                                                        <div className="text-xs font-bold text-[#E2E8F0] tracking-tight group-hover:text-white transition-colors truncate">{tc.title}</div>
+                                                                        <div className="text-[9px] font-mono text-[#6B7280] mt-1 uppercase flex items-center gap-2">
+                                                                            <span className="text-[#A78BFA] font-bold">{tc.displayId}</span>
+                                                                            <span className="opacity-40">·</span>
+                                                                            <span>Link ID: {tc.sourceIssueId || 'N/A'}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-[#6B7280]" />
+                                                                </Button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </section>
+
+                                            {/* Previously Failed Section */}
+                                            <section className="space-y-4">
+                                                <div className="flex items-center gap-3 pl-1">
+                                                    <div className="h-4 w-1 bg-[#EF4444] rounded-full" />
+                                                    <h3 className="text-xs font-black text-[#6B7280] uppercase tracking-widest flex items-center gap-2">
+                                                        PREVIOUSLY FAILED <span className="opacity-40 tracking-tighter normal-case font-bold italic ml-2">({previouslyFailedTestCases.length})</span>
+                                                    </h3>
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {previouslyFailedTestCases.length === 0 ? (
+                                                        <div className="p-4 bg-[#1A1A24]/40 border border-dashed border-[#2A2A3A] rounded-xl text-center text-[10px] font-bold text-[#4B5563] uppercase tracking-widest">
+                                                            No failure history found
+                                                        </div>
+                                                    ) : (
+                                                        previouslyFailedTestCases.map(tc => (
+                                                            <div key={tc.id} className="bg-[#13131A] border border-[#2A2A3A] rounded-lg p-3 flex items-center justify-between hover:bg-[#1A1A24] transition-colors group">
+                                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                                    <div className="bg-[#EF4444]/10 text-[#EF4444] p-1.5 rounded-md self-start shrink-0">
+                                                                        <XCircle className="h-3.5 w-3.5" />
+                                                                    </div>
+                                                                    <div className="overflow-hidden">
+                                                                        <div className="text-xs font-bold text-[#E2E8F0] tracking-tight group-hover:text-white transition-colors truncate">{tc.title}</div>
+                                                                        <div className="text-[9px] font-mono text-[#6B7280] mt-1 uppercase flex items-center gap-2">
+                                                                            <span className="text-[#A78BFA] font-bold">{tc.displayId}</span>
+                                                                            <span className="opacity-40">·</span>
+                                                                            <span>Last Result: FAILED</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-[#6B7280]" />
+                                                                </Button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </section>
+
+                                            {/* AI Smoke Subset Section */}
+                                            <section className="space-y-4">
+                                                <div className="flex items-center gap-3 pl-1">
+                                                    <div className="h-4 w-1 bg-[#A78BFA] rounded-full" />
+                                                    <h3 className="text-xs font-black text-[#6B7280] uppercase tracking-widest flex items-center gap-2">
+                                                        AI RECOMMENDED SMOKE <span className="opacity-40 tracking-tighter normal-case font-bold italic ml-2">({smokeSubsetTestCases.length})</span>
+                                                    </h3>
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {smokeSubsetTestCases.length === 0 ? (
+                                                        <div className="p-6 bg-[#1A1A24]/40 border border-dashed border-[#2A2A3A] rounded-xl text-center space-y-3">
+                                                            <div className="text-[10px] font-bold text-[#4B5563] uppercase tracking-widest">Run AI analysis to identify smoke subset</div>
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="sm" 
+                                                                onClick={handleGenerateSmokeSubset}
+                                                                disabled={isGenerating}
+                                                                className="h-7 text-[10px] font-black border-[#2A2A3A] text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                                                            >
+                                                                <Cpu className="h-3 w-3 mr-2" /> RUN ANALYSIS
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        smokeSubsetTestCases.map(tc => (
+                                                            <div key={tc.id} className="bg-[#13131A] border border-[#2A2A3A] rounded-lg p-3 flex items-center justify-between hover:bg-[#1A1A24] transition-colors group">
+                                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                                    <div className="bg-[#A78BFA]/10 text-[#A78BFA] p-1.5 rounded-md self-start shrink-0">
+                                                                        <Zap className="h-3.5 w-3.5" />
+                                                                    </div>
+                                                                    <div className="overflow-hidden">
+                                                                        <div className="text-xs font-bold text-[#E2E8F0] tracking-tight group-hover:text-white transition-colors truncate">{tc.title}</div>
+                                                                        <div className="text-[9px] font-mono text-[#6B7280] mt-1 uppercase flex items-center gap-2">
+                                                                            <span className="text-[#A78BFA] font-bold">{tc.displayId}</span>
+                                                                            <span className="opacity-40">·</span>
+                                                                            <span>Confidence: High</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-[#6B7280]" />
+                                                                </Button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </section>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )
                     }

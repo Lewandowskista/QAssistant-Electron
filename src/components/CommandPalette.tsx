@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import {
     Search,
-    Zap,
     FlaskConical,
     LayoutDashboard,
     Settings,
@@ -21,8 +20,9 @@ interface CommandPaletteProps {
 
 export default function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     const navigate = useNavigate()
-    const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const projects = useProjectStore(state => state.projects)
+    const activeProjectId = useProjectStore(state => state.activeProjectId)
+    const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId])
 
     const [query, setQuery] = useState("")
     const [selectedIndex, setSelectedIndex] = useState(0)
@@ -139,8 +139,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                         </div>
                     ) : (
                         <div className="py-20 flex flex-col items-center justify-center text-center opacity-30">
-                            <Zap className="h-16 w-16 mb-4" strokeWidth={1} />
-                            <p className="text-sm font-black uppercase tracking-widest">No matching neural links</p>
+                            <p className="text-sm font-black uppercase tracking-widest">No matching results</p>
                         </div>
                     )}
                 </div>

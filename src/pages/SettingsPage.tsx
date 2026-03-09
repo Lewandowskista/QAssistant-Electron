@@ -1,3 +1,5 @@
+/* cspell:disable-file */
+/* cspell:words testplans ATATT aistudio Lewandowskista */
 import { useState, useEffect, useCallback } from "react"
 import {
     Zap, Globe, Cpu, Server, Share2, Database, Search,
@@ -63,8 +65,8 @@ export default function SettingsPage() {
     const [activeSection, setActiveSection] = useState<string | null>('general')
 
     // ── Global settings state ─────────────────────────────────────────────────
-    const [minimizeToTray, setMinimizeToTray] = useState(false)
     const [sapContext, setSapContext] = useState(false)
+    const [minimizeToTray, setMinimizeToTray] = useState(false)
 
     // ── Automation API ────────────────────────────────────────────────────────
     const [apiEnabled, setApiEnabled] = useState(false)
@@ -89,6 +91,7 @@ export default function SettingsPage() {
 
     // ── Gemini ────────────────────────────────────────────────────────────────
     const [geminiKey, setGeminiKey] = useState('')
+    const [geminiModel, setGeminiModel] = useState('gemini-2.0-flash')
     const [geminiStatus, setGeminiStatus] = useState<StatusState>(null)
 
     // ── CCv2 ─────────────────────────────────────────────────────────────────
@@ -105,8 +108,8 @@ export default function SettingsPage() {
     useEffect(() => {
         const load = async () => {
             const settings = await api.readSettingsFile()
-            setMinimizeToTray(!!settings.minimizeToTray)
             setSapContext(!!settings.sapCommerceContext)
+            setMinimizeToTray(!!settings.minimizeToTray)
             setApiEnabled(!!settings.automationApiEnabled)
             setApiPort(settings.automationPort || '5248')
 
@@ -123,6 +126,7 @@ export default function SettingsPage() {
             ])
             if (storedKey) setApiKey(storedKey)
             if (storedGemini) setGeminiKey(storedGemini)
+            if (activeProject?.geminiModel) setGeminiModel(activeProject.geminiModel)
             if (storedCcv2Sub) setCcv2Sub(storedCcv2Sub)
             if (storedCcv2Token) setCcv2Token(storedCcv2Token)
             setAppVersion(ver || '')
@@ -130,11 +134,12 @@ export default function SettingsPage() {
             setSysInfo(info)
         }
         load()
-    }, [activeProjectId])
+    }, [activeProjectId, activeProject?.geminiModel])
 
     const saveSetting = useCallback(async (patch: Record<string, any>) => {
         const cur = await api.readSettingsFile()
         await api.writeSettingsFile({ ...cur, ...patch })
+        window.dispatchEvent(new Event('settings-updated'))
     }, [])
 
     const flash = (set: (s: StatusState) => void, msg: string, ok: boolean, ms = 3000) => {
@@ -149,7 +154,7 @@ export default function SettingsPage() {
         await saveSetting({ automationApiEnabled: next })
 
         if (next) {
-            await api.automationApiStart(apiKey, parseInt(apiPort))
+            await api.automationApiStart({ apiKey, port: parseInt(apiPort) })
             flash(setAutomationStatus, `Automation API started on port ${apiPort}`, true)
         } else {
             await api.automationApiStop()
@@ -165,7 +170,7 @@ export default function SettingsPage() {
         await saveSetting({ automationPort: apiPort })
 
         if (apiEnabled) {
-            await api.automationApiRestart(apiKey, p)
+            await api.automationApiRestart({ apiKey, port: p })
             flash(setAutomationStatus, `API restarted on port ${p}.`, true)
         } else {
             flash(setAutomationStatus, `Port ${p} saved. Toggle API to apply.`, true)
@@ -237,7 +242,7 @@ export default function SettingsPage() {
         if (!key) { flash(setLinearStatus, 'Enter an API Key first.', false); return }
         flash(setLinearStatus, 'Testing connection…', true)
         try {
-            const teams = await api.testLinearConnection(key)
+            const teams = await api.testLinearConnection({ apiKey: key })
             flash(setLinearStatus, `Connected successfully. Found ${Array.isArray(teams) ? teams.length : 0} team(s).`, true)
         } catch (e: any) {
             flash(setLinearStatus, `Connection failed: ${e.message}`, false)
@@ -294,7 +299,7 @@ export default function SettingsPage() {
         if (!domain || !email || !token) { flash(setJiraStatus, 'Fill in Domain, Email and API Token first.', false); return }
         flash(setJiraStatus, 'Testing connection…', true)
         try {
-            const projects = await api.testJiraConnection(domain, email, token)
+            const projects = await api.testJiraConnection({ domain, email, apiToken: token })
             flash(setJiraStatus, `Connected! Found ${Array.isArray(projects) ? projects.length : 0} accessible project(s).`, true)
         } catch (e: any) {
             flash(setJiraStatus, `Connection failed: ${e.message}`, false)
@@ -335,7 +340,25 @@ export default function SettingsPage() {
         if (!geminiKey.trim()) { flash(setGeminiStatus, 'Enter your API key.', false); return }
         const prefix = activeProject ? `project:${activeProject.id}:` : ''
         await api.secureStoreSet(`${prefix}gemini_api_key`, geminiKey.trim())
-        flash(setGeminiStatus, 'Google AI Studio API key saved.', true)
+        if (activeProject) {
+            await updateProject(activeProject.id, { geminiModel })
+        }
+        flash(setGeminiStatus, 'Google AI Studio settings saved.', true)
+    }
+
+    const checkGeminiModels = async () => {
+        if (!geminiKey.trim()) { flash(setGeminiStatus, 'Enter your API key first.', false); return }
+        flash(setGeminiStatus, 'Checking available models...', true)
+        try {
+            const models = await api.aiListModels(geminiKey.trim())
+            if (models && models.length > 0) {
+                flash(setGeminiStatus, `Available models: ${models.join(', ')}`, true, 10000)
+            } else {
+                flash(setGeminiStatus, 'No models found or error occurred. Check Console.', false)
+            }
+        } catch (e: any) {
+            flash(setGeminiStatus, `Error: ${e.message}`, false)
+        }
     }
 
     const refreshStoredCreds = async () => {
@@ -444,19 +467,8 @@ export default function SettingsPage() {
 
                 {/* ── GENERAL ─────────────────────────────────────────────── */}
                 <Sec id="general" title="General" icon={<Database className="h-4 w-4" />}>
-                    <SectionLabel>App Behaviour</SectionLabel>
+                    <SectionLabel>App Behavior</SectionLabel>
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-semibold text-[#E2E8F0]">Minimize to System Tray</p>
-                                <p className="text-xs text-[#6B7280] mt-0.5">Closing the window sends it to the tray instead of exiting.</p>
-                            </div>
-                            <Toggle on={minimizeToTray} onToggle={async () => {
-                                const next = !minimizeToTray; setMinimizeToTray(next)
-                                await saveSetting({ minimizeToTray: next })
-                            }} />
-                        </div>
-                        <div className="h-px bg-[#2A2A3A]" />
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-semibold text-[#E2E8F0]">SAP Commerce Context</p>
@@ -465,6 +477,19 @@ export default function SettingsPage() {
                             <Toggle on={sapContext} onToggle={async () => {
                                 const next = !sapContext; setSapContext(next)
                                 await saveSetting({ sapCommerceContext: next })
+                            }} />
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-[#A78BFA]/5 border border-[#A78BFA]/10 rounded-xl">
+                            <div>
+                                <p className="text-sm font-semibold text-[#E2E8F0] flex items-center gap-2">
+                                    Minimize to Tray
+                                    <span className="text-[9px] px-1.5 py-0.5 bg-[#A78BFA]/20 text-[#A78BFA] rounded-md font-black uppercase tracking-wider">New</span>
+                                </p>
+                                <p className="text-xs text-[#6B7280] mt-0.5">When closing the window, keep the app running in the system tray.</p>
+                            </div>
+                            <Toggle on={minimizeToTray} onToggle={async () => {
+                                const next = !minimizeToTray; setMinimizeToTray(next)
+                                await saveSetting({ minimizeToTray: next })
                             }} />
                         </div>
                     </div>
@@ -641,9 +666,43 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         <p className="text-xs text-[#6B7280]">Get your API key from aistudio.google.com → API Keys</p>
                         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[#A78BFA] font-bold text-xs" onClick={() => api.openUrl('https://aistudio.google.com/apikey')}><ExternalLink className="h-3.5 w-3.5" />Get API Key</Button>
                     </div>
-                    <FieldLabel>API Key</FieldLabel>
-                    <Input type={showSecrets ? 'text' : 'password'} value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIza..." className={inp} />
-                    <Button size="sm" className="mt-3 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-9" onClick={saveGemini}>Save API Key</Button>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                            <FieldLabel>API Key</FieldLabel>
+                            <Input type={showSecrets ? 'text' : 'password'} value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIza..." className={inp} />
+                        </div>
+                        <div>
+                            <FieldLabel>Preferred Model</FieldLabel>
+                            <div className="flex gap-2">
+                                <select 
+                                    className={`${inp} flex-1 appearance-none px-3 cursor-pointer`}
+                                    value={['gemini-3.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'].includes(geminiModel) ? geminiModel : 'custom'}
+                                    onChange={(e) => {
+                                        if (e.target.value !== 'custom') setGeminiModel(e.target.value)
+                                    }}
+                                >
+                                    <option value="gemini-3.0-flash">Gemini 3.0 Flash</option>
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                                    <option value="custom">-- Custom / Other --</option>
+                                </select>
+                                {(!['gemini-3.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'].includes(geminiModel)) && (
+                                    <Input 
+                                        value={geminiModel} 
+                                        onChange={e => setGeminiModel(e.target.value)} 
+                                        placeholder="Model ID, e.g. gemini-3-flash"
+                                        className={`${inp} flex-1`}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                        <Button size="sm" className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-9" onClick={saveGemini}>Save Gemini Settings</Button>
+                        <Button variant="outline" size="sm" className="h-9 border-[#2A2A3A] text-[#9CA3AF] font-bold" onClick={checkGeminiModels}>Check Available Models</Button>
+                    </div>
                     <StatusBanner s={geminiStatus} />
                 </Sec>
 

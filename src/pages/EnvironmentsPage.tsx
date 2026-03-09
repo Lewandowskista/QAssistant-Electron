@@ -22,6 +22,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
 // No dropdown imports used in this version
 
 const ENV_TYPES: { id: EnvironmentType; label: string }[] = [
@@ -32,6 +39,7 @@ const ENV_TYPES: { id: EnvironmentType; label: string }[] = [
 ]
 
 export default function EnvironmentsPage() {
+    const api = window.electronAPI as any
     const { projects, activeProjectId, addEnvironment, updateEnvironment, deleteEnvironment, setEnvironmentDefault } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const environments = activeProject?.environments || []
@@ -41,36 +49,64 @@ export default function EnvironmentsPage() {
     const [healthStatuses, setHealthStatuses] = useState<Record<string, HealthEntry>>({})
     const [bugDialogOpen, setBugDialogOpen] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+    const [newEnvName, setNewEnvName] = useState("")
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+    const [envToDelete, setEnvToDelete] = useState<string | null>(null)
 
     const selectedEnv = environments.find(e => e.id === selectedEnvId)
 
     useEffect(() => {
-        if (selectedEnv) {
-            setLocalEnv({ ...selectedEnv })
-        } else {
-            setLocalEnv(null)
+        const load = async () => {
+            if (selectedEnv) {
+                const username = await api.secureStoreGet(`Env_${selectedEnv.id}_Username`)
+                const password = await api.secureStoreGet(`Env_${selectedEnv.id}_Password`)
+                setLocalEnv({ ...selectedEnv, username: username || "", password: password || "" })
+            } else {
+                setLocalEnv(null)
+            }
         }
+        load()
     }, [selectedEnvId, environments])
 
     const handleAdd = () => {
-        if (!activeProjectId) return
-        const name = prompt("Environment name (e.g. Staging EU):")
-        if (name) {
-            addEnvironment(activeProjectId, name).catch(console.error)
-        }
+        setNewEnvName("")
+        setIsAddModalOpen(true)
     }
 
-    const handleSave = () => {
+    const handleConfirmAdd = async () => {
+        if (!activeProjectId || !newEnvName.trim()) return
+        await addEnvironment(activeProjectId, newEnvName.trim()).catch(console.error)
+        setIsAddModalOpen(false)
+        setNewEnvName("")
+    }
+
+    const handleSave = async () => {
         if (!activeProjectId || !localEnv) return
-        updateEnvironment(activeProjectId, localEnv.id, localEnv).catch(console.error)
+        
+        // Save to project store (exclude credentials from plain JSON)
+        const { username, password, ...envData } = localEnv
+        await updateEnvironment(activeProjectId, localEnv.id, envData).catch(console.error)
+
+        // Save credentials securely
+        if (username) await api.secureStoreSet(`Env_${localEnv.id}_Username`, username)
+        else await api.secureStoreDelete(`Env_${localEnv.id}_Username`)
+
+        if (password) await api.secureStoreSet(`Env_${localEnv.id}_Password`, password)
+        else await api.secureStoreDelete(`Env_${localEnv.id}_Password`)
     }
 
     const handleDelete = (id: string) => {
-        if (!activeProjectId) return
-        if (confirm("Delete this environment?")) {
-            deleteEnvironment(activeProjectId, id).catch(console.error)
-            if (selectedEnvId === id) setSelectedEnvId(null)
-        }
+        setEnvToDelete(id)
+        setIsDeleteModalOpen(true)
+    }
+
+    const handleConfirmDelete = async () => {
+        if (!activeProjectId || !envToDelete) return
+        await deleteEnvironment(activeProjectId, envToDelete).catch(console.error)
+        if (selectedEnvId === envToDelete) setSelectedEnvId(null)
+        setIsDeleteModalOpen(false)
+        setEnvToDelete(null)
     }
 
     const handleCheckAll = async () => {
@@ -81,6 +117,36 @@ export default function EnvironmentsPage() {
         } catch (e: any) {
             console.error('Health check failed', e);
         }
+    }
+
+    const [testStatus, setTestStatus] = useState("")
+    const [isTesting, setIsTesting] = useState(false)
+
+    const handleTestConnection = async () => {
+        if (!localEnv?.baseUrl) {
+            setTestStatus("Enter a Base URL to test.")
+            return
+        }
+        setIsTesting(true)
+        setTestStatus("Testing connection...")
+        try {
+            const res = await api.checkEnvironmentsHealth([localEnv])
+            const status = res[localEnv.id]
+            if (status?.status === 'healthy') {
+                setTestStatus(`✓ Reachable — Latency: ${status.latencyMs}ms`)
+            } else {
+                setTestStatus("✗ Unreachable: Connection failed.")
+            }
+        } catch (e: any) {
+            setTestStatus(`✗ Error: ${e.message}`)
+        } finally {
+            setIsTesting(false)
+        }
+    }
+
+    const handleSwitchActive = () => {
+        if (!activeProjectId || !localEnv) return
+        setEnvironmentDefault(activeProjectId, localEnv.id)
     }
 
     // automatically start the periodic health service when env list changes
@@ -188,6 +254,9 @@ export default function EnvironmentsPage() {
                                 </div>
                             </div>
                             <div className="flex gap-2">
+                                <Button onClick={handleSwitchActive} variant="outline" size="sm" className="h-10 px-4 border-[#10B981]/20 text-[#10B981] hover:bg-[#10B981]/10 font-bold text-xs gap-2">
+                                    <Activity className="h-4 w-4" /> Switch Active
+                                </Button>
                                 <Button variant="outline" size="sm" onClick={() => setBugDialogOpen(true)} className="h-10 px-4 border-[#EF4444]/20 text-[#EF4444] hover:bg-[#EF4444]/10 font-bold text-xs gap-2">
                                     <Bug className="h-4 w-4" /> Report Bug
                                 </Button>
@@ -332,7 +401,7 @@ export default function EnvironmentsPage() {
                                     <div className="space-y-2">
                                         <Label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Username</Label>
                                         <Input
-                                            value={localEnv.username}
+                                            value={localEnv.username || ""}
                                             onChange={e => setLocalEnv({ ...localEnv, username: e.target.value })}
                                             className="h-10 bg-[#13131A] border-[#2A2A3A] text-[#E2E8F0] text-xs font-mono"
                                         />
@@ -341,7 +410,7 @@ export default function EnvironmentsPage() {
                                         <Label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Password</Label>
                                         <Input
                                             type={showPassword ? "text" : "password"}
-                                            value={localEnv.password}
+                                            value={localEnv.password || ""}
                                             onChange={e => setLocalEnv({ ...localEnv, password: e.target.value })}
                                             className="h-10 bg-[#13131A] border-[#2A2A3A] text-[#E2E8F0] text-xs font-mono pr-10"
                                         />
@@ -353,7 +422,23 @@ export default function EnvironmentsPage() {
                                         </button>
                                     </div>
                                 </div>
-                                <p className="text-[10px] text-[#6B7280] font-medium leading-tight italic">Securely stored credentials.</p>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-[10px] text-[#6B7280] font-medium leading-tight italic">Securely stored credentials.</p>
+                                    <Button 
+                                        onClick={handleTestConnection} 
+                                        disabled={isTesting}
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-8 border-[#A78BFA]/20 text-[#A78BFA] hover:bg-[#A78BFA]/10 text-[10px] font-bold"
+                                    >
+                                        {isTesting ? "Testing..." : "Test Connection"}
+                                    </Button>
+                                </div>
+                                {testStatus && (
+                                    <p className={cn("text-[10px] font-bold", testStatus.startsWith('✓') ? "text-[#10B981]" : "text-[#EF4444]")}>
+                                        {testStatus}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -411,6 +496,50 @@ export default function EnvironmentsPage() {
                 onOpenChange={setBugDialogOpen}
                 defaultEnv={selectedEnv}
             />
+
+            {/* Add Environment Modal */}
+            <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+                <DialogContent className="bg-[#13131A] border-[#2A2A3A] sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-[#E2E8F0] uppercase tracking-widest text-sm">Add New Endpoint</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-6 space-y-4">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider px-1">Environment Name</Label>
+                            <Input
+                                autoFocus
+                                value={newEnvName}
+                                onChange={(e) => setNewEnvName(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleConfirmAdd()
+                                }}
+                                placeholder="e.g. Production US"
+                                className="h-11 bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="bg-[#13131A]">
+                        <Button variant="ghost" onClick={() => setIsAddModalOpen(false)} className="text-[#6B7280] hover:text-[#E2E8F0]">CANCEL</Button>
+                        <Button onClick={handleConfirmAdd} disabled={!newEnvName.trim()} className="bg-[#A78BFA] text-[#0F0F13] font-bold px-8">CREATE</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Modal */}
+            <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+                <DialogContent className="bg-[#13131A] border-[#EF4444]/30 sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-[#EF4444] uppercase tracking-widest text-sm">Destructive Action</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-6">
+                        <p className="text-sm text-[#E2E8F0]">Are you sure you want to delete this environment? This action cannot be undone.</p>
+                    </div>
+                    <DialogFooter className="bg-[#13131A]">
+                        <Button variant="ghost" onClick={() => setIsDeleteModalOpen(false)} className="text-[#6B7280] hover:text-[#E2E8F0]">CANCEL</Button>
+                        <Button onClick={handleConfirmDelete} className="bg-[#EF4444] text-white hover:bg-[#DC2626] font-bold px-8">DELETE</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

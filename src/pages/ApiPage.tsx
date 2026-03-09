@@ -13,6 +13,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import FormattedText from "@/components/FormattedText"
+import { OccTemplates, HacTemplates } from "@/lib/apiTemplates"
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 type ResponseTab = 'Body' | 'Headers' | 'History' | 'Compare'
@@ -130,6 +131,75 @@ export default function ApiPage() {
         }
     }
 
+    const loadOccTemplates = async () => {
+        if (!activeProjectId) return
+        const existingNames = new Set(requests.map(r => r.name))
+        for (const tmpl of OccTemplates) {
+            if (!existingNames.has(tmpl.name)) {
+                await addApiRequest(activeProjectId, {
+                    ...tmpl,
+                    method: tmpl.method as HttpMethod,
+                    headers: tmpl.headers || "",
+                    body: tmpl.body || ""
+                })
+            }
+        }
+    }
+
+    const loadHacTemplates = async () => {
+        if (!activeProjectId) return
+        const existingNames = new Set(requests.map(r => r.name))
+        for (const tmpl of HacTemplates) {
+            if (!existingNames.has(tmpl.name)) {
+                await addApiRequest(activeProjectId, {
+                    ...tmpl,
+                    method: tmpl.method as HttpMethod,
+                    headers: tmpl.headers || "",
+                    body: tmpl.body || ""
+                })
+            }
+        }
+    }
+
+    const handleAutoAuth = async () => {
+        if (!activeProject) return
+        const api = (window as any).electronAPI
+        
+        // Find default or first environment
+        const env = activeProject.environments.find(e => e.isDefault) || activeProject.environments[0]
+        if (!env) {
+            alert("No environment configured for this project.")
+            return
+        }
+
+        try {
+            const user = await api.secureStoreGet(`Env_${env.id}_Username`)
+            const pass = await api.secureStoreGet(`Env_${env.id}_Password`)
+
+            if (!user && !pass) {
+                alert(`No credentials found for environment: ${env.name}`)
+                return
+            }
+
+            const basicToken = btoa(`${user || ""}:${pass || ""}`)
+            const authLine = `Authorization: Basic ${basicToken}`
+
+            // Inject or replace Authorization header
+            const lines = headers.split('\n').filter(l => l.trim().length > 0)
+            const authIdx = lines.findIndex(l => l.trim().toLowerCase().startsWith('authorization:'))
+            
+            if (authIdx >= 0) {
+                lines[authIdx] = authLine
+            } else {
+                lines.unshift(authLine)
+            }
+
+            setHeaders(lines.join('\n'))
+        } catch (error) {
+            console.error("Auto Auth failed", error)
+        }
+    }
+
     const getMethodColor = (m: string) => {
         switch (m) {
             case 'GET': return 'bg-[#3B82F6]'
@@ -206,8 +276,8 @@ export default function ApiPage() {
                         <Plus className="h-3.5 w-3.5" /> NEW REQUEST
                     </Button>
                     <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" className="h-8 border-[#2A2A3A] text-[9px] font-bold text-[#6B7280] uppercase">OCC Templates</Button>
-                        <Button variant="outline" className="h-8 border-[#2A2A3A] text-[9px] font-bold text-[#6B7280] uppercase">HAC Templates</Button>
+                        <Button variant="outline" onClick={loadOccTemplates} className="h-8 border-[#2A2A3A] text-[9px] font-bold text-[#6B7280] uppercase hover:bg-[#A78BFA]/10 hover:text-[#A78BFA]">OCC Templates</Button>
+                        <Button variant="outline" onClick={loadHacTemplates} className="h-8 border-[#2A2A3A] text-[9px] font-bold text-[#6B7280] uppercase hover:bg-[#A78BFA]/10 hover:text-[#A78BFA]">HAC Templates</Button>
                     </div>
                 </div>
             </aside>
@@ -279,7 +349,13 @@ export default function ApiPage() {
                             <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em] flex items-center gap-2">
                                 <Key className="h-3 w-3 text-[#A78BFA]" /> HEADERS
                             </Label>
-                            <Button variant="outline" className="h-6 border-[#10B981]/20 text-[#10B981] text-[9px] font-bold hover:bg-[#10B981]/10 px-2">AUTO AUTH</Button>
+                            <Button 
+                                variant="outline" 
+                                onClick={handleAutoAuth}
+                                className="h-6 border-[#10B981]/20 text-[#10B981] text-[9px] font-bold hover:bg-[#10B981]/10 px-2"
+                            >
+                                AUTO AUTH
+                            </Button>
                         </div>
                         <textarea
                             value={headers}

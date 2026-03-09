@@ -207,6 +207,35 @@ export default function SapPage() {
         }
     }
 
+    const handleValidateImpex = () => {
+        if (!impExScript.trim()) {
+            setImpExResult("Script is empty");
+            return;
+        }
+
+        const issues: string[] = [];
+        const lines = impExScript.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line || line.startsWith('#')) continue;
+
+            // Basic check for ImpEx headers
+            const headerMatch = line.match(/^(INSERT|UPDATE|INSERT_UPDATE|REMOVE)\s/i);
+            if (headerMatch) {
+                if (!line.includes(';')) {
+                    issues.push(`Line ${i + 1}: Missing semicolon separator in header`);
+                }
+            }
+        }
+
+        if (issues.length === 0) {
+            setImpExResult("✓ Basic syntax looks valid");
+        } else {
+            setImpExResult(`⚠ ${issues.length} issue(s):\n${issues.join('\n')}`);
+        }
+    }
+
     const runCatalogDiff = async () => {
         if (!hacBaseUrl || !selectedCatalog) return
         setCatalogDiffLoading(true)
@@ -227,7 +256,7 @@ export default function SapPage() {
 
     const fetchCcv2Envs = async () => {
         try {
-            const r = await api.ccv2GetEnvironments(ccv2Sub, ccv2Token);
+            const r = await api.ccv2GetEnvironments({ subscriptionCode: ccv2Sub, apiToken: ccv2Token });
             if (r.success && Array.isArray(r)) {
                 setCcv2Envs(r as any[]);
                 // save token for this subscription
@@ -245,7 +274,7 @@ export default function SapPage() {
     const fetchCcv2Deployments = async () => {
         if (!selectedCcv2Env) return;
         try {
-            const r = await api.ccv2GetDeployments(ccv2Sub, ccv2Token, selectedCcv2Env);
+            const r = await api.ccv2GetDeployments({ subscriptionCode: ccv2Sub, apiToken: ccv2Token, environmentCode: selectedCcv2Env });
             if (r.success && Array.isArray(r)) {
                 setCcv2Deployments(r as any[]);
             } else {
@@ -259,7 +288,7 @@ export default function SapPage() {
     const fetchCcv2Build = async () => {
         if (!ccv2BuildCode) return;
         try {
-            const r = await api.ccv2GetBuild(ccv2Sub, ccv2Token, ccv2BuildCode);
+            const r = await api.ccv2GetBuild({ subscriptionCode: ccv2Sub, apiToken: ccv2Token, buildCode: ccv2BuildCode });
             if (r.success && r.result) {
                 setCcv2BuildInfo(r.result);
             } else {
@@ -438,7 +467,15 @@ export default function SapPage() {
                                 <div className="p-4 bg-[#13131A] border-b border-[#2A2A3A] flex items-center gap-4">
                                     <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest whitespace-nowrap">FlexSearch Console</span>
                                     <div className="flex-1" />
-                                    <Select>
+                                    <Select onValueChange={(val) => {
+                                        const queries: Record<string, string> = {
+                                            "1": "SELECT {p.code}, {p.name[en]} FROM {Product AS p} ORDER BY {p.code} LIMIT 50",
+                                            "2": "SELECT {cv.catalog}, {cv.version} FROM {CatalogVersion AS cv} WHERE {cv.active} = 0",
+                                            "3": "SELECT {u.uid}, {u.name} FROM {User AS u} WHERE {u.loginDisabled} = 1",
+                                            "4": "SELECT {pr.code}, {pr.enabled} FROM {AbstractPromotion AS pr} WHERE {pr.enabled} = 1"
+                                        };
+                                        if (queries[val]) setFlexQuery(queries[val]);
+                                    }}>
                                         <SelectTrigger className="w-[300px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[10px] font-bold text-[#6B7280] uppercase">
                                             <SelectValue placeholder="QUICK TEMPLATES..." />
                                         </SelectTrigger>
@@ -592,6 +629,25 @@ export default function SapPage() {
                                 <div className="p-4 bg-[#13131A] border-b border-[#2A2A3A] flex items-center gap-4">
                                     <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest whitespace-nowrap">ImpEx Playground</span>
                                     <div className="flex-1" />
+                                    <Select onValueChange={(val) => {
+                                        const snippets: Record<string, string> = {
+                                            "1": "INSERT_UPDATE Product;code[unique=true];name[lang=en];catalogVersion(catalog(id),version)\n;testProduct001;Test Product 001;testCatalog:Staged",
+                                            "2": "INSERT_UPDATE Customer;uid[unique=true];name;password\n;test@example.com;Test User;12345678",
+                                            "3": "REMOVE Product;code[unique=true]\n;testProduct001",
+                                            "4": "INSERT_UPDATE StockLevel;productCode[unique=true];warehouse(code)[unique=true];available\n;testProduct001;default;100"
+                                        };
+                                        if (snippets[val]) setImpExScript(snippets[val]);
+                                    }}>
+                                        <SelectTrigger className="w-[200px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[10px] font-bold text-[#6B7280] uppercase">
+                                            <SelectValue placeholder="SNIPPET TEMPLATES..." />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
+                                            <SelectItem value="1">Insert Product</SelectItem>
+                                            <SelectItem value="2">Insert Customer</SelectItem>
+                                            <SelectItem value="3">Remove Product</SelectItem>
+                                            <SelectItem value="4">Update Stock Level</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                     <div className="flex items-center gap-2">
                                         <Checkbox
                                             checked={impExEnableCode}
@@ -600,7 +656,13 @@ export default function SapPage() {
                                         />
                                         <span className="text-[10px] text-[#6B7280]">Enable Code Exec</span>
                                     </div>
-                                    <Button variant="ghost" className="h-8 border-[#2A2A3A] text-[10px] font-black text-[#A78BFA] uppercase hover:bg-[#A78BFA]/5 border">Validate Syntax</Button>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={handleValidateImpex}
+                                        className="h-8 border-[#2A2A3A] text-[10px] font-black text-[#A78BFA] uppercase hover:bg-[#A78BFA]/5 border"
+                                    >
+                                        Validate Syntax
+                                    </Button>
                                     <Button
                                         onClick={runImpEx}
                                         disabled={impExExecuting || !impExScript}

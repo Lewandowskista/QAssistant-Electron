@@ -63,7 +63,11 @@ ${description}
 *Reported via QAssistant Bug Tool*
 `.trim()
 
-        await addTask(activeProjectId, `[BUG] ${title}`, fullDescription)
+        await addTask(activeProjectId, {
+            title: `[BUG] ${title}`,
+            description: fullDescription,
+            priority: priority === 'high' ? 'high' : priority === 'medium' ? 'medium' : 'low'
+        })
 
         // Reset and close
         setTitle("")

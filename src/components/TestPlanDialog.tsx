@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useProjectStore, TestPlan } from "@/store/useProjectStore"
-import { Layers, ShieldCheck, Info } from "lucide-react"
+import { Layers, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface TestPlanDialogProps {
@@ -130,7 +130,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                         </div>
                     </div>
 
-                    <DialogFooter className="mt-8 pt-6 border-t border-border/50 gap-2">
+                    <DialogFooter className="mt-8 pt-6 border-t border-border/50 gap-2 bg-[#13131A]">
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="font-bold">
                             Cancel
                         </Button>

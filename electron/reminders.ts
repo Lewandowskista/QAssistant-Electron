@@ -2,7 +2,6 @@
 import electron from 'electron'
 const { Notification, BrowserWindow } = electron as any
 import fs from 'fs'
-import path from 'path'
 
 const notifiedIds = new Map<string, number>()
 const COOLDOWN = 4 * 60 * 60 * 1000 // 4 hours

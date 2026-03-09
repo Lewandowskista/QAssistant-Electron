@@ -5,11 +5,14 @@ import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
 import express from 'express'
+import type { Request, Response } from 'express'
 import cors from 'cors'
 import bodyParser from 'body-parser'
 
 const server = express()
-server.use(cors())
+server.use(cors({
+    origin: [/localhost:\d+$/, /127\.0\.0\.1:\d+$/]
+}))
 server.use(bodyParser.json())
 
 let authToken = 'qassistant-default-token'
@@ -27,27 +30,27 @@ export function startServer(apiToken: string, port: number = 3030) {
     const getDataPath = (): string =>
         path.join(app.getPath('userData'), 'QAssistantData', 'projects.json')
 
-    const readProjects = (): any[] => {
+    const readProjects = async (): Promise<any[]> => {
         try {
             if (!fs.existsSync(getDataPath())) return []
-            return JSON.parse(fs.readFileSync(getDataPath(), 'utf8'))
+            const content = await fs.promises.readFile(getDataPath(), 'utf8');
+            return JSON.parse(content)
         } catch {
             return []
         }
     }
 
-    const writeProjects = (projects: any[]): void => {
-        fs.writeFileSync(getDataPath(), JSON.stringify(projects, null, 2))
+    const writeProjects = async (projects: any[]): Promise<void> => {
+        await fs.promises.writeFile(getDataPath(), JSON.stringify(projects, null, 2))
     }
 
     // ── Public health endpoint (no auth) ───────────────────────────────────
-    server.get('/health', (_req, res) => {
+    server.get('/health', (_req: Request, res: Response) => {
         res.json({
             status: 'active',
             version: app.getVersion(),
             uptime: Math.floor(process.uptime()),
-            platform: process.platform,
-            dataPath: getDataPath()
+            platform: process.platform
         })
     })
 
@@ -62,9 +65,9 @@ export function startServer(apiToken: string, port: number = 3030) {
     })
 
     // ── GET /api/projects ── list all projects ──────────────────────────────
-    server.get('/api/projects', (_req: any, res: any) => {
+    server.get('/api/projects', async (_req: any, res: any) => {
         try {
-            const projects = readProjects()
+            const projects = await readProjects()
             res.json(projects.map((p: any) => ({
                 id: p.id,
                 name: p.name,
@@ -79,9 +82,9 @@ export function startServer(apiToken: string, port: number = 3030) {
     })
 
     // ── GET /api/projects/:id ── single project detail ───────────────────────
-    server.get('/api/projects/:id', (req: any, res: any) => {
+    server.get('/api/projects/:id', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
+            const projects = await readProjects()
             const project = projects.find((p: any) => p.id === req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
             res.json(project)
@@ -91,9 +94,9 @@ export function startServer(apiToken: string, port: number = 3030) {
     })
 
     // ── GET /api/testcases ── all test cases across all projects ─────────────
-    server.get('/api/testcases', (req: any, res: any) => {
+    server.get('/api/testcases', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
+            const projects = await readProjects()
             const projectId = req.query.projectId as string | undefined
             const planId = req.query.planId as string | undefined
             const status = req.query.status as string | undefined
@@ -122,9 +125,9 @@ export function startServer(apiToken: string, port: number = 3030) {
     })
 
     // ── GET /api/testcases/:displayId ── find by display ID (e.g. TC-001) ──────
-    server.get('/api/testcases/:displayId', (req: any, res: any) => {
+    server.get('/api/testcases/:displayId', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
+            const projects = await readProjects()
             const displayId = req.params.displayId
 
             for (const project of projects) {
@@ -142,7 +145,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     })
 
     // ── POST /api/results ── submit a single test execution result ───────────
-    server.post('/api/results', (req: any, res: any) => {
+    server.post('/api/results', async (req: any, res: any) => {
         const { displayId, status, actualResult, notes } = req.body
 
         if (!displayId || !status) {
@@ -155,7 +158,7 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
 
         try {
-            const projects = readProjects()
+            const projects = await readProjects()
             let found = false
 
             for (const project of projects) {
@@ -187,7 +190,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
             if (!found) return res.status(404).json({ error: `Test case '${displayId}' not found.` })
 
-            writeProjects(projects)
+            await writeProjects(projects)
             res.json({ success: true, message: `Result recorded for ${displayId}` })
         } catch (e: any) {
             res.status(500).json({ error: 'Failed to record result.', detail: e.message })
@@ -195,7 +198,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     })
 
     // ── POST /api/results/batch ── submit multiple results at once ───────────
-    server.post('/api/results/batch', (req: any, res: any) => {
+    server.post('/api/results/batch', async (req: any, res: any) => {
         const results: any[] = req.body?.results
 
         if (!Array.isArray(results) || results.length === 0) {
@@ -203,7 +206,7 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
 
         try {
-            const projects = readProjects()
+            const projects = await readProjects()
             const summary: any[] = []
 
             for (const item of results) {
@@ -243,7 +246,7 @@ export function startServer(apiToken: string, port: number = 3030) {
                 summary.push({ displayId, success: found, error: found ? undefined : 'Not found' })
             }
 
-            writeProjects(projects)
+            await writeProjects(projects)
             res.json({ success: true, results: summary })
         } catch (e: any) {
             res.status(500).json({ error: 'Batch operation failed.', detail: e.message })
@@ -251,9 +254,9 @@ export function startServer(apiToken: string, port: number = 3030) {
     })
 
     // ── GET /api/executions ── list executions with optional filtering ───────
-    server.get('/api/executions', (req: any, res: any) => {
+    server.get('/api/executions', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
+            const projects = await readProjects()
             const projectId = req.query.projectId as string | undefined
             const limit = parseInt(req.query.limit as string || '100', 10)
 
