@@ -33,15 +33,7 @@ jobs:
           DEBUG: electron-builder
         run: |
           if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            npm run build:mac || {
-              echo "================ FATAL ERROR ================"
-              echo "Checking if electron-vite actually built the 'out' folder:"
-              ls -laR out/ || echo "no out folder exists!"
-              echo "Checking if app.asar exists and what is inside it:"
-              npx asar list dist/mac-arm64/QAssistant.app/Contents/Resources/app.asar || true
-              npx asar list dist/mac/QAssistant.app/Contents/Resources/app.asar || true
-              exit 1
-            }
+            npm run build:mac
           else
             npm run build:win
           fi
@@ -58,4 +50,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: QAssistant-${{ matrix.os }}
-          path: dist/*.{dmg,zip,exe,msi,blockmap}
+          path: dist/**/*.{dmg,zip,exe,msi,blockmap}
