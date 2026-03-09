@@ -22,7 +22,7 @@ mac:
         - x64
         - arm64
   category: public.app-category.developer-tools
-  icon: src/assets/tray-icon.png # Temporary: electron-builder will try to convert or user can provide better icon later
+  # icon: src/assets/tray-icon.png # Temporary: electron-builder will try to convert or user can provide better icon later
   darkModeSupport: true
   type: distribution
 
@@ -40,7 +40,7 @@ win:
     - target: nsis
       arch:
         - x64
-  icon: src/assets/tray-icon.png
+  # icon: src/assets/tray-icon.png
 
 nsis:
   oneClick: false
