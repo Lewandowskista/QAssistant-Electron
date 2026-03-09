@@ -1,50 +1,54 @@
-import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
-import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
 export default defineConfig({
-    main: {
-        plugins: [externalizeDepsPlugin()],
-        build: {
-            lib: {
-                entry: resolve(__dirname, 'electron/main.ts'),
-                formats: ['es']
-            },
-            rollupOptions: {
-                output: {
-                    format: 'es'
-                }
-            }
+  main: {
+    plugins: [
+      externalizeDepsPlugin()
+    ],
+    build: {
+      lib: {
+        entry: resolve(__dirname, 'electron/main.ts'),
+        formats: ['cjs']
+      },
+      rollupOptions: {
+        external: ['electron'],
+        output: {
+          entryFileNames: '[name].js',
+          chunkFileNames: '[name]-[hash].js'
         }
-    },
-    preload: {
-        plugins: [externalizeDepsPlugin()],
-        build: {
-            lib: {
-                entry: resolve(__dirname, 'electron/preload.ts'),
-                formats: ['es']
-            },
-            rollupOptions: {
-                output: {
-                    format: 'es'
-                }
-            }
-        }
-    },
-    renderer: {
-        root: resolve(__dirname, 'src'),
-        build: {
-            rollupOptions: {
-                input: {
-                    index: resolve(__dirname, 'src/index.html')
-                }
-            }
-        },
-        resolve: {
-            alias: {
-                '@': resolve(__dirname, 'src')
-            }
-        },
-        plugins: [react()]
+      }
     }
+  },
+  preload: {
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      lib: {
+        entry: resolve(__dirname, 'electron/preload.ts'),
+        formats: ['cjs']
+      },
+      rollupOptions: {
+        output: {
+          entryFileNames: '[name].js',
+          chunkFileNames: '[name]-[hash].js'
+        }
+      }
+    }
+  },
+  renderer: {
+    root: resolve(__dirname, 'src'),
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/index.html')
+        }
+      }
+    },
+    resolve: {
+      alias: {
+        '@renderer': resolve(__dirname, 'src'),
+        '@': resolve(__dirname, 'src')
+      }
+    }
+  }
 })
