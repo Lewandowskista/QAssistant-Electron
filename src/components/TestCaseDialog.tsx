@@ -178,7 +178,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                     />
                                     {previewField === 'pre' && (
                                         <div className="bg-background/50 rounded-md p-3 min-h-[100px] border border-input text-sm">
-                                            <FormattedText content={form.preConditions} />
+                                            <FormattedText content={form.preConditions} projectId={activeProjectId || undefined} source={activePlan?.source} />
                                         </div>
                                     )}
                                     <Button
@@ -207,7 +207,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                     />
                                     {previewField === 'data' && (
                                         <div className="bg-background/50 rounded-md p-3 min-h-[100px] border border-input text-sm">
-                                            <FormattedText content={form.testData} />
+                                            <FormattedText content={form.testData} projectId={activeProjectId || undefined} source={activePlan?.source} />
                                         </div>
                                     )}
                                     <Button
@@ -237,7 +237,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                             />
                             {previewField === 'steps' && (
                                 <div className="bg-background/50 rounded-md p-3 min-h-[120px] border border-input text-sm">
-                                    <FormattedText content={form.steps} />
+                                    <FormattedText content={form.steps} projectId={activeProjectId || undefined} source={activePlan?.source} />
                                 </div>
                             )}
                             <Button

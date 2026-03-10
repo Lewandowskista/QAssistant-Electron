@@ -1,3 +1,4 @@
+import { useState, useMemo, useEffect } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import {
     LayoutDashboard,
@@ -13,12 +14,93 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import FormattedText from "@/components/FormattedText"
-// import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 
 export default function DashboardPage() {
     const { projects, activeProjectId } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
+    const [selectedSprint, setSelectedSprint] = useState<string>('all')
+
+    const tasks = useMemo(() => activeProject?.tasks || [], [activeProject])
+
+    // Derive available sprints
+    const availableSprints = useMemo(() => {
+        const sprintNames = new Set<string>()
+        tasks.forEach(t => {
+            if (t.sprint?.name) sprintNames.add(t.sprint.name)
+        })
+        return Array.from(sprintNames).sort()
+    }, [tasks])
+
+    // Set default sprint to the active one on first load or project change
+    useEffect(() => {
+        if (activeProject && tasks.length > 0) {
+            const activeSprint = tasks.find(t => t.sprint?.isActive)?.sprint?.name
+            if (activeSprint) {
+                setSelectedSprint(activeSprint)
+            } else {
+                setSelectedSprint('all')
+            }
+        }
+    }, [activeProjectId, tasks.length > 0, activeProject])
+
+    // MOVE ALL HOOKS ABOVE THE EARLY RETURN
+    const filteredTasks = useMemo(() => {
+        if (selectedSprint === 'all') return tasks
+        return tasks.filter(t => t.sprint?.name === selectedSprint)
+    }, [tasks, selectedSprint])
+
+    const testPlans = useMemo(() => activeProject?.testPlans || [], [activeProject])
+    const allTestCases = useMemo(() => testPlans.flatMap(p => p.testCases || []), [testPlans])
+    
+    // Status classification logic
+    const currentColumns = useMemo(() => {
+        if (activeProject?.columns && activeProject.columns.length > 0) return activeProject.columns
+        return [
+            { id: 'backlog', title: 'BACKLOG', type: 'backlog' },
+            { id: 'todo', title: 'TODO', type: 'unstarted' },
+            { id: 'in-progress', title: 'IN PROGRESS', type: 'started' },
+            { id: 'in-review', title: 'IN REVIEW', type: 'started' },
+            { id: 'done', title: 'DONE', type: 'completed' },
+            { id: 'canceled', title: 'CANCELED', type: 'canceled' },
+        ]
+    }, [activeProject?.columns])
+
+    const statusMap = useMemo(() => {
+        const map: Record<string, { label: string, color: string, count: number }> = {}
+        currentColumns.forEach(col => {
+            map[col.id] = {
+                label: col.title,
+                color: col.color || 'bg-zinc-500',
+                count: 0
+            }
+        })
+
+        filteredTasks.forEach(t => {
+            const s = t.status || 'todo'
+            if (map[s]) {
+                map[s].count++
+            }
+        })
+        return map
+    }, [currentColumns, filteredTasks])
+
+    const statusesForBreakdown = useMemo(() => Object.values(statusMap), [statusMap])
+
+    const recentTestPlans = useMemo(() => {
+        return testPlans
+            .filter(p => !p.isArchived)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 5)
+    }, [testPlans])
 
     if (!activeProject) {
         return (
@@ -43,16 +125,17 @@ export default function DashboardPage() {
         )
     }
 
-    const tasks = activeProject.tasks || []
-    const testPlans = activeProject.testPlans || []
-    const allTestCases = testPlans.flatMap(p => p.testCases || [])
     const notes = (activeProject.notes || []).slice(0, 5)
     const checklists = (activeProject.checklists || []).slice(0, 5)
 
-    const openStatuses = ['backlog', 'todo', 'in-progress', 'in-review']
+    const closedTypes = ['completed', 'canceled']
+    const isClosed = (status: string) => {
+        const col = currentColumns.find(c => c.id === status)
+        return col ? closedTypes.includes(col.type || '') : status.toLowerCase() === 'done' || status.toLowerCase() === 'canceled'
+    }
 
-    // Metrics calculations
-    const openTasks = tasks.filter(t => openStatuses.includes(t.status || 'todo'))
+    // Metrics calculations (using filteredTasks)
+    const openTasks = filteredTasks.filter(t => !isClosed(t.status || 'todo'))
     const openTasksCount = openTasks.length
     const criticalBlockersCount = openTasks.filter(t => t.priority === 'critical').length
 
@@ -70,36 +153,37 @@ export default function DashboardPage() {
 
     const overdueCount = openTasks.filter(t => t.dueDate && new Date(t.dueDate) < now).length
 
-    // Status mapping for breakdown
-    const statusMap: Record<string, { label: string, color: string, count: number }> = {
-        'backlog': { label: 'Backlog', color: 'bg-zinc-500', count: 0 },
-        'todo': { label: 'Todo', color: 'bg-[#3B82F6]', count: 0 },
-        'in-progress': { label: 'In Progress', color: 'bg-[#F59E0B]', count: 0 },
-        'in-review': { label: 'In Review', color: 'bg-[#A78BFA]', count: 0 },
-        'done': { label: 'Done', color: 'bg-[#10B981]', count: 0 },
-        'canceled': { label: 'Canceled', color: 'bg-[#EF4444]', count: 0 },
-    }
-
-    tasks.forEach(t => {
-        if (statusMap[t.status || 'todo']) {
-            statusMap[t.status || 'todo'].count++
-        }
-    })
-
-    const statusesForBreakdown = Object.values(statusMap)
-
-    const recentTestPlans = testPlans
-        .filter(p => !p.isArchived)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 5)
-
     return (
         <div className="space-y-6 max-w-[1600px] animate-in fade-in duration-500 pb-10">
             {/* Header */}
-            <header className="space-y-1">
-                <p className="text-[9px] font-bold text-[#6B7280] tracking-[0.2em] uppercase">PROJECT OVERVIEW</p>
-                <h1 className="text-2xl font-semibold text-[#E2E8F0] tracking-tight">{activeProject.name}</h1>
-                <p className="text-xs text-[#6B7280] font-medium">Project Dashboard</p>
+            <header className="flex items-center justify-between border-b border-[#2A2A3A] pb-4 mb-2">
+                <div className="space-y-1">
+                    <p className="text-[9px] font-bold text-[#6B7280] tracking-[0.2em] uppercase">PROJECT OVERVIEW</p>
+                    <h1 className="text-2xl font-semibold text-[#E2E8F0] tracking-tight">{activeProject.name}</h1>
+                    <p className="text-xs text-[#6B7280] font-medium">Project Dashboard</p>
+                </div>
+                
+                {availableSprints.length > 0 && (
+                    <div className="flex items-center gap-3">
+                        <Label className="text-[10px] uppercase font-bold text-[#6B7280] tracking-wider">Sprint Context</Label>
+                        <Select value={selectedSprint} onValueChange={setSelectedSprint}>
+                            <SelectTrigger className="w-[200px] h-9 bg-[#13131A] border-[#2A2A3A] text-xs font-semibold rounded-lg focus:ring-[#A78BFA]/20">
+                                <SelectValue placeholder="Select Sprint" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#13131A] border-[#2A2A3A] text-[#E2E8F0] z-50">
+                                <SelectItem value="all" className="text-xs">All Issues</SelectItem>
+                                {availableSprints.map(name => {
+                                    const sprint = tasks.find(t => t.sprint?.name === name)?.sprint
+                                    return (
+                                        <SelectItem key={name} value={name} className="text-xs">
+                                            {name} {sprint?.isActive ? '(ACTIVE)' : ''}
+                                        </SelectItem>
+                                    )
+                                })}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
             </header>
 
             {/* Metrics List (MetricCardsRow) */}
@@ -165,7 +249,8 @@ export default function DashboardPage() {
                         <div className="h-2 w-full bg-[#1A1A24] rounded-full overflow-hidden flex shadow-inner">
                             {statusesForBreakdown.map(s => {
                                 if (s.count === 0) return null;
-                                const pct = (s.count / tasks.length) * 100;
+                                const total = filteredTasks.length > 0 ? filteredTasks.length : 1;
+                                const pct = (s.count / total) * 100;
                                 return (
                                     <div
                                         key={s.label}
@@ -196,12 +281,12 @@ export default function DashboardPage() {
                     <div className="space-y-2.5">
                         {upcomingTasks.length > 0 ? (
                             upcomingTasks.map(t => {
-                                const daysLeft = Math.ceil((new Date(t.dueDate!).getTime() - now.getTime()) / (1000 * 3600 * 24))
+                                const daysLeft = t.dueDate ? Math.ceil((new Date(t.dueDate).getTime() - now.getTime()) / (1000 * 3600 * 24)) : 0
                                 const dueLabel = daysLeft === 0 ? "Today" : daysLeft === 1 ? "Tomorrow" : `in ${daysLeft} days`
                                 return (
                                     <div key={t.id} className="flex items-center justify-between group">
                                         <span className="text-xs font-medium text-[#E2E8F0] truncate flex-1 group-hover:text-[#A78BFA] transition-colors">
-                                            <FormattedText content={t.title} />
+                                            <FormattedText content={t.title} projectId={activeProjectId || undefined} />
                                         </span>
                                         <span className={cn(
                                             "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
@@ -236,7 +321,7 @@ export default function DashboardPage() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="text-xs font-bold text-[#E2E8F0] truncate">
-                                            <FormattedText content={plan.name} />
+                                            <FormattedText content={plan.name} projectId={activeProjectId || undefined} />
                                         </div>
                                         <p className="text-[10px] text-[#6B7280] font-bold uppercase tracking-wider">{cases.length} Cases • {planPassRate}% Pass</p>
                                     </div>
@@ -260,7 +345,7 @@ export default function DashboardPage() {
                                 <div key={note.id} className="flex items-center gap-2 group cursor-pointer">
                                     <FileText className="h-3 w-3 text-[#A78BFA]" />
                                     <span className="text-xs text-[#6B7280] group-hover:text-[#E2E8F0] truncate transition-colors">
-                                        <FormattedText content={note.title} />
+                                        <FormattedText content={note.title} projectId={activeProjectId || undefined} />
                                     </span>
                                 </div>
                             )) : (
@@ -275,7 +360,7 @@ export default function DashboardPage() {
                                 <div key={checklist.id} className="flex items-center gap-2 group cursor-pointer">
                                     <ListChecks className="h-3 w-3 text-[#10B981]" />
                                     <span className="text-xs text-[#6B7280] group-hover:text-[#E2E8F0] truncate transition-colors font-semibold">
-                                        <FormattedText content={checklist.name} />
+                                        <FormattedText content={checklist.name} projectId={activeProjectId || undefined} />
                                     </span>
                                 </div>
                             )) : (

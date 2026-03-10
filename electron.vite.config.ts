@@ -41,6 +41,11 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/index.html')
+        },
+        onwarn(warning, warn) {
+          if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return
+          if (warning.message.includes("Can't resolve original location of error")) return
+          warn(warning)
         }
       }
     },

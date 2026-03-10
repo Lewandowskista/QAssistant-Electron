@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 function generateId() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return generateId();
+        return crypto.randomUUID();
     }
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -12,7 +12,7 @@ function generateId() {
 
 
 
-export type TaskStatus = 'backlog' | 'todo' | 'in-progress' | 'in-review' | 'done' | 'canceled' | 'duplicate'
+export type TaskStatus = string
 
 export type TestCaseStatus = 'passed' | 'failed' | 'blocked' | 'skipped' | 'not-run'
 
@@ -122,6 +122,12 @@ export type Task = {
     connectionId?: string
     attachmentUrls?: string[]
     analysisHistory?: AnalysisEntry[]
+    sprint?: {
+        name: string
+        isActive: boolean
+        startDate?: number
+        endDate?: number
+    }
     createdAt: number
     updatedAt: number
 }
@@ -271,6 +277,7 @@ export type Project = {
     jiraConnection?: { domain: string; email: string; projectKey: string }
     
     geminiModel?: string
+    columns?: { id: string, title: string, color?: string, textColor?: string, type?: string }[]
 }
 
 interface ProjectState {
@@ -406,6 +413,7 @@ declare global {
             addJiraComment: (args: { domain: string, email: string, apiKey: string, issueKey: string, body: string, connectionId?: string }) => Promise<{ success: boolean }>
             transitionJiraIssue: (args: { domain: string, email: string, apiKey: string, issueKey: string, transitionName: string, connectionId?: string }) => Promise<{ success: boolean }>
             getJiraHistory: (args: { domain: string, email: string, apiKey: string, issueKey: string, connectionId?: string }) => Promise<any[]>
+            getJiraStatuses: (args: { domain: string, email: string, apiKey: string, projectKey: string, connectionId?: string }) => Promise<any[]>
             createJiraIssue: (args: { domain: string, email: string, apiKey: string, projectKey: string, title: string, description: string, issueTypeName?: string, connectionId?: string }) => Promise<string | null>
             // AI / Gemini
             aiGenerateCases: (args: { apiKey: string, tasks: any[], sourceName?: string, project?: any, designDoc?: any, modelName?: string }) => Promise<any[]>

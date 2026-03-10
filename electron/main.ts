@@ -44,7 +44,13 @@ const electron = (function() {
     return require('electron'); 
 })();
 
-const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu } = electron || {};
+const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, protocol } = electron || {};
+
+if (protocol) {
+    protocol.registerSchemesAsPrivileged([
+        { scheme: 'q-media', privileges: { secure: true, standard: true, supportFetchAPI: true, bypassCSP: true, stream: true, corsEnabled: true } }
+    ]);
+}
 
 if (app) {
     const _cacheRunId = `${Date.now().toString(36)}-${process.pid}-${Math.floor(Math.random() * 0x100000).toString(36)}`;
@@ -115,15 +121,15 @@ if (app) {
 
         // SECURITY: Prevent window from navigating away from the app
         mainWindow.webContents.on('will-navigate', (event: any, url: string) => {
-            if (process.env.VITE_DEV_SERVER_URL && url.startsWith(process.env.VITE_DEV_SERVER_URL)) return;
+            if (process.env['ELECTRON_RENDERER_URL'] && url.startsWith(process.env['ELECTRON_RENDERER_URL'])) return;
             if (!url.startsWith('file://')) {
                 event.preventDefault();
                 console.warn('Blocked main window navigation to:', url);
             }
         });
 
-        if (process.env.VITE_DEV_SERVER_URL) {
-            mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+        if (process.env['ELECTRON_RENDERER_URL']) {
+            mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
         } else {
             mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
         }
@@ -234,7 +240,15 @@ if (app) {
                 return { success: false, error: e.message }; 
             } 
         });
-        ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName }: any) => { const s = new GeminiService(apiKey); return await s.generateTestCases(tasks, sourceName, project, designDoc, modelName); });
+        ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName }: any) => { 
+            const s = new GeminiService(apiKey); 
+            try {
+                return await s.generateTestCases(tasks, sourceName, project, designDoc, modelName); 
+            } catch (err: any) {
+                // Return a flat wrapper to the IPC boundary to safely cross context bridges without native cloning recursion
+                return { __isError: true, message: String(err) };
+            }
+        });
         ipcMain.handle('automation-api-start', async (_e: any, { apiKey, port }: any) => startServer(apiKey, port));
         ipcMain.handle('automation-api-stop', () => stopServer());
         ipcMain.handle('automation-api-restart', async (_e: any, { apiKey, port }: any) => { stopServer(); return startServer(apiKey, port); });
@@ -293,12 +307,30 @@ if (app) {
                 else { shell.showItemInFolder(filePath); }
             }
         });
-        ipcMain.handle('ai-list-models', async (_e: any, { apiKey }: any) => { const s = new GeminiService(apiKey); return await s.listAvailableModels(); });
-        ipcMain.handle('ai-analyze-issue', async (_e: any, { apiKey, task, comments, project, modelName }: any) => { const s = new GeminiService(apiKey); return await s.analyzeIssue(task, comments, project, 0, modelName); });
-        ipcMain.handle('ai-analyze', async (_e: any, { apiKey, context, project, modelName }: any) => { const s = new GeminiService(apiKey); return await s.analyzeProject(context, project, modelName); });
-        ipcMain.handle('ai-criticality', async (_e: any, { apiKey, tasks, testPlans, executions, project, modelName }: any) => { const s = new GeminiService(apiKey); return await s.assessCriticality(tasks, testPlans, executions, project, modelName); });
-        ipcMain.handle('ai-test-run-suggestions', async (_e: any, { apiKey, testPlans, executions, project, modelName }: any) => { const s = new GeminiService(apiKey); return await s.getTestRunSuggestions(testPlans, executions, project, modelName); });
-        ipcMain.handle('ai-smoke-subset', async (_e: any, { apiKey, candidates, doneTasks, project, modelName }: any) => { const s = new GeminiService(apiKey); return await s.selectSmokeSubset(candidates, doneTasks, project, modelName); });
+        ipcMain.handle('ai-list-models', async (_e: any, { apiKey }: any) => { 
+            try { return await new GeminiService(apiKey).listAvailableModels(); } 
+            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        });
+        ipcMain.handle('ai-analyze-issue', async (_e: any, { apiKey, task, comments, project, modelName }: any) => { 
+            try { return await new GeminiService(apiKey).analyzeIssue(task, comments, project, 0, modelName); } 
+            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        });
+        ipcMain.handle('ai-analyze', async (_e: any, { apiKey, context, project, modelName }: any) => { 
+            try { return await new GeminiService(apiKey).analyzeProject(context, project, modelName); } 
+            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        });
+        ipcMain.handle('ai-criticality', async (_e: any, { apiKey, tasks, testPlans, executions, project, modelName }: any) => { 
+            try { return await new GeminiService(apiKey).assessCriticality(tasks, testPlans, executions, project, modelName); } 
+            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        });
+        ipcMain.handle('ai-test-run-suggestions', async (_e: any, { apiKey, testPlans, executions, project, modelName }: any) => { 
+            try { return await new GeminiService(apiKey).getTestRunSuggestions(testPlans, executions, project, modelName); } 
+            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        });
+        ipcMain.handle('ai-smoke-subset', async (_e: any, { apiKey, candidates, doneTasks, project, modelName }: any) => { 
+            try { return await new GeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName); } 
+            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        });
         
         // Report Handlers
         ipcMain.handle('generate-test-cases-csv', (_e: any, { project: p }: any) => report.generateTestCasesCsv(p));
@@ -340,19 +372,20 @@ if (app) {
 
         // Integration Handlers
         ipcMain.handle('sync-linear', async (_e: any, { apiKey, teamKey, connectionId }: any) => await integrations.fetchLinearIssues(apiKey, teamKey, connectionId));
-        ipcMain.handle('get-linear-comments', async (_e: any, { apiKey, issueId, connectionId }: any) => await integrations.getLinearComments(apiKey, issueId));
-        ipcMain.handle('add-linear-comment', async (_e: any, { apiKey, issueId, body, connectionId }: any) => { await integrations.addLinearComment(apiKey, issueId, body); return { success: true }; });
-        ipcMain.handle('get-linear-workflow-states', async (_e: any, { apiKey, connectionId }: any) => await integrations.getLinearWorkflowStates(apiKey));
-        ipcMain.handle('update-linear-status', async (_e: any, { apiKey, issueId, stateId, connectionId }: any) => { await integrations.updateLinearIssueStatus(apiKey, issueId, stateId); return { success: true }; });
-        ipcMain.handle('get-linear-history', async (_e: any, { apiKey, issueId, connectionId }: any) => await integrations.getLinearIssueHistory(apiKey, issueId));
-        ipcMain.handle('create-linear-issue', async (_e: any, { apiKey, teamId, title, description, priority, connectionId }: any) => await integrations.createLinearIssue(apiKey, teamId, title, description, priority));
+        ipcMain.handle('get-linear-comments', async (_e: any, { apiKey, issueId }: any) => await integrations.getLinearComments(apiKey, issueId));
+        ipcMain.handle('add-linear-comment', async (_e: any, { apiKey, issueId, body }: any) => { await integrations.addLinearComment(apiKey, issueId, body); return { success: true }; });
+        ipcMain.handle('get-linear-workflow-states', async (_e: any, { apiKey }: any) => await integrations.getLinearWorkflowStates(apiKey));
+        ipcMain.handle('update-linear-status', async (_e: any, { apiKey, issueId, stateId }: any) => { await integrations.updateLinearIssueStatus(apiKey, issueId, stateId); return { success: true }; });
+        ipcMain.handle('get-linear-history', async (_e: any, { apiKey, issueId }: any) => await integrations.getLinearIssueHistory(apiKey, issueId));
+        ipcMain.handle('create-linear-issue', async (_e: any, { apiKey, teamId, title, description, priority }: any) => await integrations.createLinearIssue(apiKey, teamId, title, description, priority));
         
         ipcMain.handle('sync-jira', async (_e: any, { domain, email, apiKey, projectKey, connectionId }: any) => await integrations.fetchJiraIssues(domain, email, apiKey, projectKey, connectionId));
-        ipcMain.handle('get-jira-comments', async (_e: any, { domain, email, apiKey, issueKey, connectionId }: any) => await integrations.getJiraComments(domain, email, apiKey, issueKey));
-        ipcMain.handle('add-jira-comment', async (_e: any, { domain, email, apiKey, issueKey, body, connectionId }: any) => { await integrations.addJiraComment(domain, email, apiKey, issueKey, body); return { success: true }; });
-        ipcMain.handle('transition-jira-issue', async (_e: any, { domain, email, apiKey, issueKey, transitionName, connectionId }: any) => { await integrations.transitionJiraIssue(domain, email, apiKey, issueKey, transitionName); return { success: true }; });
-        ipcMain.handle('get-jira-history', async (_e: any, { domain, email, apiKey, issueKey, connectionId }: any) => await integrations.getJiraIssueHistory(domain, email, apiKey, issueKey));
-        ipcMain.handle('create-jira-issue', async (_e: any, { domain, email, apiKey, projectKey, title, description, issueTypeName, connectionId }: any) => await integrations.createJiraIssue(domain, email, apiKey, projectKey, title, description, issueTypeName));
+        ipcMain.handle('get-jira-comments', async (_e: any, { domain, email, apiKey, issueKey }: any) => await integrations.getJiraComments(domain, email, apiKey, issueKey));
+        ipcMain.handle('add-jira-comment', async (_e: any, { domain, email, apiKey, issueKey, body }: any) => { await integrations.addJiraComment(domain, email, apiKey, issueKey, body); return { success: true }; });
+        ipcMain.handle('transition-jira-issue', async (_e: any, { domain, email, apiKey, issueKey, transitionName }: any) => { await integrations.transitionJiraIssue(domain, email, apiKey, issueKey, transitionName); return { success: true }; });
+        ipcMain.handle('get-jira-history', async (_e: any, { domain, email, apiKey, issueKey }: any) => await integrations.getJiraIssueHistory(domain, email, apiKey, issueKey));
+        ipcMain.handle('get-jira-statuses', async (_e: any, { domain, email, apiKey, projectKey }: any) => await integrations.getJiraStatuses(domain, email, apiKey, projectKey));
+        ipcMain.handle('create-jira-issue', async (_e: any, { domain, email, apiKey, projectKey, title, description, issueTypeName }: any) => await integrations.createJiraIssue(domain, email, apiKey, projectKey, title, description, issueTypeName));
 
         ipcMain.handle('get-system-info', () => ({ platform: process.platform }));
         ipcMain.handle('get-app-version', () => app.getVersion());
@@ -396,6 +429,46 @@ if (app) {
     }
 
     app.whenReady().then(async () => {
+        // Register q-media protocol
+        if (protocol) {
+            protocol.handle('q-media', async (request: Request) => {
+                const url = new URL(request.url);
+                const source = url.hostname; // 'jira' or 'linear'
+                const pathParts = url.pathname.split('/').filter(Boolean);
+                
+                // New URL format: q-media://source/projectId/connectionId/encodedUrl
+                // Old URL format: q-media://source/connectionId/encodedUrl
+                
+                let projectId: string | undefined;
+                let connectionId: string | undefined;
+                let encodedUrl: string;
+
+                if (pathParts.length >= 3) {
+                    projectId = pathParts[0] === 'none' ? undefined : pathParts[0];
+                    connectionId = pathParts[1] === 'none' ? undefined : pathParts[1];
+                    encodedUrl = pathParts[2];
+                } else {
+                    connectionId = pathParts[0] === 'none' ? undefined : pathParts[0];
+                    encodedUrl = pathParts[1];
+                }
+
+                if (!encodedUrl) return new Response(null, { status: 400 });
+
+                try {
+                    // Node 16+ supports 'base64url' directly in Buffer.from
+                    const decodedUrl = Buffer.from(encodedUrl, 'base64url' as any).toString('utf8');
+                    const { data, mimeType } = await integrations.fetchAuthenticatedMedia(decodedUrl, source, connectionId, projectId);
+
+                    return new Response(data, {
+                        headers: { 'Content-Type': mimeType }
+                    });
+                } catch (e) {
+                    console.error('[q-media] Failed to fetch:', e);
+                    return new Response(null, { status: 500 });
+                }
+            });
+        }
+
         APP_DATA_DIR = path.join(app.getPath('userData'), 'QAssistantData');
         PROJECTS_FILE = path.join(APP_DATA_DIR, 'projects.json');
         CREDENTIALS_FILE = path.join(APP_DATA_DIR, 'credentials.json');

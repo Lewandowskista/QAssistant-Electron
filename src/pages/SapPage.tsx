@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { CronJobEntry, FlexibleSearchResult } from "@/lib/sapHac"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
     Select,
     SelectContent,
@@ -136,7 +137,7 @@ export default function SapPage() {
 
     const handleConnect = async () => {
         if (!hacBaseUrl || !hacUser || !hacPass) {
-            alert('Please enter HAC URL, username and password.');
+            toast.error('Please enter HAC URL, username and password.');
             return;
         }
         setIsConnecting(true);
@@ -149,11 +150,12 @@ export default function SapPage() {
                     await api.secureStoreSet(`sapHac:${hacBaseUrl}`, JSON.stringify({ user: hacUser, pass: hacPass }));
                 } catch { }
                 await fetchCronJobs();
+                toast.success('Successfully connected to HAC.');
             } else {
-                alert('Login failed: ' + (res.error || 'unknown'));
+                toast.error('Login failed: ' + (res.error || 'unknown'));
             }
         } catch (e: any) {
-            alert('Login error: ' + e.message);
+            toast.error('Login error: ' + e.message);
         } finally {
             setIsConnecting(false);
         }
@@ -244,11 +246,12 @@ export default function SapPage() {
             const res = await api.sapHacGetCatalogSyncDiff(hacBaseUrl, selectedCatalog, 200)
             if (res.success && res.data) {
                 setCatalogDiff(res.data)
+                toast.success('Catalog delta computed successfully.');
             } else {
-                alert('Diff failed: ' + res.error)
+                toast.error('Diff failed: ' + res.error)
             }
         } catch (e: any) {
-            alert('Error: ' + e.message)
+            toast.error('Error: ' + e.message)
         } finally {
             setCatalogDiffLoading(false)
         }
@@ -753,23 +756,23 @@ export default function SapPage() {
                                     </div>
                                 )}
                                 {ccv2Deployments.length > 0 && (
-                                    <div className="mt-2 overflow-auto max-h-40 border border-[#2A2A3A]">
-                                        <table className="w-full text-xs">
-                                            <thead className="bg-[#13131A]"><tr>
-                                                <th className="px-2 py-1">Code</th>
-                                                <th className="px-2 py-1">Env</th>
-                                                <th className="px-2 py-1">Build</th>
-                                                <th className="px-2 py-1">Status</th>
-                                                <th className="px-2 py-1">Strategy</th>
+                                    <div className="mt-2 overflow-auto max-h-40 border border-[#2A2A3A] rounded-lg">
+                                        <table className="w-full text-xs text-left">
+                                            <thead className="bg-[#13131A] text-[#6B7280] font-black tracking-widest uppercase"><tr>
+                                                <th className="px-4 py-2">Code</th>
+                                                <th className="px-4 py-2">Env</th>
+                                                <th className="px-4 py-2">Build</th>
+                                                <th className="px-4 py-2">Status</th>
+                                                <th className="px-4 py-2">Strategy</th>
                                             </tr></thead>
-                                            <tbody>
+                                            <tbody className="text-[#E2E8F0] font-medium font-mono">
                                                 {ccv2Deployments.map((d, i) => (
-                                                    <tr key={i} className="hover:bg-[#1A1A24]">
-                                                        <td className="px-2 py-1">{d.code}</td>
-                                                        <td className="px-2 py-1">{d.environmentCode}</td>
-                                                        <td className="px-2 py-1">{d.buildCode}</td>
-                                                        <td className="px-2 py-1">{d.status}</td>
-                                                        <td className="px-2 py-1">{d.strategy}</td>
+                                                    <tr key={i} className="hover:bg-[#1A1A24] border-b border-[#2A2A3A] transition-colors">
+                                                        <td className="px-4 py-2 border-r border-[#2A2A3A]">{d.code}</td>
+                                                        <td className="px-4 py-2 border-r border-[#2A2A3A]">{d.environmentCode}</td>
+                                                        <td className="px-4 py-2 border-r border-[#2A2A3A]">{d.buildCode}</td>
+                                                        <td className="px-4 py-2 border-r border-[#2A2A3A]">{d.status}</td>
+                                                        <td className="px-4 py-2">{d.strategy}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>

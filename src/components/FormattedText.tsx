@@ -7,10 +7,27 @@ interface FormattedTextProps {
     content: any
     className?: string
     compact?: boolean
+    source?: string
+    connectionId?: string
+    projectId?: string
 }
 
-export default function FormattedText({ content, className, compact = false }: FormattedTextProps) {
+export default function FormattedText({ content, className, compact = false, source, connectionId, projectId }: FormattedTextProps) {
     if (!content) return null
+
+    const proxifyMediaUrl = (url: string) => {
+        if (!url || !source || source === 'manual') return url;
+        if (!url.startsWith('http')) return url;
+        
+        const projId = projectId || 'none';
+        const connId = connectionId || 'none';
+        // Base64Url encoding with Unicode support
+        const encodedUrl = btoa(unescape(encodeURIComponent(url)))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, ''); 
+        return `q-media://${source}/${projId}/${connId}/${encodedUrl}`;
+    };
 
     // Helper to safely handle object content by stringifying it
     const getRenderableContent = (val: any): string => {
@@ -47,6 +64,20 @@ export default function FormattedText({ content, className, compact = false }: F
                     thead: ({ node, ...props }) => <thead className="bg-[#1A1A24] text-[#A78BFA] font-bold" {...props} />,
                     th: ({ node, ...props }) => <th className="px-4 py-2 border-b border-[#2A2A3A]" {...props} />,
                     td: ({ node, ...props }) => <td className="px-4 py-2 border-b border-[#2A2A3A] text-[#E2E8F0]/80" {...props} />,
+                    img: ({ node, src, alt, ...props }) => (
+                        <img 
+                            src={proxifyMediaUrl(src || '')} 
+                            alt={alt || ''} 
+                            className="rounded-lg border border-[#2A2A3A] max-w-full my-4" 
+                            onError={(e) => {
+                                const img = e.currentTarget;
+                                if (img.src !== src) {
+                                    img.src = src || '';
+                                }
+                            }}
+                            {...props} 
+                        />
+                    ),
                     code: ({ node, className, children, ...props }: any) => {
                         const match = /language-(\w+)/.exec(className || '')
                         return !match ? (

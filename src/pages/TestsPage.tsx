@@ -238,7 +238,16 @@ export default function TestsPage() {
         
         setIsGenerating(true)
         try {
-            const ids = await api.aiSmokeSubset({ apiKey, candidates: allCases, doneTasks, project: activeProject, modelName: activeProject.geminiModel })
+            const sanitizedProject = activeProject ? { 
+                name: activeProject.name,
+                description: activeProject.description, 
+                environments: activeProject.environments, 
+                testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })),
+                testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
+                checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
+            } : undefined;
+
+            const ids = await api.aiSmokeSubset({ apiKey, candidates: allCases, doneTasks, project: sanitizedProject, modelName: activeProject.geminiModel })
             setSmokeSubsetCaseIds(ids || [])
             if (!ids || ids.length === 0) {
                 alert('No specific smoke tests could be confidently identified.')
@@ -277,7 +286,30 @@ export default function TestsPage() {
 
         setIsGenerating(true)
         try {
-            const cases = await api.aiGenerateCases({ apiKey, tasks: tasksToUse, sourceName: source, project: activeProject, designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
+            // Strip out massive unstructured objects from project before sending it over IPC
+            // The IPC bridge uses structured cloning which crashes deeply nested/circular json arrays.
+            const sanitizedProject = activeProject ? { 
+                name: activeProject.name,
+                description: activeProject.description, 
+                environments: activeProject.environments, 
+                testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })), // We only need plan metadata, not cases
+                testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
+                checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
+            } : undefined;
+
+            const sanitizedTasks = tasksToUse.map(t => ({
+                id: t.id,
+                title: t.title,
+                description: t.description,
+                status: t.status,
+                priority: t.priority,
+                issueType: t.issueType,
+                labels: t.labels,
+                sourceIssueId: t.sourceIssueId,
+                externalId: t.externalId
+            }));
+
+            const cases = await api.aiGenerateCases({ apiKey, tasks: sanitizedTasks, sourceName: source, project: sanitizedProject, designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
 
             if (cases.length === 0) {
                 alert('No test cases could be generated.')
@@ -350,7 +382,16 @@ export default function TestsPage() {
         if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
-            const result = await api.aiCriticality(apiKey, activeProject?.tasks || [], testPlans, projectExecutions, activeProject, activeProject?.geminiModel)
+            const sanitizedProject = activeProject ? { 
+                name: activeProject.name,
+                description: activeProject.description, 
+                environments: activeProject.environments, 
+                testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })),
+                testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
+                checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
+            } : undefined;
+
+            const result = await api.aiCriticality(apiKey, activeProject?.tasks || [], testPlans, projectExecutions, sanitizedProject, activeProject?.geminiModel)
             setAiAnalysisResult(result)
         } catch (e: any) {
             alert(`Criticality assessment failed: ${e.message}`)
@@ -365,7 +406,16 @@ export default function TestsPage() {
         if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
-            const result = await api.aiTestRunSuggestions(apiKey, testPlans, projectExecutions, activeProject, activeProject?.geminiModel)
+            const sanitizedProject = activeProject ? { 
+                name: activeProject.name,
+                description: activeProject.description, 
+                environments: activeProject.environments, 
+                testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })),
+                testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
+                checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
+            } : undefined;
+
+            const result = await api.aiTestRunSuggestions(apiKey, testPlans, projectExecutions, sanitizedProject, activeProject?.geminiModel)
             setAiAnalysisResult(result)
         } catch (e: any) {
             alert(`Test run suggestions failed: ${e.message}`)
@@ -673,7 +723,7 @@ export default function TestsPage() {
                                                                             </div>
                                                                         </div>
                                                                         <div className="flex items-center gap-2">
-                                                                            {ex.actualResult && <div className="text-xs font-bold text-[#6B7280] italic px-4 border-r border-[#2A2A3A] max-w-md line-clamp-2"><FormattedText content={ex.actualResult} /></div>}
+                                                                            {ex.actualResult && <div className="text-xs font-bold text-[#6B7280] italic px-4 border-r border-[#2A2A3A] max-w-md line-clamp-2"><FormattedText content={ex.actualResult} projectId={activeProjectId || undefined} /></div>}
                                                                             <Button
                                                                                 variant="ghost"
                                                                                 size="icon"

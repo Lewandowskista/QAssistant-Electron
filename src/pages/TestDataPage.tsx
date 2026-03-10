@@ -187,7 +187,7 @@ export default function TestDataPage() {
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs font-bold text-[#E2E8F0] mb-1 truncate">
-                                        <FormattedText content={group.name} />
+                                        <FormattedText content={group.name} projectId={activeProjectId || undefined} />
                                     </div>
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <Edit2 className="h-3.5 w-3.5 text-[#6B7280] hover:text-[#A78BFA]" onClick={(e) => {

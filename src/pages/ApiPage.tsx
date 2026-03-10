@@ -419,7 +419,7 @@ export default function ApiPage() {
                                     typeof response === 'object' ? (
                                         <pre>{JSON.stringify(response, null, 2)}</pre>
                                     ) : (
-                                        <FormattedText content={response} />
+                                        <FormattedText content={response} projectId={activeProjectId || undefined} />
                                     )
                                 ) : (
                                     <span className="opacity-40">// Awaiting payload dispatch...</span>

@@ -69,7 +69,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                             <div className="w-1 h-3 rounded-full bg-[#3B82F6]/50" /> PRE-CONDITIONS
                         </div>
                         <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
-                            <FormattedText content={caseExecution.snapshotPreConditions} compact />
+                            <FormattedText content={caseExecution.snapshotPreConditions} compact projectId={activeProjectId} />
                         </div>
                     </div>
                 )}
@@ -80,7 +80,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                             <div className="w-1 h-3 rounded-full bg-[#10B981]/50" /> TEST STEPS
                         </div>
                         <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
-                            <FormattedText content={caseExecution.snapshotSteps} compact />
+                            <FormattedText content={caseExecution.snapshotSteps} compact projectId={activeProjectId} />
                         </div>
                     </div>
                 )}
@@ -91,7 +91,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                             <div className="w-1 h-3 rounded-full bg-[#F59E0B]/50" /> TEST DATA
                         </div>
                         <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30 italic opacity-80">
-                            <FormattedText content={caseExecution.snapshotTestData} compact />
+                            <FormattedText content={caseExecution.snapshotTestData} compact projectId={activeProjectId} />
                         </div>
                     </div>
                 )}
@@ -102,7 +102,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                             <div className="w-1 h-3 rounded-full bg-[#A78BFA]/50" /> EXPECTED RESULT
                         </div>
                         <div className="text-[11px] leading-relaxed text-[#D1D5DB] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
-                            <FormattedText content={caseExecution.snapshotExpectedResult} compact />
+                            <FormattedText content={caseExecution.snapshotExpectedResult} compact projectId={activeProjectId} />
                         </div>
                     </div>
                 )}
@@ -119,7 +119,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                             <div className="w-1 h-3 rounded-full bg-[#34D399]" /> ACTUAL RESULT
                         </div>
                         <div className="text-[11px] text-[#E2E8F0] bg-[#13131A] p-3 rounded-lg border border-[#34D399]/20 leading-relaxed">
-                            <FormattedText content={caseExecution.actualResult} compact />
+                            <FormattedText content={caseExecution.actualResult} compact projectId={activeProjectId} />
                         </div>
                     </div>
                 )}
@@ -129,7 +129,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                             <div className="w-1 h-3 rounded-full bg-[#A78BFA]" /> EXECUTION NOTES
                         </div>
                         <div className="text-[11px] text-[#E2E8F0] bg-[#13131A] p-3 rounded-lg border border-[#A78BFA]/20 italic opacity-90">
-                            <FormattedText content={caseExecution.notes} compact />
+                            <FormattedText content={caseExecution.notes} compact projectId={activeProjectId} />
                         </div>
                     </div>
                 )}

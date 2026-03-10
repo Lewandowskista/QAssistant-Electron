@@ -1,21 +1,9 @@
-/**
- * Full Linear GraphQL integration — mirrors C# LinearService.cs
- */
 // cspell:ignore unstarted duedate issuetype
+import { getCredential } from './credentialService';
 
 // ── Status / Priority Mapping ────────────────────────────────────────────────
 
-function mapLinearStatus(stateName: string): string {
-    const s = stateName.toLowerCase()
-    if (['backlog', 'triage', 'unstarted'].includes(s)) return 'backlog'
-    if (s === 'todo') return 'todo'
-    if (['in progress', 'started', 'doing'].includes(s)) return 'in-progress'
-    if (['in review', 'review', 'qa'].includes(s)) return 'in-review'
-    if (['done', 'completed', 'closed'].includes(s)) return 'done'
-    if (['canceled', 'cancelled'].includes(s)) return 'canceled'
-    if (s === 'duplicate') return 'duplicate'
-    return 'backlog'
-}
+// ... existing code ...
 
 function mapLinearPriority(priority: number): string {
     if (priority === 1) return 'critical'
@@ -29,14 +17,10 @@ function mapLinearPriority(priority: number): string {
 function cleanDescription(raw?: string | null): string {
     if (!raw) return ''
     let s = raw
-    s = s.replace(/!\[.*?\]\(.*?\)/g, '')          // remove markdown images
-    s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // keep link text
-    s = s.replace(/<[^>]+>/g, '')                   // strip HTML tags
-    s = s.replace(/https?:\/\/[^\s)"\]]+\.(?:png|jpe?g|gif|webp|svg|bmp|mp4|webm|mov)(?:\?[^\s)"\]]*)?/gi, '') // plain image URLs
-    s = s.replace(/#{1,6}\s/g, '')                  // markdown headers
-    s = s.replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')  // bold/italic
-    s = s.replace(/```[\s\S]*?```/g, '[code block]') // code blocks
-    s = s.replace(/`([^`]+)`/g, '$1')              // inline code
+    // We used to strip everything here to get "clean" text, but since the frontend 
+    // now uses FormattedText (markdown renderer), we should preserve formatting 
+    // and especially images.
+    s = s.replace(/<[^>]+>/g, '') // still strip HTML tags just in case
     s = s.replace(/\n{3,}/g, '\n\n').trim()
     return s
 }
@@ -107,6 +91,7 @@ export async function fetchLinearIssues(apiKey: string, teamKey: string, connect
                             dueDate url
                             labels { nodes { name } }
                             attachments { nodes { url title } }
+                            cycle { name startsAt endsAt }
                         }
                     }
                 }
@@ -130,6 +115,7 @@ export async function fetchLinearIssues(apiKey: string, teamKey: string, connect
                         dueDate url
                         labels { nodes { name } }
                         attachments { nodes { url title } }
+                        cycle { name startsAt endsAt }
                     }
                 }
             }`
@@ -149,10 +135,24 @@ export async function fetchLinearIssues(apiKey: string, teamKey: string, connect
 }
 
 function parseLinearNodes(nodes: any[], tasks: any[], connectionId?: string): void {
+    const now = Date.now()
     for (const node of nodes) {
         const stateName = node.state?.name || ''
         const labels = (node.labels?.nodes || []).map((l: any) => l.name).join(', ')
         const attachmentUrls = (node.attachments?.nodes || []).map((a: any) => a.url).filter(Boolean)
+
+        let sprint: any = undefined
+        if (node.cycle) {
+            const start = node.cycle.startsAt ? new Date(node.cycle.startsAt).getTime() : undefined
+            const end = node.cycle.endsAt ? new Date(node.cycle.endsAt).getTime() : undefined
+            const isActive = start && end ? (now >= start && now <= end) : false
+            sprint = {
+                name: node.cycle.name || 'Untitled Cycle',
+                isActive,
+                startDate: start,
+                endDate: end
+            }
+        }
 
         tasks.push({
             id: crypto.randomUUID(),
@@ -161,7 +161,7 @@ function parseLinearNodes(nodes: any[], tasks: any[], connectionId?: string): vo
             title: node.title || '',
             description: cleanDescription(node.description),
             rawDescription: node.description || '',
-            status: mapLinearStatus(stateName),
+            status: stateName,
             priority: mapLinearPriority(node.priority || 0),
             ticketUrl: node.url || '',
             assignee: node.assignee?.name || '',
@@ -170,6 +170,7 @@ function parseLinearNodes(nodes: any[], tasks: any[], connectionId?: string): vo
             source: 'linear',
             connectionId: connectionId,
             attachmentUrls,
+            sprint,
             createdAt: Date.now(),
             updatedAt: Date.now(),
         })
@@ -203,7 +204,7 @@ export async function addLinearComment(apiKey: string, issueId: string, body: st
 }
 
 export async function getLinearWorkflowStates(apiKey: string): Promise<any[]> {
-    const query = `{ workflowStates(first: 200) { nodes { id name } } }`
+    const query = `{ workflowStates(first: 200) { nodes { id name type color } } }`
     const result = await linearGraphQL(apiKey, query)
     return result.data?.workflowStates?.nodes || []
 }
@@ -311,16 +312,7 @@ export async function createLinearIssue(apiKey: string, teamId: string, title: s
 
 // ── Jira REST API ─────────────────────────────────────────────────────────────
 
-function mapJiraStatus(statusName: string): string {
-    const s = statusName.toLowerCase()
-    if (['to do', 'open', 'new', 'backlog'].includes(s)) return 'todo'
-    if (['in progress', 'in development', 'in-progress', 'started'].includes(s)) return 'in-progress'
-    if (['in review', 'in testing', 'code review', 'qa'].includes(s)) return 'in-review'
-    if (['done', 'closed', 'resolved', 'completed'].includes(s)) return 'done'
-    if (['canceled', 'cancelled', 'wont fix', "won't do"].includes(s)) return 'canceled'
-    if (s === 'duplicate') return 'duplicate'
-    return 'backlog'
-}
+// ... existing code ...
 
 function mapJiraPriority(priorityName?: string): string {
     if (!priorityName) return 'medium'
@@ -384,13 +376,37 @@ export async function fetchJiraIssues(domain: string, email: string, apiKey: str
             const labels = (f.labels || []).join(', ')
             const attachmentUrls = (f.attachment || []).map((a: any) => a.content).filter(Boolean)
 
+            // Jira Sprint detection (often customfield_10020 or similar, or just 'sprint')
+            let sprint: any = undefined
+            const sprintData = f.sprint || f.customfield_10020 || f.customfield_10000 
+            if (Array.isArray(sprintData) && sprintData.length > 0) {
+                // Take the active one if possible
+                const active = sprintData.find((s: any) => s.state === 'ACTIVE' || s.state === 'active') || sprintData[0]
+                if (typeof active === 'object') {
+                    sprint = {
+                        name: active.name,
+                        isActive: active.state === 'ACTIVE' || active.state === 'active',
+                        startDate: active.startDate ? new Date(active.startDate).getTime() : undefined,
+                        endDate: active.endDate ? new Date(active.endDate).getTime() : undefined
+                    }
+                } else if (typeof active === 'string' && active.includes('name=')) {
+                    // Handle legacy string format
+                    const nameMatch = active.match(/name=([^,\]]+)/)
+                    const stateMatch = active.match(/state=([^,\]]+)/)
+                    sprint = {
+                        name: nameMatch ? nameMatch[1] : 'Unknown Sprint',
+                        isActive: stateMatch ? stateMatch[1] === 'ACTIVE' : false
+                    }
+                }
+            }
+
             allIssues.push({
                 id: crypto.randomUUID(),
                 externalId: issue.id,
                 sourceIssueId: issue.key,
                 title: f.summary || '',
                 description: cleanDescription(extractJiraDescription(f.description)),
-                status: mapJiraStatus(f.status?.name || ''),
+                status: f.status?.name || '',
                 priority: mapJiraPriority(f.priority?.name),
                 assignee: f.assignee?.displayName || '',
                 labels,
@@ -401,6 +417,7 @@ export async function fetchJiraIssues(domain: string, email: string, apiKey: str
                 connectionId: connectionId,
                 attachmentUrls,
                 rawDescription: extractJiraDescription(f.description),
+                sprint,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
             })
@@ -527,6 +544,35 @@ export async function getJiraProjects(domain: string, email: string, apiKey: str
     return Array.isArray(data) ? data.map((p: any) => ({ id: p.id, key: p.key, name: p.name })) : []
 }
 
+export async function getJiraStatuses(domain: string, email: string, apiKey: string, projectKey: string): Promise<any[]> {
+    const creds = Buffer.from(`${email}:${apiKey}`).toString('base64')
+    const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
+    // We can fetch statuses for a project via the project statuses endpoint
+    const resp = await fetch(`${base}/rest/api/3/project/${projectKey}/statuses`, {
+        headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' }
+    })
+    if (!resp.ok) throw new Error(`Jira API returned ${resp.status}: ${resp.statusText}`)
+    const data: any = await resp.json()
+    
+    const statuses: any[] = []
+    if (Array.isArray(data)) {
+        // Jira returns status categories which contain statuses
+        for (const type of data) {
+            if (type.statuses && Array.isArray(type.statuses)) {
+                for (const s of type.statuses) {
+                    statuses.push({
+                        id: s.id,
+                        name: s.name,
+                        category: s.statusCategory?.name || 'To Do',
+                        color: s.statusCategory?.colorName || 'medium-gray'
+                    })
+                }
+            }
+        }
+    }
+    return statuses
+}
+
 export async function createJiraIssue(domain: string, email: string, apiKey: string, projectKey: string, title: string, description: string, issueTypeName: string = 'Bug'): Promise<string | null> {
     const creds = Buffer.from(`${email}:${apiKey}`).toString('base64')
     const baseUrl = `https://${domain}.atlassian.net/rest/api/3`
@@ -562,4 +608,51 @@ export async function createJiraIssue(domain: string, email: string, apiKey: str
 
     const data: any = await doResp.json()
     return data.key // e.g. "PROJ-123"
+}
+
+/**
+ * Fetch media content with appropriate authentication based on source
+ */
+export async function fetchAuthenticatedMedia(url: string, source: string, connectionId?: string, projectId?: string): Promise<{ data: Buffer, mimeType: string }> {
+    let headers: Record<string, string> = {};
+    const projectPrefix = projectId ? `project:${projectId}:` : '';
+
+    if (source === 'jira') {
+        
+        
+        if (connectionId) {
+            const email = (projectId ? await getCredential(`${projectPrefix}jira_email_${connectionId}`) : null) || 
+                          await getCredential(`jira_email_${connectionId}`) || 
+                          await getCredential(`jira_email`);
+                          
+            const apiKey = (projectId ? await getCredential(`${projectPrefix}jira_api_token_${connectionId}`) : null) || 
+                           (projectId ? await getCredential(`${projectPrefix}jira_api_key_${connectionId}`) : null) ||
+                           await getCredential(`jira_api_token_${connectionId}`) || 
+                           await getCredential(`jira_api_key_${connectionId}`) || 
+                           await getCredential(`jira_api_key`);
+            
+            if (email && apiKey) {
+                const auth = Buffer.from(`${email}:${apiKey}`).toString('base64');
+                headers['Authorization'] = `Basic ${auth}`;
+            }
+        }
+    } else if (source === 'linear') {
+        
+        const apiKey = connectionId ? 
+            ((projectId ? await getCredential(`${projectPrefix}linear_api_key_${connectionId}`) : null) || await getCredential(`linear_api_key_${connectionId}`)) : 
+            ((projectId ? await getCredential(`${projectPrefix}linear_api_key`) : null) || await getCredential(`linear_api_key`));
+            
+        if (apiKey) {
+            headers['Authorization'] = apiKey.startsWith('lin_api_') || apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+        }
+    }
+
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error(`Media fetch failed: ${res.status} ${res.statusText}`);
+
+    const arrayBuffer = await res.arrayBuffer();
+    return {
+        data: Buffer.from(arrayBuffer),
+        mimeType: res.headers.get('content-type') || 'application/octet-stream'
+    };
 }

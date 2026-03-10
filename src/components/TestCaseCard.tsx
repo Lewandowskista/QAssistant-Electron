@@ -90,7 +90,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                             <div className="w-1 h-3 rounded-full bg-[#3B82F6]/50" /> PRE-CONDITIONS
                         </div>
                         <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
-                            <FormattedText content={testCase.preConditions} compact />
+                            <FormattedText content={testCase.preConditions} compact projectId={activeProjectId} source={plan.source} />
                         </div>
                     </div>
                 )}
@@ -100,7 +100,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                             <div className="w-1 h-3 rounded-full bg-[#10B981]/50" /> TEST STEPS
                         </div>
                         <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
-                            <FormattedText content={testCase.steps} compact />
+                            <FormattedText content={testCase.steps} compact projectId={activeProjectId} source={plan.source} />
                         </div>
                     </div>
                 )}
@@ -110,7 +110,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                             <div className="w-1 h-3 rounded-full bg-[#F59E0B]/50" /> TEST DATA
                         </div>
                         <div className="text-[11px] leading-relaxed text-[#9CA3AF] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30 italic opacity-80">
-                            <FormattedText content={testCase.testData} compact />
+                            <FormattedText content={testCase.testData} compact projectId={activeProjectId} source={plan.source} />
                         </div>
                     </div>
                 )}
@@ -120,7 +120,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                             <div className="w-1 h-3 rounded-full bg-[#A78BFA]/50" /> EXPECTED RESULT
                         </div>
                         <div className="text-[11px] leading-relaxed text-[#D1D5DB] bg-[#13131A]/30 p-2.5 rounded-lg border border-[#2A2A3A]/30">
-                            <FormattedText content={testCase.expectedResult} compact />
+                            <FormattedText content={testCase.expectedResult} compact projectId={activeProjectId} source={plan.source} />
                         </div>
                     </div>
                 )}
@@ -130,7 +130,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                             <div className="w-1 h-3 rounded-full bg-[#34D399]" /> ACTUAL RESULT
                         </div>
                         <div className="text-[11px] text-[#E2E8F0] bg-[#13131A] p-3 rounded-lg border border-[#34D399]/20 leading-relaxed">
-                            <FormattedText content={testCase.actualResult} compact />
+                            <FormattedText content={testCase.actualResult} compact projectId={activeProjectId} source={plan.source} />
                         </div>
                     </div>
                 )}

@@ -91,7 +91,7 @@ export default function SettingsPage() {
 
     // ── Gemini ────────────────────────────────────────────────────────────────
     const [geminiKey, setGeminiKey] = useState('')
-    const [geminiModel, setGeminiModel] = useState('gemini-2.0-flash')
+    const [geminiModel, setGeminiModel] = useState('gemini-3.1-flash-lite')
     const [geminiStatus, setGeminiStatus] = useState<StatusState>(null)
 
     // ── CCv2 ─────────────────────────────────────────────────────────────────
@@ -676,23 +676,22 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             <div className="flex gap-2">
                                 <select 
                                     className={`${inp} flex-1 appearance-none px-3 cursor-pointer`}
-                                    value={['gemini-3.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'].includes(geminiModel) ? geminiModel : 'custom'}
+                                    value={['gemini-3.1-flash-lite', 'gemini-3.0-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'].includes(geminiModel) ? geminiModel : 'custom'}
                                     onChange={(e) => {
                                         if (e.target.value !== 'custom') setGeminiModel(e.target.value)
                                     }}
                                 >
+                                    <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
                                     <option value="gemini-3.0-flash">Gemini 3.0 Flash</option>
+                                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                                     <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                                     <option value="custom">-- Custom / Other --</option>
                                 </select>
-                                {(!['gemini-3.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'].includes(geminiModel)) && (
+                                {(!['gemini-3.1-flash-lite', 'gemini-3.0-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'].includes(geminiModel)) && (
                                     <Input 
                                         value={geminiModel} 
                                         onChange={e => setGeminiModel(e.target.value)} 
-                                        placeholder="Model ID, e.g. gemini-3-flash"
+                                        placeholder="Model ID, e.g. gemini-3.1-flash-lite"
                                         className={`${inp} flex-1`}
                                     />
                                 )}

@@ -70,8 +70,10 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import FormattedText from "@/components/FormattedText"
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog"
+import { toast } from "sonner"
 
-const COLUMNS: { id: TaskStatus; title: string, color: string, textColor: string }[] = [
+const DEFAULT_COLUMNS: { id: string; title: string, color: string, textColor: string }[] = [
     { id: 'backlog', title: 'BACKLOG', color: 'bg-[#9CA3AF]', textColor: 'text-[#9CA3AF]' },
     { id: 'todo', title: 'TODO', color: 'bg-[#6B7280]', textColor: 'text-[#6B7280]' },
     { id: 'in-progress', title: 'IN PROGRESS', color: 'bg-[#3B82F6]', textColor: 'text-[#3B82F6]' },
@@ -132,6 +134,9 @@ export default function TasksPage() {
     const [editAssignee, setEditAssignee] = useState("")
     const [editLabels, setEditLabels] = useState("")
 
+    const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+    const [analysisToDelete, setAnalysisToDelete] = useState<any>(null)
+
 
     const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId) || null, [tasks, selectedTaskId])
 
@@ -154,12 +159,19 @@ export default function TasksPage() {
         })
     }, [tasks, searchQuery, sourceMode])
 
+    const currentColumns = useMemo(() => {
+        if (activeProject?.columns && activeProject.columns.length > 0) {
+            return activeProject.columns
+        }
+        return DEFAULT_COLUMNS
+    }, [activeProject?.columns])
+
     const tasksByColumn = useMemo(() => {
-        return COLUMNS.reduce((acc, col) => {
+        return currentColumns.reduce((acc, col) => {
             acc[col.id] = filteredTasks.filter(t => t.status === col.id)
             return acc
-        }, {} as Record<TaskStatus, Task[]>)
-    }, [filteredTasks])
+        }, {} as Record<string, Task[]>)
+    }, [filteredTasks, currentColumns])
 
     // Sync selected task to edit state
     useEffect(() => {
@@ -323,9 +335,9 @@ export default function TasksPage() {
                 )
             })
             setIsEditing(false)
-            alert("Changes saved!")
+            toast.success("Changes saved!")
         } catch (e: any) {
-            alert(`Failed to save changes: ${e.message}`)
+            toast.error(`Failed to save changes: ${e.message}`)
         }
     }
 
@@ -341,7 +353,7 @@ export default function TasksPage() {
 
     const handleAddTask = () => {
         if (!activeProjectId) {
-            alert("Please select or create a project first before adding tasks.")
+            toast.error("Please select or create a project first before adding tasks.")
             return
         }
         resetNewTaskForm()
@@ -382,7 +394,7 @@ export default function TasksPage() {
                 })
                 
                 if (url) {
-                    alert(`Linear issue created: ${url}`)
+                    toast.success(`Linear issue created: ${url}`)
                     setIsNewTaskModalOpen(false)
                     resetNewTaskForm()
                     handleSync('linear')
@@ -404,14 +416,14 @@ export default function TasksPage() {
                 })
                 
                 if (key) {
-                    alert(`Jira issue ${key} created successfully!`)
+                    toast.success(`Jira issue ${key} created successfully!`)
                     setIsNewTaskModalOpen(false)
                     resetNewTaskForm()
                     handleSync('jira')
                 }
             }
         } catch (e: any) {
-            alert(`Failed to create task: ${e.message}`)
+            toast.error(`Failed to create task: ${e.message}`)
         }
     }
 
@@ -428,34 +440,59 @@ export default function TasksPage() {
                 if (conns.length === 0) {
                     // Try legacy global key
                     const apiKey = await api.secureStoreGet(`${prefix}linear_api_key`) || await api.secureStoreGet('linear_api_key')
-                    if (!apiKey) { alert('Please set your Linear API key in Settings.'); return }
+                    if (!apiKey) { toast.error('Please set your Linear API key in Settings.'); return }
                     const tasks = await api.syncLinear({ apiKey, teamKey: '' })
                     const existing = activeProject.tasks || []
                     const manualTasks = existing.filter((t: any) => t.source !== 'linear')
                     const merged = [...manualTasks, ...tasks]
-                    await updateProject(activeProjectId, { tasks: merged })
+                    
+                    // Fetch columns for legacy
+                    const states = await api.getLinearWorkflowStates({ apiKey })
+                    const columns = states.map((s: any) => ({
+                        id: s.name,
+                        title: s.name.toUpperCase(),
+                        color: s.color ? `bg-[${s.color}]` : 'bg-[#3B82F6]',
+                        textColor: s.color ? `text-[${s.color}]` : 'text-[#3B82F6]',
+                        type: s.type
+                    }))
+                    
+                    await updateProject(activeProjectId, { tasks: merged, columns })
                 } else {
                     let allSyncedTasks: any[] = []
+                    let allColumns: any[] = []
                     for (const conn of conns) {
                         const apiKey = await api.secureStoreGet(`${prefix}linear_api_key_${conn.id}`) || await api.secureStoreGet(`linear_api_key_${conn.id}`)
                         if (apiKey) {
                             const tasks = await api.syncLinear({ apiKey, teamKey: conn.teamId, connectionId: conn.id })
                             allSyncedTasks = [...allSyncedTasks, ...tasks]
+                            
+                            const states = await api.getLinearWorkflowStates({ apiKey })
+                            states.forEach((s: any) => {
+                                if (!allColumns.find(c => c.id === s.name)) {
+                                    allColumns.push({
+                                        id: s.name,
+                                        title: s.name.toUpperCase(),
+                                        color: s.color ? `bg-[${s.color}]` : 'bg-[#3B82F6]',
+                                        textColor: s.color ? `text-[${s.color}]` : 'text-[#3B82F6]',
+                                        type: s.type
+                                    })
+                                }
+                            })
                         }
                     }
                     const existing = activeProject.tasks || []
                     const otherSourceTasks = existing.filter((t: any) => t.source !== 'linear')
                     const merged = [...otherSourceTasks, ...allSyncedTasks]
-                    await updateProject(activeProjectId, { tasks: merged })
+                    await updateProject(activeProjectId, { tasks: merged, columns: allColumns })
                 }
                 await loadProjects()
-            } else if (sourceMode === 'jira') {
+            } else if (mode === 'jira') {
                 const conns = activeProject.jiraConnections || []
                 if (conns.length === 0) {
                     const domain = await api.secureStoreGet(`${prefix}jira_domain`) || await api.secureStoreGet('jira_domain') || ''
                     const email = await api.secureStoreGet(`${prefix}jira_email`) || await api.secureStoreGet('jira_email') || ''
                     const apiKey = await api.secureStoreGet(`${prefix}jira_api_key`) || await api.secureStoreGet('jira_api_key')
-                    if (!domain || !email || !apiKey) { alert('Please configure Jira credentials in Settings.'); return }
+                    if (!domain || !email || !apiKey) { toast.error('Please configure Jira credentials in Settings.'); return }
                     const tasks = await api.syncJira({ domain, email, apiKey, projectKey: '' })
                     const existing = activeProject.tasks || []
                     const otherSourceTasks = existing.filter((t: any) => t.source !== 'jira')
@@ -463,22 +500,36 @@ export default function TasksPage() {
                     await updateProject(activeProjectId, { tasks: merged })
                 } else {
                     let allSyncedTasks: any[] = []
+                    let allColumns: any[] = []
                     for (const conn of conns) {
                         const apiKey = await api.secureStoreGet(`${prefix}jira_api_token_${conn.id}`) || await api.secureStoreGet(`jira_api_token_${conn.id}`)
                         if (apiKey) {
                             const tasks = await api.syncJira({ domain: conn.domain, email: conn.email, apiKey, projectKey: conn.projectKey, connectionId: conn.id })
                             allSyncedTasks = [...allSyncedTasks, ...tasks]
+                            
+                            const statuses = await api.getJiraStatuses({ domain: conn.domain, email: conn.email, apiKey, projectKey: conn.projectKey })
+                            statuses.forEach((s: any) => {
+                                if (!allColumns.find(c => c.id === s.name)) {
+                                    allColumns.push({
+                                        id: s.name,
+                                        title: s.name.toUpperCase(),
+                                        color: 'bg-[#6B7280]',
+                                        textColor: 'text-[#6B7280]',
+                                        type: s.category
+                                    })
+                                }
+                            })
                         }
                     }
                     const existing = activeProject.tasks || []
                     const otherSourceTasks = existing.filter((t: any) => t.source !== 'jira')
                     const merged = [...otherSourceTasks, ...allSyncedTasks]
-                    await updateProject(activeProjectId, { tasks: merged })
+                    await updateProject(activeProjectId, { tasks: merged, columns: allColumns })
                 }
                 await loadProjects()
             }
         } catch (e: any) {
-            alert(`Sync failed: ${e.message}`)
+            toast.error(`Sync failed: ${e.message}`)
         } finally {
             setIsSyncing(false)
         }
@@ -489,7 +540,7 @@ export default function TasksPage() {
     const handleCreateExternalIssue = async () => {
         if (!selectedTask || !activeProject) return
         if (selectedTask.externalId || selectedTask.sourceIssueId) {
-            alert('This task is already linked to an external issue.')
+            toast.error('This task is already linked to an external issue.')
             return
         }
 
@@ -508,7 +559,7 @@ export default function TasksPage() {
                     priority: selectedTask.priority === 'critical' ? 1 : selectedTask.priority === 'high' ? 2 : selectedTask.priority === 'medium' ? 3 : 4
                 })
                 if (url) {
-                    alert('Linear issue created successfully! A sync is required to see it here.')
+                    toast.success('Linear issue created successfully! A sync is required to see it here.')
                     api.openUrl(url)
                 }
                 return
@@ -526,15 +577,15 @@ export default function TasksPage() {
                     issueTypeName: 'Story' // Default
                 })
                 if (key) {
-                    alert(`Jira issue ${key} created successfully! A sync is required to see it here.`)
+                    toast.success(`Jira issue ${key} created successfully! A sync is required to see it here.`)
                     api.openUrl(`https://${jiraCreds.domain}.atlassian.net/browse/${key}`)
                 }
                 return
             }
 
-            alert('No Linear or Jira connections are fully configured to create an issue.')
+            toast.error('No Linear or Jira connections are fully configured to create an issue.')
         } catch (e: any) {
-            alert(`Failed to create issue: ${e.message}`)
+            toast.error(`Failed to create issue: ${e.message}`)
         } finally {
             setIsCreatingIssue(false)
         }
@@ -544,7 +595,7 @@ export default function TasksPage() {
         if (!selectedTask || !activeProject) return
         const prefix = activeProject ? `project:${activeProject.id}:` : ''
         const apiKey = await api.secureStoreGet(`${prefix}gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
-        if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
+        if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
 
         setIsAnalyzing(true)
         setAnalysisModalResult(null)
@@ -562,7 +613,42 @@ export default function TasksPage() {
                     try { currentComments = await api.getJiraComments({ ...creds, issueKey: selectedTask.sourceIssueId }) } catch { /* ignore */ }
                 }
             }
-            const result = await api.aiAnalyzeIssue({ apiKey, task: selectedTask, comments: currentComments, project: activeProject, modelName: activeProject?.geminiModel })
+            // 1. Filter for contextual tasks (Linear/Jira Tasks/Features/Stories)
+            const contextTasks = (activeProject.tasks || [])
+                .filter(t => (t.source === 'linear' || t.source === 'jira') && t.id !== selectedTask.id)
+                .filter(t => {
+                    const l = (t.labels || '').toLowerCase();
+                    const ty = (t.issueType || '').toLowerCase();
+                    return ty.includes('task') || ty.includes('feature') || ty.includes('story') || 
+                           l.includes('task') || l.includes('feature');
+                })
+                .slice(0, 50)
+                .map(t => ({
+                    title: t.title,
+                    description: t.description,
+                    issueType: t.issueType,
+                    labels: t.labels,
+                    priority: t.priority,
+                    status: t.status
+                }));
+
+            // 2. Sanitize project (Omit massive arrays like testPlans/executions per implementation plan)
+            const sanitizedProject = {
+                name: activeProject.name,
+                description: activeProject.description,
+                environments: activeProject.environments,
+                checklists: activeProject.checklists?.map(c => ({ name: c.name, category: c.category })),
+                testDataGroups: activeProject.testDataGroups?.map(g => ({ name: g.name, category: g.category })),
+                contextTasks // New extra context
+            };
+
+            const result = await api.aiAnalyzeIssue({ 
+                apiKey, 
+                task: selectedTask, 
+                comments: currentComments, 
+                project: sanitizedProject, 
+                modelName: activeProject?.geminiModel 
+            })
             setAnalysisModalResult(result)
 
             // Save to history
@@ -596,7 +682,7 @@ export default function TasksPage() {
             if (e.message?.includes('429') || e.message?.toLowerCase().includes('rate limit')) {
                 setRateLimitBanner("Gemini Rate Limit Exceeded. Please wait a few moments before trying again.")
             } else {
-                alert(`Analysis failed: ${e.message}`)
+                toast.error(`Analysis failed: ${e.message}`)
             }
         } finally {
             setIsAnalyzing(false)
@@ -616,27 +702,40 @@ export default function TasksPage() {
             })
 
             if (result.success) {
-                alert(`Bug report generated: ${result.fileName}`)
+                toast.success(`Bug report generated: ${result.fileName}`)
                 if (result.path) api.openFile(result.path)
             } else {
-                alert(`Failed to generate bug report: ${result.error}`)
+                toast.error(`Failed to generate bug report: ${result.error}`)
             }
         } catch (e: any) {
-            alert(`Error: ${e.message}`)
+            toast.error(`Error: ${e.message}`)
         }
     }
 
 
 
-    const handleDeleteAnalysis = async (entry: any) => {
-        if (!selectedTask || !activeProjectId) return
-        if (!confirm(`Are you sure you want to delete analysis v${entry.version}?`)) return
+    const handleDeleteAnalysis = (entry: any) => {
+        setAnalysisToDelete(entry)
+    }
 
-        const updatedHistory = (selectedTask.analysisHistory || []).filter(h => h.version !== entry.version)
+    const confirmDeleteAnalysisAction = async () => {
+        if (!analysisToDelete || !selectedTask || !activeProjectId) return
+        const updatedHistory = (selectedTask.analysisHistory || []).filter(h => h.version !== analysisToDelete.version)
         await updateProject(activeProjectId, {
             tasks: tasks.map(t => t.id === selectedTask.id ? { ...t, analysisHistory: updatedHistory } : t)
         })
         setHistory(updatedHistory)
+        setAnalysisToDelete(null)
+        toast.success("Analysis deleted successfully.")
+    }
+
+    const confirmDeleteTaskAction = async () => {
+        if (taskToDelete && activeProjectId) {
+            await deleteTask(activeProjectId, taskToDelete.id)
+            if (selectedTaskId === taskToDelete.id) setSelectedTaskId(null)
+            toast.success("Task deleted successfully.")
+            setTaskToDelete(null)
+        }
     }
 
     const toggleHistoryExpand = (index: number) => {
@@ -667,7 +766,7 @@ export default function TasksPage() {
                 }
             }
         } catch (e: any) {
-            alert(`Failed to post comment: ${e.message}`)
+            toast.error(`Failed to post comment: ${e.message}`)
         } finally {
             setIsPostingComment(false)
         }
@@ -691,7 +790,7 @@ export default function TasksPage() {
         if (!activeTaskCandidate) return
 
         // Are we hovering over a columnar droppable?
-        const overColumn = COLUMNS.find(c => c.id === overId)
+        const overColumn = currentColumns.find(c => c.id === overId)
         if (overColumn) {
             if (activeTaskCandidate.status !== overColumn.id) {
                 if (activeProjectId) {
@@ -718,7 +817,7 @@ export default function TasksPage() {
                 if (!key) return
                 const states = await api.getLinearWorkflowStates({ apiKey: key })
                 // Simple heuristic: match state name to our status
-                const match = states.find((s: any) => s.name.toLowerCase().includes(newStatus.toLowerCase()))
+                const match = states.find((s: any) => s.name.toLowerCase() === newStatus.toLowerCase())
                 if (match) {
                     await api.updateLinearStatus({ apiKey: key, issueId: task.externalId, stateId: match.id })
                     // Reflect change in local store
@@ -729,7 +828,8 @@ export default function TasksPage() {
             } else if (task.source === 'jira') {
                 const creds = await getJiraCredentials(connId)
                 if (creds) {
-                    await api.transitionJiraIssue({ ...creds, issueKey: task.sourceIssueId, transitionName: newStatus.replace('-', ' ') })
+                    // Jira transition usually works by name or ID. We try name match.
+                    await api.transitionJiraIssue({ ...creds, issueKey: task.sourceIssueId, transitionName: newStatus })
                     // Reflect change in local store
                     if (activeProjectId) {
                         moveTask(activeProjectId, task.id, newStatus)
@@ -836,11 +936,11 @@ export default function TasksPage() {
                         onDragEnd={onDragEnd}
                     >
                         <div className="flex h-full min-w-max p-4 gap-4">
-                            {COLUMNS.map((col) => (
+                            {currentColumns.map((col: any) => (
                                 <KanbanColumn
                                     key={col.id}
                                     col={col}
-                                    tasksInColumn={tasksByColumn[col.id]}
+                                    tasksInColumn={tasksByColumn[col.id] || []}
                                     selectedTaskId={selectedTaskId}
                                     setSelectedTaskId={setSelectedTaskId}
                                     sourceMode={sourceMode}
@@ -875,10 +975,10 @@ export default function TasksPage() {
                                 <div className="flex items-center gap-2">
                                     <div className={cn(
                                         "px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase",
-                                        COLUMNS.find(c => c.id === selectedTask.status)?.textColor || "text-[#A78BFA]",
+                                        currentColumns.find((c: any) => c.id === selectedTask.status)?.textColor || "text-[#A78BFA]",
                                         "bg-[#1A1A24] border border-[#2A2A3A]"
                                     )}>
-                                        {selectedTask.status.replace('-', ' ')}
+                                        {selectedTask.status}
                                     </div>
                                     <div className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase bg-[#2A2010] text-[#F59E0B] border border-[#F59E0B]/20">
                                         {selectedTask.priority}
@@ -910,11 +1010,17 @@ export default function TasksPage() {
                                             ) : (
                                                 <>
                                                     <div className="prose-container min-h-[100px]">
-                                                        <FormattedText content={selectedTask.description} />
+                                                        <FormattedText 
+                                                            content={selectedTask.description} 
+                                                            source={selectedTask.source}
+                                                            connectionId={selectedTask.connectionId}
+                                                            projectId={activeProjectId || undefined}
+                                                        />
                                                     </div>
                                                     <MediaSection
-                                                        rawDescription={selectedTask.rawDescription || selectedTask.description}
+                                                        task={selectedTask}
                                                         onImageClick={(url) => setLightboxUrl(url)}
+                                                        projectId={activeProjectId || undefined}
                                                     />
                                                 </>
                                             )}
@@ -960,7 +1066,7 @@ export default function TasksPage() {
                                                                     onChange={(e) => setEditStatus(e.target.value as TaskStatus)}
                                                                     className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] focus:ring-1 focus:ring-[#A78BFA]/50 outline-none"
                                                                 >
-                                                                    {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                                                                    {currentColumns.map((c: any) => <option key={c.id} value={c.id}>{c.title}</option>)}
                                                                 </select>
                                                             ) : (
                                                                 <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-[10px] font-bold text-[#E2E8F0]">
@@ -1071,7 +1177,14 @@ export default function TasksPage() {
                                                             <span className="text-[10px] font-bold text-[#A78BFA]">{c.authorName}</span>
                                                             <span className="text-[9px] text-[#6B7280]">{new Date(c.createdAt).toLocaleString()}</span>
                                                         </div>
-                                                        <div className="text-xs text-[#E2E8F0] leading-relaxed"><FormattedText content={c.body} /></div>
+                                                        <div className="text-xs text-[#E2E8F0] leading-relaxed">
+                                                            <FormattedText 
+                                                                content={c.body} 
+                                                                source={selectedTask.source}
+                                                                connectionId={selectedTask.connectionId}
+                                                                projectId={activeProjectId || undefined}
+                                                            />
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1135,7 +1248,12 @@ export default function TasksPage() {
                                                             </div>
 
                                                             <div className="text-[11px] text-[#E2E8F0] font-medium leading-relaxed">
-                                                                <FormattedText content={h.summary} />
+                                                                <FormattedText 
+                                                                    content={h.summary} 
+                                                                    source={selectedTask.source}
+                                                                    connectionId={selectedTask.connectionId}
+                                                                    projectId={activeProjectId || undefined} 
+                                                                />
                                                             </div>
 
                                                             <div className="pt-2 border-t border-[#2A2A3A]/50 mt-2">
@@ -1149,7 +1267,12 @@ export default function TasksPage() {
                                                                 </Button>
                                                                 {expandedHistory.has(i) && (
                                                                     <div className="mt-3 p-4 bg-[#0F0F13] rounded-lg border border-[#2A2A3A] animate-in slide-in-from-top-2 duration-200 overflow-x-auto text-[11px] leading-relaxed prose prose-invert max-w-none">
-                                                                        <FormattedText content={h.fullResult} />
+                                                                        <FormattedText 
+                                                                            content={h.fullResult} 
+                                                                            source={selectedTask.source}
+                                                                            connectionId={selectedTask.connectionId}
+                                                                            projectId={activeProjectId || undefined} 
+                                                                        />
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -1208,7 +1331,13 @@ export default function TasksPage() {
                                                                     {w.fromValue ? (
                                                                         <>
                                                                             <div className="px-2 py-1 bg-red-500/5 border border-red-500/10 rounded text-red-400 text-[10px] font-medium line-through decoration-red-500/50">
-                                                                                <FormattedText content={w.fromValue} className="inline prose-p:mb-0" />
+                                                                                <FormattedText 
+                                                                                    content={w.fromValue} 
+                                                                                    className="inline prose-p:mb-0" 
+                                                                                    source={selectedTask.source}
+                                                                                    connectionId={selectedTask.connectionId}
+                                                                                    projectId={activeProjectId || undefined} 
+                                                                                />
                                                                             </div>
                                                                             <span className="text-[#3F3F46] hover:text-[#52525B] transition-colors">
                                                                                 <Send className="h-2.5 w-2.5" />
@@ -1218,7 +1347,13 @@ export default function TasksPage() {
                                                                         <span className="text-[10px] text-[#6B7280] italic px-1">Initial value</span>
                                                                     )}
                                                                     <div className="px-2 py-1 bg-emerald-500/5 border border-emerald-500/10 rounded text-emerald-400 text-[10px] font-bold">
-                                                                        <FormattedText content={w.toValue} className="inline prose-p:mb-0" />
+                                                                        <FormattedText 
+                                                                            content={w.toValue} 
+                                                                            className="inline prose-p:mb-0" 
+                                                                            source={selectedTask.source}
+                                                                            connectionId={selectedTask.connectionId}
+                                                                            projectId={activeProjectId || undefined} 
+                                                                        />
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1271,12 +1406,7 @@ export default function TasksPage() {
                                     <Button
                                         variant="outline"
                                         className="h-10 border-[#EF4444]/20 text-[#EF4444] hover:bg-[#EF4444]/10 font-bold text-[10px] gap-1.5"
-                                        onClick={() => {
-                                            if (confirm("Are you sure you want to delete this task?")) {
-                                                deleteTask(activeProjectId!, selectedTask.id)
-                                                setSelectedTaskId(null)
-                                            }
-                                        }}
+                                        onClick={() => setTaskToDelete(selectedTask)}
                                     >
                                         <Trash2 className="h-3.5 w-3.5" /> DELETE
                                     </Button>
@@ -1397,15 +1527,10 @@ export default function TasksPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-9 px-4 text-xs font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-2 border border-[#A78BFA]/20"
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(analysisModalResult)
-                                        alert("Report copied to clipboard!")
-                                    }}
-                                >
+                                <Button size="sm" onClick={() => {
+                                        navigator.clipboard.writeText(analysisModalResult || "")
+                                        toast.success("Report copied to clipboard!")
+                                    }} className="h-8 gap-1.5 font-bold shadow-md bg-white text-black hover:bg-gray-200">
                                     <MessageSquare className="h-4 w-4" /> COPY RAW
                                 </Button>
                                 <Button
@@ -1420,7 +1545,12 @@ export default function TasksPage() {
                         </div>
                         <div className="flex-1 overflow-y-auto p-10 custom-scrollbar bg-[#0F0F13]/20">
                             <div className="max-w-3xl mx-auto">
-                                <FormattedText content={analysisModalResult} />
+                                <FormattedText 
+                                    content={analysisModalResult} 
+                                    source={selectedTask?.source}
+                                    connectionId={selectedTask?.connectionId}
+                                    projectId={activeProjectId || undefined}
+                                />
                             </div>
                         </div>
                         <div className="p-6 bg-[#13131A] border-t border-[#2A2A3A] flex justify-between items-center bg-gradient-to-t from-[#0F0F13] to-transparent">
@@ -1540,7 +1670,7 @@ export default function TasksPage() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-[#1A1A24] border-[#2A2A3A]">
-                                        {COLUMNS.map(col => (
+                                        {currentColumns.map((col: any) => (
                                             <SelectItem key={col.id} value={col.id} className="text-xs text-[#E2E8F0]">
                                                 {col.title}
                                             </SelectItem>
@@ -1614,6 +1744,26 @@ export default function TasksPage() {
                     </div>
                 </div>
             )}
+            {/* Confirm Dialogs */}
+            <ConfirmDialog
+                open={!!taskToDelete}
+                onOpenChange={(open) => !open && setTaskToDelete(null)}
+                title="Delete Task"
+                description="Are you sure you want to delete this task? This action cannot be undone."
+                confirmText="Delete Task"
+                variant="destructive"
+                onConfirm={confirmDeleteTaskAction}
+            />
+
+            <ConfirmDialog
+                open={!!analysisToDelete}
+                onOpenChange={(open) => !open && setAnalysisToDelete(null)}
+                title="Delete Analysis"
+                description="Are you sure you want to delete this AI analysis? This action cannot be undone."
+                confirmText="Delete Analysis"
+                variant="destructive"
+                onConfirm={confirmDeleteAnalysisAction}
+            />
         </div>
     )
 }
@@ -1636,36 +1786,67 @@ function ShortcutItem({ keys, label }: { keys: string[], label: string }) {
     )
 }
 
-function MediaSection({ rawDescription, onImageClick }: { rawDescription?: string, onImageClick: (url: string) => void }) {
+function MediaSection({ task, onImageClick, projectId }: { task: Task, onImageClick: (url: string) => void, projectId?: string }) {
+    const proxifyMediaUrl = (url: string, source?: string, connectionId?: string, projectId?: string) => {
+        if (!url || !source || source === 'manual') return url;
+        if (!url.startsWith('http')) return url; // Already local or proxied
+        
+        // Jira and Linear often have auth issues in browser. Proxy via main process.
+        const projId = projectId || 'none';
+        const connId = connectionId || 'none';
+        // Base64Url encoding with Unicode support
+        const encodedUrl = btoa(unescape(encodeURIComponent(url)))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, ''); 
+        return `q-media://${source}/${projId}/${connId}/${encodedUrl}`;
+    };
+
+    const rawDescription = task.rawDescription || task.description;
+    const attachmentUrls = task.attachmentUrls || [];
+
     const mediaUrls = useMemo(() => {
-        if (!rawDescription) return []
         const urls: { type: 'image' | 'video', url: string, label?: string }[] = []
 
-        // Match Markdown images: ![alt](url)
-        const mdImageRegex = /!\[.*?\]\((https?:\/\/[^\s)]+)\)/g
-        let match
-        while ((match = mdImageRegex.exec(rawDescription)) !== null) {
-            urls.push({ type: 'image', url: match[1] })
-        }
+        // 1. Add images from attachmentUrls
+        attachmentUrls.forEach(url => {
+            const lower = url.toLowerCase();
+            if (lower.includes('.png') || lower.includes('.jpg') || lower.includes('.jpeg') || lower.includes('.gif') || lower.includes('.webp') || lower.includes('.bmp') || lower.includes('.svg') || lower.includes('attachment')) {
+                 urls.push({ type: 'image', url });
+            }
+        });
 
-        // Match plain image URLs
-        const plainImageRegex = /(https?:\/\/[^\s"'<>]+\.(?:png|jpe?g|gif|webp|bmp|svg)(?:\?[^\s"'<>]*)?)/gi
-        while ((match = plainImageRegex.exec(rawDescription)) !== null) {
-            if (!urls.some(u => u.url === match![1])) {
-                urls.push({ type: 'image', url: match[1] })
+        if (rawDescription) {
+            // Match Markdown images: ![alt](url)
+            const mdImageRegex = /!\[.*?\]\((https?:\/\/[^\s)]+)\)/g
+            let match
+            while ((match = mdImageRegex.exec(rawDescription)) !== null) {
+                if (!urls.some(u => u.url === match![1])) {
+                    urls.push({ type: 'image', url: match[1] })
+                }
+            }
+
+            // Match plain image URLs
+            const plainImageRegex = /(https?:\/\/[^\s"'<>]+\.(?:png|jpe?g|gif|webp|bmp|svg)(?:\?[^\s"'<>]*)?)/gi
+            while ((match = plainImageRegex.exec(rawDescription)) !== null) {
+                if (!urls.some(u => u.url === match![1])) {
+                    urls.push({ type: 'image', url: match[1] })
+                }
+            }
+
+            // Match Video URLs (YouTube, Loom)
+            const videoRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|loom\.com)\/[^\s"'<>)]+)/gi
+            while ((match = videoRegex.exec(rawDescription)) !== null) {
+                if (!urls.some(u => u.url === match![1])) {
+                    urls.push({ type: 'video', url: match[1] })
+                }
             }
         }
 
-        // Match Video URLs (YouTube, Loom)
-        const videoRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|loom\.com)\/[^\s"'<>)]+)/gi
-        while ((match = videoRegex.exec(rawDescription)) !== null) {
-            urls.push({ type: 'video', url: match[1] })
-        }
-
         return urls
-    }, [rawDescription])
+    }, [rawDescription, attachmentUrls])
 
-    if (!rawDescription || mediaUrls.length === 0) return null
+    if (mediaUrls.length === 0) return null
 
     return (
         <div className="mt-6 pt-6 border-t border-[#2A2A3A] space-y-3">
@@ -1679,7 +1860,7 @@ function MediaSection({ rawDescription, onImageClick }: { rawDescription?: strin
                         className="group relative aspect-video bg-[#1A1A24] border border-[#2A2A3A] rounded-lg overflow-hidden cursor-pointer hover:border-[#A78BFA]/50 transition-colors"
                         onClick={() => {
                             if (item.type === 'image') {
-                                onImageClick(item.url)
+                                onImageClick(proxifyMediaUrl(item.url, task.source, task.connectionId, projectId))
                             } else {
                                 window.electronAPI.openUrl(item.url)
                             }
@@ -1687,9 +1868,16 @@ function MediaSection({ rawDescription, onImageClick }: { rawDescription?: strin
                     >
                         {item.type === 'image' ? (
                             <img
-                                src={item.url}
+                                src={proxifyMediaUrl(item.url, task.source, task.connectionId, projectId)}
                                 alt="Attachment"
                                 className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                                onError={(e) => {
+                                    // Fallback to original URL if proxy fails (maybe public S3)
+                                    const img = e.currentTarget;
+                                    if (img.src !== item.url) {
+                                        img.src = item.url;
+                                    }
+                                }}
                             />
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-[#1E1E2A]">

@@ -5,7 +5,8 @@ import { useEffect, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
 import { ProjectDialog } from "@/components/ProjectDialog"
 import CommandPalette from "@/components/CommandPalette"
-import SettingsPage from "@/pages/SettingsPage"
+import { lazy, Suspense } from "react"
+const SettingsPage = lazy(() => import("@/pages/SettingsPage"))
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -14,6 +15,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Toaster } from "sonner"
 
 export default function MainLayout() {
     const location = useLocation()
@@ -341,7 +343,11 @@ export default function MainLayout() {
                             <X className="h-4 w-4 text-[#6B7280]" />
                         </button>
                         <div className="flex-1 overflow-hidden">
-                            {settingsOpen && <SettingsPage />}
+                            {settingsOpen && (
+                                <Suspense fallback={<div className="p-6 text-[#6B7280]">Loading...</div>}>
+                                    <SettingsPage />
+                                </Suspense>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -349,6 +355,7 @@ export default function MainLayout() {
                 {/* MODALS */}
                 <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} project={editingProject} />
                 <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+                <Toaster theme="dark" position="bottom-right" />
             </div>
         </div>
     )

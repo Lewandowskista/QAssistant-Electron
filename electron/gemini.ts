@@ -1,13 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
 
+const MODEL_3_1_FLASH_LITE = 'gemini-3.1-flash-lite';
 const MODEL_3_0_FLASH = 'gemini-3.0-flash';
+const MODEL_2_5_FLASH_LITE = 'gemini-2.5-flash-lite';
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
-const MODEL_2_0_FLASH = 'gemini-2.0-flash';
-const MODEL_1_5_FLASH = 'gemini-1.5-flash';
-const MODEL_1_5_PRO = 'gemini-1.5-pro';
 
-let preferredModel = MODEL_2_0_FLASH;
+let preferredModel = MODEL_3_1_FLASH_LITE;
 
 /**
  * AI Service for Gemini integration with full TOON (Token-Oriented Object Notation) prompt system.
@@ -51,15 +50,20 @@ export class GeminiService {
     }
 
     private async executeWithFallback(prompt: string | any, modelOverride?: string): Promise<string> {
+        if (typeof prompt === 'string') {
+            console.log("-------------- GEMINI PROMPT (TOON) --------------");
+            console.log(prompt);
+            console.log("--------------------------------------------------");
+        }
+
         // Build unique sequence of models starting with override, then preferred, then available ones
         const models = Array.from(new Set([
             modelOverride,
             preferredModel,
+            MODEL_3_1_FLASH_LITE,
             MODEL_3_0_FLASH,
-            MODEL_2_5_FLASH,
-            MODEL_2_0_FLASH,
-            MODEL_1_5_FLASH,
-            MODEL_1_5_PRO
+            MODEL_2_5_FLASH_LITE,
+            MODEL_2_5_FLASH
         ].filter(Boolean) as string[]));
         
         let lastError: any;
@@ -78,9 +82,24 @@ export class GeminiService {
             } catch (err: any) {
                 lastError = err;
                 
-                const errorStr = JSON.stringify(err).toLowerCase();
-                const isRateLimit = err?.status === 429 || errorStr.includes('429') || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted') || errorStr.includes('too many requests');
-                const isUnavailable = err?.status === 404 || errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('not supported') || errorStr.includes('invalid') || errorStr.includes('permission');
+                let errorMsg = "";
+                let errorStatus = "";
+                
+                try {
+                    if (err && typeof err === 'object') {
+                        errorMsg = typeof err.message === 'string' ? err.message : "";
+                        errorStatus = err.status !== undefined ? String(err.status) : "";
+                    } else {
+                        errorMsg = String(err);
+                    }
+                } catch(e) {
+                    errorMsg = "Unparseable error object thrown by Gemini SDK";
+                }
+
+                const errorStr = `${errorStatus} ${errorMsg}`.toLowerCase();
+
+                const isRateLimit = errorStatus === '429' || errorStr.includes('429') || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted') || errorStr.includes('too many requests');
+                const isUnavailable = errorStatus === '404' || errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('not supported') || errorStr.includes('invalid') || errorStr.includes('permission');
 
                 if (isRateLimit || isUnavailable) {
                     console.warn(`Gemini model ${modelName} ${isRateLimit ? 'rate limited' : 'unavailable/invalid'}. Trying next fallback...`);
@@ -92,11 +111,27 @@ export class GeminiService {
                     continue;
                 }
                 
-                console.error(`Gemini model ${modelName} failed with unexpected error [DEBUG_TAG]:`, err);
+                console.error(`Gemini model ${modelName} failed with unexpected error [DEBUG_TAG]:`, errorStr);
                 continue;
             }
         }
-        throw lastError;
+        
+        // Safely extract final error message
+        let finalMsg = "Unknown API Error";
+        let finalStatus = "";
+        
+        try {
+            if (lastError && typeof lastError === 'object') {
+                finalMsg = typeof lastError.message === 'string' ? lastError.message : "API Call Failed";
+                finalStatus = lastError.status !== undefined ? `[Status ${lastError.status}] ` : "";
+            } else {
+                finalMsg = String(lastError);
+            }
+        } catch (e) {
+            finalMsg = "Crash parsing error object";
+        }
+        
+        throw `Gemini API Error: ${finalStatus}${finalMsg}`;
     }
 
     // ── TOON Sanitizers ──────────────────────────────────────────────────────
@@ -180,7 +215,7 @@ export class GeminiService {
         lines.push('@task:deep_issue_analysis')
         lines.push('@perspective:qa_engineer—focus on testability,reproducibility,regression_risk,environment_impact')
         lines.push('@out_fmt:md_sections[## Root Cause Analysis,## Impact Assessment,## Suggested Fix,## Prevention Recommendations]')
-        lines.push('@rules:all_sections_required|multi_sentence|specific_actionable|infer_if_brief|no_skip|no_merge|consider_env_context|reference_test_coverage|use_tables_for_structured_data|bold_key_findings')
+        lines.push('@rules:all_sections_required|multi_sentence|specific_actionable|infer_if_brief|no_skip|no_merge|consider_env_context|reference_project_functionality|use_tables_for_structured_data|bold_key_findings')
         lines.push('---')
 
         GeminiService.appendQaContext(lines, project)
@@ -204,8 +239,24 @@ export class GeminiService {
             lines.push(']')
         }
 
-        if (attachedImageCount > 0) {
-            lines.push(`@media:${attachedImageCount}_image(s)_attached—analyze visual content for additional context (screenshots, error messages, UI state, logs)`)
+        const images = task.attachmentUrls?.length || 0
+        const totalImages = Math.max(attachedImageCount, images)
+
+        if (totalImages > 0) {
+            lines.push(`@media:${totalImages}_image(s)_attached—analyze following visual content for additional context (screenshots, error messages, UI state, logs)`)
+        }
+
+        if (project?.contextTasks?.length > 0) {
+            lines.push('---')
+            lines.push('project_context_tasks[')
+            for (const t of project.contextTasks) {
+                let entry = ` {t:${GeminiService.sanitizeToonValue(t.title, 200)},type:${GeminiService.sanitizeToonValue(t.issueType, 60)}`
+                if (t.labels) entry += `,labels:${GeminiService.sanitizeToonValue(t.labels, 100)}`
+                if (t.description) entry += `,desc:${GeminiService.sanitizeToonValue(t.description, 300)}`
+                entry += '}'
+                lines.push(entry)
+            }
+            lines.push(']')
         }
 
         return lines.join('\n')
@@ -215,11 +266,11 @@ export class GeminiService {
         const lines: string[] = []
         lines.push('@role:sr_qa_engineer')
         lines.push('@task:generate_test_cases')
-        lines.push('@perspective:qa_engineer—generate tests a QA engineer would write for regression,smoke,functional,integration suites')
+        lines.push('@perspective:qa_engineer—generate functional and integration tests specifically covering the provided issues')
         lines.push(`@source:${sourceName}`)
         lines.push('@out_fmt:json_array[{testCaseId,title,preConditions,testSteps,testData,expectedResult,priority,sourceIssueId}]')
         lines.push('@out_rules:raw_json_only|no_markdown_wrap|no_code_block')
-        lines.push('@rules:comprehensive|all_fields_required|specific_actionable|realistic_test_data|cover_positive_negative_edge|no_generic|env_aware|use_known_test_data_when_applicable')
+        lines.push('@rules:comprehensive|all_fields_required|specific_actionable|realistic_test_data|cover_positive_negative_edge|no_generic|env_aware|use_known_test_data_when_applicable|focus_only_on_provided_issues|exclude_general_regression_or_smoke_tests')
         if (designDoc) {
             lines.push('@extra_context:design_document_provided—use it to improve accuracy,coverage,and specificity of generated test cases')
         }
@@ -252,6 +303,7 @@ export class GeminiService {
             if (task.description) entry += `,desc:${GeminiService.sanitizeToonValueForTestGen(task.description, 2000)}`
             if (task.issueType) entry += `,type:${GeminiService.sanitizeToonValue(task.issueType, 100)}`
             if (task.labels) entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 200)}`
+            if (task.attachmentUrls?.length) entry += `,has_images:true(${task.attachmentUrls.length}_attached)`
             entry += '}'
             lines.push(entry)
         }
@@ -502,11 +554,23 @@ export class GeminiService {
 
     /** Generate test cases from tasks using TOON prompts */
     async generateTestCases(tasks: any[] = [], sourceName: string, project?: any, designDoc?: string, modelName?: string): Promise<any[]> {
+        console.log("-------------- GEMINI DEBUG --------------");
+        console.log("Tasks length:", tasks?.length);
+        console.log("Is tasks array?", Array.isArray(tasks));
+        if (tasks?.length) console.log("Task keys:", Object.keys(tasks[0]));
+        console.log("Project name:", project?.name);
+        console.log("Project keys:", Object.keys(project || {}));
+        console.log("------------------------------------------");
+
         const prompt = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc)
         const text = await this.executeWithFallback(prompt, modelName)
 
         const extracted = GeminiService.extractFirstJsonArray(text)
-        if (!extracted) throw new Error('Could not locate a JSON array in the model response.')
+        if (!extracted) {
+            console.error('[GeminiService] Failed to extract JSON array. Raw response:', text);
+            const preview = String(text).length > 500 ? String(text).substring(0, 500) + '...' : String(text);
+            throw `Could not locate a JSON array in the model response. Raw Response: \n${preview}`;
+        }
 
         const parsed = JSON.parse(extracted)
         return parsed.map((item: any, i: number) => ({
@@ -559,7 +623,7 @@ export class GeminiService {
         }
 
         lines.push('analysis_context_and_data{')
-        lines.push(GeminiService.sanitizeToonValue(projectContext, 5000))
+        lines.push(` context:${GeminiService.sanitizeToonValue(projectContext, 5000)}`)
         lines.push('}')
 
         const prompt = lines.join('\n')
