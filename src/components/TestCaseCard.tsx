@@ -1,9 +1,18 @@
-import { useProjectStore, TestPlan, TestCase } from "@/store/useProjectStore"
+import { useProjectStore } from "@/store/useProjectStore"
+import { TestPlan, TestCase } from "@/types/project"
 import {
     Trash2,
     Bug,
+    Tag,
+    User,
+    Clock,
+    LayoutGrid,
+    ArrowRightCircle,
+    Database
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import FormattedText from "./FormattedText"
 
 interface TestCaseCardProps {
@@ -11,9 +20,11 @@ interface TestCaseCardProps {
     testCase: TestCase
     activeProjectId: string
     onRunCase: () => void
+    isSelected?: boolean
+    onSelect?: (selected: boolean) => void
 }
 
-export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCase }: TestCaseCardProps) {
+export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCase, isSelected, onSelect }: TestCaseCardProps) {
     const { deleteTestCase } = useProjectStore()
 
     const getPriorityColor = (priority: string) => {
@@ -38,34 +49,42 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
     }
 
     return (
-        <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-[10px] p-4 flex flex-col gap-3">
-            {/* Header Row: ID + Title + Run + Status + Delete */}
-            <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 flex-1">
+        <div className={cn(
+            "bg-[#1A1A24] border rounded-[10px] p-4 flex flex-col gap-3 transition-all",
+            isSelected ? "border-[#A78BFA] shadow-[0_0_15px_rgba(167,139,250,0.1)]" : "border-[#2A2A3A] hover:border-[#3A3A4A]"
+        )}>
+            {/* Header Row: Bulk Select + ID + Title + Actions */}
+            <div className="flex items-center gap-3">
+                <Checkbox 
+                    checked={isSelected} 
+                    onCheckedChange={(checked) => onSelect?.(!!checked)}
+                    className="border-[#2A2A3A] data-[state=checked]:bg-[#A78BFA] data-[state=checked]:border-[#A78BFA]"
+                />
+
+                <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="font-mono text-[13px] font-semibold text-[#A78BFA]">{testCase.displayId}</span>
-                    <span className="font-semibold text-[13px] text-[#E2E8F0] line-clamp-1 ml-1">{testCase.title}</span>
+                    <span className="font-semibold text-[13px] text-[#E2E8F0] line-clamp-1 ml-1 cursor-default" title={testCase.title}>{testCase.title}</span>
                 </div>
 
-                {/* Right Align Actions / Badges */}
                 <div className="flex items-center gap-2 shrink-0">
                     <Button
                         variant="default"
                         size="sm"
                         onClick={onRunCase}
-                        className="bg-[#252535] text-[#34D399] border border-[#2A2A3A] hover:bg-[#2A2A3A] hover:text-[#10B981] h-7 text-[11px] font-bold px-3"
+                        className="bg-[#252535] text-[#34D399] border border-[#2A2A3A] hover:bg-[#2A2A3A] hover:text-[#10B981] h-7 text-[11px] font-bold px-3 transition-all"
                     >
                         Execute
                     </Button>
-                    <div className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase ${getPriorityColor(testCase.priority)}`}>
+                    <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", getPriorityColor(testCase.priority))}>
                         {testCase.priority || 'MEDIUM'}
                     </div>
-                    <div className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase ${getStatusColor(testCase.status)}`}>
+                    <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", getStatusColor(testCase.status))}>
                         {testCase.status || 'not-run'}
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-[#6B7280] hover:text-[#F87171] hover:bg-[#EF4444]/10"
+                        className="h-7 w-7 text-[#6B7280] hover:text-[#F87171] hover:bg-[#EF4444]/10 transition-colors"
                         onClick={() => deleteTestCase(activeProjectId, plan.id, testCase.id)}
                         title="Delete test case"
                     >
@@ -74,9 +93,21 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 </div>
             </div>
 
-            {/* Traceability Label: TC-001 -> TP-001 */}
-            <div className="font-mono text-[10px] text-[#6B7280]">
-                {testCase.displayId} → {plan.displayId || 'PLAN'}
+            {/* Sub-header: Traceability + Tags */}
+            <div className="flex items-center justify-between gap-4">
+                <div className="font-mono text-[10px] text-[#6B7280] flex items-center gap-1.5 font-bold">
+                    <LayoutGrid className="h-3 w-3" /> {testCase.displayId} <ArrowRightCircle className="h-3 w-3" /> {plan.displayId || 'PLAN'}
+                </div>
+
+                {testCase.tags && testCase.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 justify-end">
+                        {testCase.tags.map(tag => (
+                            <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#A78BFA]/5 border border-[#A78BFA]/10 text-[#A78BFA] text-[9px] font-black uppercase tracking-widest leading-none">
+                                <Tag className="h-2 w-2" /> {tag}
+                            </span>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Separator */}
@@ -155,6 +186,30 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 >
                     <Bug className="h-3 w-3" /> Bug Report
                 </Button>
+                {/* Execution Details / Assigned Footer */}
+                <div className="flex items-center gap-4 mt-2 pt-3 border-t border-[#2A2A3A]/50">
+                    {testCase.sapModule && (
+                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#6B7280]">
+                            <Database className="h-3 w-3 text-[#3B82F6]" />
+                            <span className="uppercase tracking-wide">{testCase.sapModule}</span>
+                        </div>
+                    )}
+                    {testCase.assignedTo && (
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#6B7280]">
+                            <User className="h-3 w-3 text-[#A78BFA]" />
+                            <span className="uppercase tracking-wide">{testCase.assignedTo}</span>
+                        </div>
+                    )}
+                    {testCase.estimatedMinutes && (
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#6B7280]">
+                            <Clock className="h-3 w-3 text-[#F59E0B]" />
+                            <span className="uppercase tracking-wide">{testCase.estimatedMinutes}m</span>
+                        </div>
+                    )}
+                    <div className="ml-auto flex items-center gap-1 text-[10px] font-black text-[#6B7280]/40 italic uppercase pb-1">
+                        Last modified: {new Date(testCase.updatedAt).toLocaleDateString()}
+                    </div>
+                </div>
             </div>
         </div>
     )

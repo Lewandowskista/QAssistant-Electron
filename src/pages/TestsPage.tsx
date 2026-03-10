@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react"
-import { useProjectStore, TestPlan, TestCase, TestCaseStatus } from "@/store/useProjectStore"
+import { useProjectStore } from "@/store/useProjectStore"
+import { TestPlan, TestCase, TestCaseStatus } from "@/types/project"
 import {
     Plus,
     FlaskConical,
@@ -17,11 +18,12 @@ import {
     Calendar,
     ExternalLink,
     BarChart3,
-    LayoutGrid,
     Zap,
     ChevronDown,
     Trash2,
-    Archive
+    Archive,
+    Search,
+    RotateCcw
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -36,11 +38,14 @@ import {
 import TestPlanDialog from "@/components/TestPlanDialog"
 import TestCaseDialog from "@/components/TestCaseDialog"
 import TestRunDialog from "@/components/TestRunDialog"
+import SingleTestRunDialog from "@/components/SingleTestRunDialog"
 import TestPlanCard from "@/components/TestPlanCard"
 import TaskSelectionDialog from "@/components/TaskSelectionDialog"
 import FormattedText from "@/components/FormattedText"
 import { CsvImportDialog } from "@/components/CsvImportDialog"
 import TestRunSessionCard from "@/components/TestRunSessionCard"
+import CoverageMatrix from "@/components/CoverageMatrix"
+import { toast } from "sonner"
 
 type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder'
 
@@ -101,6 +106,7 @@ export default function TestsPage() {
     const [designDocName, setDesignDocName] = useState<string | null>(null)
     const [designDocContent, setDesignDocContent] = useState<string | null>(null)
     const [sourceFilter, setSourceFilter] = useState("All")
+    const [planSearchQuery, setPlanSearchQuery] = useState("")
 
     // AI Dialog state
     const [ctxDialogOpen, setCtxDialogOpen] = useState(false)
@@ -111,9 +117,11 @@ export default function TestsPage() {
     const [editingPlan, setEditingPlan] = useState<TestPlan | null>(null)
     const [caseDialogOpen, setCaseDialogOpen] = useState(false)
     const [runDialogOpen, setRunDialogOpen] = useState(false)
+    const [singleRunDialogOpen, setSingleRunDialogOpen] = useState(false)
     const [importDialogOpen, setImportDialogOpen] = useState(false)
     const [editingCase, setEditingCase] = useState<TestCase | null>(null)
     const [activePlanForCase, setActivePlanForCase] = useState<TestPlan | null>(null)
+    const [activeCaseForRun, setActiveCaseForRun] = useState<TestCase | null>(null)
 
     // Regression Builder States
     const [regressionFromDate, setRegressionFromDate] = useState<string>("")
@@ -218,11 +226,12 @@ export default function TestsPage() {
                 sourceIssueId: tc.sourceIssueId
             })))
 
+            toast.success(`Built "${name}" with ${uniqueSelectedCases.length} cases.`)
             setBuilderStatus(`Successfully built ${name} with ${uniqueSelectedCases.length} cases.`)
             setTimeout(() => setBuilderStatus(null), 5000)
             setActiveSubTab('TestCaseGeneration')
         } catch (e: any) {
-            alert(`Build failed: ${e.message}`)
+            toast.error(`Build failed: ${e.message}`)
         } finally {
             setIsGenerating(false)
         }
@@ -231,7 +240,7 @@ export default function TestsPage() {
     const handleGenerateSmokeSubset = async () => {
         if (!activeProject) return
         const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
-        if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
+        if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
         
         const allCases = activeProject.testPlans.flatMap(tp => tp.testCases || [])
         const doneTasks = activeProject.tasks.filter(t => t.status === 'done')
@@ -250,10 +259,10 @@ export default function TestsPage() {
             const ids = await api.aiSmokeSubset({ apiKey, candidates: allCases, doneTasks, project: sanitizedProject, modelName: activeProject.geminiModel })
             setSmokeSubsetCaseIds(ids || [])
             if (!ids || ids.length === 0) {
-                alert('No specific smoke tests could be confidently identified.')
+                toast.info('No specific smoke tests could be confidently identified.')
             }
         } catch (e: any) {
-            alert(`AI Analysis failed: ${e.message}`)
+            toast.error(`AI Analysis failed: ${e.message}`)
         } finally {
             setIsGenerating(false)
         }
@@ -264,8 +273,15 @@ export default function TestsPage() {
         if (sourceFilter !== "All") {
             result = result.filter(p => p.source?.toLowerCase() === sourceFilter.toLowerCase())
         }
+        if (planSearchQuery.trim()) {
+            const q = planSearchQuery.toLowerCase()
+            result = result.filter(p =>
+                p.name.toLowerCase().includes(q) ||
+                p.testCases?.some(tc => tc.title.toLowerCase().includes(q) || tc.displayId?.toLowerCase().includes(q))
+            )
+        }
         return result
-    }, [testPlans, showArchived, sourceFilter])
+    }, [testPlans, showArchived, sourceFilter, planSearchQuery])
 
     const filteredSessions = useMemo(() => {
         return projectRunSessions.filter(s => s && (showArchived ? s.isArchived : !s.isArchived))
@@ -275,12 +291,12 @@ export default function TestsPage() {
         if (!activeProjectId) return
 
         const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
-        if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
+        if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
 
         const tasksToUse = activeProject?.tasks?.filter(t => selectedTaskIds.includes(t.id)) || []
 
         if (tasksToUse.length === 0) {
-            alert('No context issues selected. Please select issues to generate from.')
+            toast.warning('No context issues selected. Please select issues to generate from.')
             return
         }
 
@@ -312,7 +328,7 @@ export default function TestsPage() {
             const cases = await api.aiGenerateCases({ apiKey, tasks: sanitizedTasks, sourceName: source, project: sanitizedProject, designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
 
             if (cases.length === 0) {
-                alert('No test cases could be generated.')
+                toast.warning('No test cases could be generated.')
                 return
             }
 
@@ -335,9 +351,9 @@ export default function TestsPage() {
                     status: 'not-run'
                 })
             }
-            alert(`Generated ${cases.length} test cases successfully in "${newPlanName}"`)
+            toast.success(`Generated ${cases.length} test cases in "${newPlanName}"`)
         } catch (e: any) {
-            alert(`AI Generation failed: ${e.message}`)
+            toast.error(`AI Generation failed: ${e.message}`)
         } finally {
             setIsGenerating(false)
         }
@@ -351,9 +367,9 @@ export default function TestsPage() {
             const name = filePath.split(/[/\\]/).pop() || 'Unknown Document'
             setDesignDocName(name)
             setDesignDocContent(content)
-            alert(`Loaded Design Document: ${name}`)
+            toast.success(`Loaded Design Document: ${name}`)
         } catch (e: any) {
-            alert(`Failed to load design document: ${e.message}`)
+            toast.error(`Failed to load design document: ${e.message}`)
         }
     }
 
@@ -370,16 +386,16 @@ export default function TestsPage() {
             for (const c of cases) {
                 await addTestCase(activeProjectId, planId, c as any)
             }
-            alert(`Successfully imported ${cases.length} test cases!`)
+            toast.success(`Imported ${cases.length} test cases successfully.`)
         } catch (e: any) {
-            alert(`Import failed: ${e.message}`)
+            toast.error(`Import failed: ${e.message}`)
         }
     }
 
     const handleAiCriticality = async () => {
         if (!activeProject) return
         const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
-        if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
+        if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
             const sanitizedProject = activeProject ? { 
@@ -394,7 +410,7 @@ export default function TestsPage() {
             const result = await api.aiCriticality(apiKey, activeProject?.tasks || [], testPlans, projectExecutions, sanitizedProject, activeProject?.geminiModel)
             setAiAnalysisResult(result)
         } catch (e: any) {
-            alert(`Criticality assessment failed: ${e.message}`)
+            toast.error(`Criticality assessment failed: ${e.message}`)
         } finally {
             setIsGenerating(false)
         }
@@ -403,7 +419,7 @@ export default function TestsPage() {
     const handleAiTestRunSuggestions = async () => {
         if (!activeProject) return
         const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
-        if (!apiKey) { alert('Please set your Gemini API key in Settings.'); return }
+        if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
             const sanitizedProject = activeProject ? { 
@@ -418,7 +434,7 @@ export default function TestsPage() {
             const result = await api.aiTestRunSuggestions(apiKey, testPlans, projectExecutions, sanitizedProject, activeProject?.geminiModel)
             setAiAnalysisResult(result)
         } catch (e: any) {
-            alert(`Test run suggestions failed: ${e.message}`)
+            toast.error(`Test run suggestions failed: ${e.message}`)
         } finally {
             setIsGenerating(false)
         }
@@ -433,7 +449,7 @@ export default function TestsPage() {
             if (reportType === 'SummaryPdf') {
                 const res = await api.exportTestSummaryPdf(activeProject, undefined, aiAnalysisResult || undefined)
                 if (res && res.success) {
-                    alert(`PDF exported to: ${res.path}`)
+                    toast.success(`PDF exported to: ${res.path}`)
                 } else if (res && res.error) {
                     throw new Error(res.error)
                 }
@@ -449,7 +465,7 @@ export default function TestsPage() {
             }
             if (content && reportType !== 'SummaryPdf') await api.saveFileDialog(filename, content)
         } catch (e: any) {
-            alert(`Export failed: ${e.message}`)
+            toast.error(`Export failed: ${e.message}`)
         } finally {
             setIsGenerating(false)
         }
@@ -587,10 +603,12 @@ export default function TestsPage() {
                                 <div className="flex items-center gap-2">
                                     <div className="relative">
                                         <Input
-                                            placeholder="Search test cases..."
+                                            placeholder="Search plans & cases..."
+                                            value={planSearchQuery}
+                                            onChange={e => setPlanSearchQuery(e.target.value)}
                                             className="h-7 w-64 bg-[#1A1A24] border-[#2A2A3A] text-[11px] placeholder:text-[#4B5563] pl-8 focus-visible:ring-[#A78BFA]/20"
                                         />
-                                        <HelpCircle className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4B5563]" />
+                                        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4B5563]" />
                                     </div>
                                 </div>
                             </div>
@@ -618,6 +636,11 @@ export default function TestsPage() {
                                                 onRunCases={(p) => {
                                                     setActivePlanForCase(p);
                                                     setRunDialogOpen(true);
+                                                }}
+                                                onRunCase={(p, tc) => {
+                                                    setActivePlanForCase(p);
+                                                    setActiveCaseForRun(tc);
+                                                    setSingleRunDialogOpen(true);
                                                 }}
                                                 onEditPlan={(p) => {
                                                     setEditingPlan(p);
@@ -655,7 +678,29 @@ export default function TestsPage() {
                             <div className="flex-1 flex flex-col min-h-0">
                                 <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between">
                                     <span className="text-[11px] font-extrabold text-[#6B7280] uppercase tracking-[0.25em]">EXECUTION HISTORY</span>
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        {/* Retest Failed Cases */}
+                                        {previouslyFailedTestCases.length > 0 && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={async () => {
+                                                    if (!activeProjectId) return
+                                                    const ts = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                                                    const planId = await addTestPlan(activeProjectId, `Retest: Failed Cases · ${ts}`, `Retest suite — ${previouslyFailedTestCases.length} previously failed cases.`, false, 'manual')
+                                                    await batchAddTestCasesToPlan(activeProjectId, planId, previouslyFailedTestCases.map(tc => ({
+                                                        title: tc.title, preConditions: tc.preConditions, steps: tc.steps, testData: tc.testData,
+                                                        expectedResult: tc.expectedResult, actualResult: '', priority: tc.priority, status: 'not-run', sapModule: tc.sapModule, sourceIssueId: tc.sourceIssueId
+                                                    })))
+                                                    setActiveSubTab('TestCaseGeneration')
+                                                    toast.success(`Created retest plan with ${previouslyFailedTestCases.length} failed cases.`)
+                                                }}
+                                                className="h-8 px-3 text-[11px] font-bold gap-2 border border-transparent hover:bg-[#EF4444]/10 text-[#EF4444] hover:border-[#EF4444]/20 transition-all"
+                                                title="Create a new test plan containing all previously failed cases"
+                                            >
+                                                <RotateCcw className="h-3.5 w-3.5" /> RETEST FAILED ({previouslyFailedTestCases.length})
+                                            </Button>
+                                        )}
                                         <div className="flex items-center gap-2">
                                             <Button
                                                 variant="ghost"
@@ -906,20 +951,7 @@ export default function TestsPage() {
 
                     {
                         activeSubTab === 'CoverageMatrix' && (
-                            <div className="flex-1 flex flex-col min-h-0 bg-[#0F0F13]">
-                                <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center gap-6">
-                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em]">View</span>
-                                    <div className="flex bg-[#1A1A24] p-1 rounded-lg border border-[#2A2A3A]">
-                                        <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] font-bold bg-[#A78BFA]/10 text-[#A78BFA]">By Issue</Button>
-                                        <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] font-bold text-[#6B7280]">By SAP Module</Button>
-                                    </div>
-                                </div>
-                                <div className="flex-1 flex flex-col items-center justify-center p-20 opacity-30">
-                                    <LayoutGrid className="h-16 w-16 mb-4" />
-                                    <h3 className="text-lg font-bold">No mapping data available</h3>
-                                    <p className="text-sm max-w-sm">Map your test scenarios to Linear/Jira issues to visualize coverage depth.</p>
-                                </div>
-                            </div>
+                            <CoverageMatrix />
                         )
                     }
 
@@ -1156,7 +1188,7 @@ export default function TestsPage() {
                             </div>
                         )
                     }
-                </div >
+                </div>
 
                 <TestPlanDialog
                     open={planDialogOpen}
@@ -1181,12 +1213,19 @@ export default function TestsPage() {
                     onSelectionChange={setSelectedTaskIds}
                     sourceFilter={source}
                 />
+                <SingleTestRunDialog
+                    open={singleRunDialogOpen}
+                    onOpenChange={setSingleRunDialogOpen}
+                    plan={activePlanForCase}
+                    testCase={activeCaseForRun}
+                />
                 <CsvImportDialog
                     open={importDialogOpen}
                     onOpenChange={setImportDialogOpen}
                     onImport={handleImportedData}
                 />
-            </div >
+            </div>
         </>
     )
 }
+

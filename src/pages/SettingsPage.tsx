@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback } from "react"
 import {
     Zap, Globe, Cpu, Server, Share2, Database, Search,
     Plus, X, Edit2, Check, Copy, RefreshCw, ExternalLink,
-    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp
+    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useProjectStore, LinearConnection, JiraConnection } from "@/store/useProjectStore"
+import { useProjectStore } from "@/store/useProjectStore"
+import { LinearConnection, JiraConnection } from "@/types/project"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 type StatusState = { msg: string; ok: boolean } | null
@@ -160,6 +162,14 @@ export default function SettingsPage() {
     // ── Project sharing ───────────────────────────────────────────────────────
     const [shareStatus, setShareStatus] = useState<StatusState>(null)
 
+    // ── Webhook ───────────────────────────────────────────────────────────────
+    interface WebhookConfig { id: string; name: string; url: string; type: 'Slack' | 'Teams' | 'Generic'; isEnabled: boolean; notifyOnTestPlanFail: boolean; notifyOnHighPriorityDone: boolean; notifyOnDueDate: boolean; notifyOnAiAnalysis: boolean; }
+    const [webhooks, setWebhooks] = useState<WebhookConfig[]>([])
+    const [webhookForm, setWebhookForm] = useState<{ open: boolean; editId: string | null; name: string; url: string; type: WebhookConfig['type']; notifyOnTestPlanFail: boolean; notifyOnHighPriorityDone: boolean; notifyOnDueDate: boolean; notifyOnAiAnalysis: boolean; }>({ open: false, editId: null, name: '', url: '', type: 'Slack', notifyOnTestPlanFail: true, notifyOnHighPriorityDone: false, notifyOnDueDate: false, notifyOnAiAnalysis: false })
+    const [webhookStatus, setWebhookStatus] = useState<StatusState>(null)
+    const [webhookTesting, setWebhookTesting] = useState(false)
+    const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
+
     // ── Load ──────────────────────────────────────────────────────────────────
     useEffect(() => {
         const load = async () => {
@@ -168,6 +178,7 @@ export default function SettingsPage() {
             setMinimizeToTray(!!settings.minimizeToTray)
             setApiEnabled(!!settings.automationApiEnabled)
             setApiPort(settings.automationPort || '5248')
+            setWebhooks(settings.webhooks || [])
 
             const projectPrefix = activeProject ? `project:${activeProject.id}:` : ''
 
@@ -455,6 +466,7 @@ export default function SettingsPage() {
 
 
     return (
+        <>
         <div className="h-full flex flex-col bg-[#0F0F13] overflow-hidden">
             {/* Header */}
             <div className="flex-none px-8 py-5 border-b border-[#2A2A3A] flex items-center justify-between">
@@ -756,6 +768,117 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     <StatusBanner s={shareStatus} />
                 </Sec>
 
+                {/* ── WEBHOOKS ─────────────────────────────────────────────── */}
+                <Sec id="webhooks" title="Webhooks & Notifications" icon={<Bell className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                    <SectionLabel>Outbound Webhooks</SectionLabel>
+                    <p className="text-xs text-[#6B7280] -mt-3 mb-4">Send notifications to Slack, Teams, or any generic endpoint when key events occur.</p>
+
+                    <div className="space-y-2 mb-3">
+                        {webhooks.length === 0 && <p className="text-xs text-[#6B7280] italic">No webhooks configured.</p>}
+                        {webhooks.map(wh => (
+                            <div key={wh.id} className="flex items-center justify-between bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-2 h-2 rounded-full ${wh.isEnabled ? 'bg-[#10B981] animate-pulse' : 'bg-[#6B7280]'}`} />
+                                    <div>
+                                        <p className="text-sm font-semibold text-[#E2E8F0]">{wh.name}</p>
+                                        <p className="text-xs text-[#6B7280] mt-0.5">{wh.type} · {wh.url.slice(0, 50)}{wh.url.length > 50 ? '…' : ''}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Toggle on={wh.isEnabled} onToggle={async () => {
+                                        const updated = webhooks.map(w => w.id === wh.id ? { ...w, isEnabled: !w.isEnabled } : w)
+                                        setWebhooks(updated)
+                                        await saveSetting({ webhooks: updated })
+                                    }} />
+                                    <Button variant="ghost" size="sm" className="h-8 px-3 text-[#A78BFA] hover:bg-[#A78BFA]/10 text-xs font-bold" onClick={() => {
+                                        setWebhookForm({ open: true, editId: wh.id, name: wh.name, url: wh.url, type: wh.type, notifyOnTestPlanFail: wh.notifyOnTestPlanFail, notifyOnHighPriorityDone: wh.notifyOnHighPriorityDone, notifyOnDueDate: wh.notifyOnDueDate, notifyOnAiAnalysis: wh.notifyOnAiAnalysis })
+                                    }}><Edit2 className="h-3 w-3 mr-1" />Edit</Button>
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[#6B7280] hover:text-red-400 hover:bg-red-950/30" onClick={async () => {
+                                        const updated = webhooks.filter(w => w.id !== wh.id)
+                                        setWebhooks(updated)
+                                        await saveSetting({ webhooks: updated })
+                                        flash(setWebhookStatus, 'Webhook deleted.', true)
+                                    }}><X className="h-3.5 w-3.5" /></Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {!webhookForm.open && (
+                        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[#A78BFA] font-bold text-xs" onClick={() =>
+                            setWebhookForm({ open: true, editId: null, name: '', url: '', type: 'Slack', notifyOnTestPlanFail: true, notifyOnHighPriorityDone: false, notifyOnDueDate: false, notifyOnAiAnalysis: false })
+                        }>
+                            <Plus className="h-3.5 w-3.5" /> Add Webhook
+                        </Button>
+                    )}
+
+                    {webhookForm.open && (
+                        <div className="mt-3 bg-[#0F0F13] border border-[#2A2A3A] rounded-xl p-4 space-y-3">
+                            <p className="text-sm font-bold text-[#E2E8F0]">{webhookForm.editId ? 'Edit Webhook' : 'New Webhook'}</p>
+                            <div className="grid sm:grid-cols-2 gap-3">
+                                <div>
+                                    <FieldLabel>Name</FieldLabel>
+                                    <Input value={webhookForm.name} onChange={e => setWebhookForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. QA Alerts Slack" className={inp} />
+                                </div>
+                                <div>
+                                    <FieldLabel>Type</FieldLabel>
+                                    <select className={`${inp} w-full appearance-none px-3 cursor-pointer`} value={webhookForm.type} onChange={e => setWebhookForm(f => ({ ...f, type: e.target.value as any }))}>
+                                        <option value="Slack">Slack</option>
+                                        <option value="Teams">Microsoft Teams</option>
+                                        <option value="Generic">Generic JSON</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <FieldLabel>Webhook URL</FieldLabel>
+                                <Input value={webhookForm.url} onChange={e => setWebhookForm(f => ({ ...f, url: e.target.value }))} placeholder="https://hooks.slack.com/services/..." className={inp} />
+                            </div>
+                            <div className="border border-[#2A2A3A] rounded-xl p-3 space-y-2">
+                                <p className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest mb-2">Notify On</p>
+                                {[
+                                    { key: 'notifyOnTestPlanFail', label: 'Test Plan Run Failure' },
+                                    { key: 'notifyOnHighPriorityDone', label: 'High-Priority Task Completed' },
+                                    { key: 'notifyOnDueDate', label: 'Due Date Reminders' },
+                                    { key: 'notifyOnAiAnalysis', label: 'AI Analysis Complete' },
+                                ].map(({ key, label }) => (
+                                    <div key={key} className="flex items-center justify-between">
+                                        <span className="text-xs text-[#9CA3AF]">{label}</span>
+                                        <Toggle on={(webhookForm as any)[key]} onToggle={() => setWebhookForm(f => ({ ...f, [key]: !(f as any)[key] }))} />
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex items-center gap-2 pt-1">
+                                <Button size="sm" className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-8" onClick={async () => {
+                                    if (!webhookForm.name.trim() || !webhookForm.url.trim()) { flash(setWebhookStatus, 'Name and URL are required.', false); return }
+                                    const { open: _, editId, ...rest } = webhookForm
+                                    let updated: WebhookConfig[]
+                                    if (!editId) {
+                                        updated = [...webhooks, { ...rest, id: crypto.randomUUID(), isEnabled: true }]
+                                    } else {
+                                        updated = webhooks.map(w => w.id === editId ? { ...w, ...rest } : w)
+                                    }
+                                    setWebhooks(updated)
+                                    await saveSetting({ webhooks: updated })
+                                    setWebhookForm(f => ({ ...f, open: false }))
+                                    flash(setWebhookStatus, 'Webhook saved.', true)
+                                }}><Check className="h-3.5 w-3.5 mr-1" />Save</Button>
+                                <Button variant="outline" size="sm" className="h-8 border-[#2A2A3A] text-[#9CA3AF] font-bold" disabled={webhookTesting || !webhookForm.url.trim()} onClick={async () => {
+                                    setWebhookTesting(true)
+                                    try {
+                                        await fetch(webhookForm.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'QAssistant Test', message: 'Webhook connection test from QAssistant.', timestamp: new Date().toISOString() }) })
+                                        flash(setWebhookStatus, 'Test notification sent!', true)
+                                    } catch (e: any) {
+                                        flash(setWebhookStatus, `Test failed: ${e.message}`, false)
+                                    } finally { setWebhookTesting(false) }
+                                }}>{webhookTesting ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : null}Test</Button>
+                                <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={() => setWebhookForm(f => ({ ...f, open: false }))}>Cancel</Button>
+                            </div>
+                            <StatusBanner s={webhookStatus} />
+                        </div>
+                    )}
+                    {!webhookForm.open && <StatusBanner s={webhookStatus} />}
+                </Sec>
+
                 {/* ── DIAGNOSTICS ──────────────────────────────────────────── */}
                 <Sec id="diagnostics" title="Diagnostics" icon={<Search className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>Storage & System Info</SectionLabel>
@@ -810,7 +933,10 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             <Search className="h-3.5 w-3.5" />Open Data Folder
                         </Button>
                         <Button variant="ghost" size="sm" className="h-9 text-red-400 hover:bg-red-950/30 font-bold gap-2"
-                            onClick={() => confirm('Permanently delete all project data? This cannot be undone.') && api.writeProjectsFile([])}>
+                            onClick={async () => {
+                                const ok = await confirmDialog('Permanently delete all project data?', { description: 'This action cannot be undone. All projects, test cases, tasks, notes, and runs will be erased.', confirmLabel: 'Purge All Data', destructive: true })
+                                if (ok) api.writeProjectsFile([])
+                            }}>
                             <Trash2 className="h-3.5 w-3.5" />Purge All Data
                         </Button>
                     </div>
@@ -821,5 +947,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
 
             </div>
         </div>
+        {confirmDialogEl}
+        </>
     )
 }

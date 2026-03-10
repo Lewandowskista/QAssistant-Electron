@@ -629,4 +629,44 @@ export class GeminiService {
         const prompt = lines.join('\n')
         return await this.executeWithFallback(prompt, modelName)
     }
+
+    /** Freeform conversational QA chat with project context */
+    async chat(
+        userMessage: string,
+        history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+        project?: any,
+        modelName?: string
+    ): Promise<string> {
+        // Build a system context preamble using TOON
+        const systemLines: string[] = []
+        systemLines.push('@role:sr_qa_engineer')
+        systemLines.push('@task:freeform_qa_assistant_chat')
+        systemLines.push('@perspective:qa_engineer—helpful,concise,context-aware QA expert with deep SAP Commerce knowledge')
+        systemLines.push('@rules:conversational|helpful|specific|reference_project_data_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context')
+        systemLines.push('---')
+
+        if (project) {
+            GeminiService.appendQaContext(systemLines, project)
+        }
+
+        // Build the conversation as a single string prompt
+        const conversationLines: string[] = []
+        if (history.length > 0) {
+            conversationLines.push('conversation_history[')
+            for (const turn of history.slice(-10)) { // last 10 turns for context window management
+                const role = turn.role === 'user' ? 'user' : 'assistant'
+                conversationLines.push(` {role:${role},msg:${GeminiService.sanitizeToonValueForTestGen(turn.content, 1000)}}`)
+            }
+            conversationLines.push(']')
+            conversationLines.push('---')
+        }
+
+        conversationLines.push(`current_user_message{`)
+        conversationLines.push(` msg:${GeminiService.sanitizeToonValueForTestGen(userMessage, 3000)}`)
+        conversationLines.push(`}`)
+        conversationLines.push('@respond_to:current_user_message|be_direct|use_project_context_above')
+
+        const fullPrompt = [...systemLines, ...conversationLines].join('\n')
+        return await this.executeWithFallback(fullPrompt, modelName)
+    }
 }

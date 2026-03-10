@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { useProjectStore, TestCase, TestPlan, SapModule, TestCasePriority } from "@/store/useProjectStore"
+import { useProjectStore } from "@/store/useProjectStore"
+import { TestCase, TestPlan, SapModule, TestCasePriority } from "@/types/project"
 import {
     Select,
     SelectContent,
@@ -38,7 +39,10 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
         priority: "medium" as TestCasePriority,
         status: "not-run" as TestCase['status'],
         sapModule: undefined as SapModule | undefined,
-        sourceIssueId: ""
+        sourceIssueId: "",
+        assignedTo: "",
+        estimatedMinutes: 0,
+        tags: "" // comma separated for input
     })
     const [previewField, setPreviewField] = useState<string | null>(null)
 
@@ -54,7 +58,10 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                 priority: editingCase.priority,
                 status: editingCase.status,
                 sapModule: editingCase.sapModule,
-                sourceIssueId: editingCase.sourceIssueId || ""
+                sourceIssueId: editingCase.sourceIssueId || "",
+                assignedTo: editingCase.assignedTo || "",
+                estimatedMinutes: editingCase.estimatedMinutes || 0,
+                tags: editingCase.tags ? editingCase.tags.join(", ") : ""
             })
         } else {
             setForm({
@@ -67,7 +74,10 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                 priority: "medium",
                 status: "not-run",
                 sapModule: undefined,
-                sourceIssueId: ""
+                sourceIssueId: "",
+                assignedTo: "",
+                estimatedMinutes: 0,
+                tags: ""
             })
         }
     }, [editingCase, open])
@@ -76,10 +86,16 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
         e.preventDefault()
         if (!activeProjectId || !activePlan || !form.title.trim()) return
 
+        const submissionData = {
+            ...form,
+            tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+            estimatedMinutes: Number(form.estimatedMinutes) || 0
+        }
+
         if (editingCase) {
-            await updateTestCase(activeProjectId, activePlan.id, editingCase.id, form)
+            await updateTestCase(activeProjectId, activePlan.id, editingCase.id, submissionData)
         } else {
-            await addTestCase(activeProjectId, activePlan.id, form)
+            await addTestCase(activeProjectId, activePlan.id, submissionData)
         }
         onOpenChange(false)
     }
@@ -114,6 +130,39 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                 className="bg-background/50 h-11 text-lg font-semibold focus-visible:ring-indigo-500/40"
                                 required
                             />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="assigned-to" className="text-xs font-bold uppercase text-muted-foreground px-1">Assigned Tester</Label>
+                                <Input
+                                    id="assigned-to"
+                                    value={form.assignedTo}
+                                    onChange={(e) => setForm(f => ({ ...f, assignedTo: e.target.value }))}
+                                    placeholder="Tester Name"
+                                    className="bg-background/50 h-10"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="est-mins" className="text-xs font-bold uppercase text-muted-foreground px-1">Estimate (min)</Label>
+                                <Input
+                                    id="est-mins"
+                                    type="number"
+                                    value={form.estimatedMinutes}
+                                    onChange={(e) => setForm(f => ({ ...f, estimatedMinutes: parseInt(e.target.value) || 0 }))}
+                                    className="bg-background/50 h-10"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="tags" className="text-xs font-bold uppercase text-muted-foreground px-1">Tags (Labeling)</Label>
+                                <Input
+                                    id="tags"
+                                    value={form.tags}
+                                    onChange={(e) => setForm(f => ({ ...f, tags: e.target.value }))}
+                                    placeholder="smoke, reg, checkout"
+                                    className="bg-background/50 h-10"
+                                />
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-3 gap-4">

@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiCriticality: async (args: any) => { const res = await ipcRenderer.invoke('ai-criticality', args); if (res?.__isError) throw new Error(res.message); return res; },
   aiTestRunSuggestions: async (args: any) => { const res = await ipcRenderer.invoke('ai-test-run-suggestions', args); if (res?.__isError) throw new Error(res.message); return res; },
   aiSmokeSubset: async (args: any) => { const res = await ipcRenderer.invoke('ai-smoke-subset', args); if (res?.__isError) throw new Error(res.message); return res; },
+  aiChat: async (args: any) => { const res = await ipcRenderer.invoke('ai-chat', args); if (res?.__isError) throw new Error(res.message); return res; },
   readCsvFile: (filePath: string) => ipcRenderer.invoke('read-csv-file', { filePath }),
   saveFileDialog: (defaultName: string, content: string) => ipcRenderer.invoke('save-file-dialog', { defaultName, content }),
   generateTestSummaryMarkdown: (project: any, filterPlanIds?: string[], aiResult?: string) => ipcRenderer.invoke('generate-test-summary-markdown', { project, filterPlanIds, aiResult }),

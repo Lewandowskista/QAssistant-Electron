@@ -13,7 +13,7 @@ import * as report from './report';
 import * as integrations from './integrations';
 import { saveFile, saveBytes, deleteFile } from './fileStorage';
 import * as bugReport from './bug-report';
-import { trayIconBase64 } from './tray-icon';
+// trayIconBase64 removed to use file-based icon
 // BOOTSTRAP: This self-executing function finds the REAL Electron API even if shadowed.
 const electron = (function() {
     try {
@@ -331,6 +331,10 @@ if (app) {
             try { return await new GeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName); } 
             catch (err: any) { return { __isError: true, message: String(err) }; } 
         });
+        ipcMain.handle('ai-chat', async (_e: any, { apiKey, userMessage, history, project, modelName }: any) => { 
+            try { return await new GeminiService(apiKey).chat(userMessage, history || [], project, modelName); } 
+            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        });
         
         // Report Handlers
         ipcMain.handle('generate-test-cases-csv', (_e: any, { project: p }: any) => report.generateTestCasesCsv(p));
@@ -405,9 +409,23 @@ if (app) {
 
     function createTray() {
         const { nativeImage } = electron;
-        let image = nativeImage.createFromDataURL(trayIconBase64);
         
-        // Resize to standard tray icon size otherwise it may not show on some OS/DPI scales
+        // Path logic for both development and production
+        let iconPath = path.join(__dirname, '../../public/tray.png');
+        if (!fs.existsSync(iconPath)) {
+            // In production, it might be in out/renderer
+            iconPath = path.join(__dirname, '../renderer/tray.png');
+        }
+
+        let image = nativeImage.createFromPath(iconPath);
+        
+        if (image.isEmpty()) {
+            console.warn('Tray icon not found at:', iconPath);
+            // Fallback to a very simple colored rectangle if missing
+            image = nativeImage.createFromBuffer(Buffer.from([0,0,0,0])); 
+        }
+        
+        // Resize to standard tray icon size
         image = image.resize({ width: 16, height: 16 });
 
         tray = new Tray(image);

@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "../components/ui/progress"
 import { format } from "date-fns"
 import { RichTextEditor } from "@/components/editor/RichTextEditor"
+import { toast } from "sonner"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 type SidebarTab = 'Notes' | 'Runbooks'
 
@@ -15,6 +17,7 @@ export default function NotesPage() {
     const activeProject = projects.find(p => p.id === activeProjectId)
     const notes = activeProject?.notes || []
     const api = (window as any).electronAPI
+    const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
     // Mock runbooks for UI parity as they might not be in store yet
     const [runbooks] = useState<any[]>([
         { id: '1', title: 'v2.4.0 Release Plan', category: 'Deployment', steps: 12, completed: 8, updatedAt: new Date() },
@@ -67,7 +70,8 @@ export default function NotesPage() {
 
     const handleDelete = async (id: string) => {
         if (!activeProjectId) return
-        if (confirm("Delete this record?")) {
+        const ok = await confirmDialog('Delete this record?', { description: 'This action cannot be undone.', confirmLabel: 'Delete', destructive: true })
+        if (ok) {
             if (activeTab === 'Notes') {
                 await deleteNote(activeProjectId, id)
             }
@@ -200,7 +204,7 @@ export default function NotesPage() {
                                             try {
                                                 await attachFileToNote(activeProjectId, selectedNote.id, filePath);
                                             } catch (e: any) {
-                                                alert('Attachment failed: ' + e.message);
+                                                toast.error('Attachment failed: ' + e.message);
                                             }
                                         }
                                     }}><Paperclip className="h-3.5 w-3.5" /></Button>
@@ -211,14 +215,14 @@ export default function NotesPage() {
                                     ) : (
                                         selectedNote.attachments.map(at => (
                                             <div key={at.id} className="p-2 border border-[#2A2A3A] rounded-lg flex items-center justify-between group hover:border-[#A78BFA]/50 transition-all cursor-pointer">
-                                                <span className="text-xs text-[#E2E8F0] truncate flex-1" onClick={() => api.openFile(at.path)}>{at.name}</span>
+                                                <span className="text-xs text-[#E2E8F0] truncate flex-1" onClick={() => api.openFile(at.filePath)}>{at.fileName}</span>
                                                 <div className="flex items-center gap-1">
-                                                    <ExternalLink className="h-3 w-3 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => api.openFile(at.path)} />
+                                                    <ExternalLink className="h-3 w-3 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => api.openFile(at.filePath)} />
                                                     <Trash2 className="h-3 w-3 text-[#EF4444] opacity-0 group-hover:opacity-100 transition-opacity" onClick={async (e) => {
                                                         e.stopPropagation();
                                                         if (!activeProjectId || !selectedNote) return;
                                                         await removeAttachmentFromNote(activeProjectId, selectedNote.id, at.id);
-                                                        api.deleteAttachment(at.path);
+                                                        api.deleteAttachment(at.filePath);
                                                     }} />
                                                 </div>
                                             </div>
@@ -275,6 +279,7 @@ export default function NotesPage() {
                     </div>
                 ) : null}
             </main>
+            {confirmDialogEl}
         </div>
     )
 }

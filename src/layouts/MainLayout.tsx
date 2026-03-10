@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles } from "lucide-react"
+import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
@@ -35,6 +36,7 @@ export default function MainLayout() {
     const [paletteOpen, setPaletteOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [isPinned, setIsPinned] = useState(false)
+    const [copilotOpen, setCopilotOpen] = useState(false)
     const [isMaximized, setIsMaximized] = useState(false)
     const [toolsCollapsed, setToolsCollapsed] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
@@ -282,6 +284,19 @@ export default function MainLayout() {
                                 <span className="text-[10px] font-black text-[#A78BFA] tracking-tighter uppercase">SAP ACTIVE</span>
                             </div>
                         )}
+                        <button
+                            onClick={() => setCopilotOpen(prev => !prev)}
+                            className={cn(
+                                "w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors relative",
+                                copilotOpen ? "text-[#A78BFA]" : "text-[#6B7280]"
+                            )}
+                            title="AI Copilot"
+                        >
+                            <Sparkles className={cn("h-4 w-4 transition-all", copilotOpen ? "text-[#A78BFA] drop-shadow-[0_0_6px_#A78BFA]" : "group-hover:text-[#A78BFA]")} />
+                            {copilotOpen && (
+                                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />
+                            )}
+                        </button>
                         <button onClick={() => setSettingsOpen(true)} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors">
                             <Settings className="h-4 w-4 text-[#6B7280] group-hover:text-[#A78BFA]" />
                         </button>
@@ -356,6 +371,9 @@ export default function MainLayout() {
                 <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} project={editingProject} />
                 <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
                 <Toaster theme="dark" position="bottom-right" />
+
+                {/* AI COPILOT PANEL */}
+                <AiCopilot open={copilotOpen} onClose={() => setCopilotOpen(false)} />
             </div>
         </div>
     )

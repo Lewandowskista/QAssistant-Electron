@@ -10,7 +10,7 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command"
-import { Search, FileText, CheckCircle2, FlaskConical } from "lucide-react"
+import { Search, FileText, CheckCircle2, FlaskConical, Globe, Zap, Database, ClipboardCheck } from "lucide-react"
 
 export default function SearchPalette() {
     const [open, setOpen] = useState(false)
@@ -45,15 +45,25 @@ export default function SearchPalette() {
         switch (result.type) {
             case 'task': navigate('/tasks'); break
             case 'note': navigate('/notes'); break
-            case 'testplan': navigate('/tests'); break
+            case 'testplan': 
+            case 'testcase': navigate('/tests'); break
+            case 'api': navigate('/api'); break
+            case 'runbook': navigate('/runbooks'); break
+            case 'testData': navigate('/test-data'); break
+            case 'checklist': navigate('/checklists'); break
         }
     }, [navigate, setActiveProject])
 
     const getIcon = (type: SearchResult['type']) => {
         switch (type) {
-            case 'task': return <CheckCircle2 className="h-4 w-4 mr-2" />
-            case 'note': return <FileText className="h-4 w-4 mr-2" />
-            case 'testplan': return <FlaskConical className="h-4 w-4 mr-2" />
+            case 'task': return <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
+            case 'note': return <FileText className="h-4 w-4 mr-2 text-blue-500" />
+            case 'testplan': return <FlaskConical className="h-4 w-4 mr-2 text-purple-500" />
+            case 'testcase': return <FlaskConical className="h-4 w-4 mr-2 text-pink-500" />
+            case 'api': return <Globe className="h-4 w-4 mr-2 text-amber-500" />
+            case 'runbook': return <Zap className="h-4 w-4 mr-2 text-indigo-500" />
+            case 'testData': return <Database className="h-4 w-4 mr-2 text-cyan-500" />
+            case 'checklist': return <ClipboardCheck className="h-4 w-4 mr-2 text-orange-500" />
             default: return <Search className="h-4 w-4 mr-2" />
         }
     }
@@ -80,7 +90,7 @@ export default function SearchPalette() {
                                     <div className="flex flex-col">
                                         <span>{result.title}</span>
                                         <span className="text-[10px] text-muted-foreground">
-                                            {result.projectName} • {result.type.toUpperCase()}
+                                            {result.projectName} • {result.type.toUpperCase()} {result.metadata ? ` • ${result.metadata}` : ''}
                                         </span>
                                     </div>
                                 </div>

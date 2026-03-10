@@ -4,6 +4,7 @@ import { Trash2, Upload, FileIcon, Search, File, LucideImage, ExternalLink } fro
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 export default function FilesPage() {
     const { projects, activeProjectId, addProjectFile, deleteProjectFile } = useProjectStore()
@@ -17,7 +18,7 @@ export default function FilesPage() {
     activeProject?.files.forEach(f => allFiles.push(f))
     activeProject?.notes.forEach(n => allFiles.push(...n.attachments))
 
-    const filtered = allFiles.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    const filtered = allFiles.filter(f => f.fileName.toLowerCase().includes(searchQuery.toLowerCase()))
 
     const handleBrowse = async () => {
         if (!window.electronAPI || !activeProjectId) return
@@ -27,14 +28,14 @@ export default function FilesPage() {
             if (res.success && res.attachment) {
                 const newFile: Attachment = {
                     id: crypto.randomUUID(),
-                    name: res.attachment.fileName,
-                    path: res.attachment.filePath,
+                    fileName: res.attachment.fileName,
+                    filePath: res.attachment.filePath,
                     mimeType: res.attachment.mimeType,
-                    sizeBytes: res.attachment.fileSizeBytes
+                    fileSizeBytes: res.attachment.fileSizeBytes
                 }
                 await addProjectFile(activeProjectId, newFile)
             } else {
-                alert(res.error || 'Failed to copy file')
+                toast.error(res.error || 'Failed to copy file')
             }
         }
     }
@@ -53,17 +54,17 @@ export default function FilesPage() {
                     if (res.success && res.attachment) {
                         const newFile: Attachment = {
                             id: crypto.randomUUID(),
-                            name: res.attachment.fileName,
-                            path: res.attachment.filePath,
+                            fileName: res.attachment.fileName,
+                            filePath: res.attachment.filePath,
                             mimeType: res.attachment.mimeType,
-                            sizeBytes: res.attachment.fileSizeBytes
+                            fileSizeBytes: res.attachment.fileSizeBytes
                         }
                         await addProjectFile(activeProjectId, newFile);
                     }
                     return;
                 }
             }
-            alert('No image in clipboard');
+            toast.info('No image in clipboard');
         } catch (e: any) {
             console.error('Paste failed', e);
         }
@@ -124,10 +125,10 @@ export default function FilesPage() {
                                 if (res.success && res.attachment) {
                                     const newFile: Attachment = {
                                         id: crypto.randomUUID(),
-                                        name: res.attachment.fileName,
-                                        path: res.attachment.filePath,
+                                        fileName: res.attachment.fileName,
+                                        filePath: res.attachment.filePath,
                                         mimeType: res.attachment.mimeType,
-                                        sizeBytes: res.attachment.fileSizeBytes
+                                        fileSizeBytes: res.attachment.fileSizeBytes
                                     }
                                     await addProjectFile(activeProjectId, newFile)
                                 }
@@ -153,22 +154,21 @@ export default function FilesPage() {
                                 <div className="absolute top-0 left-0 w-full h-1 bg-[#A78BFA]/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <div className="flex flex-col items-center text-center">
                                     <div className="w-12 h-12 rounded-xl bg-[#1A1A24] flex items-center justify-center mb-3 text-[#A78BFA]">
-                                        {file.name.match(/\.(jpg|jpeg|png|gif)$/i) ? <LucideImage className="h-6 w-6" /> : <File className="h-6 w-6" />}
+                                        {file.fileName.match(/\.(jpg|jpeg|png|gif)$/i) ? <LucideImage className="h-6 w-6" /> : <File className="h-6 w-6" />}
                                     </div>
-                                    <div className="text-xs font-bold text-[#E2E8F0] truncate w-full mb-1" onClick={() => api.openFile(file.path)}>{file.name}</div>
+                                    <div className="text-xs font-bold text-[#E2E8F0] truncate w-full mb-1" onClick={() => api.openFile(file.filePath)}>{file.fileName}</div>
                                     <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest">
-                                        {file.sizeBytes ? `${(file.sizeBytes / 1024 / 1024).toFixed(1)} MB` : ''}
+                                        {file.fileSizeBytes ? `${(file.fileSizeBytes / 1024 / 1024).toFixed(1)} MB` : ''}
                                     </div>
                                 </div>
                                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
-                                    <button onClick={() => api.openFile(file.path)} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#A78BFA] border border-[#2A2A3A] hover:border-[#A78BFA]/30">
+                                    <button onClick={() => api.openFile(file.filePath)} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#A78BFA] border border-[#2A2A3A] hover:border-[#A78BFA]/30">
                                         <ExternalLink className="h-3 w-3" />
                                     </button>
                                     <button onClick={async () => {
                                         if (!activeProjectId) return;
-                                        // remove from project.files if present
                                         await deleteProjectFile(activeProjectId, file.id);
-                                        api.deleteAttachment(file.path);
+                                        api.deleteAttachment(file.filePath);
                                     }} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#EF4444] border border-[#2A2A3A] hover:border-[#EF4444]/30">
                                         <Trash2 className="h-3 w-3" />
                                     </button>

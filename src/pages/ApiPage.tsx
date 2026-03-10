@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select"
 import FormattedText from "@/components/FormattedText"
 import { OccTemplates, HacTemplates } from "@/lib/apiTemplates"
+import { toast } from "sonner"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 type ResponseTab = 'Body' | 'Headers' | 'History' | 'Compare'
@@ -21,6 +23,7 @@ type ResponseTab = 'Body' | 'Headers' | 'History' | 'Compare'
 export default function ApiPage() {
     const { projects, activeProjectId, addApiRequest, updateApiRequest, deleteApiRequest } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
+    const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
 
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedReqId, setSelectedReqId] = useState<string | null>(null)
@@ -88,7 +91,8 @@ export default function ApiPage() {
 
     const handleDelete = async () => {
         if (selectedReqId && activeProjectId) {
-            if (confirm("Delete this request?")) {
+            const ok = await confirmDialog('Delete this request?', { confirmLabel: 'Delete', destructive: true })
+            if (ok) {
                 await deleteApiRequest(activeProjectId, selectedReqId)
                 handleNew()
             }
@@ -168,7 +172,7 @@ export default function ApiPage() {
         // Find default or first environment
         const env = activeProject.environments.find(e => e.isDefault) || activeProject.environments[0]
         if (!env) {
-            alert("No environment configured for this project.")
+            toast.info('No environment configured for this project.')
             return
         }
 
@@ -177,7 +181,7 @@ export default function ApiPage() {
             const pass = await api.secureStoreGet(`Env_${env.id}_Password`)
 
             if (!user && !pass) {
-                alert(`No credentials found for environment: ${env.name}`)
+                toast.info(`No credentials found for environment: ${env.name}`)
                 return
             }
 
@@ -226,6 +230,7 @@ export default function ApiPage() {
     }
 
     return (
+        <>
         <div className="h-full flex animate-in fade-in duration-500 overflow-hidden bg-[#0F0F13]">
             {/* Sidebar: Saved Requests */}
             <aside className="w-[280px] flex-none bg-[#13131A] border-r border-[#2A2A3A] flex flex-col">
@@ -442,5 +447,7 @@ export default function ApiPage() {
                 </div>
             </main>
         </div>
+        {confirmDialogEl}
+        </>
     )
 }

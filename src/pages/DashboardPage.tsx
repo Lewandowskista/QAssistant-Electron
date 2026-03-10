@@ -23,10 +23,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import {
+    PassRateTrendChart,
+    DefectDensityChart,
+    TestStatusDonut
+} from "@/components/DashboardCharts"
+import { Project, Task, TestPlan, Note, Checklist } from "@/types/project"
 
 export default function DashboardPage() {
     const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = projects.find(p => p.id === activeProjectId) as Project | undefined
     const [selectedSprint, setSelectedSprint] = useState<string>('all')
 
     const tasks = useMemo(() => activeProject?.tasks || [], [activeProject])
@@ -34,7 +40,7 @@ export default function DashboardPage() {
     // Derive available sprints
     const availableSprints = useMemo(() => {
         const sprintNames = new Set<string>()
-        tasks.forEach(t => {
+        tasks.forEach((t: Task) => {
             if (t.sprint?.name) sprintNames.add(t.sprint.name)
         })
         return Array.from(sprintNames).sort()
@@ -43,7 +49,7 @@ export default function DashboardPage() {
     // Set default sprint to the active one on first load or project change
     useEffect(() => {
         if (activeProject && tasks.length > 0) {
-            const activeSprint = tasks.find(t => t.sprint?.isActive)?.sprint?.name
+            const activeSprint = tasks.find((t: Task) => t.sprint?.isActive)?.sprint?.name
             if (activeSprint) {
                 setSelectedSprint(activeSprint)
             } else {
@@ -52,14 +58,13 @@ export default function DashboardPage() {
         }
     }, [activeProjectId, tasks.length > 0, activeProject])
 
-    // MOVE ALL HOOKS ABOVE THE EARLY RETURN
     const filteredTasks = useMemo(() => {
         if (selectedSprint === 'all') return tasks
-        return tasks.filter(t => t.sprint?.name === selectedSprint)
+        return tasks.filter((t: Task) => t.sprint?.name === selectedSprint)
     }, [tasks, selectedSprint])
 
     const testPlans = useMemo(() => activeProject?.testPlans || [], [activeProject])
-    const allTestCases = useMemo(() => testPlans.flatMap(p => p.testCases || []), [testPlans])
+    const allTestCases = useMemo(() => testPlans.flatMap((p: TestPlan) => p.testCases || []), [testPlans])
     
     // Status classification logic
     const currentColumns = useMemo(() => {
@@ -74,31 +79,10 @@ export default function DashboardPage() {
         ]
     }, [activeProject?.columns])
 
-    const statusMap = useMemo(() => {
-        const map: Record<string, { label: string, color: string, count: number }> = {}
-        currentColumns.forEach(col => {
-            map[col.id] = {
-                label: col.title,
-                color: col.color || 'bg-zinc-500',
-                count: 0
-            }
-        })
-
-        filteredTasks.forEach(t => {
-            const s = t.status || 'todo'
-            if (map[s]) {
-                map[s].count++
-            }
-        })
-        return map
-    }, [currentColumns, filteredTasks])
-
-    const statusesForBreakdown = useMemo(() => Object.values(statusMap), [statusMap])
-
     const recentTestPlans = useMemo(() => {
         return testPlans
-            .filter(p => !p.isArchived)
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .filter((p: TestPlan) => !p.isArchived)
+            .sort((a: TestPlan, b: TestPlan) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
             .slice(0, 5)
     }, [testPlans])
 
@@ -135,23 +119,23 @@ export default function DashboardPage() {
     }
 
     // Metrics calculations (using filteredTasks)
-    const openTasks = filteredTasks.filter(t => !isClosed(t.status || 'todo'))
+    const openTasks = filteredTasks.filter((t: Task) => !isClosed(t.status || 'todo'))
     const openTasksCount = openTasks.length
-    const criticalBlockersCount = openTasks.filter(t => t.priority === 'critical').length
+    const criticalBlockersCount = openTasks.filter((t: Task) => t.priority === 'critical').length
 
-    const passedTests = allTestCases.filter(c => c.status === 'passed').length
-    const failedTests = allTestCases.filter(c => c.status === 'failed').length
-    const notRunTests = allTestCases.filter(c => c.status === 'not-run').length
+    const passedTests = allTestCases.filter((c: any) => c.status === 'passed').length
+    const failedTests = allTestCases.filter((c: any) => c.status === 'failed').length
+    const notRunTests = allTestCases.filter((c: any) => c.status === 'not-run').length
     const testCasesCount = allTestCases.length
     const passRate = testCasesCount > 0 ? Math.round((passedTests / testCasesCount) * 100) : 0
 
     const now = new Date()
     const upcomingTasks = openTasks
-        .filter(t => t.dueDate && new Date(t.dueDate) >= now)
-        .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+        .filter((t: Task) => t.dueDate && new Date(t.dueDate) >= now)
+        .sort((a: Task, b: Task) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
         .slice(0, 7)
 
-    const overdueCount = openTasks.filter(t => t.dueDate && new Date(t.dueDate) < now).length
+    const overdueCount = openTasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < now).length
 
     return (
         <div className="space-y-6 max-w-[1600px] animate-in fade-in duration-500 pb-10">
@@ -172,8 +156,8 @@ export default function DashboardPage() {
                             </SelectTrigger>
                             <SelectContent className="bg-[#13131A] border-[#2A2A3A] text-[#E2E8F0] z-50">
                                 <SelectItem value="all" className="text-xs">All Issues</SelectItem>
-                                {availableSprints.map(name => {
-                                    const sprint = tasks.find(t => t.sprint?.name === name)?.sprint
+                                {availableSprints.map((name: string) => {
+                                    const sprint = tasks.find((t: Task) => t.sprint?.name === name)?.sprint
                                     return (
                                         <SelectItem key={name} value={name} className="text-xs">
                                             {name} {sprint?.isActive ? '(ACTIVE)' : ''}
@@ -240,57 +224,50 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Layout Row 1: Breakdown + Upcoming */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Test Case Breakdown */}
-                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col">
-                    <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">TEST CASE BREAKDOWN</p>
-                    <div className="flex-1 space-y-4">
-                        <div className="h-2 w-full bg-[#1A1A24] rounded-full overflow-hidden flex shadow-inner">
-                            {statusesForBreakdown.map(s => {
-                                if (s.count === 0) return null;
-                                const total = filteredTasks.length > 0 ? filteredTasks.length : 1;
-                                const pct = (s.count / total) * 100;
-                                return (
-                                    <div
-                                        key={s.label}
-                                        className={cn("h-full transition-all border-r border-[#0F0F13]/20 last:border-0", s.color)}
-                                        style={{ width: `${pct}%` }}
-                                        title={`${s.label}: ${s.count}`}
-                                    />
-                                )
-                            })}
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                            {statusesForBreakdown.map(s => (
-                                <div key={s.label} className="flex items-center justify-between text-xs font-semibold">
-                                    <div className="flex items-center gap-2">
-                                        <div className={cn("w-2 h-2 rounded-[1px]", s.color)} />
-                                        <span className="text-[#6B7280]">{s.label}</span>
-                                    </div>
-                                    <span className="text-[#E2E8F0]">{s.count}</span>
-                                </div>
-                            ))}
-                        </div>
+            {/* Layout Row 1: Key Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                 {/* Test Status Donut */}
+                 <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[320px]">
+                    <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">TEST STATUS HUB</p>
+                    <div className="flex-1 w-full min-h-0">
+                        <TestStatusDonut />
+                    </div>
+                </div>
+
+                {/* Pass Rate Trend */}
+                <div className="lg:col-span-2 bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[320px]">
+                    <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">PASS RATE TREND (LAST 12 RUNS)</p>
+                    <div className="flex-1 w-full min-h-0">
+                        <PassRateTrendChart />
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* Defect Density */}
+                <div className="lg:col-span-2 bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[320px]">
+                    <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">DEFECT DENSITY BY SAP MODULE</p>
+                    <div className="flex-1 w-full min-h-0">
+                        <DefectDensityChart />
                     </div>
                 </div>
 
                 {/* Upcoming Due Dates */}
-                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col">
+                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[320px]">
                     <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">UPCOMING DUE DATES</p>
-                    <div className="space-y-2.5">
+                    <div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 pr-1">
                         {upcomingTasks.length > 0 ? (
-                            upcomingTasks.map(t => {
+                            upcomingTasks.map((t: Task) => {
                                 const daysLeft = t.dueDate ? Math.ceil((new Date(t.dueDate).getTime() - now.getTime()) / (1000 * 3600 * 24)) : 0
                                 const dueLabel = daysLeft === 0 ? "Today" : daysLeft === 1 ? "Tomorrow" : `in ${daysLeft} days`
                                 return (
-                                    <div key={t.id} className="flex items-center justify-between group">
+                                    <div key={t.id} className="flex items-center justify-between group bg-[#1A1A24]/30 p-2 rounded-lg border border-[#2A2A3A]/50">
                                         <span className="text-xs font-medium text-[#E2E8F0] truncate flex-1 group-hover:text-[#A78BFA] transition-colors">
                                             <FormattedText content={t.title} projectId={activeProjectId || undefined} />
                                         </span>
                                         <span className={cn(
-                                            "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
-                                            daysLeft <= 1 ? "text-[#EF4444]" : "text-[#10B981]"
+                                            "text-[10px] font-bold px-2 py-0.5 rounded uppercase ml-2 flex-none",
+                                            daysLeft <= 1 ? "text-[#EF4444] bg-[#EF4444]/10" : "text-[#10B981] bg-[#10B981]/10"
                                         )}>
                                             {dueLabel}
                                         </span>
@@ -310,7 +287,7 @@ export default function DashboardPage() {
                 <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm">
                     <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">TEST PLANS</p>
                     <div className="space-y-3">
-                        {recentTestPlans.map(plan => {
+                        {recentTestPlans.map((plan: TestPlan) => {
                             const cases = plan.testCases || []
                             const passed = cases.filter(c => c.status === 'passed').length
                             const planPassRate = cases.length > 0 ? Math.round((passed / cases.length) * 100) : 0
@@ -341,7 +318,7 @@ export default function DashboardPage() {
                     <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm">
                         <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-3">RECENT NOTES</p>
                         <div className="space-y-2">
-                            {notes.length > 0 ? notes.map(note => (
+                            {notes.length > 0 ? notes.map((note: Note) => (
                                 <div key={note.id} className="flex items-center gap-2 group cursor-pointer">
                                     <FileText className="h-3 w-3 text-[#A78BFA]" />
                                     <span className="text-xs text-[#6B7280] group-hover:text-[#E2E8F0] truncate transition-colors">
@@ -356,7 +333,7 @@ export default function DashboardPage() {
                     <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm">
                         <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-3">ACTIVE RUNBOOKS</p>
                         <div className="space-y-2">
-                            {checklists.length > 0 ? checklists.map(checklist => (
+                            {checklists.length > 0 ? checklists.map((checklist: Checklist) => (
                                 <div key={checklist.id} className="flex items-center gap-2 group cursor-pointer">
                                     <ListChecks className="h-3 w-3 text-[#10B981]" />
                                     <span className="text-xs text-[#6B7280] group-hover:text-[#E2E8F0] truncate transition-colors font-semibold">
