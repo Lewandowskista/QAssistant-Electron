@@ -52,6 +52,62 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 const inp = "h-10 bg-[#0F0F13] border-[#2A2A3A] text-[#E2E8F0] text-sm placeholder:text-[#4B5563] focus-visible:ring-[#A78BFA]/30 rounded-lg"
 
+// ── Components ────────────────────────────────────────────────────────────────
+function Sec({ id, title, icon, children, activeSection, setActiveSection }: { 
+    id: string; title: string; icon: React.ReactNode; children: React.ReactNode;
+    activeSection: string | null; setActiveSection: (id: string | null) => void;
+}) {
+    const open = activeSection === id
+    return (
+        <SectionCard>
+            <button
+                className="w-full flex items-center justify-between group"
+                onClick={() => setActiveSection(open ? null : id)}
+            >
+                <div className="flex items-center gap-3">
+                    <span className="text-[#A78BFA] opacity-80 group-hover:opacity-100 transition-opacity">{icon}</span>
+                    <span className="font-bold text-[#E2E8F0] text-sm">{title}</span>
+                </div>
+                {open ? <ChevronUp className="h-4 w-4 text-[#6B7280]" /> : <ChevronDown className="h-4 w-4 text-[#6B7280]" />}
+            </button>
+            {open && <div className="mt-5 border-t border-[#2A2A3A] pt-5 space-y-4">{children}</div>}
+        </SectionCard>
+    )
+}
+
+function ConnCard({ label, subtitle, onEdit, onDelete }: { label: string; subtitle: string; onEdit: () => void; onDelete: () => void }) {
+    return (
+        <div className="flex items-center justify-between bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3">
+            <div>
+                <p className="text-sm font-semibold text-[#E2E8F0]">{label}</p>
+                <p className="text-xs text-[#6B7280] mt-0.5">{subtitle}</p>
+            </div>
+            <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" className="h-8 px-3 text-[#A78BFA] hover:bg-[#A78BFA]/10 text-xs font-bold" onClick={onEdit}><Edit2 className="h-3 w-3 mr-1" />Edit</Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[#6B7280] hover:text-red-400 hover:bg-red-950/30" onClick={onDelete}><X className="h-3.5 w-3.5" /></Button>
+            </div>
+        </div>
+    )
+}
+
+function FormPanel({ title, onSave, onTest, onCancel, children, status }: {
+    title: string; onSave: () => void; onTest?: () => void; onCancel: () => void;
+    children: React.ReactNode; status: StatusState
+}) {
+    return (
+        <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl p-4 space-y-3">
+            <p className="text-sm font-bold text-[#E2E8F0]">{title}</p>
+            {children}
+            <div className="flex items-center gap-2 pt-1">
+                <Button size="sm" className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-8" onClick={onSave}><Check className="h-3.5 w-3.5 mr-1" />Save</Button>
+                {onTest && <Button variant="outline" size="sm" className="h-8 border-[#2A2A3A] text-[#9CA3AF] font-bold" onClick={onTest}>Test</Button>}
+                <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={onCancel}>Cancel</Button>
+            </div>
+            <StatusBanner s={status} />
+        </div>
+    )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
     const api = window.electronAPI as any
@@ -397,54 +453,6 @@ export default function SettingsPage() {
         }
     }
 
-    // ── Sections nav ──────────────────────────────────────────────────────────
-    const Sec = ({ id, title, icon, children }: { id: string; title: string; icon: React.ReactNode; children: React.ReactNode }) => {
-        const open = activeSection === id
-        return (
-            <SectionCard>
-                <button
-                    className="w-full flex items-center justify-between group"
-                    onClick={() => setActiveSection(open ? null : id)}
-                >
-                    <div className="flex items-center gap-3">
-                        <span className="text-[#A78BFA] opacity-80 group-hover:opacity-100 transition-opacity">{icon}</span>
-                        <span className="font-bold text-[#E2E8F0] text-sm">{title}</span>
-                    </div>
-                    {open ? <ChevronUp className="h-4 w-4 text-[#6B7280]" /> : <ChevronDown className="h-4 w-4 text-[#6B7280]" />}
-                </button>
-                {open && <div className="mt-5 border-t border-[#2A2A3A] pt-5 space-y-4">{children}</div>}
-            </SectionCard>
-        )
-    }
-
-    const ConnCard = ({ label, subtitle, onEdit, onDelete }: { label: string; subtitle: string; onEdit: () => void; onDelete: () => void }) => (
-        <div className="flex items-center justify-between bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3">
-            <div>
-                <p className="text-sm font-semibold text-[#E2E8F0]">{label}</p>
-                <p className="text-xs text-[#6B7280] mt-0.5">{subtitle}</p>
-            </div>
-            <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="h-8 px-3 text-[#A78BFA] hover:bg-[#A78BFA]/10 text-xs font-bold" onClick={onEdit}><Edit2 className="h-3 w-3 mr-1" />Edit</Button>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[#6B7280] hover:text-red-400 hover:bg-red-950/30" onClick={onDelete}><X className="h-3.5 w-3.5" /></Button>
-            </div>
-        </div>
-    )
-
-    const FormPanel = ({ title, onSave, onTest, onCancel, children, status }: {
-        title: string; onSave: () => void; onTest?: () => void; onCancel: () => void;
-        children: React.ReactNode; status: StatusState
-    }) => (
-        <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl p-4 space-y-3">
-            <p className="text-sm font-bold text-[#E2E8F0]">{title}</p>
-            {children}
-            <div className="flex items-center gap-2 pt-1">
-                <Button size="sm" className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-8" onClick={onSave}><Check className="h-3.5 w-3.5 mr-1" />Save</Button>
-                {onTest && <Button variant="outline" size="sm" className="h-8 border-[#2A2A3A] text-[#9CA3AF] font-bold" onClick={onTest}>Test</Button>}
-                <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={onCancel}>Cancel</Button>
-            </div>
-            <StatusBanner s={status} />
-        </div>
-    )
 
     return (
         <div className="h-full flex flex-col bg-[#0F0F13] overflow-hidden">
@@ -466,7 +474,7 @@ export default function SettingsPage() {
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-3 custom-scrollbar">
 
                 {/* ── GENERAL ─────────────────────────────────────────────── */}
-                <Sec id="general" title="General" icon={<Database className="h-4 w-4" />}>
+                <Sec id="general" title="General" icon={<Database className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>App Behavior</SectionLabel>
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -496,7 +504,7 @@ export default function SettingsPage() {
                 </Sec>
 
                 {/* ── AUTOMATION API ───────────────────────────────────────── */}
-                <Sec id="automation" title="Automation API" icon={<Share2 className="h-4 w-4" />}>
+                <Sec id="automation" title="Automation API" icon={<Share2 className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>REST API for CI/CD Integration</SectionLabel>
 
                     <div className="flex items-center justify-between mb-4">
@@ -559,7 +567,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── LINEAR ──────────────────────────────────────────────── */}
-                <Sec id="linear" title="Linear" icon={<Zap className="h-4 w-4" />}>
+                <Sec id="linear" title="Linear" icon={<Zap className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <div className="flex items-center justify-between mb-2">
                         <div>
                             <SectionLabel>Connections</SectionLabel>
@@ -607,7 +615,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── JIRA ────────────────────────────────────────────────── */}
-                <Sec id="jira" title="Atlassian Jira" icon={<Globe className="h-4 w-4" />}>
+                <Sec id="jira" title="Atlassian Jira" icon={<Globe className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <div className="flex items-center justify-between mb-2">
                         <div>
                             <SectionLabel>Connections</SectionLabel>
@@ -661,7 +669,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── GOOGLE AI ────────────────────────────────────────────── */}
-                <Sec id="gemini" title="Google AI Studio" icon={<Cpu className="h-4 w-4" />}>
+                <Sec id="gemini" title="Google AI Studio" icon={<Cpu className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <div className="flex items-center justify-between mb-4">
                         <p className="text-xs text-[#6B7280]">Get your API key from aistudio.google.com → API Keys</p>
                         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[#A78BFA] font-bold text-xs" onClick={() => api.openUrl('https://aistudio.google.com/apikey')}><ExternalLink className="h-3.5 w-3.5" />Get API Key</Button>
@@ -706,7 +714,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── SAP CCv2 ─────────────────────────────────────────────── */}
-                <Sec id="ccv2" title="SAP Commerce Cloud v2 (CCv2)" icon={<Server className="h-4 w-4" />}>
+                <Sec id="ccv2" title="SAP Commerce Cloud v2 (CCv2)" icon={<Server className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <div className="flex items-center justify-between mb-4">
                         <p className="text-xs text-[#6B7280] max-w-md">Enter your subscription code and Management API token to enable the CCv2 Deployments panel on the SAP page.</p>
                         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[#A78BFA] font-bold text-xs flex-none ml-4" onClick={() => api.openUrl('https://help.sap.com/docs/SAP_COMMERCE_CLOUD_PUBLIC_CLOUD')}><ExternalLink className="h-3.5 w-3.5" />API Docs</Button>
@@ -734,7 +742,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── PROJECT SHARING ──────────────────────────────────────── */}
-                <Sec id="sharing" title="Project Sharing" icon={<Upload className="h-4 w-4" />}>
+                <Sec id="sharing" title="Project Sharing" icon={<Upload className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>Export / Import</SectionLabel>
                     <p className="text-xs text-[#6B7280] mb-4">Export the current project to a JSON file to share with teammates, or import a project from a shared file. Credentials are never exported — they must be re-entered on the receiving machine.</p>
                     <div className="flex items-center gap-2">
@@ -749,7 +757,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── DIAGNOSTICS ──────────────────────────────────────────── */}
-                <Sec id="diagnostics" title="Diagnostics" icon={<Search className="h-4 w-4" />}>
+                <Sec id="diagnostics" title="Diagnostics" icon={<Search className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>Storage & System Info</SectionLabel>
                     <div className="grid sm:grid-cols-2 gap-3 mb-4">
                         {[
