@@ -329,10 +329,33 @@ export default function TasksPage() {
         }
     }
 
-    const onDragEnd = (event: DragEndEvent) => {
+    const onDragEnd = async (event: DragEndEvent) => {
         const { over } = event
         if (over && activeTask) {
-            // DnD finished
+            // Sync status change back to source if external task
+            try {
+                const overColumn = currentColumns.find((c: Column) => c.id === over.id?.toString())
+                if (overColumn && activeTask.status !== overColumn.id) {
+                    const newStatus = overColumn.id
+                    if (activeTask.source === 'linear' && activeTask.externalId) {
+                        const apiKey = await getLinearApiKey(activeTask.connectionId)
+                        if (apiKey) {
+                            const states: Array<{id: string; name: string; type?: string; color?: string}> = await api.getLinearWorkflowStates({ apiKey })
+                            const targetState = states.find((s) => s.name === newStatus)
+                            if (targetState?.id) {
+                                await api.updateLinearStatus({ apiKey, issueId: activeTask.externalId, stateId: targetState.id })
+                            }
+                        }
+                    } else if (activeTask.source === 'jira' && activeTask.externalId) {
+                        const creds = await getJiraCredentials(activeTask.connectionId)
+                        if (creds) {
+                            await api.transitionJiraIssue({ ...creds, issueKey: activeTask.externalId, transitionName: newStatus })
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to sync drag status change:', e)
+            }
         }
         setActiveTask(null)
     }
@@ -392,6 +415,31 @@ export default function TasksPage() {
                     onClose={() => setDetailsId(null)}
                     onUpdateTask={async (updates) => {
                         if (activeProjectId && selectedTask) {
+                            // Sync status changes back to the source (Linear/Jira)
+                            if (updates.status && selectedTask.status !== updates.status) {
+                                try {
+                                    if (selectedTask.source === 'linear' && selectedTask.externalId) {
+                                        const apiKey = await getLinearApiKey(selectedTask.connectionId)
+                                        if (apiKey) {
+                                            // Get workflow states and find the ID for the new status
+                                            const states: Array<{id: string; name: string; type?: string; color?: string}> = await api.getLinearWorkflowStates({ apiKey })
+                                            const targetState = states.find((s) => s.name === updates.status)
+                                            if (targetState?.id) {
+                                                await api.updateLinearStatus({ apiKey, issueId: selectedTask.externalId, stateId: targetState.id })
+                                            }
+                                        }
+                                    } else if (selectedTask.source === 'jira' && selectedTask.externalId) {
+                                        const creds = await getJiraCredentials(selectedTask.connectionId)
+                                        if (creds) {
+                                            await api.transitionJiraIssue({ ...creds, issueKey: selectedTask.externalId, transitionName: updates.status })
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('Failed to sync status to source:', e)
+                                    toast.error(`Failed to update status on ${selectedTask.source === 'linear' ? 'Linear' : 'Jira'}`)
+                                }
+                            }
+
                             await updateProject(activeProjectId, {
                                 tasks: tasks.map((t: Task) => t.id === selectedTask.id ? { ...t, ...updates, updatedAt: Date.now() } : t)
                             })

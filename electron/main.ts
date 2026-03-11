@@ -102,6 +102,7 @@ if (app) {
             minHeight: 700,
             frame: false,
             titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+            trafficLightPosition: isMac ? { x: 10, y: 14 } : undefined,
             webPreferences: {
                 preload: path.join(__dirname, '../preload/preload.js'),
                 additionalArguments: [`--disk-cache-dir=${_runCacheDir}`],
@@ -623,6 +624,41 @@ if (app) {
         setupIpc();
         createWindow();
         createTray();
+
+        if (isMac) {
+            const appMenu = Menu.buildFromTemplate([
+                {
+                    label: app.name,
+                    submenu: [
+                        { role: 'about' },
+                        { type: 'separator' },
+                        { role: 'services' },
+                        { type: 'separator' },
+                        { role: 'hide' },
+                        { role: 'hideOthers' },
+                        { role: 'unhide' },
+                        { type: 'separator' },
+                        { role: 'quit' }
+                    ]
+                },
+                {
+                    label: 'Edit',
+                    submenu: [
+                        { role: 'undo' },
+                        { role: 'redo' },
+                        { type: 'separator' },
+                        { role: 'cut' },
+                        { role: 'copy' },
+                        { role: 'paste' },
+                        { role: 'selectAll' }
+                    ]
+                }
+            ]);
+            Menu.setApplicationMenu(appMenu);
+        } else {
+            Menu.setApplicationMenu(null);
+        }
+
         const stopReminderService = startReminderService(PROJECTS_FILE);
         app.on('before-quit', stopReminderService);
     });

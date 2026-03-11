@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown } from "lucide-react"
 import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
@@ -15,6 +15,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Toaster } from "sonner"
 
@@ -28,8 +29,11 @@ export default function MainLayout() {
     const loadProjects = useProjectStore(state => state.loadProjects)
     const setActiveProject = useProjectStore(state => state.setActiveProject)
     const deleteProject = useProjectStore(state => state.deleteProject)
-    
+    const setEnvironmentDefault = useProjectStore(state => state.setEnvironmentDefault)
+
     const activeProject = projects.find(p => p.id === activeProjectId)
+    const environments = activeProject?.environments || []
+    const defaultEnv = environments.find(e => e.isDefault) || environments[0]
 
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editingProject, setEditingProject] = useState<Project | undefined>(undefined)
@@ -41,8 +45,7 @@ export default function MainLayout() {
     const [toolsCollapsed, setToolsCollapsed] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
     const [isSapActive, setIsSapActive] = useState(false)
-
-    const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0
+    const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().indexOf('MAC') >= 0)
 
     // Routes that use h-full flex layouts and need the full content area (no padding/max-width)
     const FULL_BLEED_ROUTES = ['/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks']
@@ -67,8 +70,8 @@ export default function MainLayout() {
             }
             window.addEventListener('open-project-dialog', handleOpenDialog)
 
-            api.getSystemInfo().then(() => {
-                // platform state removed
+            api.getSystemInfo().then((info: { platform: string }) => {
+                setIsMac(info.platform === 'darwin')
             })
 
             const refreshSettings = async () => {
@@ -104,6 +107,32 @@ export default function MainLayout() {
             window.dispatchEvent(new Event('settings-updated'))
         }
     }
+
+    // Global keyboard shortcuts: Ctrl+1-5 for navigation, Ctrl+K for command palette
+    useEffect(() => {
+        const NAV_SHORTCUTS: Record<string, string> = {
+            '1': '/',
+            '2': '/tasks',
+            '3': '/tests',
+            '4': '/environments',
+            '5': '/notes',
+        }
+        const handleGlobalKey = (e: KeyboardEvent) => {
+            // Ignore if user is typing in an input/textarea/contenteditable
+            const tag = (e.target as HTMLElement)?.tagName
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return
+            const isCtrl = e.ctrlKey || e.metaKey
+            if (isCtrl && e.key === 'k') {
+                e.preventDefault()
+                setPaletteOpen(prev => !prev)
+            } else if (isCtrl && NAV_SHORTCUTS[e.key]) {
+                e.preventDefault()
+                navigate(NAV_SHORTCUTS[e.key])
+            }
+        }
+        window.addEventListener('keydown', handleGlobalKey)
+        return () => window.removeEventListener('keydown', handleGlobalKey)
+    }, [navigate])
 
     const navGroups = [
         { items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }] },
@@ -283,6 +312,37 @@ export default function MainLayout() {
                     </div>
 
                     <div className="flex items-center gap-0 app-region-no-drag">
+                        {/* Environment quick-switch */}
+                        {environments.length > 0 && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button className="flex items-center gap-1.5 px-2.5 py-1 mr-1 rounded-full border border-[#2A2A3A] bg-[#1A1A24]/60 hover:bg-[#252535] hover:border-[#3D3D5F] transition-all app-region-no-drag group" title="Switch active environment">
+                                        <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: defaultEnv?.color || '#6B7280' }} />
+                                        <span className="text-[10px] font-bold text-[#9CA3AF] group-hover:text-[#E2E8F0] truncate max-w-[100px] transition-colors">{defaultEnv?.name || 'No Env'}</span>
+                                        <ChevronDown className="h-2.5 w-2.5 text-[#6B7280] group-hover:text-[#9CA3AF] transition-colors" />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48 bg-[#1A1A24] border-[#2A2A3A] text-white">
+                                    <div className="px-2 py-1.5 text-[9px] font-black text-[#6B7280] uppercase tracking-[0.2em]">Active Environment</div>
+                                    <DropdownMenuSeparator className="bg-[#2A2A3A]" />
+                                    {environments.map(env => (
+                                        <DropdownMenuItem
+                                            key={env.id}
+                                            onClick={() => activeProjectId && setEnvironmentDefault(activeProjectId, env.id)}
+                                            className={cn("flex items-center gap-2 cursor-pointer text-xs", env.isDefault ? "text-[#E2E8F0]" : "text-[#9CA3AF]")}
+                                        >
+                                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: env.color || '#6B7280' }} />
+                                            <span className="flex-1 truncate">{env.name}</span>
+                                            {env.isDefault && <span className="text-[9px] font-black text-[#A78BFA] uppercase tracking-wider">Active</span>}
+                                        </DropdownMenuItem>
+                                    ))}
+                                    <DropdownMenuSeparator className="bg-[#2A2A3A]" />
+                                    <DropdownMenuItem onClick={() => navigate('/environments')} className="text-xs text-[#6B7280] cursor-pointer">
+                                        <Globe className="h-3 w-3 mr-2" /> Manage Environments
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                         {isSapActive && (
                             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#A78BFA]/10 border border-[#A78BFA]/20 rounded-full mr-2 group cursor-help transition-all hover:bg-[#A78BFA]/20" title="SAP Commerce Context is active and injected into AI analysis">
                                 <div className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />

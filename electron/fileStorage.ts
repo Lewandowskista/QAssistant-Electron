@@ -57,6 +57,15 @@ function getMimeType(ext: string): string {
 
 export async function saveFile(sourcePath: string): Promise<{ success: boolean; attachment?: StoredAttachment; error?: string }> {
     try {
+        if (!sourcePath || typeof sourcePath !== 'string') {
+            return { success: false, error: 'No file path provided.' }
+        }
+
+        // Normalize: strip file:// URI prefix and decode percent-encoding
+        if (sourcePath.startsWith('file://')) {
+            sourcePath = decodeURIComponent(sourcePath.replace(/^file:\/\/\/?/, ''))
+        }
+
         if (!fs.existsSync(sourcePath)) {
             return { success: false, error: 'Source file does not exist.' }
         }

@@ -71,6 +71,7 @@ export default function TestsPage() {
     const [isGenerating, setIsGenerating] = useState(false)
     const [showArchived, setShowArchived] = useState(false)
     const [source, setSource] = useState("Linear")
+    const [freeTextInput, setFreeTextInput] = useState("")
     const [aiAnalysisResult, setAiAnalysisResult] = useState<string | null>(null)
     const [aiSuggestionsExpanded, setAiSuggestionsExpanded] = useState(false)
     const [reportType, setReportType] = useState("Summary")
@@ -263,6 +264,61 @@ export default function TestsPage() {
 
         const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
         if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
+
+        // Free-text mode: build a synthetic task from the pasted description
+        if (source === 'FreeText') {
+            if (!freeTextInput.trim()) {
+                toast.warning('Please enter a feature description or acceptance criteria.')
+                return
+            }
+            setIsGenerating(true)
+            try {
+                const sanitizedProject = activeProject ? {
+                    name: activeProject.name,
+                    description: activeProject.description,
+                    environments: activeProject.environments,
+                    testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })),
+                    testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
+                    checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category }))
+                } : undefined
+                const syntheticTask = [{
+                    id: 'freetext-input',
+                    title: freeTextInput.split('\n')[0].slice(0, 120) || 'Free Text Input',
+                    description: freeTextInput,
+                    status: 'in-progress',
+                    priority: 'medium',
+                    issueType: 'Task',
+                    labels: '',
+                    sourceIssueId: '',
+                    externalId: ''
+                }]
+                const cases = await api.aiGenerateCases({ apiKey, tasks: syntheticTask, sourceName: 'Manual', project: sanitizedProject, designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
+                if (!cases || cases.length === 0) { toast.warning('No test cases could be generated.'); return }
+                const timestamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                const planName = `Free Text · ${timestamp}`
+                const planId = await addTestPlan(activeProjectId, planName, `Generated from free-text description using Gemini.`)
+                for (const c of cases) {
+                    await addTestCase(activeProjectId, planId, {
+                        title: c.title,
+                        displayId: c.testCaseId,
+                        preConditions: c.preConditions || '',
+                        steps: c.steps || c.testSteps || '',
+                        testData: c.testData || '',
+                        expectedResult: c.expectedResult || '',
+                        priority: (c.priority || 'medium').toLowerCase() as any,
+                        sourceIssueId: c.sourceIssueId || '',
+                        sapModule: c.sapModule,
+                        status: 'not-run'
+                    })
+                }
+                toast.success(`Generated ${cases.length} test cases in "${planName}"`)
+            } catch (e: any) {
+                toast.error(`AI Generation failed: ${e.message}`)
+            } finally {
+                setIsGenerating(false)
+            }
+            return
+        }
 
         const tasksToUse = activeProject?.tasks?.filter(t => selectedTaskIds.includes(t.id)) || []
 
@@ -493,19 +549,20 @@ export default function TestsPage() {
                                     <div className="flex items-center gap-3">
                                         <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Source</span>
                                         <Select value={source} onValueChange={setSource}>
-                                            <SelectTrigger className="h-8 w-32 bg-[#1A1A24] border-[#2A2A3A] text-[11px] font-bold text-[#E2E8F0]">
+                                            <SelectTrigger className="h-8 w-36 bg-[#1A1A24] border-[#2A2A3A] text-[11px] font-bold text-[#E2E8F0]">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
                                                 <SelectItem value="Linear">Linear</SelectItem>
                                                 <SelectItem value="Jira">Jira</SelectItem>
                                                 <SelectItem value="Manual">Manual</SelectItem>
+                                                <SelectItem value="FreeText">Free Text / AI</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <Button
                                         onClick={handleAiGenerate}
-                                        disabled={isGenerating || selectedTaskIds.length === 0}
+                                        disabled={isGenerating || (source !== 'FreeText' && selectedTaskIds.length === 0)}
                                         className="h-8 px-4 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold text-[11px] gap-2"
                                     >
                                         <Cpu className="h-3.5 w-3.5" /> {isGenerating ? 'GENERATING...' : 'GENERATE TEST CASES'}
@@ -583,6 +640,24 @@ export default function TestsPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Free Text Input Panel */}
+                            {source === 'FreeText' && (
+                                <div className="flex-none bg-[#0F0F13] border-b border-[#2A2A3A] px-6 py-4 animate-in slide-in-from-top-1 duration-200">
+                                    <div className="max-w-5xl mx-auto space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-[#A78BFA] uppercase tracking-widest">Paste Feature Description or Acceptance Criteria</span>
+                                            <span className="text-[10px] text-[#6B7280]">AI will generate test cases directly from this text</span>
+                                        </div>
+                                        <textarea
+                                            value={freeTextInput}
+                                            onChange={e => setFreeTextInput(e.target.value)}
+                                            placeholder="e.g. As a user I want to add items to my cart so that I can purchase them. The cart should update the item count badge, support quantity changes, and persist across page reloads..."
+                                            className="w-full h-28 bg-[#1A1A24] border border-[#2A2A3A] rounded-lg px-4 py-3 text-[12px] text-[#E2E8F0] placeholder:text-[#4B5563] focus:outline-none focus:border-[#A78BFA]/50 focus:ring-1 focus:ring-[#A78BFA]/20 resize-none custom-scrollbar"
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Content Area */}
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">

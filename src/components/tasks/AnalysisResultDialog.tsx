@@ -8,10 +8,8 @@ import {
 import { Button } from "@/components/ui/button"
 import FormattedText from "@/components/FormattedText"
 import { Sparkles, Copy, Check } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "sonner"
-
-const isMac = navigator.userAgent.toUpperCase().includes('MAC')
 
 interface AnalysisResultDialogProps {
     open: boolean
@@ -29,6 +27,13 @@ export default function AnalysisResultDialog({
     projectId,
 }: AnalysisResultDialogProps) {
     const [copied, setCopied] = useState(false)
+    const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().includes('MAC'))
+
+    useEffect(() => {
+        (window.electronAPI as any)?.getSystemInfo?.().then((info: any) => {
+            if (info?.platform) setIsMac(info.platform === 'darwin')
+        })
+    }, [])
 
     const handleCopy = () => {
         if (!result) return

@@ -154,6 +154,10 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                             <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">↵</div>
                             <span>Select</span>
                         </div>
+                        <div className="flex items-center gap-2">
+                            <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">Ctrl+1–5</div>
+                            <span>Quick Nav</span>
+                        </div>
                     </div>
                     <div className="px-4">
                         Mission Logic Core v1.2

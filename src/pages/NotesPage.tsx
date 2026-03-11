@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
-import { Plus, Trash2, Paperclip, ExternalLink, CheckCircle2, StickyNote, BookOpen } from "lucide-react"
+import { Plus, Trash2, Paperclip, ExternalLink, CheckCircle2, StickyNote, BookOpen, Code } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +26,7 @@ export default function NotesPage() {
 
     const [activeTab, setActiveTab] = useState<SidebarTab>('Notes')
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+    const [sourceMode, setSourceMode] = useState(false)
 
     const selectedNote = notes.find(n => n.id === selectedItemId)
     const selectedRunbook = runbooks.find(r => r.id === selectedItemId)
@@ -40,6 +41,7 @@ export default function NotesPage() {
     useEffect(() => {
         setTitleState(selectedNote?.title || '')
         setContentState(selectedNote?.content || '')
+        setSourceMode(false)
     }, [selectedItemId])
 
     // Debounced save for title
@@ -183,6 +185,15 @@ export default function NotesPage() {
                                         className="bg-transparent border-none text-2xl font-black text-[#E2E8F0] focus-visible:ring-0 px-0 h-auto"
                                     />
                             <div className="flex gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setSourceMode(s => !s)}
+                                    className={cn("h-9 w-9", sourceMode ? "text-[#A78BFA] bg-[#A78BFA]/10" : "text-[#6B7280] hover:text-[#A78BFA]")}
+                                    title={sourceMode ? "Switch to Visual Editor" : "Switch to HTML Source"}
+                                >
+                                    <Code className="h-4 w-4" />
+                                </Button>
                                 <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-[#EF4444] hover:bg-[#EF4444]/10">
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -190,10 +201,19 @@ export default function NotesPage() {
                             </div>
                         </header>
                         <div className="flex-1 flex overflow-hidden">
+                            {sourceMode ? (
+                                <textarea
+                                    value={contentState}
+                                    onChange={e => setContentState(e.target.value)}
+                                    className="flex-1 bg-[#0F0F13] text-[#E2E8F0] font-mono text-sm p-8 resize-none focus:outline-none custom-scrollbar border-none"
+                                    spellCheck={false}
+                                />
+                            ) : (
                             <RichTextEditor
                                 content={contentState}
                                 onChange={(content) => setContentState(content)}
                             />
+                            )}
                             <aside className="w-64 border-l border-[#2A2A3A] bg-[#13131A]/30 flex flex-col">
                                 <div className="p-4 border-b border-[#2A2A3A] flex items-center justify-between">
                                     <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Attachments</span>

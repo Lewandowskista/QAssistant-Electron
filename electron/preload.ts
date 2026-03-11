@@ -80,7 +80,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ccv2GetEnvironments: (args: any) => ipcRenderer.invoke('ccv2-get-environments', args),
   ccv2GetDeployments: (args: any) => ipcRenderer.invoke('ccv2-get-deployments', args),
   ccv2GetBuild: (args: any) => ipcRenderer.invoke('ccv2-get-build', args),
-  copyToAttachments: (args: any) => ipcRenderer.invoke('copy-to-attachments', typeof args === 'string' ? { sourcePath: args } : args),
+  copyToAttachments: (sourcePath: string) => ipcRenderer.invoke('copy-to-attachments', sourcePath),
   saveBytesAttachment: (bytes: Uint8Array, fileName: string) => ipcRenderer.invoke('save-bytes-attachment', { bytes, fileName }),
   deleteAttachment: (args: any) => ipcRenderer.invoke('delete-attachment', typeof args === 'string' ? { filePath: args } : args),
   generateBugReportTask: (args: { task: any, environment?: string, reporter?: string, aiAnalysis?: string }) => ipcRenderer.invoke('generate-bug-report-task', args),
