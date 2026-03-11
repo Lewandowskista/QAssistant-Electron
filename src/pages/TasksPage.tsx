@@ -359,8 +359,42 @@ export default function TasksPage() {
                     }}
                     onAnalyze={handleAnalyzeIssue}
                     isAnalyzing={isAnalyzing}
-                    onGenerateBugReport={async () => { /* reuse existing logic */ }}
-                    onDeleteAnalysis={(h) => { console.log("Delete analysis", h) }}
+                    onGenerateBugReport={async () => {
+                        if (activeProject && selectedTask) {
+                            try {
+                                const env = activeProject.environments.find((e: any) => e.isDefault) || activeProject.environments[0]
+                                const res = await api.generateBugReportTask({
+                                    task: selectedTask,
+                                    environment: env,
+                                    reporter: "QA Assistant",
+                                    aiAnalysis: selectedTask.analysisHistory?.[0]?.fullResult
+                                })
+                                if (res.success) {
+                                    toast.success("Bug report generated and saved to attachments!")
+                                    if (res.attachment?.filePath) {
+                                        await api.openFile({ filePath: res.attachment.filePath })
+                                    }
+                                } else {
+                                    toast.error(`Report generation failed: ${res.error}`)
+                                }
+                            } catch (e: any) {
+                                toast.error(`Error: ${e.message}`)
+                            }
+                        }
+                    }}
+                    onDeleteAnalysis={async (entry) => {
+                        if (activeProjectId && selectedTask) {
+                            const updatedHistory = (selectedTask.analysisHistory || []).filter(
+                                (h: any) => h.timestamp !== entry.timestamp
+                            )
+                            await updateProject(activeProjectId, {
+                                tasks: tasks.map((t: Task) => 
+                                    t.id === selectedTask.id ? { ...t, analysisHistory: updatedHistory } : t
+                                )
+                            })
+                            toast.success("Analysis deleted!")
+                        }
+                    }}
                     api={api}
                 />
             </div>

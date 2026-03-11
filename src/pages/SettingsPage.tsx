@@ -388,7 +388,7 @@ export default function SettingsPage() {
         if (!sub || !tok) { flash(setCcv2Status, 'Save credentials first.', false); return }
         setCcv2Testing(true)
         try {
-            const envs = await api.ccv2GetEnvironments(sub, tok)
+            const envs = await api.ccv2GetEnvironments({ subscriptionCode: sub, apiToken: tok })
             flash(setCcv2Status, `✓ Connected — ${Array.isArray(envs) ? envs.length : 0} environment(s) found.`, true)
         } catch (e: any) {
             flash(setCcv2Status, `Connection failed: ${e.message}`, false)
@@ -444,7 +444,7 @@ export default function SettingsPage() {
     const exportProject = async () => {
         if (!activeProject) { flash(setShareStatus, 'No project selected.', false); return }
         const content = JSON.stringify({ ...activeProject, linearConnections: activeProject.linearConnections, jiraConnections: activeProject.jiraConnections }, null, 2)
-        await api.saveFileDialog(`${activeProject.name.replace(/\s+/g, '_')}_export.json`, content)
+        await api.saveFileDialog({ defaultName: `${activeProject.name.replace(/\s+/g, '_')}_export.json`, content })
         flash(setShareStatus, 'Project exported. Credentials are not included and must be re-entered on the target machine.', true, 6000)
     }
 

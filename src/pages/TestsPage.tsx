@@ -363,7 +363,7 @@ export default function TestsPage() {
         try {
             const filePath = await api.selectFile()
             if (!filePath) return
-            const content = await api.readCsvFile(filePath) // reuse read functionality to load text file string
+            const content = await api.readCsvFile({ filePath }) // reuse read functionality to load text file string
             const name = filePath.split(/[/\\]/).pop() || 'Unknown Document'
             setDesignDocName(name)
             setDesignDocContent(content)
@@ -407,7 +407,7 @@ export default function TestsPage() {
                 checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
             } : undefined;
 
-            const result = await api.aiCriticality(apiKey, activeProject?.tasks || [], testPlans, projectExecutions, sanitizedProject, activeProject?.geminiModel)
+            const result = await api.aiCriticality({ apiKey, tasks: activeProject?.tasks || [], testPlans, executions: projectExecutions, project: sanitizedProject, modelName: activeProject?.geminiModel })
             setAiAnalysisResult(result)
         } catch (e: any) {
             toast.error(`Criticality assessment failed: ${e.message}`)
@@ -431,7 +431,7 @@ export default function TestsPage() {
                 checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
             } : undefined;
 
-            const result = await api.aiTestRunSuggestions(apiKey, testPlans, projectExecutions, sanitizedProject, activeProject?.geminiModel)
+            const result = await api.aiTestRunSuggestions({ apiKey, testPlans, executions: projectExecutions, project: sanitizedProject, modelName: activeProject?.geminiModel })
             setAiAnalysisResult(result)
         } catch (e: any) {
             toast.error(`Test run suggestions failed: ${e.message}`)
@@ -447,23 +447,23 @@ export default function TestsPage() {
             let content = ''
             let filename = ''
             if (reportType === 'SummaryPdf') {
-                const res = await api.exportTestSummaryPdf(activeProject, undefined, aiAnalysisResult || undefined)
+                const res = await api.exportTestSummaryPdf({ project: activeProject, filterPlanIds: undefined, aiResult: aiAnalysisResult || undefined })
                 if (res && res.success) {
                     toast.success(`PDF exported to: ${res.path}`)
                 } else if (res && res.error) {
                     throw new Error(res.error)
                 }
             } else if (reportType === 'Summary') {
-                content = await api.generateTestSummaryMarkdown(activeProject, undefined, aiAnalysisResult || undefined)
+                content = await api.generateTestSummaryMarkdown({ project: activeProject, filterPlanIds: undefined, aiResult: aiAnalysisResult || undefined })
                 filename = `${activeProject.name.replace(/\s+/g, '-')}-test-summary.md`
             } else if (reportType === 'TestCasesCsv') {
-                content = await api.generateTestCasesCsv(activeProject)
+                content = await api.generateTestCasesCsv({ project: activeProject })
                 filename = `${activeProject.name.replace(/\s+/g, '-')}-test-cases.csv`
             } else if (reportType === 'ExecutionsCsv') {
-                content = await api.generateExecutionsCsv(activeProject)
+                content = await api.generateExecutionsCsv({ project: activeProject })
                 filename = `${activeProject.name.replace(/\s+/g, '-')}-executions.csv`
             }
-            if (content && reportType !== 'SummaryPdf') await api.saveFileDialog(filename, content)
+            if (content && reportType !== 'SummaryPdf') await api.saveFileDialog({ defaultName: filename, content })
         } catch (e: any) {
             toast.error(`Export failed: ${e.message}`)
         } finally {

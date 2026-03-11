@@ -236,7 +236,7 @@ export function TaskDetailsSidebar({
                                     <textarea
                                         value={editDescription}
                                         onChange={(e) => setEditDescription(e.target.value)}
-                                        className="min-h-[200px] w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] p-3 text-xs text-[#E2E8F0] focus:ring-1 focus:ring-[#A78BFA]/50 outline-none resize-none"
+                                        className="min-h-[200px] w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] p-3 text-xs text-[#E2E8F0] focus:ring-1 focus:ring-[#A78BFA]/50 outline-none resize-none app-region-no-drag"
                                         placeholder="Task description..."
                                     />
                                 </div>

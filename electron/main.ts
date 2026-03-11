@@ -13,6 +13,7 @@ import * as report from './report';
 import * as integrations from './integrations';
 import { saveFile, saveBytes, deleteFile } from './fileStorage';
 import * as bugReport from './bug-report';
+import { SapHacService } from './sapHac';
 // trayIconBase64 removed to use file-based icon
 // BOOTSTRAP: This self-executing function finds the REAL Electron API even if shadowed.
 const electron = (function() {
@@ -390,6 +391,27 @@ if (app) {
         ipcMain.handle('get-jira-history', async (_e: any, { domain, email, apiKey, issueKey }: any) => await integrations.getJiraIssueHistory(domain, email, apiKey, issueKey));
         ipcMain.handle('get-jira-statuses', async (_e: any, { domain, email, apiKey, projectKey }: any) => await integrations.getJiraStatuses(domain, email, apiKey, projectKey));
         ipcMain.handle('create-jira-issue', async (_e: any, { domain, email, apiKey, projectKey, title, description, issueTypeName }: any) => await integrations.createJiraIssue(domain, email, apiKey, projectKey, title, description, issueTypeName));
+
+        // SAP HAC Handlers
+        const sapHacInstances = new Map<string, any>();
+        const getSapHac = (baseUrl: string, ignoreSsl = false) => {
+            if (!sapHacInstances.has(baseUrl)) {
+                sapHacInstances.set(baseUrl, new SapHacService(baseUrl, ignoreSsl));
+            }
+            return sapHacInstances.get(baseUrl);
+        };
+
+        ipcMain.handle('sap-hac-login', async (_e: any, { baseUrl, user, pass, ignoreSsl }: any) => {
+            const svc = getSapHac(baseUrl, ignoreSsl);
+            const success = await svc.login(user, pass);
+            return { success };
+        });
+        ipcMain.handle('sap-hac-get-cronjobs', async (_e: any, { baseUrl }: any) => await getSapHac(baseUrl).getCronJobs());
+        ipcMain.handle('sap-hac-flexible-search', async (_e: any, { baseUrl, query, max }: any) => await getSapHac(baseUrl).runFlexibleSearch(query, max));
+        ipcMain.handle('sap-hac-import-impex', async (_e: any, { baseUrl, script, enableCode }: any) => await getSapHac(baseUrl).importImpEx(script, enableCode));
+        ipcMain.handle('sap-hac-get-catalog-versions', async (_e: any, { baseUrl }: any) => await getSapHac(baseUrl).getCatalogVersions());
+        ipcMain.handle('sap-hac-get-catalog-ids', async (_e: any, { baseUrl }: any) => await getSapHac(baseUrl).getCatalogIds());
+        ipcMain.handle('sap-hac-get-catalog-sync-diff', async (_e: any, { baseUrl, catalogId, maxMissing }: any) => await getSapHac(baseUrl).getCatalogSyncDiff(catalogId, maxMissing));
 
         ipcMain.handle('get-system-info', () => ({ platform: process.platform }));
         ipcMain.handle('get-app-version', () => app.getVersion());

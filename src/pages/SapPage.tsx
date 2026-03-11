@@ -346,21 +346,21 @@ export default function SapPage() {
                                 placeholder="HAC URL"
                                 value={hacBaseUrl}
                                 onChange={e => setHacBaseUrl(e.target.value)}
-                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs"
+                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs app-region-no-drag"
                             />
                             <input
                                 type="text"
                                 placeholder="User"
                                 value={hacUser}
                                 onChange={e => setHacUser(e.target.value)}
-                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs"
+                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs app-region-no-drag"
                             />
                             <input
                                 type="password"
                                 placeholder="Pass"
                                 value={hacPass}
                                 onChange={e => setHacPass(e.target.value)}
-                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs"
+                                className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] px-2 text-xs app-region-no-drag"
                             />
                         </div>
                         <Button
@@ -494,7 +494,7 @@ export default function SapPage() {
                                     <textarea
                                         value={flexQuery}
                                         onChange={e => setFlexQuery(e.target.value)}
-                                        className="w-full h-full bg-transparent border-none text-[#A78BFA] font-mono text-sm resize-none focus:outline-none custom-scrollbar"
+                                        className="w-full h-full bg-transparent border-none text-[#A78BFA] font-mono text-sm resize-none focus:outline-none custom-scrollbar app-region-no-drag"
                                         placeholder="SELECT {p:pk}, {p:code} FROM {Product AS p} WHERE {p:approvalStatus} = 'approved'"
                                         spellCheck={false}
                                     />
@@ -678,7 +678,7 @@ export default function SapPage() {
                                     <textarea
                                         value={impExScript}
                                         onChange={e => setImpExScript(e.target.value)}
-                                        className="w-full h-full bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-6 text-[#E2E8F0] font-mono text-sm resize-none focus:outline-none selection:bg-[#A78BFA]/20"
+                                        className="w-full h-full bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-6 text-[#E2E8F0] font-mono text-sm resize-none focus:outline-none selection:bg-[#A78BFA]/20 app-region-no-drag"
                                         placeholder="# ImpEx Script&#10;INSERT_UPDATE Product;code[unique=true];name[lang=en]&#10;;test_p001;High Fidelity Component"
                                         spellCheck={false}
                                     />

@@ -81,19 +81,39 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [messages])
 
+    const getApiKey = useCallback(async (): Promise<string | null> => {
+        const api = window.electronAPI as any
+        if (!api) return null
+        
+        // Try project-specific key first
+        if (activeProjectId) {
+            const projectKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`)
+            if (projectKey) return projectKey
+        }
+        
+        // Fall back to global key
+        const globalKey = await api.secureStoreGet('gemini_api_key')
+        return globalKey || null
+    }, [activeProjectId])
+
     // Focus input when opened
     useEffect(() => {
         if (open) {
             setTimeout(() => inputRef.current?.focus(), 150)
+            
+            // Re-check API key when opening
+            getApiKey().then(key => {
+                setApiKeyMissing(!key)
+            })
         }
-    }, [open])
+    }, [open, getApiKey])
 
-    const getApiKey = useCallback(async (): Promise<string | null> => {
-        const api = window.electronAPI as any
-        if (!api) return null
-        const settings = await api.readSettingsFile()
-        return settings?.geminiApiKey || null
-    }, [])
+    // Check API key when project changes
+    useEffect(() => {
+        getApiKey().then(key => {
+            setApiKeyMissing(!key)
+        })
+    }, [activeProjectId, getApiKey])
 
     const sendMessage = useCallback(async (text: string) => {
         if (!text.trim() || isLoading) return
@@ -133,6 +153,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                 userMessage: text.trim(),
                 history: messages.map((m) => ({ role: m.role, content: m.content })),
                 project: activeProject || null,
+                modelName: activeProject?.geminiModel,
             })
 
             if (abortRef.current) return
@@ -203,7 +224,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             {/* Panel */}
             <div
                 className={cn(
-                    "fixed top-0 right-0 h-full z-[120] flex flex-col",
+                    "fixed top-0 right-0 h-full z-[120] flex flex-col app-region-no-drag",
                     "w-[480px] bg-[#0F0F13] border-l border-[#2A2A3A] transition-all duration-300 ease-in-out",
                     open 
                         ? "translate-x-0 opacity-100 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]" 
@@ -386,7 +407,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
 
                 {/* Input area */}
                 <div className="p-3 border-t border-[#2A2A3A] bg-[#13131A] shrink-0">
-                    <div className="relative flex items-end gap-2 rounded-xl border border-[#2A2A3A] bg-[#0F0F13] focus-within:border-[#A78BFA]/40 transition-colors p-2">
+                    <div className="relative flex items-end gap-2 rounded-xl border border-[#2A2A3A] bg-[#0F0F13] focus-within:border-[#A78BFA]/40 transition-colors p-2 app-region-no-drag">
                         <textarea
                             ref={inputRef}
                             value={input}
@@ -400,8 +421,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             placeholder="Ask about tests, risks, SAP, coverage..."
                             disabled={isLoading}
                             rows={1}
-                            className="flex-1 bg-transparent border-none text-xs text-[#E2E8F0] placeholder:text-[#6B7280]/60 focus:outline-none resize-none leading-relaxed min-h-[20px] max-h-[120px] py-0.5 px-1 custom-scrollbar"
-                            style={{ height: "20px" }}
+                            className="flex-1 bg-transparent border-none text-xs text-[#E2E8F0] placeholder:text-[#6B7280]/60 focus:outline-none resize-none leading-relaxed min-h-[20px] max-h-[120px] py-0.5 px-1 custom-scrollbar app-region-no-drag"
                         />
                         <button
                             onClick={() => sendMessage(input)}
@@ -431,7 +451,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                 <button
                     onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })}
                     className={cn(
-                        "fixed bottom-24 right-4 z-[96] w-8 h-8 rounded-full bg-[#A78BFA] text-white flex items-center justify-center shadow-lg transition-all",
+                        "fixed bottom-24 right-4 z-[96] w-8 h-8 rounded-full bg-[#A78BFA] text-white flex items-center justify-center shadow-lg transition-all app-region-no-drag",
                         open ? "opacity-100" : "opacity-0 pointer-events-none"
                     )}
                 >
