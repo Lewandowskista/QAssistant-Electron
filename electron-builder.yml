@@ -20,8 +20,7 @@ mac:
   target:
     - target: dmg
       arch:
-        - x64
-        - arm64
+        - universal
   category: public.app-category.developer-tools
   darkModeSupport: true
   entitlementsInherit: build/entitlements.mac.plist
