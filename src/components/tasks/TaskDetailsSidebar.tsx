@@ -28,7 +28,7 @@ interface TaskDetailsSidebarProps {
     currentColumns: any[]
     onClose: () => void
     onUpdateTask: (updates: Partial<Task>) => Promise<void>
-    onAnalyze: () => Promise<void>
+    onAnalyze: (task: Task) => Promise<void>
     isAnalyzing: boolean
     onGenerateBugReport: () => Promise<void>
     onDeleteAnalysis: (entry: any) => void
@@ -454,7 +454,7 @@ export function TaskDetailsSidebar({
             <div className="flex-none p-5 border-t border-[#2A2A3A] bg-[#0F0F13] space-y-2">
                 <Button
                     className="w-full h-10 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold gap-2"
-                    onClick={onAnalyze}
+                    onClick={() => onAnalyze(selectedTask)}
                     disabled={isAnalyzing}
                 >
                     {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ActivityIcon className="h-4 w-4" />}

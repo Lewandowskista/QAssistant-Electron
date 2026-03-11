@@ -35,6 +35,7 @@ import { TaskCard } from "@/components/tasks/TaskCard"
 import { TaskColumn } from "@/components/tasks/TaskColumn"
 import { TaskDetailsSidebar } from "@/components/tasks/TaskDetailsSidebar"
 import { NewTaskModal } from "@/components/tasks/NewTaskModal"
+import AnalysisResultDialog from "@/components/tasks/AnalysisResultDialog"
 
 const DEFAULT_COLUMNS: { id: string; title: string, color: string, textColor: string }[] = [
     { id: 'backlog', title: 'BACKLOG', color: 'bg-[#9CA3AF]', textColor: 'text-[#9CA3AF]' },
@@ -60,16 +61,19 @@ export default function TasksPage() {
     const tasks = useMemo(() => activeProject?.tasks || [], [activeProject?.tasks])
 
     const [activeTask, setActiveTask] = useState<Task | null>(null)
-    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+    const [detailsId, setDetailsId] = useState<string | null>(null)
+    const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false)
+    const [currentAnalysisResult, setCurrentAnalysisResult] = useState<string | null>(null)
+    const [taskBeingAnalyzed, setTaskBeingAnalyzed] = useState<Task | null>(null)
     const [searchQuery, setSearchQuery] = useState("")
     const [sourceMode, setSourceMode] = useState<'manual' | 'linear' | 'jira'>('manual')
     const [isSyncing, setIsSyncing] = useState(false)
-    const [isAnalyzing, setIsAnalyzing] = useState(false)
+    const [isLoading, setIsLoading] = useState(false) // Renamed from isAnalyzing
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false)
     const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false)
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
 
-    const selectedTask = useMemo(() => tasks.find((t: Task) => t.id === selectedTaskId) || null, [tasks, selectedTaskId])
+    const selectedTask = useMemo(() => tasks.find((t: Task) => t.id === detailsId) || null, [tasks, detailsId])
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -113,7 +117,7 @@ export default function TasksPage() {
             }
             if (e.key === 'Escape') {
                 if (isShortcutModalOpen) setIsShortcutModalOpen(false)
-                else setSelectedTaskId(null)
+                else setDetailsId(null)
             }
         }
         window.addEventListener('keydown', handleKeyDown)
@@ -237,32 +241,70 @@ export default function TasksPage() {
         }
     }
 
-    const handleAnalyzeIssue = async () => {
-        if (!selectedTask || !activeProject) return
-        const prefix = `project:${activeProject.id}:`
-        const apiKey = await api.secureStoreGet(`${prefix}gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
-        if (!apiKey) { toast.error('Please set Gemini API key.'); return }
+    const handleAnalyzeIssue = async (task: Task) => {
+        const api = window.electronAPI as any
+        if (!api) return
 
-        setIsAnalyzing(true)
+        const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
+        if (!apiKey) {
+            toast.error('Please set your Gemini API key in Settings.')
+            return
+        }
+
+        setIsLoading(true)
+        setTaskBeingAnalyzed(task)
         try {
-            const result = await api.aiAnalyzeIssue({ apiKey, task: selectedTask, comments: [], project: activeProject, modelName: activeProject.geminiModel })
-            const historyEntry = {
-                version: (selectedTask.analysisHistory?.length || 0) + 1,
-                hash: "",
-                timestamp: Date.now(),
-                summary: result.substring(0, 150) + "...",
-                fullResult: result,
-                taskStatus: selectedTask.status,
-                taskPriority: selectedTask.priority
+            // Fetch comments if applicable to enrich analysis
+            let comments: any[] = []
+            if (task.source === 'linear' && task.sourceIssueId) {
+                try {
+                    comments = await api.getLinearComments(task.sourceIssueId)
+                } catch (e) {
+                    console.error('Failed to fetch Linear comments:', e)
+                }
+            } else if (task.source === 'jira' && task.externalId) {
+                try {
+                    comments = await api.getJiraComments(task.externalId)
+                } catch (e) {
+                    console.error('Failed to fetch Jira comments:', e)
+                }
             }
-            const updatedHistory = [historyEntry, ...(selectedTask.analysisHistory || [])]
-            await updateProject(activeProject.id, {
-                tasks: tasks.map((t: Task) => t.id === selectedTask.id ? { ...t, analysisHistory: updatedHistory } : t)
+
+            const result = await api.aiAnalyzeIssue({
+                apiKey,
+                task,
+                comments: comments || [],
+                project: activeProject ? { name: activeProject.name, description: activeProject.description } : null,
+                modelName: activeProject?.geminiModel
             })
-        } catch (e: any) {
-            toast.error(`Analysis failed: ${e.message}`)
+
+            const historyEntry = {
+                version: (task.analysisHistory?.length || 0) + 1,
+                hash: crypto.randomUUID(),
+                timestamp: Date.now(),
+                summary: result.split('\n')[0].substring(0, 100),
+                fullResult: result,
+                taskStatus: task.status,
+                taskPriority: task.priority
+            }
+
+            const updatedTasks = activeProject!.tasks.map((t: Task) =>
+                t.id === task.id
+                    ? { ...t, analysisHistory: [historyEntry, ...(t.analysisHistory || [])] }
+                    : t
+            )
+
+            await updateProject(activeProjectId!, { tasks: updatedTasks })
+            
+            // Show the emergent window
+            setCurrentAnalysisResult(result)
+            setIsAnalysisDialogOpen(true)
+            
+            toast.success('Analysis complete')
+        } catch (error: any) {
+            toast.error(`Analysis failed: ${error.message}`)
         } finally {
-            setIsAnalyzing(false)
+            setIsLoading(false)
         }
     }
 
@@ -337,7 +379,7 @@ export default function TasksPage() {
                     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
                         <div className="flex h-full min-w-max p-4 gap-4">
                             {currentColumns.map((col: any) => (
-                                <TaskColumn key={col.id} col={col} tasksInColumn={tasksByColumn[col.id] || []} selectedTaskId={selectedTaskId} setSelectedTaskId={setSelectedTaskId} sourceMode={sourceMode} onAddTask={() => setIsNewTaskModalOpen(true)} />
+                                <TaskColumn key={col.id} col={col} tasksInColumn={tasksByColumn[col.id] || []} selectedTaskId={detailsId} setSelectedTaskId={setDetailsId} sourceMode={sourceMode} onAddTask={() => setIsNewTaskModalOpen(true)} />
                             ))}
                         </div>
                         <DragOverlay>{activeTask ? <TaskCard task={activeTask} isOverlay /> : null}</DragOverlay>
@@ -348,7 +390,7 @@ export default function TasksPage() {
                     selectedTask={selectedTask}
                     activeProject={activeProject}
                     currentColumns={currentColumns}
-                    onClose={() => setSelectedTaskId(null)}
+                    onClose={() => setDetailsId(null)}
                     onUpdateTask={async (updates) => {
                         if (activeProjectId && selectedTask) {
                             await updateProject(activeProjectId, {
@@ -358,7 +400,7 @@ export default function TasksPage() {
                         }
                     }}
                     onAnalyze={handleAnalyzeIssue}
-                    isAnalyzing={isAnalyzing}
+                    isAnalyzing={isLoading}
                     onGenerateBugReport={async () => {
                         if (activeProject && selectedTask) {
                             try {
@@ -412,6 +454,14 @@ export default function TasksPage() {
                 onOpenChange={open => !open && setTaskToDelete(null)}
                 title="Delete Task" description="Permanent action." confirmText="Delete" variant="destructive"
                 onConfirm={() => { if (activeProjectId && taskToDelete) deleteTask(activeProjectId, taskToDelete.id) }}
+            />
+
+            <AnalysisResultDialog
+                open={isAnalysisDialogOpen}
+                onOpenChange={setIsAnalysisDialogOpen}
+                result={currentAnalysisResult}
+                taskTitle={taskBeingAnalyzed?.title || "Issue Analysis"}
+                projectId={activeProjectId || undefined}
             />
         </div>
     )
