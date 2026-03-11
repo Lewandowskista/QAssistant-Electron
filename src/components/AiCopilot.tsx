@@ -82,7 +82,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [messages])
 
-    const getApiKey = useCallback(async (): Promise<string | null> => {
+    const fetchApiKey = useCallback(async (): Promise<string | null> => {
         const api = window.electronAPI as any
         return getApiKey(api, 'gemini_api_key', activeProjectId)
     }, [activeProjectId])
@@ -91,20 +91,20 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     useEffect(() => {
         if (open) {
             setTimeout(() => inputRef.current?.focus(), 150)
-            
+
             // Re-check API key when opening
-            getApiKey().then(key => {
+            fetchApiKey().then(key => {
                 setApiKeyMissing(!key)
             })
         }
-    }, [open, getApiKey])
+    }, [open, fetchApiKey])
 
     // Check API key when project changes
     useEffect(() => {
-        getApiKey().then(key => {
+        fetchApiKey().then(key => {
             setApiKeyMissing(!key)
         })
-    }, [activeProjectId, getApiKey])
+    }, [activeProjectId, fetchApiKey])
 
     const sendMessage = useCallback(async (text: string) => {
         if (!text.trim() || isLoading) return
@@ -121,7 +121,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         abortRef.current = false
 
         try {
-            const apiKey = await getApiKey()
+            const apiKey = await fetchApiKey()
             if (!apiKey) {
                 setApiKeyMissing(true)
                 setMessages((prev) => [
@@ -174,7 +174,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         } finally {
             setIsLoading(false)
         }
-    }, [isLoading, messages, activeProject, getApiKey])
+    }, [isLoading, messages, activeProject, fetchApiKey])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) {
