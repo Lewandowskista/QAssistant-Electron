@@ -367,14 +367,13 @@ export default function MainLayout() {
                     </div>
                 </div>
 
-                {/* MODALS */}
                 <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} project={editingProject} />
                 <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
                 <Toaster theme="dark" position="bottom-right" />
-
-                {/* AI COPILOT PANEL */}
-                <AiCopilot open={copilotOpen} onClose={() => setCopilotOpen(false)} />
             </div>
+
+            {/* AI COPILOT PANEL - Moved out of relative container */}
+            <AiCopilot open={copilotOpen} onClose={() => setCopilotOpen(false)} />
         </div>
     )
 }

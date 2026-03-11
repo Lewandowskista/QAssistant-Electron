@@ -77,7 +77,10 @@
         "nsis",
         "blockmap",
         "vite",
-        "eslintcache"
+        "eslintcache",
+        "npmignore",
+        "asar",
+        "asarUnpack"
     ],
     "flagWords": [],
     "ignorePaths": [

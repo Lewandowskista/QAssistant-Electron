@@ -194,8 +194,8 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             {/* Backdrop */}
             <div
                 className={cn(
-                    "fixed inset-0 z-[90] transition-opacity duration-300",
-                    open ? "opacity-100" : "opacity-0 pointer-events-none"
+                    "fixed inset-0 z-[110] transition-opacity duration-300",
+                    open ? "opacity-100 bg-black/60 backdrop-blur-sm" : "opacity-0 pointer-events-none"
                 )}
                 onClick={onClose}
             />
@@ -203,10 +203,11 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             {/* Panel */}
             <div
                 className={cn(
-                    "fixed top-0 right-0 h-full z-[95] flex flex-col",
-                    "w-[480px] bg-[#0F0F13] border-l border-[#2A2A3A] shadow-2xl",
-                    "transition-transform duration-300 ease-out",
-                    open ? "translate-x-0" : "translate-x-full"
+                    "fixed top-0 right-0 h-full z-[120] flex flex-col",
+                    "w-[480px] bg-[#0F0F13] border-l border-[#2A2A3A] transition-all duration-300 ease-in-out",
+                    open 
+                        ? "translate-x-0 opacity-100 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]" 
+                        : "translate-x-full opacity-0 invisible pointer-events-none"
                 )}
             >
                 {/* Header */}
