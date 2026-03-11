@@ -51,7 +51,7 @@ export default function AnalysisResultDialog({
                     </div>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar py-6">
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar py-6">
                     {result ? (
                         <div className="prose prose-invert prose-sm max-w-none">
                             <FormattedText content={result} projectId={projectId} />

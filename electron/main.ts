@@ -4,6 +4,8 @@ const path = require('node:path');
 const os = require('node:os');
 
 import { setCredential, getCredential, deleteCredential, listCredentials, initCredentials } from './credentialService';
+import { assertString, assertArray, assertObject, assertOptionalString } from './ipc-validation';
+import { withFileLock } from './file-lock';
 import { initFileStorage } from './fileStorage';
 import { GeminiService } from './gemini';
 import { startServer, stopServer } from './server';
@@ -105,7 +107,7 @@ if (app) {
                 contextIsolation: true,
                 nodeIntegration: false,
                 webviewTag: true,
-                sandbox: false
+                sandbox: true
             },
             backgroundColor: '#0f0f13',
             show: false
@@ -184,17 +186,25 @@ if (app) {
             try {
                 if (fs.existsSync(PROJECTS_FILE)) {
                     const content = await fsp.readFile(PROJECTS_FILE, 'utf8');
-                    return JSON.parse(content);
+                    const parsed = JSON.parse(content);
+                    if (!Array.isArray(parsed)) {
+                        console.error('projects.json is not an array — resetting to empty.');
+                        return [];
+                    }
+                    return parsed;
                 }
             } catch (e) {
                 console.error('Error reading projects file:', e);
             }
             return [];
         });
-        ipcMain.handle('write-projects-file', async (_e: any, data: any) => { 
+        ipcMain.handle('write-projects-file', async (_e: any, data: any) => {
             try {
-                await fsp.writeFile(PROJECTS_FILE, JSON.stringify(data, null, 2)); 
-                return true; 
+                assertArray(data, 'projects');
+                await withFileLock(PROJECTS_FILE, () =>
+                    fsp.writeFile(PROJECTS_FILE, JSON.stringify(data, null, 2))
+                );
+                return true;
             } catch (e) {
                 console.error('Error writing projects file:', e);
                 return false;
@@ -204,25 +214,42 @@ if (app) {
             try {
                 if (fs.existsSync(SETTINGS_FILE)) {
                     const content = await fsp.readFile(SETTINGS_FILE, 'utf8');
-                    return JSON.parse(content);
+                    const parsed = JSON.parse(content);
+                    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+                        console.error('settings.json has unexpected shape — resetting to defaults.');
+                        return {};
+                    }
+                    return parsed;
                 }
             } catch (e) {
                 console.error('Error reading settings file:', e);
             }
             return {};
         });
-        ipcMain.handle('write-settings-file', async (_e: any, data: any) => { 
+        ipcMain.handle('write-settings-file', async (_e: any, data: any) => {
             try {
-                await fsp.writeFile(SETTINGS_FILE, JSON.stringify(data, null, 2)); 
-                return true; 
+                assertObject(data, 'settings');
+                await fsp.writeFile(SETTINGS_FILE, JSON.stringify(data, null, 2));
+                return true;
             } catch (e) {
                 console.error('Error writing settings file:', e);
                 return false;
             }
         });
-        ipcMain.handle('secure-store-set', async (_e: any, key: any, value: any) => { await setCredential(key, value); return true; });
-        ipcMain.handle('secure-store-get', async (_e: any, key: any) => await getCredential(key));
-        ipcMain.handle('secure-store-delete', async (_e: any, key: any) => await deleteCredential(key));
+        ipcMain.handle('secure-store-set', async (_e: any, key: any, value: any) => {
+            assertString(key, 'key', 500);
+            assertString(value, 'value', 100_000);
+            await setCredential(key, value);
+            return true;
+        });
+        ipcMain.handle('secure-store-get', async (_e: any, key: any) => {
+            assertString(key, 'key', 500);
+            return await getCredential(key);
+        });
+        ipcMain.handle('secure-store-delete', async (_e: any, key: any) => {
+            assertString(key, 'key', 500);
+            return await deleteCredential(key);
+        });
         ipcMain.handle('secure-store-list', async () => await listCredentials());
         ipcMain.handle('select-file', async () => {
             if (!mainWindow) return null;
@@ -241,10 +268,25 @@ if (app) {
                 return { success: false, error: e.message }; 
             } 
         });
-        ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName }: any) => { 
-            const s = new GeminiService(apiKey); 
+        // Rate limiting: track last call time per AI channel (3s minimum between calls)
+        const aiLastCall: Record<string, number> = {};
+        const AI_RATE_LIMIT_MS = 3000;
+        function checkAiRateLimit(channel: string): { __isError: boolean; message: string } | null {
+            const now = Date.now();
+            const last = aiLastCall[channel] ?? 0;
+            if (now - last < AI_RATE_LIMIT_MS) {
+                return { __isError: true, message: `Please wait a moment before sending another request.` };
+            }
+            aiLastCall[channel] = now;
+            return null;
+        }
+
+        ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-generate-cases'); if (rateErr) return rateErr;
+            assertString(apiKey, 'apiKey');
+            const s = new GeminiService(apiKey);
             try {
-                return await s.generateTestCases(tasks, sourceName, project, designDoc, modelName); 
+                return await s.generateTestCases(tasks, sourceName, project, designDoc, modelName);
             } catch (err: any) {
                 // Return a flat wrapper to the IPC boundary to safely cross context bridges without native cloning recursion
                 return { __isError: true, message: String(err) };
@@ -308,33 +350,61 @@ if (app) {
                 else { shell.showItemInFolder(filePath); }
             }
         });
-        ipcMain.handle('ai-list-models', async (_e: any, { apiKey }: any) => { 
-            try { return await new GeminiService(apiKey).listAvailableModels(); } 
-            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        ipcMain.handle('ai-list-models', async (_e: any, { apiKey }: any) => {
+            try {
+                assertString(apiKey, 'apiKey');
+                return await new GeminiService(apiKey).listAvailableModels();
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
         });
-        ipcMain.handle('ai-analyze-issue', async (_e: any, { apiKey, task, comments, project, modelName }: any) => { 
-            try { return await new GeminiService(apiKey).analyzeIssue(task, comments, project, 0, modelName); } 
-            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        ipcMain.handle('ai-analyze-issue', async (_e: any, { apiKey, task, comments, project, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-analyze-issue'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                return await new GeminiService(apiKey).analyzeIssue(task, comments, project, 0, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
         });
-        ipcMain.handle('ai-analyze', async (_e: any, { apiKey, context, project, modelName }: any) => { 
-            try { return await new GeminiService(apiKey).analyzeProject(context, project, modelName); } 
-            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        ipcMain.handle('ai-analyze', async (_e: any, { apiKey, context, project, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-analyze'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                return await new GeminiService(apiKey).analyzeProject(context, project, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
         });
-        ipcMain.handle('ai-criticality', async (_e: any, { apiKey, tasks, testPlans, executions, project, modelName }: any) => { 
-            try { return await new GeminiService(apiKey).assessCriticality(tasks, testPlans, executions, project, modelName); } 
-            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        ipcMain.handle('ai-criticality', async (_e: any, { apiKey, tasks, testPlans, executions, project, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-criticality'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                return await new GeminiService(apiKey).assessCriticality(tasks, testPlans, executions, project, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
         });
-        ipcMain.handle('ai-test-run-suggestions', async (_e: any, { apiKey, testPlans, executions, project, modelName }: any) => { 
-            try { return await new GeminiService(apiKey).getTestRunSuggestions(testPlans, executions, project, modelName); } 
-            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        ipcMain.handle('ai-test-run-suggestions', async (_e: any, { apiKey, testPlans, executions, project, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-test-run-suggestions'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                return await new GeminiService(apiKey).getTestRunSuggestions(testPlans, executions, project, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
         });
-        ipcMain.handle('ai-smoke-subset', async (_e: any, { apiKey, candidates, doneTasks, project, modelName }: any) => { 
-            try { return await new GeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName); } 
-            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        ipcMain.handle('ai-smoke-subset', async (_e: any, { apiKey, candidates, doneTasks, project, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-smoke-subset'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                return await new GeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
         });
-        ipcMain.handle('ai-chat', async (_e: any, { apiKey, userMessage, history, project, modelName }: any) => { 
-            try { return await new GeminiService(apiKey).chat(userMessage, history || [], project, modelName); } 
-            catch (err: any) { return { __isError: true, message: String(err) }; } 
+        ipcMain.handle('ai-chat', async (_e: any, { apiKey, userMessage, history, project, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-chat'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertString(userMessage, 'userMessage', 50_000);
+                return await new GeminiService(apiKey).chat(userMessage, history || [], project, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
         });
         
         // Report Handlers
@@ -394,24 +464,54 @@ if (app) {
 
         // SAP HAC Handlers
         const sapHacInstances = new Map<string, any>();
+        const MAX_SAP_HAC_INSTANCES = 10;
         const getSapHac = (baseUrl: string, ignoreSsl = false) => {
             if (!sapHacInstances.has(baseUrl)) {
+                // Evict oldest entry when cache is full to prevent unbounded growth
+                if (sapHacInstances.size >= MAX_SAP_HAC_INSTANCES) {
+                    const oldestKey = sapHacInstances.keys().next().value;
+                    sapHacInstances.delete(oldestKey);
+                }
                 sapHacInstances.set(baseUrl, new SapHacService(baseUrl, ignoreSsl));
             }
             return sapHacInstances.get(baseUrl);
         };
 
         ipcMain.handle('sap-hac-login', async (_e: any, { baseUrl, user, pass, ignoreSsl }: any) => {
+            assertString(baseUrl, 'baseUrl', 500);
+            assertString(user, 'user', 200);
+            assertString(pass, 'pass', 500);
             const svc = getSapHac(baseUrl, ignoreSsl);
             const success = await svc.login(user, pass);
             return { success };
         });
-        ipcMain.handle('sap-hac-get-cronjobs', async (_e: any, { baseUrl }: any) => await getSapHac(baseUrl).getCronJobs());
-        ipcMain.handle('sap-hac-flexible-search', async (_e: any, { baseUrl, query, max }: any) => await getSapHac(baseUrl).runFlexibleSearch(query, max));
-        ipcMain.handle('sap-hac-import-impex', async (_e: any, { baseUrl, script, enableCode }: any) => await getSapHac(baseUrl).importImpEx(script, enableCode));
-        ipcMain.handle('sap-hac-get-catalog-versions', async (_e: any, { baseUrl }: any) => await getSapHac(baseUrl).getCatalogVersions());
-        ipcMain.handle('sap-hac-get-catalog-ids', async (_e: any, { baseUrl }: any) => await getSapHac(baseUrl).getCatalogIds());
-        ipcMain.handle('sap-hac-get-catalog-sync-diff', async (_e: any, { baseUrl, catalogId, maxMissing }: any) => await getSapHac(baseUrl).getCatalogSyncDiff(catalogId, maxMissing));
+        ipcMain.handle('sap-hac-get-cronjobs', async (_e: any, { baseUrl }: any) => {
+            assertString(baseUrl, 'baseUrl', 500);
+            return await getSapHac(baseUrl).getCronJobs();
+        });
+        ipcMain.handle('sap-hac-flexible-search', async (_e: any, { baseUrl, query, max }: any) => {
+            assertString(baseUrl, 'baseUrl', 500);
+            assertString(query, 'query', 50_000);
+            return await getSapHac(baseUrl).runFlexibleSearch(query, max);
+        });
+        ipcMain.handle('sap-hac-import-impex', async (_e: any, { baseUrl, script, enableCode }: any) => {
+            assertString(baseUrl, 'baseUrl', 500);
+            assertString(script, 'script', 500_000);
+            return await getSapHac(baseUrl).importImpEx(script, enableCode);
+        });
+        ipcMain.handle('sap-hac-get-catalog-versions', async (_e: any, { baseUrl }: any) => {
+            assertString(baseUrl, 'baseUrl', 500);
+            return await getSapHac(baseUrl).getCatalogVersions();
+        });
+        ipcMain.handle('sap-hac-get-catalog-ids', async (_e: any, { baseUrl }: any) => {
+            assertString(baseUrl, 'baseUrl', 500);
+            return await getSapHac(baseUrl).getCatalogIds();
+        });
+        ipcMain.handle('sap-hac-get-catalog-sync-diff', async (_e: any, { baseUrl, catalogId, maxMissing }: any) => {
+            assertString(baseUrl, 'baseUrl', 500);
+            assertString(catalogId, 'catalogId', 500);
+            return await getSapHac(baseUrl).getCatalogSyncDiff(catalogId, maxMissing);
+        });
 
         ipcMain.handle('get-system-info', () => ({ platform: process.platform }));
         ipcMain.handle('get-app-version', () => app.getVersion());
@@ -524,10 +624,11 @@ if (app) {
         setupIpc();
         createWindow();
         createTray();
-        startReminderService(PROJECTS_FILE);
+        const stopReminderService = startReminderService(PROJECTS_FILE);
+        app.on('before-quit', stopReminderService);
     });
 
-    app.on('window-all-closed', () => { 
+    app.on('window-all-closed', () => {
         const settings = fs.existsSync(SETTINGS_FILE) ? JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) : {};
         if (process.platform !== 'darwin' && !settings.minimizeToTray) {
             app.quit(); 

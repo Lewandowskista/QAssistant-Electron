@@ -29,7 +29,15 @@ const PageLoader = () => (
 window.onerror = (msg, url, line, col, error) => {
   const root = document.getElementById('root')
   if (root) {
-    root.innerHTML = `<div style="padding: 20px; color: red;"><h1>Runtime Error</h1><pre>${msg}\n${url}:${line}:${col}\n${error?.stack}</pre></div>`
+    const pre = document.createElement('pre')
+    pre.textContent = `${msg}\n${url}:${line}:${col}\n${error?.stack ?? ''}`
+    const h1 = document.createElement('h1')
+    h1.textContent = 'Runtime Error'
+    const wrapper = document.createElement('div')
+    wrapper.style.cssText = 'padding:20px;color:red'
+    wrapper.appendChild(h1)
+    wrapper.appendChild(pre)
+    root.replaceChildren(wrapper)
   }
 }
 

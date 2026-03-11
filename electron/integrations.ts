@@ -27,6 +27,8 @@ function cleanDescription(raw?: string | null): string {
 
 // ── Linear API ────────────────────────────────────────────────────────────────
 
+const API_TIMEOUT_MS = 30_000
+
 async function linearGraphQL(apiKey: string, query: string, variables?: Record<string, any>) {
     const res = await fetch('https://api.linear.app/graphql', {
         method: 'POST',
@@ -35,6 +37,7 @@ async function linearGraphQL(apiKey: string, query: string, variables?: Record<s
             'Authorization': apiKey.startsWith('lin_api_') || apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
         },
         body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
 
     const result = await res.json() as any
@@ -363,7 +366,8 @@ export async function fetchJiraIssues(domain: string, email: string, apiKey: str
         const url = `${base}/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=summary,description,priority,status,assignee,duedate,labels,issuetype,comment,attachment,url`
 
         const res = await fetch(url, {
-            headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' }
+            headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(API_TIMEOUT_MS),
         })
 
         if (!res.ok) throw new Error(`Jira API error: ${res.status} ${res.statusText}`)
@@ -435,7 +439,8 @@ export async function getJiraComments(domain: string, email: string, apiKey: str
     const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
 
     const res = await fetch(`${base}/rest/api/3/issue/${issueKey}/comment`, {
-        headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' }
+        headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
 
     if (!res.ok) return []
@@ -457,7 +462,8 @@ export async function addJiraComment(domain: string, email: string, apiKey: stri
         headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
             body: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: body }] }] }
-        })
+        }),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
 }
 
@@ -466,7 +472,8 @@ export async function transitionJiraIssue(domain: string, email: string, apiKey:
     const baseUrl = `https://${domain}.atlassian.net/rest/api/3`
 
     const transResp = await fetch(`${baseUrl}/issue/${issueKey}/transitions`, {
-        headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' }
+        headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
     if (!transResp.ok) throw new Error(`Failed to get transitions: ${transResp.status}`)
     const transData: any = await transResp.json()
@@ -480,7 +487,8 @@ export async function transitionJiraIssue(domain: string, email: string, apiKey:
     const doResp = await fetch(`${baseUrl}/issue/${issueKey}/transitions`, {
         method: 'POST',
         headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ transition: { id: match.id } })
+        body: JSON.stringify({ transition: { id: match.id } }),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
     if (!doResp.ok) throw new Error(`Transition failed: ${doResp.status}`)
 }
@@ -493,7 +501,8 @@ export async function getJiraIssueHistory(domain: string, email: string, apiKey:
 
     try {
         const res = await fetch(url, {
-            headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' }
+            headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(API_TIMEOUT_MS),
         })
 
         if (!res.ok) {
@@ -537,7 +546,8 @@ export async function getJiraIssueHistory(domain: string, email: string, apiKey:
 export async function getJiraProjects(domain: string, email: string, apiKey: string): Promise<any[]> {
     const creds = Buffer.from(`${email}:${apiKey}`).toString('base64')
     const resp = await fetch(`https://${domain}.atlassian.net/rest/api/3/project`, {
-        headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' }
+        headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
     if (!resp.ok) throw new Error(`Jira API returned ${resp.status}: ${resp.statusText}`)
     const data: any = await resp.json()
@@ -549,7 +559,8 @@ export async function getJiraStatuses(domain: string, email: string, apiKey: str
     const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
     // We can fetch statuses for a project via the project statuses endpoint
     const resp = await fetch(`${base}/rest/api/3/project/${projectKey}/statuses`, {
-        headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' }
+        headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
     if (!resp.ok) throw new Error(`Jira API returned ${resp.status}: ${resp.statusText}`)
     const data: any = await resp.json()
@@ -598,7 +609,8 @@ export async function createJiraIssue(domain: string, email: string, apiKey: str
     const doResp = await fetch(`${baseUrl}/issue`, {
         method: 'POST',
         headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
 
     if (!doResp.ok) {
@@ -647,7 +659,7 @@ export async function fetchAuthenticatedMedia(url: string, source: string, conne
         }
     }
 
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(API_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`Media fetch failed: ${res.status} ${res.statusText}`);
 
     const arrayBuffer = await res.arrayBuffer();

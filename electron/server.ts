@@ -8,6 +8,7 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import cors from 'cors'
 import bodyParser from 'body-parser'
+import { withFileLock } from './file-lock'
 
 const server = express()
 server.use(cors({
@@ -15,7 +16,7 @@ server.use(cors({
 }))
 server.use(bodyParser.json())
 
-let authToken = 'qassistant-default-token'
+let authToken = crypto.randomBytes(32).toString('hex')
 let serverInstance: any = null
 const openSockets = new Set<any>()
 
@@ -35,13 +36,17 @@ export function startServer(apiToken: string, port: number = 3030) {
             if (!fs.existsSync(getDataPath())) return []
             const content = await fs.promises.readFile(getDataPath(), 'utf8');
             return JSON.parse(content)
-        } catch {
+        } catch (e) {
+            console.warn('[AutomationAPI] Failed to read projects file:', e)
             return []
         }
     }
 
     const writeProjects = async (projects: any[]): Promise<void> => {
-        await fs.promises.writeFile(getDataPath(), JSON.stringify(projects, null, 2))
+        const filePath = getDataPath()
+        await withFileLock(filePath, () =>
+            fs.promises.writeFile(filePath, JSON.stringify(projects, null, 2))
+        )
     }
 
     // ── Public health endpoint (no auth) ───────────────────────────────────
@@ -258,8 +263,10 @@ export function startServer(apiToken: string, port: number = 3030) {
         try {
             const projects = await readProjects()
             const projectId = req.query.projectId as string | undefined
-            const limit = parseInt(req.query.limit as string || '100', 10)
+            const limit = Math.min(parseInt(req.query.limit as string || '100', 10), 1000)
 
+            // Collect all matching executions, then sort and slice.
+            // Pre-filter by projectId to avoid building a huge intermediate array.
             const all: any[] = []
             for (const project of projects) {
                 if (projectId && project.id !== projectId) continue

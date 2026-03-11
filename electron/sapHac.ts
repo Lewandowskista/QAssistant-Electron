@@ -1,5 +1,9 @@
 // Uses native fetch (available in Electron/Node 18+) with a per-instance cookie jar
 
+// Serializes all SSL-bypass fetches so the global NODE_TLS_REJECT_UNAUTHORIZED flag
+// is never set by two concurrent requests at the same time.
+let _sslBypassQueue: Promise<unknown> = Promise.resolve()
+
 /**
  * Minimal cookie jar that injects cookies into requests and captures Set-Cookie responses.
  * Sufficient for SAP HAC session management (JSESSIONID + _csrf tokens).
@@ -31,14 +35,9 @@ class CookieJar {
         const headers: Record<string, string> = { ...(init?.headers as Record<string, string> || {}) }
         if (cookieHeader) headers['Cookie'] = cookieHeader
 
-        let originalRejectUnauthorized: string | undefined;
-        if (ignoreSsl) {
-            originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-        }
-
-        try {
-            const resp = await globalThis.fetch(url, { ...init, headers, redirect: 'manual' })
+        const doFetch = async (): Promise<Response> => {
+            const signal = (init?.signal as AbortSignal | undefined) ?? AbortSignal.timeout(30_000)
+            const resp = await globalThis.fetch(url, { ...init, headers, redirect: 'manual', signal })
 
             const setCookie = resp.headers.get('set-cookie')
             if (setCookie) this.parseSetCookie(setCookie)
@@ -50,16 +49,23 @@ class CookieJar {
                 return this.fetch(redirectUrl, { method: 'GET' }, ignoreSsl)
             }
 
-            return resp;
-        } finally {
-            if (ignoreSsl) {
-                if (originalRejectUnauthorized === undefined) {
-                    delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-                } else {
-                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
-                }
-            }
+            return resp
         }
+
+        if (!ignoreSsl) return doFetch()
+
+        // Serialize SSL-bypass requests so NODE_TLS_REJECT_UNAUTHORIZED is never
+        // mutated by two concurrent requests simultaneously.
+        const result = _sslBypassQueue.then(async () => {
+            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+            try {
+                return await doFetch()
+            } finally {
+                delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
+            }
+        })
+        _sslBypassQueue = result.then(() => { /* chain */ }, () => { /* chain */ })
+        return result
     }
 }
 
@@ -101,8 +107,8 @@ export class SapHacService {
                 const text = await resp.text();
                 csrf = extractCsrfToken(text);
                 if (csrf) break;
-            } catch {
-                // ignore
+            } catch (e) {
+                console.warn(`[SAP HAC] CSRF token fetch failed for path ${p}:`, e)
             }
         }
         try {
@@ -119,7 +125,8 @@ export class SapHacService {
             }, this.ignoreSsl);
             this.loggedIn = resp.ok || resp.status === 302 || resp.status === 200;
             return this.loggedIn;
-        } catch {
+        } catch (e) {
+            console.warn('[SAP HAC] Login request failed:', e)
             this.loggedIn = false;
             return false;
         }
@@ -163,8 +170,8 @@ export class SapHacService {
                     }
                 }
             }
-        } catch {
-            // fall through to HTML scraping
+        } catch (e) {
+            console.warn('[SAP HAC] JSON cron endpoint failed, falling back to HTML scraping:', e)
         }
         // fallback to HTML parsing
         const html = await this.cookieJar.fetch(this.baseUrl + '/monitoring/cronjobs', { method: 'GET' }, this.ignoreSsl).then((r: Response) => r.text());
@@ -240,8 +247,8 @@ export class SapHacService {
                     const hasError = root.hasError || false;
                     const log = root.initMessage || root.exceptionMessage || root.log || body;
                     return { Success: !hasError, Log: log };
-                    // eslint-disable-next-line no-empty
-                } catch {
+                } catch (e) {
+                    console.warn('[SAP HAC] ImpEx JSON parse failed, falling back to raw body:', e)
                 }
             }
             const success = body.includes('Import finished successfully') || resp.ok;

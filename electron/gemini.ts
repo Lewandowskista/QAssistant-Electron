@@ -24,38 +24,36 @@ export class GeminiService {
     /** List models available to this API key */
     async listAvailableModels(): Promise<string[]> {
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`);
+            // Use header-based auth to avoid leaking the API key in URL logs/proxies
+            const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+                headers: { 'x-goog-api-key': this.apiKey },
+                signal: AbortSignal.timeout(30_000),
+            });
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json() as any;
             // The API returns model names with "models/" prefix, e.g., "models/gemini-1.5-flash"
             return data.models?.map((m: any) => m.name.replace('models/', '')) || [];
         } catch (err) {
-            console.error('Failed to list Gemini models:', err);
+            console.error('Failed to list Gemini models');
             return [];
         }
     }
 
-    private getModel(modelName: string) {
+    private getModel(modelName: string, temperature = 0.7) {
         return this.genAI.getGenerativeModel({
             model: modelName,
             generationConfig: {
-                temperature: 0.7,
+                temperature,
                 topP: 0.9,
                 maxOutputTokens: 8192,
             }
         })
     }
 
-    private async executeWithFallback(prompt: string | any, modelOverride?: string): Promise<string> {
-        if (typeof prompt === 'string') {
-            console.log("-------------- GEMINI PROMPT (TOON) --------------");
-            console.log(prompt);
-            console.log("--------------------------------------------------");
-        }
-
+    private async executeWithFallback(prompt: string | any, modelOverride?: string, temperature = 0.7): Promise<string> {
         // Build unique sequence of models starting with override, then preferred, then available ones
         const models = Array.from(new Set([
             modelOverride,
@@ -69,15 +67,21 @@ export class GeminiService {
         let lastError: any;
         for (const modelName of models) {
             try {
-                const model = this.getModel(modelName);
+                const model = this.getModel(modelName, temperature);
                 const result = await model.generateContent(prompt);
-                
+
                 // If successful and we were using a non-preferred model, update it
                 if (modelName !== preferredModel) {
                     console.log(`Gemini switching preferred model to ${modelName} after successful response`);
                     preferredModel = modelName;
                 }
-                
+
+                // Log token usage for cost/quota visibility
+                const usage = result.response.usageMetadata;
+                if (usage) {
+                    console.log(`[Gemini] ${modelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`);
+                }
+
                 return result.response.text();
             } catch (err: any) {
                 lastError = err;
@@ -111,15 +115,15 @@ export class GeminiService {
                     continue;
                 }
                 
-                console.error(`Gemini model ${modelName} failed with unexpected error [DEBUG_TAG]:`, errorStr);
+                console.error(`Gemini model ${modelName} failed with unexpected error:`, errorStr);
                 continue;
             }
         }
         
-        // Safely extract final error message
+        // Safely extract final error message — strip URLs and stack traces to avoid leaking sensitive info
         let finalMsg = "Unknown API Error";
         let finalStatus = "";
-        
+
         try {
             if (lastError && typeof lastError === 'object') {
                 finalMsg = typeof lastError.message === 'string' ? lastError.message : "API Call Failed";
@@ -127,10 +131,12 @@ export class GeminiService {
             } else {
                 finalMsg = String(lastError);
             }
+            // Remove URLs (may contain API key query params) and stack traces
+            finalMsg = finalMsg.replace(/https?:\/\/[^\s]*/gi, '[url]').replace(/\n\s+at\s+.*/g, '');
         } catch (e) {
             finalMsg = "Crash parsing error object";
         }
-        
+
         throw `Gemini API Error: ${finalStatus}${finalMsg}`;
     }
 
@@ -142,6 +148,8 @@ export class GeminiService {
         s = s.replace(/\r\n/g, ' ').replace(/\r/g, ' ').replace(/\n/g, ' ')
         s = s.replace(/{/g, '(').replace(/}/g, ')').replace(/\[/g, '(').replace(/\]/g, ')')
         s = s.replace(/@/g, '(at)').replace(/---/g, '- - -')
+        // Prevent TOON structural injection via colon (key:value separator), pipe (rule delimiter), backtick
+        s = s.replace(/:/g, '\u02F8').replace(/\|/g, '\u2223').replace(/`/g, "'")
         return s
     }
 
@@ -151,6 +159,8 @@ export class GeminiService {
         s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
         s = s.replace(/{/g, '(').replace(/}/g, ')').replace(/\[/g, '(').replace(/\]/g, ')')
         s = s.replace(/@/g, '(at)').replace(/---/g, '- - -')
+        // Prevent TOON structural injection via colon (key:value separator), pipe (rule delimiter), backtick
+        s = s.replace(/:/g, '\u02F8').replace(/\|/g, '\u2223').replace(/`/g, "'")
         return s
     }
 
@@ -549,21 +559,13 @@ export class GeminiService {
     /** Analyze a task issue using TOON prompts */
     async analyzeIssue(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0, modelName?: string): Promise<string> {
         const prompt = GeminiService.buildToonPrompt(task, comments, project, attachedImageCount)
-        return await this.executeWithFallback(prompt, modelName)
+        return await this.executeWithFallback(prompt, modelName, 0.3) // analytical: low temperature
     }
 
     /** Generate test cases from tasks using TOON prompts */
     async generateTestCases(tasks: any[] = [], sourceName: string, project?: any, designDoc?: string, modelName?: string): Promise<any[]> {
-        console.log("-------------- GEMINI DEBUG --------------");
-        console.log("Tasks length:", tasks?.length);
-        console.log("Is tasks array?", Array.isArray(tasks));
-        if (tasks?.length) console.log("Task keys:", Object.keys(tasks[0]));
-        console.log("Project name:", project?.name);
-        console.log("Project keys:", Object.keys(project || {}));
-        console.log("------------------------------------------");
-
         const prompt = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc)
-        const text = await this.executeWithFallback(prompt, modelName)
+        const text = await this.executeWithFallback(prompt, modelName, 0.4) // generative but deterministic
 
         const extracted = GeminiService.extractFirstJsonArray(text)
         if (!extracted) {
@@ -572,40 +574,59 @@ export class GeminiService {
             throw `Could not locate a JSON array in the model response. Raw Response: \n${preview}`;
         }
 
-        const parsed = JSON.parse(extracted)
-        return parsed.map((item: any, i: number) => ({
-            testCaseId: item.testCaseId || `TC-${String(i + 1).padStart(3, '0')}`,
-            title: item.title || `Test Case ${i + 1}`,
-            preConditions: item.preConditions || '',
-            steps: item.testSteps || item.steps || '',
-            testData: item.testData || '',
-            expectedResult: item.expectedResult || '',
-            priority: (item.priority || 'medium').toLowerCase() as any,
-            sourceIssueId: item.sourceIssueId || '',
-            sapModule: item.sapModule || undefined
-        }))
+        let parsed: any[]
+        try {
+            parsed = JSON.parse(extracted)
+        } catch {
+            throw 'Model returned invalid JSON for test cases'
+        }
+        if (!Array.isArray(parsed)) throw 'Model returned unexpected structure for test cases (expected array)'
+        const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'critical'])
+        return parsed.map((item: any, i: number) => {
+            if (typeof item !== 'object' || item === null) throw `Invalid test case at index ${i}`
+            const priority = String(item.priority || 'medium').toLowerCase()
+            return {
+                testCaseId: String(item.testCaseId || `TC-${String(i + 1).padStart(3, '0')}`).substring(0, 50),
+                title: String(item.title || `Test Case ${i + 1}`).substring(0, 300),
+                preConditions: String(item.preConditions || '').substring(0, 2000),
+                steps: String(item.testSteps || item.steps || '').substring(0, 5000),
+                testData: String(item.testData || '').substring(0, 2000),
+                expectedResult: String(item.expectedResult || '').substring(0, 2000),
+                priority: (VALID_PRIORITIES.has(priority) ? priority : 'medium') as any,
+                sourceIssueId: String(item.sourceIssueId || '').substring(0, 100),
+                sapModule: item.sapModule ? String(item.sapModule).substring(0, 100) : undefined,
+            }
+        })
     }
 
     /** Criticality assessment for the current test state */
     async assessCriticality(tasks: any[], testPlans: any[], executions: any[], project?: any, modelName?: string): Promise<string> {
         const prompt = GeminiService.buildCriticalityAssessmentPrompt(tasks, testPlans, executions, project)
-        return await this.executeWithFallback(prompt, modelName)
+        return await this.executeWithFallback(prompt, modelName, 0.3) // analytical: low temperature
     }
 
     /** Test run suggestions / deployment readiness */
     async getTestRunSuggestions(testPlans: any[], executions: any[], project?: any, modelName?: string): Promise<string> {
         const prompt = GeminiService.buildTestRunSuggestionsPrompt(testPlans, executions, project)
-        return await this.executeWithFallback(prompt, modelName)
+        return await this.executeWithFallback(prompt, modelName, 0.3) // analytical: low temperature
     }
 
     /** Select a minimal smoke test subset from candidates */
     async selectSmokeSubset(candidates: any[], doneTasks: any[], project?: any, modelName?: string): Promise<string[]> {
         const prompt = GeminiService.buildSmokeSubsetPrompt(candidates, doneTasks, project)
-        const text = await this.executeWithFallback(prompt, modelName)
+        const text = await this.executeWithFallback(prompt, modelName, 0.3) // deterministic subset selection
 
         const extracted = GeminiService.extractFirstJsonArray(text)
         if (!extracted) return []
-        return JSON.parse(extracted)
+        let parsed: any[]
+        try {
+            parsed = JSON.parse(extracted)
+        } catch {
+            return []
+        }
+        if (!Array.isArray(parsed)) return []
+        // Validate: must be an array of strings (test case IDs)
+        return parsed.filter((v: any) => typeof v === 'string').map((v: string) => v.substring(0, 100))
     }
 
     /** Strategic project analysis using TOON prompts */
@@ -627,7 +648,7 @@ export class GeminiService {
         lines.push('}')
 
         const prompt = lines.join('\n')
-        return await this.executeWithFallback(prompt, modelName)
+        return await this.executeWithFallback(prompt, modelName, 0.4) // strategic but controlled
     }
 
     /** Freeform conversational QA chat with project context */
@@ -654,6 +675,7 @@ export class GeminiService {
         if (history.length > 0) {
             conversationLines.push('conversation_history[')
             for (const turn of history.slice(-10)) { // last 10 turns for context window management
+                if (!['user', 'assistant'].includes(turn.role)) continue // reject invalid roles
                 const role = turn.role === 'user' ? 'user' : 'assistant'
                 conversationLines.push(` {role:${role},msg:${GeminiService.sanitizeToonValueForTestGen(turn.content, 1000)}}`)
             }
@@ -667,6 +689,6 @@ export class GeminiService {
         conversationLines.push('@respond_to:current_user_message|be_direct|use_project_context_above')
 
         const fullPrompt = [...systemLines, ...conversationLines].join('\n')
-        return await this.executeWithFallback(fullPrompt, modelName)
+        return await this.executeWithFallback(fullPrompt, modelName, 0.7) // conversational: higher creativity
     }
 }

@@ -47,6 +47,7 @@ async function saveToFile(): Promise<void> {
         if (safeStorage.isEncryptionAvailable()) {
             encrypted = safeStorage.encryptString(content)
         } else {
+            console.warn('[QAssistant] safeStorage encryption is unavailable on this system. Credentials are being stored unencrypted. Consider upgrading your OS keyring or running the app with a desktop session.')
             encrypted = Buffer.from(content, 'utf8')
         }
         fs.writeFileSync(storagePath, encrypted)

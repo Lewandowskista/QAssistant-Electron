@@ -7,32 +7,39 @@ const notifiedIds = new Map<string, number>()
 const COOLDOWN = 4 * 60 * 60 * 1000 // 4 hours
 let projectsFilePath = ''
 
-export function startReminderService(filePath: string) {
+export function startReminderService(filePath: string): () => void {
     projectsFilePath = filePath
 
     // Check periodically
-    setInterval(() => {
+    const dueDateInterval = setInterval(() => {
         checkDueDateReminders()
     }, 60_000)
 
     // Daily summary at 9:00 AM
-    setInterval(() => {
+    const dailyInterval = setInterval(() => {
         const now = new Date()
         if (now.getHours() === 9 && now.getMinutes() === 0) {
             sendDailySummary()
         }
     }, 60_000)
 
-    setTimeout(() => {
+    const initialTimeout = setTimeout(() => {
         checkDueDateReminders()
     }, 30_000)
+
+    return () => {
+        clearInterval(dueDateInterval)
+        clearInterval(dailyInterval)
+        clearTimeout(initialTimeout)
+    }
 }
 
 function readProjects(): any[] {
     try {
         if (!fs.existsSync(projectsFilePath)) return []
         return JSON.parse(fs.readFileSync(projectsFilePath, 'utf8'))
-    } catch {
+    } catch (e) {
+        console.warn('[Reminders] Failed to read projects file:', e)
         return []
     }
 }
