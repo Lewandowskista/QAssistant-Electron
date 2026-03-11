@@ -135,6 +135,7 @@ export default function MainLayout() {
     ]
 
     return (
+        <>
         <div className={cn(
             "flex text-[#E2E8F0] h-screen overflow-hidden selection:bg-primary/30",
             isMac ? "bg-[#0F0F13]/80 backdrop-blur-xl" : "bg-[#0F0F13]"
@@ -142,7 +143,7 @@ export default function MainLayout() {
             {/* 1. PROJECTS SIDEBAR (200px) */}
             <aside className={cn(
                 "w-[200px] flex flex-col border-r border-[#2A2A3A] shrink-0",
-                isMac ? "bg-[#13131A]/50 backdrop-blur-md" : "bg-[#13131A]"
+                isMac ? "bg-[#13131A]/50 backdrop-blur-md pt-8" : "bg-[#13131A]"
             )}>
                 <div className="h-11 flex items-center px-4 border-b border-[#2A2A3A] text-[9px] font-black tracking-[0.2em] text-[#6B7280] uppercase">
                     Projects
@@ -198,7 +199,7 @@ export default function MainLayout() {
             <aside
                 className={cn(
                     "flex flex-col border-r border-[#2A2A3A] transition-all duration-300 shrink-0",
-                    isMac ? "bg-[#13131A]/50 backdrop-blur-md" : "bg-[#13131A]",
+                    isMac ? "bg-[#13131A]/50 backdrop-blur-md pt-8" : "bg-[#13131A]",
                     toolsCollapsed ? "w-0 overflow-hidden opacity-0" : "w-[200px]"
                 )}
             >
@@ -372,8 +373,10 @@ export default function MainLayout() {
                 <Toaster theme="dark" position="bottom-right" />
             </div>
 
-            {/* AI COPILOT PANEL - Moved out of relative container */}
+            </div>
+
+            {/* AI COPILOT PANEL - Moved out of flex container */}
             <AiCopilot open={copilotOpen} onClose={() => setCopilotOpen(false)} />
-        </div>
+        </>
     )
 }
