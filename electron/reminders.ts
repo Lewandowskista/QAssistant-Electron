@@ -2,9 +2,10 @@
 import electron from 'electron'
 const { Notification, BrowserWindow } = electron as any
 import fs from 'fs'
+import { REMINDER_COOLDOWN_MS } from './constants'
 
 const notifiedIds = new Map<string, number>()
-const COOLDOWN = 4 * 60 * 60 * 1000 // 4 hours
+const COOLDOWN = REMINDER_COOLDOWN_MS
 let projectsFilePath = ''
 
 export function startReminderService(filePath: string): () => void {

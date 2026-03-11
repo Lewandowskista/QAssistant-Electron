@@ -4,6 +4,8 @@ import { HashRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 
 import MainLayout from '@/layouts/MainLayout'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { RequireProject } from '@/components/RequireProject'
 import { Loader2 } from 'lucide-react'
 
 // Lazy load pages for performance
@@ -19,10 +21,11 @@ const ChecklistsPage = lazy(() => import('@/pages/ChecklistsPage'))
 const ApiPage = lazy(() => import('@/pages/ApiPage'))
 const SapPage = lazy(() => import('@/pages/SapPage'))
 const RunbooksPage = lazy(() => import('@/pages/RunbooksPage'))
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 const PageLoader = () => (
-    <div className="flex items-center justify-center h-full w-full bg-[#0F0F13]">
-        <Loader2 className="h-8 w-8 text-[#A78BFA] animate-spin" />
+    <div className="flex items-center justify-center h-full w-full bg-surface-overlay">
+        <Loader2 className="h-8 w-8 text-qa-purple animate-spin" />
     </div>
 )
 
@@ -50,18 +53,19 @@ createRoot(rootElement).render(
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="tasks" element={<TasksPage />} />
-            <Route path="tests" element={<TestsPage />} />
-            <Route path="test-data" element={<TestDataPage />} />
-            <Route path="checklists" element={<ChecklistsPage />} />
-            <Route path="sap" element={<SapPage />} />
-            <Route path="api" element={<ApiPage />} />
-            <Route path="runbooks" element={<RunbooksPage />} />
-            <Route path="notes" element={<NotesPage />} />
-            <Route path="files" element={<FilesPage />} />
-            <Route path="environments" element={<EnvironmentsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route index element={<ErrorBoundary name="Dashboard"><DashboardPage /></ErrorBoundary>} />
+            <Route path="tasks" element={<ErrorBoundary name="Tasks"><RequireProject><TasksPage /></RequireProject></ErrorBoundary>} />
+            <Route path="tests" element={<ErrorBoundary name="Tests"><RequireProject><TestsPage /></RequireProject></ErrorBoundary>} />
+            <Route path="test-data" element={<ErrorBoundary name="Test Data"><RequireProject><TestDataPage /></RequireProject></ErrorBoundary>} />
+            <Route path="checklists" element={<ErrorBoundary name="Checklists"><RequireProject><ChecklistsPage /></RequireProject></ErrorBoundary>} />
+            <Route path="sap" element={<ErrorBoundary name="SAP"><RequireProject><SapPage /></RequireProject></ErrorBoundary>} />
+            <Route path="api" element={<ErrorBoundary name="API"><RequireProject><ApiPage /></RequireProject></ErrorBoundary>} />
+            <Route path="runbooks" element={<ErrorBoundary name="Runbooks"><RequireProject><RunbooksPage /></RequireProject></ErrorBoundary>} />
+            <Route path="notes" element={<ErrorBoundary name="Notes"><RequireProject><NotesPage /></RequireProject></ErrorBoundary>} />
+            <Route path="files" element={<ErrorBoundary name="Files"><RequireProject><FilesPage /></RequireProject></ErrorBoundary>} />
+            <Route path="environments" element={<ErrorBoundary name="Environments"><RequireProject><EnvironmentsPage /></RequireProject></ErrorBoundary>} />
+            <Route path="settings" element={<ErrorBoundary name="Settings"><SettingsPage /></ErrorBoundary>} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
       </Suspense>

@@ -14,6 +14,7 @@ import {
     Activity as ActivityIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getConnectionApiKey, getApiKey } from "@/lib/credentials"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -32,6 +33,7 @@ interface TaskDetailsSidebarProps {
     isAnalyzing: boolean
     onGenerateBugReport: () => Promise<void>
     onDeleteAnalysis: (entry: any) => void
+    onDelete: () => void
     api: any
 }
 
@@ -45,6 +47,7 @@ export function TaskDetailsSidebar({
     isAnalyzing,
     onGenerateBugReport,
     onDeleteAnalysis,
+    onDelete,
     api
 }: TaskDetailsSidebarProps) {
     const [activeTab, setActiveTab] = useState('description')
@@ -58,7 +61,6 @@ export function TaskDetailsSidebar({
 
     const [comments, setComments] = useState<any[]>([])
     const [activity, setActivity] = useState<any[]>([])
-    const [, setHistory] = useState<any[]>([])
     const [isLoadingTab, setIsLoadingTab] = useState(false)
     const [newComment, setNewComment] = useState("")
     const [isPostingComment, setIsPostingComment] = useState(false)
@@ -73,31 +75,24 @@ export function TaskDetailsSidebar({
             setEditAssignee(selectedTask.assignee || "")
             setEditLabels(selectedTask.labels || "")
             setIsEditing(false)
-            setHistory(selectedTask.analysisHistory || [])
         }
     }, [selectedTask])
 
     const getLinearApiKey = useCallback(async (connId?: string) => {
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-        if (connId) {
-            const key = await api.secureStoreGet(`${prefix}linear_api_key_${connId}`) || await api.secureStoreGet(`linear_api_key_${connId}`)
-            if (key) return key
-        }
-        return await api.secureStoreGet(`${prefix}linear_api_key`) || await api.secureStoreGet('linear_api_key')
+        return getConnectionApiKey(api, 'linear_api_key', connId, activeProject?.id)
     }, [activeProject, api])
 
     const getJiraCredentials = useCallback(async (connId?: string) => {
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
         if (connId) {
             const conn = activeProject?.jiraConnections?.find((c: any) => c.id === connId)
             if (conn) {
-                const key = await api.secureStoreGet(`${prefix}jira_api_token_${connId}`) || await api.secureStoreGet(`jira_api_token_${connId}`)
+                const key = await getConnectionApiKey(api, 'jira_api_token', connId, activeProject?.id)
                 if (key) return { domain: conn.domain, email: conn.email, apiKey: key }
             }
         }
-        const domain = await api.secureStoreGet(`${prefix}jira_domain`) || await api.secureStoreGet('jira_domain')
-        const email = await api.secureStoreGet(`${prefix}jira_email`) || await api.secureStoreGet('jira_email')
-        const key = await api.secureStoreGet(`${prefix}jira_api_token`) || await api.secureStoreGet('jira_api_token')
+        const domain = await getApiKey(api, 'jira_domain', activeProject?.id)
+        const email = await getApiKey(api, 'jira_email', activeProject?.id)
+        const key = await getApiKey(api, 'jira_api_token', activeProject?.id)
         if (domain && email && key) return { domain, email, apiKey: key }
         return null
     }, [activeProject, api])
@@ -111,7 +106,7 @@ export function TaskDetailsSidebar({
             if (tab === 'comments') {
                 if (selectedTask.source === 'linear') {
                     const key = await getLinearApiKey(selectedTask.connectionId)
-                    if (key) setComments(await api.getLinearComments({ apiKey: key, issueId: selectedTask.externalId }))
+                    if (key) setComments(await api.getLinearComments({ apiKey: key, issueId: selectedTask.sourceIssueId }))
                     else toast.error("Linear API key not found.")
                 } else if (selectedTask.source === 'jira') {
                     const creds = await getJiraCredentials(selectedTask.connectionId)
@@ -121,13 +116,11 @@ export function TaskDetailsSidebar({
             } else if (tab === 'activity') {
                 if (selectedTask.source === 'linear') {
                     const key = await getLinearApiKey(selectedTask.connectionId)
-                    if (key) setActivity(await api.getLinearHistory({ apiKey: key, issueId: selectedTask.externalId }))
+                    if (key) setActivity(await api.getLinearHistory({ apiKey: key, issueId: selectedTask.sourceIssueId }))
                 } else if (selectedTask.source === 'jira') {
                     const creds = await getJiraCredentials(selectedTask.connectionId)
                     if (creds) setActivity(await api.getJiraHistory({ ...creds, issueKey: selectedTask.sourceIssueId }))
                 }
-            } else if (tab === 'history') {
-                setHistory(selectedTask.analysisHistory || [])
             }
         } catch (e: any) {
             toast.error(e.message || "Error loading tab.")
@@ -473,6 +466,12 @@ export function TaskDetailsSidebar({
                         {selectedTask.source === 'linear' ? 'OPEN IN LINEAR' : 'OPEN IN JIRA'}
                     </Button>
                 )}
+                <Button
+                    className="w-full h-10 bg-[#1E1010] text-[#EF4444] border border-[#EF4444]/20 font-bold text-[10px] gap-1.5"
+                    onClick={onDelete}
+                >
+                    <Trash2 className="h-3.5 w-3.5" /> DELETE TASK
+                </Button>
             </div>
         </div>
     )

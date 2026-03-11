@@ -1,10 +1,11 @@
+import { memo } from "react"
 import { Task } from "@/store/useProjectStore"
 import { cn } from "@/lib/utils"
-import { 
-    User, 
-    AlertCircle, 
-    ChevronUp, 
-    ChevronDown, 
+import {
+    User,
+    AlertCircle,
+    ChevronUp,
+    ChevronDown,
     Minus,
     Clock3
 } from "lucide-react"
@@ -18,13 +19,15 @@ interface TaskCardProps {
     onClick?: () => void
 }
 
-export function TaskCard({ task, isOverlay, isSelected, onClick }: TaskCardProps) {
-    const priorityConfig = {
-        critical: { icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
-        high: { icon: ChevronUp, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "HIGH" },
-        medium: { icon: Minus, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "MEDIUM" },
-        low: { icon: ChevronDown, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" },
-    }
+// Moved outside component - this object is constant and doesn't need to be recreated on every render
+const priorityConfig = {
+    critical: { icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
+    high: { icon: ChevronUp, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "HIGH" },
+    medium: { icon: Minus, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "MEDIUM" },
+    low: { icon: ChevronDown, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" },
+} as const
+
+export const TaskCard = memo(function TaskCard({ task, isOverlay, isSelected, onClick }: TaskCardProps) {
 
     const config = priorityConfig[task.priority] || priorityConfig.medium
     const PriorityIcon = config.icon
@@ -104,7 +107,7 @@ export function TaskCard({ task, isOverlay, isSelected, onClick }: TaskCardProps
             </div>
         </div>
     )
-}
+})
 
 export function SortableTaskCard({ task, isSelected, onClick }: { task: Task, isSelected: boolean, onClick: () => void }) {
     const {

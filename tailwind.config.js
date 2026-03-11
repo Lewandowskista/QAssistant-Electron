@@ -22,6 +22,23 @@ module.exports = {
   			ring: 'hsl(var(--ring))',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
+  			// ── App semantic tokens ──────────────────────────────────────────
+  			// Use these instead of arbitrary hex values like bg-[#0F0F13]
+  			surface: {
+  				DEFAULT: '#13131A',      // Cards, dialogs, sidebars
+  				elevated: '#1A1A24',     // Hover states, nested surfaces
+  				overlay: '#0F0F13',      // Page backgrounds
+  			},
+  			qa: {
+  				border: '#2A2A3A',           // Standard borders
+  				'border-hover': '#3A3A4A',   // Hovered borders
+  				text: '#E2E8F0',             // Primary text
+  				'text-secondary': '#9CA3AF', // Secondary text
+  				'text-muted': '#6B7280',     // Muted / placeholder text
+  				purple: '#A78BFA',           // Primary accent
+  				'purple-hover': '#9271e0',   // Purple hover
+  			},
+  			// ── End app tokens ───────────────────────────────────────────────
   			primary: {
   				DEFAULT: 'hsl(var(--primary))',
   				foreground: 'hsl(var(--primary-foreground))'

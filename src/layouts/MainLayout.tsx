@@ -141,7 +141,9 @@ export default function MainLayout() {
             isMac ? "bg-[#0F0F13]/80 backdrop-blur-xl" : "bg-[#0F0F13]"
         )}>
             {/* 1. PROJECTS SIDEBAR (200px) */}
-            <aside className={cn(
+            <aside
+                aria-label="Projects"
+                className={cn(
                 "w-[200px] flex flex-col border-r border-[#2A2A3A] shrink-0",
                 isMac ? "bg-[#13131A]/50 backdrop-blur-md pt-8" : "bg-[#13131A]"
             )}>
@@ -197,6 +199,7 @@ export default function MainLayout() {
 
             {/* 2. TOOLS SIDEBAR (200px or Collapsed) */}
             <aside
+                aria-label="Navigation"
                 className={cn(
                     "flex flex-col border-r border-[#2A2A3A] transition-all duration-300 shrink-0",
                     isMac ? "bg-[#13131A]/50 backdrop-blur-md pt-8" : "bg-[#13131A]",
@@ -205,7 +208,7 @@ export default function MainLayout() {
             >
                 <div className="h-11 flex items-center justify-between px-4 border-b border-[#2A2A3A]">
                     <span className="text-[9px] font-black tracking-[0.2em] text-[#6B7280] uppercase">Tools</span>
-                    <button onClick={() => setToolsCollapsed(true)} className="p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280] transition-colors">
+                    <button onClick={() => setToolsCollapsed(true)} aria-label="Collapse sidebar" className="p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280] transition-colors">
                         <ChevronLeft className="h-3 w-3" />
                     </button>
                 </div>
@@ -215,6 +218,7 @@ export default function MainLayout() {
                             <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280] opacity-50 group-focus-within:text-[#A78BFA] transition-colors pointer-events-none" />
                             <Input
                                 placeholder="Search..."
+                                aria-label="Search navigation"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 className="h-9 pl-9 bg-background/30 border-[#2A2A3A] text-xs focus-visible:ring-1 focus-visible:ring-[#A78BFA]/30"
@@ -262,7 +266,7 @@ export default function MainLayout() {
                 )}>
                     <div className="flex items-center gap-4">
                         {toolsCollapsed && (
-                            <button onClick={() => setToolsCollapsed(false)} className="app-region-no-drag p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280]">
+                            <button onClick={() => setToolsCollapsed(false)} aria-label="Expand sidebar" className="app-region-no-drag p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280]">
                                 <ChevronRight className="h-3 w-3" />
                             </button>
                         )}
@@ -298,7 +302,7 @@ export default function MainLayout() {
                                 <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />
                             )}
                         </button>
-                        <button onClick={() => setSettingsOpen(true)} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors">
+                        <button onClick={() => setSettingsOpen(true)} aria-label="Settings" className="w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors">
                             <Settings className="h-4 w-4 text-[#6B7280] group-hover:text-[#A78BFA]" />
                         </button>
                         <button
@@ -314,13 +318,13 @@ export default function MainLayout() {
 
                         {!isMac && (
                             <>
-                                <button onClick={() => window.electronAPI?.minimize()} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
+                                <button onClick={() => window.electronAPI?.minimize()} aria-label="Minimize window" className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
                                     <Minus className="h-4 w-4 text-[#A78BFA]" />
                                 </button>
-                                <button onClick={() => window.electronAPI?.maximize()} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
+                                <button onClick={() => window.electronAPI?.maximize()} aria-label={isMaximized ? "Restore window" : "Maximize window"} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
                                     {isMaximized ? <Copy className="h-3.5 w-3.5 text-[#A78BFA] rotate-180" /> : <Square className="h-3.5 w-3.5 text-[#A78BFA]" />}
                                 </button>
-                                <button onClick={() => window.electronAPI?.close()} className="w-11 h-10 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">
+                                <button onClick={() => window.electronAPI?.close()} aria-label="Close window" className="w-11 h-10 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">
                                     <X className="h-4 w-4" />
                                 </button>
                             </>
@@ -328,7 +332,9 @@ export default function MainLayout() {
                     </div>
                 </header>
 
-                <main className={cn(
+                <main
+                    role="main"
+                    className={cn(
                     "flex-1 min-h-0 relative",
                     isFullBleedRoute
                         ? "flex flex-col overflow-hidden"

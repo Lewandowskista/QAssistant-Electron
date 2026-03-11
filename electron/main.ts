@@ -4,8 +4,9 @@ const path = require('node:path');
 const os = require('node:os');
 
 import { setCredential, getCredential, deleteCredential, listCredentials, initCredentials } from './credentialService';
-import { assertString, assertArray, assertObject, assertOptionalString } from './ipc-validation';
+import { assertString, assertArray, assertObject } from './ipc-validation';
 import { withFileLock } from './file-lock';
+import { AI_RATE_LIMIT_MS, MAX_SAP_HAC_INSTANCES } from './constants';
 import { initFileStorage } from './fileStorage';
 import { GeminiService } from './gemini';
 import { startServer, stopServer } from './server';
@@ -270,7 +271,6 @@ if (app) {
         });
         // Rate limiting: track last call time per AI channel (3s minimum between calls)
         const aiLastCall: Record<string, number> = {};
-        const AI_RATE_LIMIT_MS = 3000;
         function checkAiRateLimit(channel: string): { __isError: boolean; message: string } | null {
             const now = Date.now();
             const last = aiLastCall[channel] ?? 0;
@@ -464,7 +464,6 @@ if (app) {
 
         // SAP HAC Handlers
         const sapHacInstances = new Map<string, any>();
-        const MAX_SAP_HAC_INSTANCES = 10;
         const getSapHac = (baseUrl: string, ignoreSsl = false) => {
             if (!sapHacInstances.has(baseUrl)) {
                 // Evict oldest entry when cache is full to prevent unbounded growth

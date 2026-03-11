@@ -28,17 +28,17 @@ export class ErrorBoundary extends React.Component<Props, State> {
     render() {
         if (this.state.hasError) {
             return (
-                <div className="p-8 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-xl m-6">
-                    <h2 className="text-lg font-bold text-[#EF4444] mb-2">
+                <div className="p-8 bg-red-500/10 border border-red-500/20 rounded-xl m-6">
+                    <h2 className="text-lg font-bold text-red-400 mb-2">
                         {this.props.name ? `Error in ${this.props.name}` : 'Something went wrong'}
                     </h2>
-                    <p className="text-sm text-[#EF4444]/80 font-mono whitespace-pre-wrap mb-4">
+                    <p className="text-sm text-red-400/80 font-mono whitespace-pre-wrap mb-4">
                         {this.state.error?.message}
                     </p>
                     <Button
                         variant="outline"
                         size="sm"
-                        className="border-[#EF4444]/30 text-[#EF4444]"
+                        className="border-red-500/30 text-red-400"
                         onClick={() => this.setState({ hasError: false, error: null })}
                     >
                         Try to Recover

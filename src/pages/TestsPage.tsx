@@ -49,36 +49,7 @@ import { toast } from "sonner"
 
 type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder'
 
-// Simple Error Boundary for the Test Runs tab to prevent black screens
-import React from 'react';
-class ErrorBoundary extends React.Component<{ children: React.ReactNode, name: string }, { hasError: boolean, error: Error | null }> {
-    constructor(props: any) {
-        super(props);
-        this.state = { hasError: false, error: null };
-    }
-    static getDerivedStateFromError(error: Error) {
-        return { hasError: true, error };
-    }
-    render() {
-        if (this.state.hasError) {
-            return (
-                <div className="p-8 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-xl m-6">
-                    <h2 className="text-lg font-bold text-[#EF4444] mb-2">Rendering Error in {this.props.name}</h2>
-                    <p className="text-sm text-[#EF4444]/80 font-mono whitespace-pre-wrap">{this.state.error?.message}</p>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-4 border-[#EF4444]/30 text-[#EF4444]"
-                        onClick={() => this.setState({ hasError: false, error: null })}
-                    >
-                        Try to Recover
-                    </Button>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function TestsPage() {
     const api = window.electronAPI as any;

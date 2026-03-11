@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import { cn } from "@/lib/utils"
+import { getApiKey } from "@/lib/credentials"
 import {
     Sparkles,
     X,
@@ -83,17 +84,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
 
     const getApiKey = useCallback(async (): Promise<string | null> => {
         const api = window.electronAPI as any
-        if (!api) return null
-        
-        // Try project-specific key first
-        if (activeProjectId) {
-            const projectKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`)
-            if (projectKey) return projectKey
-        }
-        
-        // Fall back to global key
-        const globalKey = await api.secureStoreGet('gemini_api_key')
-        return globalKey || null
+        return getApiKey(api, 'gemini_api_key', activeProjectId)
     }, [activeProjectId])
 
     // Focus input when opened

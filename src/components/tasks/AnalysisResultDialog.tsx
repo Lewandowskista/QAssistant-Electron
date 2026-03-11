@@ -11,6 +11,8 @@ import { Sparkles, Copy, Check } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
+const isMac = navigator.userAgent.toUpperCase().includes('MAC')
+
 interface AnalysisResultDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -38,7 +40,7 @@ export default function AnalysisResultDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col bg-[#0F0F13] border-[#2A2A3A] text-white">
+            <DialogContent className={`max-w-3xl ${isMac ? 'max-h-[75vh]' : 'max-h-[85vh]'} flex flex-col bg-[#0F0F13] border-[#2A2A3A] text-white`}>
                 <DialogHeader className="flex flex-row items-center justify-between border-b border-[#2A2A3A] pb-4 shrink-0">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shadow-lg shadow-[#A78BFA]/20">

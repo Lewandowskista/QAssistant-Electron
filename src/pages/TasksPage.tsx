@@ -1,6 +1,8 @@
 // cspell:ignore youtu
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { useProjectStore, Project, Task, TaskStatus } from "@/store/useProjectStore"
+import type { AnalysisEntry } from "@/types/project"
+import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
 import {
     Plus,
     Search,
@@ -27,7 +29,7 @@ import {
     sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable"
 
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { toast } from "sonner"
 
 // Extracted Components
@@ -37,7 +39,9 @@ import { TaskDetailsSidebar } from "@/components/tasks/TaskDetailsSidebar"
 import { NewTaskModal } from "@/components/tasks/NewTaskModal"
 import AnalysisResultDialog from "@/components/tasks/AnalysisResultDialog"
 
-const DEFAULT_COLUMNS: { id: string; title: string, color: string, textColor: string }[] = [
+type Column = { id: string; title: string; color: string; textColor: string; type?: string }
+
+const DEFAULT_COLUMNS: Column[] = [
     { id: 'backlog', title: 'BACKLOG', color: 'bg-[#9CA3AF]', textColor: 'text-[#9CA3AF]' },
     { id: 'todo', title: 'TODO', color: 'bg-[#6B7280]', textColor: 'text-[#6B7280]' },
     { id: 'in-progress', title: 'IN PROGRESS', color: 'bg-[#3B82F6]', textColor: 'text-[#3B82F6]' },
@@ -48,15 +52,15 @@ const DEFAULT_COLUMNS: { id: string; title: string, color: string, textColor: st
 ]
 
 export default function TasksPage() {
-    const api = window.electronAPI as any
-    const projects = useProjectStore((state: any) => state.projects)
-    const activeProjectId = useProjectStore((state: any) => state.activeProjectId)
-    const addTask = useProjectStore((state: any) => state.addTask)
-    const deleteTask = useProjectStore((state: any) => state.deleteTask)
-    const moveTask = useProjectStore((state: any) => state.moveTask)
-    const updateProject = useProjectStore((state: any) => state.updateProject)
-    const loadProjects = useProjectStore((state: any) => state.loadProjects)
-    
+    const api = window.electronAPI
+    const projects = useProjectStore((state) => state.projects)
+    const activeProjectId = useProjectStore((state) => state.activeProjectId)
+    const addTask = useProjectStore((state) => state.addTask)
+    const deleteTask = useProjectStore((state) => state.deleteTask)
+    const moveTask = useProjectStore((state) => state.moveTask)
+    const updateProject = useProjectStore((state) => state.updateProject)
+    const loadProjects = useProjectStore((state) => state.loadProjects)
+
     const activeProject = useMemo(() => projects.find((p: Project) => p.id === activeProjectId), [projects, activeProjectId])
     const tasks = useMemo(() => activeProject?.tasks || [], [activeProject?.tasks])
 
@@ -94,15 +98,15 @@ export default function TasksPage() {
         })
     }, [tasks, searchQuery, sourceMode])
 
-    const currentColumns = useMemo(() => {
+    const currentColumns = useMemo((): Column[] => {
         if (activeProject?.columns && activeProject.columns.length > 0) {
-            return activeProject.columns
+            return activeProject.columns as Column[]
         }
         return DEFAULT_COLUMNS
     }, [activeProject?.columns])
 
     const tasksByColumn = useMemo(() => {
-        return currentColumns.reduce((acc: Record<string, Task[]>, col: any) => {
+        return currentColumns.reduce((acc: Record<string, Task[]>, col: Column) => {
             acc[col.id] = filteredTasks.filter((t: Task) => t.status === col.id)
             return acc
         }, {} as Record<string, Task[]>)
@@ -125,20 +129,15 @@ export default function TasksPage() {
     }, [isShortcutModalOpen])
 
     const getLinearApiKey = useCallback(async (connId?: string) => {
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-        if (connId) {
-            const key = await api.secureStoreGet(`${prefix}linear_api_key_${connId}`) || await api.secureStoreGet(`linear_api_key_${connId}`)
-            if (key) return key
-        }
-        return await api.secureStoreGet(`${prefix}linear_api_key`) || await api.secureStoreGet('linear_api_key')
+        return getConnectionApiKey(api, 'linear_api_key', connId, activeProject?.id)
     }, [activeProject, api])
 
     const getJiraCredentials = useCallback(async (connId?: string) => {
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
+        const keyPrefix = activeProject ? `project:${activeProject.id}:` : ''
         if (connId) {
-            const conn = activeProject?.jiraConnections?.find((c: any) => c.id === connId)
+            const conn = activeProject?.jiraConnections?.find((c) => c.id === connId)
             if (conn) {
-                const key = await api.secureStoreGet(`${prefix}jira_api_token_${connId}`) || await api.secureStoreGet(`jira_api_token_${connId}`)
+                const key = await api.secureStoreGet(`${keyPrefix}jira_api_token_${connId}`) || await api.secureStoreGet(`jira_api_token_${connId}`)
                 if (key) return { domain: conn.domain, email: conn.email, apiKey: key }
             }
         }
@@ -152,19 +151,18 @@ export default function TasksPage() {
 
         setIsSyncing(true)
         try {
-            const prefix = activeProject ? `project:${activeProject.id}:` : ''
             if (mode === 'linear') {
                 const conns = activeProject.linearConnections || []
-                let allSyncedTasks: any[] = []
-                let allColumns: any[] = []
-                
+                let allSyncedTasks: Task[] = []
+                const allColumns: Column[] = []
+
                 for (const conn of conns) {
-                    const apiKey = await api.secureStoreGet(`${prefix}linear_api_key_${conn.id}`) || await api.secureStoreGet(`linear_api_key_${conn.id}`)
+                    const apiKey = await getConnectionApiKey(api, 'linear_api_key', conn.id, activeProject?.id)
                     if (apiKey) {
                         const syncedTasks = await api.syncLinear({ apiKey, teamKey: conn.teamId, connectionId: conn.id })
                         allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
                         const states = await api.getLinearWorkflowStates({ apiKey })
-                        states.forEach((s: any) => {
+                        states.forEach((s: { name: string; color?: string; type?: string }) => {
                             if (!allColumns.find(c => c.id === s.name)) {
                                 allColumns.push({
                                     id: s.name,
@@ -178,32 +176,32 @@ export default function TasksPage() {
                     }
                 }
                 const existing = activeProject.tasks || []
-                const otherSourceTasks = existing.filter((t: any) => t.source !== 'linear')
+                const otherSourceTasks = existing.filter((t: Task) => t.source !== 'linear')
                 await updateProject(activeProjectId, { tasks: [...otherSourceTasks, ...allSyncedTasks], columns: allColumns })
                 await loadProjects()
             } else if (mode === 'jira') {
                 const conns = activeProject.jiraConnections || []
-                let allSyncedTasks: any[] = []
+                let allSyncedTasks: Task[] = []
                 for (const conn of conns) {
-                    const apiKey = await api.secureStoreGet(`${prefix}jira_api_token_${conn.id}`) || await api.secureStoreGet(`jira_api_token_${conn.id}`)
+                    const apiKey = await getConnectionApiKey(api, 'jira_api_token', conn.id, activeProject?.id)
                     if (apiKey) {
                         const syncedTasks = await api.syncJira({ domain: conn.domain, email: conn.email, apiKey, projectKey: conn.projectKey, connectionId: conn.id })
                         allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
                     }
                 }
                 const existing = activeProject.tasks || []
-                const otherSourceTasks = existing.filter((t: any) => t.source !== 'jira')
+                const otherSourceTasks = existing.filter((t: Task) => t.source !== 'jira')
                 await updateProject(activeProjectId, { tasks: [...otherSourceTasks, ...allSyncedTasks] })
                 await loadProjects()
             }
-        } catch (e: any) {
-            toast.error(`Sync failed: ${e.message}`)
+        } catch (e) {
+            toast.error(`Sync failed: ${e instanceof Error ? e.message : String(e)}`)
         } finally {
             setIsSyncing(false)
         }
     }
 
-    const handleConfirmAddTask = async (taskData: any) => {
+    const handleConfirmAddTask = async (taskData: Partial<Task> & { title: string; source?: string; connectionId?: string; priority?: string }) => {
         if (!activeProjectId || !taskData.title.trim()) return
         try {
             if (taskData.source === 'manual') {
@@ -211,13 +209,13 @@ export default function TasksPage() {
                 setIsNewTaskModalOpen(false)
             } else if (taskData.source === 'linear') {
                 const apiKey = await getLinearApiKey(taskData.connectionId)
-                const conn = activeProject?.linearConnections?.find((c: any) => c.id === taskData.connectionId)
+                const conn = activeProject?.linearConnections?.find((c) => c.id === taskData.connectionId)
                 if (!apiKey || !conn) throw new Error("Linear credentials missing.")
-                const url = await api.createLinearIssue({ 
-                    apiKey, 
-                    teamId: conn.teamId, 
-                    title: taskData.title, 
-                    description: taskData.description, 
+                const url = await api.createLinearIssue({
+                    apiKey,
+                    teamId: conn.teamId,
+                    title: taskData.title,
+                    description: taskData.description,
                     priority: taskData.priority === 'critical' ? 1 : taskData.priority === 'high' ? 2 : taskData.priority === 'medium' ? 3 : 4
                 })
                 if (url) {
@@ -227,7 +225,7 @@ export default function TasksPage() {
                 }
             } else if (taskData.source === 'jira') {
                 const creds = await getJiraCredentials(taskData.connectionId)
-                const conn = activeProject?.jiraConnections?.find((c: any) => c.id === taskData.connectionId)
+                const conn = activeProject?.jiraConnections?.find((c) => c.id === taskData.connectionId)
                 if (!creds || !conn) throw new Error("Jira credentials missing.")
                 const key = await api.createJiraIssue({ ...creds, projectKey: conn.projectKey, title: taskData.title, description: taskData.description })
                 if (key) {
@@ -236,16 +234,15 @@ export default function TasksPage() {
                     handleSync('jira')
                 }
             }
-        } catch (e: any) {
-            toast.error(`Failed: ${e.message}`)
+        } catch (e) {
+            toast.error(`Failed: ${e instanceof Error ? e.message : String(e)}`)
         }
     }
 
     const handleAnalyzeIssue = async (task: Task) => {
-        const api = window.electronAPI as any
         if (!api) return
 
-        const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`) || await api.secureStoreGet('gemini_api_key')
+        const apiKey = await getApiKey(api, 'gemini_api_key', activeProjectId)
         if (!apiKey) {
             toast.error('Please set your Gemini API key in Settings.')
             return
@@ -255,16 +252,18 @@ export default function TasksPage() {
         setTaskBeingAnalyzed(task)
         try {
             // Fetch comments if applicable to enrich analysis
-            let comments: any[] = []
+            let comments: unknown[] = []
             if (task.source === 'linear' && task.sourceIssueId) {
                 try {
-                    comments = await api.getLinearComments(task.sourceIssueId)
+                    const linearKey = await getLinearApiKey(task.connectionId)
+                    if (linearKey) comments = await api.getLinearComments({ apiKey: linearKey, issueId: task.sourceIssueId })
                 } catch (e) {
                     console.error('Failed to fetch Linear comments:', e)
                 }
             } else if (task.source === 'jira' && task.externalId) {
                 try {
-                    comments = await api.getJiraComments(task.externalId)
+                    const creds = await getJiraCredentials(task.connectionId)
+                    if (creds) comments = await api.getJiraComments({ ...creds, issueKey: task.externalId })
                 } catch (e) {
                     console.error('Failed to fetch Jira comments:', e)
                 }
@@ -278,7 +277,7 @@ export default function TasksPage() {
                 modelName: activeProject?.geminiModel
             })
 
-            const historyEntry = {
+            const historyEntry: AnalysisEntry = {
                 version: (task.analysisHistory?.length || 0) + 1,
                 hash: crypto.randomUUID(),
                 timestamp: Date.now(),
@@ -295,14 +294,14 @@ export default function TasksPage() {
             )
 
             await updateProject(activeProjectId!, { tasks: updatedTasks })
-            
+
             // Show the emergent window
             setCurrentAnalysisResult(result)
             setIsAnalysisDialogOpen(true)
-            
+
             toast.success('Analysis complete')
-        } catch (error: any) {
-            toast.error(`Analysis failed: ${error.message}`)
+        } catch (error) {
+            toast.error(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`)
         } finally {
             setIsLoading(false)
         }
@@ -318,8 +317,8 @@ export default function TasksPage() {
         if (!over || !activeProjectId) return
         const activeId = active.id.toString()
         const overId = over.id.toString()
-        
-        const overColumn = currentColumns.find((c: any) => c.id === overId)
+
+        const overColumn = currentColumns.find((c: Column) => c.id === overId)
         if (overColumn) {
             if (activeTask && activeTask.status !== overColumn.id) {
                 moveTask(activeProjectId, activeId, overColumn.id)
@@ -378,7 +377,7 @@ export default function TasksPage() {
                 <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar bg-[#0F0F13]">
                     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
                         <div className="flex h-full min-w-max p-4 gap-4">
-                            {currentColumns.map((col: any) => (
+                            {currentColumns.map((col: Column) => (
                                 <TaskColumn key={col.id} col={col} tasksInColumn={tasksByColumn[col.id] || []} selectedTaskId={detailsId} setSelectedTaskId={setDetailsId} sourceMode={sourceMode} onAddTask={() => setIsNewTaskModalOpen(true)} />
                             ))}
                         </div>
@@ -386,7 +385,7 @@ export default function TasksPage() {
                     </DndContext>
                 </div>
 
-                <TaskDetailsSidebar 
+                <TaskDetailsSidebar
                     selectedTask={selectedTask}
                     activeProject={activeProject}
                     currentColumns={currentColumns}
@@ -404,7 +403,7 @@ export default function TasksPage() {
                     onGenerateBugReport={async () => {
                         if (activeProject && selectedTask) {
                             try {
-                                const env = activeProject.environments.find((e: any) => e.isDefault) || activeProject.environments[0]
+                                const env = activeProject.environments.find((e) => e.isDefault) || activeProject.environments[0]
                                 const res = await api.generateBugReportTask({
                                     task: selectedTask,
                                     environment: env,
@@ -419,18 +418,19 @@ export default function TasksPage() {
                                 } else {
                                     toast.error(`Report generation failed: ${res.error}`)
                                 }
-                            } catch (e: any) {
-                                toast.error(`Error: ${e.message}`)
+                            } catch (e) {
+                                toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`)
                             }
                         }
                     }}
+                    onDelete={() => setTaskToDelete(selectedTask)}
                     onDeleteAnalysis={async (entry) => {
                         if (activeProjectId && selectedTask) {
                             const updatedHistory = (selectedTask.analysisHistory || []).filter(
-                                (h: any) => h.timestamp !== entry.timestamp
+                                (h: AnalysisEntry) => h.timestamp !== entry.timestamp
                             )
                             await updateProject(activeProjectId, {
-                                tasks: tasks.map((t: Task) => 
+                                tasks: tasks.map((t: Task) =>
                                     t.id === selectedTask.id ? { ...t, analysisHistory: updatedHistory } : t
                                 )
                             })
@@ -441,18 +441,18 @@ export default function TasksPage() {
                 />
             </div>
 
-            <NewTaskModal 
-                isOpen={isNewTaskModalOpen} 
+            <NewTaskModal
+                isOpen={isNewTaskModalOpen}
                 onOpenChange={setIsNewTaskModalOpen}
                 activeProject={activeProject}
                 currentColumns={currentColumns}
                 onConfirm={handleConfirmAddTask}
             />
 
-            <ConfirmDialog 
-                open={!!taskToDelete} 
-                onOpenChange={open => !open && setTaskToDelete(null)}
-                title="Delete Task" description="Permanent action." confirmText="Delete" variant="destructive"
+            <ConfirmDialog
+                open={!!taskToDelete}
+                onCancel={() => setTaskToDelete(null)}
+                title="Delete Task" description="Permanent action." confirmLabel="Delete" destructive
                 onConfirm={() => { if (activeProjectId && taskToDelete) deleteTask(activeProjectId, taskToDelete.id) }}
             />
 
@@ -463,6 +463,39 @@ export default function TasksPage() {
                 taskTitle={taskBeingAnalyzed?.title || "Issue Analysis"}
                 projectId={activeProjectId || undefined}
             />
+
+            {/* Keyboard Shortcut Modal */}
+            <>
+                <div
+                    className={cn("fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity duration-200", isShortcutModalOpen ? "opacity-100" : "opacity-0 pointer-events-none")}
+                    onClick={() => setIsShortcutModalOpen(false)}
+                />
+                <div className={cn("fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 transition-all duration-200", isShortcutModalOpen ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none")}>
+                    <div className="bg-[#13131A] border border-[#2A2A3A] rounded-2xl shadow-2xl w-[380px] p-6">
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-sm font-bold text-[#E2E8F0] uppercase tracking-widest">Keyboard Shortcuts</h3>
+                            <button onClick={() => setIsShortcutModalOpen(false)} className="p-1 rounded-md text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#252535] transition-colors">
+                                <HelpCircle className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            {[
+                                { keys: ['Ctrl', '/'], description: 'Toggle shortcut help' },
+                                { keys: ['Esc'], description: 'Close task details / close modal' },
+                            ].map(({ keys, description }) => (
+                                <div key={description} className="flex items-center justify-between py-2 border-b border-[#2A2A3A]/60 last:border-0">
+                                    <span className="text-xs text-[#9CA3AF]">{description}</span>
+                                    <div className="flex items-center gap-1">
+                                        {keys.map((k) => (
+                                            <kbd key={k} className="px-2 py-0.5 rounded bg-[#1A1A24] border border-[#2A2A3A] text-[10px] font-bold text-[#A78BFA] font-mono">{k}</kbd>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </>
         </div>
     )
 }
