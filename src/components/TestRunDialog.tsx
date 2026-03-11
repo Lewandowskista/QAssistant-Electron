@@ -61,7 +61,7 @@ export default function TestRunDialog({ open, onOpenChange, activePlan }: TestRu
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <PlayCircle className="h-5 w-5 text-indigo-500" />
+                        <PlayCircle className="h-5 w-5 text-[#A78BFA]" />
                         Batch Execute Plan
                     </DialogTitle>
                     <DialogDescription>
@@ -78,16 +78,16 @@ export default function TestRunDialog({ open, onOpenChange, activePlan }: TestRu
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="passed">
-                                    <span className="text-green-600 dark:text-green-400 font-bold">Passed</span>
+                                    <span className="text-green-400 font-bold">Passed</span>
                                 </SelectItem>
                                 <SelectItem value="failed">
-                                    <span className="text-red-600 dark:text-red-400 font-bold">Failed</span>
+                                    <span className="text-red-400 font-bold">Failed</span>
                                 </SelectItem>
                                 <SelectItem value="blocked">
-                                    <span className="text-amber-600 dark:text-amber-400 font-bold">Blocked</span>
+                                    <span className="text-amber-400 font-bold">Blocked</span>
                                 </SelectItem>
                                 <SelectItem value="skipped">
-                                    <span className="text-zinc-600 dark:text-zinc-400 font-bold">Skipped</span>
+                                    <span className="text-zinc-400 font-bold">Skipped</span>
                                 </SelectItem>
                             </SelectContent>
                         </Select>
@@ -104,11 +104,11 @@ export default function TestRunDialog({ open, onOpenChange, activePlan }: TestRu
                     </div>
                 </div>
 
-                <DialogFooter className="bg-zinc-50 dark:bg-zinc-900 -mx-6 -mb-6 px-6 py-4 border-t">
+                <DialogFooter className="bg-[#13131A] border-t border-[#2A2A3A] -mx-6 -mb-6 px-6 py-4">
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                     <Button
                         onClick={handleBatchRecord}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 font-bold"
+                        className="bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] gap-2 font-bold"
                         disabled={cases.length === 0}
                     >
                         <Save className="h-4 w-4" /> Save {cases.length} Executions

@@ -21,6 +21,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
     const { addProject, updateProject } = useProjectStore()
     const [name, setName] = useState("")
     const [color, setColor] = useState("bg-blue-500")
+    const [nameError, setNameError] = useState("")
 
     const colors = [
         { name: "Blue", value: "bg-blue-500" },
@@ -41,11 +42,16 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
             setName("")
             setColor("bg-blue-500")
         }
+        setNameError("")
     }, [project, open])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!name.trim()) return
+        if (!name.trim()) {
+            setNameError("Project name is required.")
+            return
+        }
+        setNameError("")
 
         if (project) {
             await updateProject(project.id, { name, color })
@@ -57,7 +63,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[425px] bg-[#13131A] border-[#2A2A3A]">
                 <DialogHeader>
                     <DialogTitle>{project ? "Edit Project" : "New Project"}</DialogTitle>
                 </DialogHeader>
@@ -67,10 +73,12 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
                         <Input
                             id="name"
                             value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setNameError("") }}
                             placeholder="My Awesome Project"
                             autoFocus
+                            className={nameError ? "border-red-500/70 focus-visible:ring-red-500/30" : ""}
                         />
+                        {nameError && <p className="text-xs text-red-400 px-1">{nameError}</p>}
                     </div>
                     <div className="space-y-2">
                         <Label>Color Tag</Label>
@@ -89,7 +97,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
                             ))}
                         </div>
                     </div>
-                    <DialogFooter className="pt-4">
+                    <DialogFooter className="pt-4 border-t border-[#2A2A3A] bg-[#13131A]">
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                             Cancel
                         </Button>

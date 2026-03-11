@@ -46,6 +46,7 @@ export default function MainLayout() {
     const [searchQuery, setSearchQuery] = useState("")
     const [isSapActive, setIsSapActive] = useState(false)
     const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().indexOf('MAC') >= 0)
+    const [currentTheme, setCurrentTheme] = useState<'dark' | 'light'>('dark')
 
     // Routes that use h-full flex layouts and need the full content area (no padding/max-width)
     const FULL_BLEED_ROUTES = ['/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks']
@@ -78,6 +79,10 @@ export default function MainLayout() {
                 const settings = await api.readSettingsFile()
                 if (settings?.alwaysOnTop !== undefined) setIsPinned(settings.alwaysOnTop)
                 setIsSapActive(!!settings?.sapCommerceContext)
+                const t: 'dark' | 'light' = settings?.theme === 'light' ? 'light' : 'dark'
+                document.documentElement.classList.toggle('light', t === 'light')
+                document.documentElement.classList.toggle('dark', t === 'dark')
+                setCurrentTheme(t)
             }
 
             window.addEventListener('settings-updated', refreshSettings)
@@ -201,7 +206,7 @@ export default function MainLayout() {
                                     <DropdownMenuTrigger asChild>
                                         <button className="p-1 rounded hover:bg-[#3D3D5F] text-[#6B7280]"><MoreVertical className="h-3 w-3" /></button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-32 bg-[#1A1A24] border-[#2A2A3A] text-white">
+                                    <DropdownMenuContent align="end" className="w-32 bg-[#1A1A24] border-[#2A2A3A] text-foreground">
                                         <DropdownMenuItem onClick={() => { setEditingProject(project); setDialogOpen(true); }}>
                                             <Edit2 className="mr-2 h-3 w-3" /> Edit
                                         </DropdownMenuItem>
@@ -322,7 +327,7 @@ export default function MainLayout() {
                                         <ChevronDown className="h-2.5 w-2.5 text-[#6B7280] group-hover:text-[#9CA3AF] transition-colors" />
                                     </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48 bg-[#1A1A24] border-[#2A2A3A] text-white">
+                                                <DropdownMenuContent align="end" className="w-48 bg-[#1A1A24] border-[#2A2A3A] text-foreground">
                                     <div className="px-2 py-1.5 text-[9px] font-black text-[#6B7280] uppercase tracking-[0.2em]">Active Environment</div>
                                     <DropdownMenuSeparator className="bg-[#2A2A3A]" />
                                     {environments.map(env => (
@@ -436,7 +441,7 @@ export default function MainLayout() {
 
                 <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} project={editingProject} />
                 <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
-                <Toaster theme="dark" position="bottom-right" />
+                <Toaster theme={currentTheme} position="bottom-right" />
             </div>
 
             </div>

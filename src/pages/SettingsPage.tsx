@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react"
 import {
     Zap, Globe, Cpu, Server, Share2, Database, Search,
     Plus, X, Edit2, Check, Copy, RefreshCw, ExternalLink,
-    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell
+    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell, Sun
 } from "lucide-react"
+import { useTheme } from "@/hooks/useTheme"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -121,6 +122,7 @@ export default function SettingsPage() {
     const [dataPath, setDataPath] = useState('')
     const [sysInfo, setSysInfo] = useState<any>(null)
     const [activeSection, setActiveSection] = useState<string | null>('general')
+    const { theme, toggleTheme } = useTheme()
 
     // ── Global settings state ─────────────────────────────────────────────────
     const [sapContext, setSapContext] = useState(false)
@@ -149,7 +151,7 @@ export default function SettingsPage() {
 
     // ── Gemini ────────────────────────────────────────────────────────────────
     const [geminiKey, setGeminiKey] = useState('')
-    const [geminiModel, setGeminiModel] = useState('gemini-3.1-flash-lite')
+    const [geminiModel, setGeminiModel] = useState('gemini-3-flash-preview')
     const [geminiStatus, setGeminiStatus] = useState<StatusState>(null)
 
     // ── CCv2 ─────────────────────────────────────────────────────────────────
@@ -485,6 +487,18 @@ export default function SettingsPage() {
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-3 custom-scrollbar">
 
+                {/* ── APPEARANCE ───────────────────────────────────────────── */}
+                <Sec id="appearance" title="Appearance" icon={<Sun className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                    <SectionLabel>Theme</SectionLabel>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-semibold text-[#E2E8F0]">Light Mode</p>
+                            <p className="text-xs text-[#6B7280] mt-0.5">Switch between dark and light interface theme.</p>
+                        </div>
+                        <Toggle on={theme === 'light'} onToggle={toggleTheme} />
+                    </div>
+                </Sec>
+
                 {/* ── GENERAL ─────────────────────────────────────────────── */}
                 <Sec id="general" title="General" icon={<Database className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>App Behavior</SectionLabel>
@@ -696,22 +710,20 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             <div className="flex gap-2">
                                 <select 
                                     className={`${inp} flex-1 appearance-none px-3 cursor-pointer`}
-                                    value={['gemini-3.1-flash-lite', 'gemini-3.0-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'].includes(geminiModel) ? geminiModel : 'custom'}
+                                    value={['gemini-3-flash-preview', 'gemini-2.5-flash'].includes(geminiModel) ? geminiModel : 'custom'}
                                     onChange={(e) => {
                                         if (e.target.value !== 'custom') setGeminiModel(e.target.value)
                                     }}
                                 >
-                                    <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-                                    <option value="gemini-3.0-flash">Gemini 3.0 Flash</option>
-                                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                    <option value="gemini-3-flash-preview">Gemini 3 Flash (Free)</option>
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Free)</option>
                                     <option value="custom">-- Custom / Other --</option>
                                 </select>
-                                {(!['gemini-3.1-flash-lite', 'gemini-3.0-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'].includes(geminiModel)) && (
+                                {(!['gemini-3-flash-preview', 'gemini-2.5-flash'].includes(geminiModel)) && (
                                     <Input 
                                         value={geminiModel} 
                                         onChange={e => setGeminiModel(e.target.value)} 
-                                        placeholder="Model ID, e.g. gemini-3.1-flash-lite"
+                                        placeholder="Model ID, e.g. gemini-3-flash-preview"
                                         className={`${inp} flex-1`}
                                     />
                                 )}

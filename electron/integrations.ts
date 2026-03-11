@@ -206,10 +206,27 @@ export async function addLinearComment(apiKey: string, issueId: string, body: st
     await linearGraphQL(apiKey, mutation, { issueId, body })
 }
 
-export async function getLinearWorkflowStates(apiKey: string): Promise<any[]> {
-    const query = `{ workflowStates(first: 200) { nodes { id name type color } } }`
-    const result = await linearGraphQL(apiKey, query)
-    return result.data?.workflowStates?.nodes || []
+export async function getLinearWorkflowStates(apiKey: string, teamId?: string): Promise<any[]> {
+    let query: string
+    if (teamId) {
+        // Fetch states for a specific team
+        query = `
+            query($teamId: String!) {
+                team(id: $teamId) {
+                    states {
+                        nodes { id name type color }
+                    }
+                }
+            }
+        `
+        const result = await linearGraphQL(apiKey, query, { teamId })
+        return result.data?.team?.states?.nodes || []
+    } else {
+        // Fallback to global states
+        query = `{ workflowStates(first: 200) { nodes { id name type color } } }`
+        const result = await linearGraphQL(apiKey, query)
+        return result.data?.workflowStates?.nodes || []
+    }
 }
 
 export async function updateLinearIssueStatus(apiKey: string, issueId: string, stateId: string): Promise<void> {

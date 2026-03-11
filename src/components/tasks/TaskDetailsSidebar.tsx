@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from "react"
-import { 
-    X, 
-    User, 
-    Calendar, 
-    Tag, 
-    Clock, 
-    Loader2, 
-    MessageSquare, 
-    Trash2, 
-    Send, 
+import {
+    X,
+    User,
+    Calendar,
+    Tag,
+    Clock,
+    Loader2,
+    MessageSquare,
+    Trash2,
+    Send,
     Target,
     ExternalLink,
-    Activity as ActivityIcon
+    Activity as ActivityIcon,
+    AlertCircle
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getConnectionApiKey, getApiKey } from "@/lib/credentials"
@@ -22,6 +23,7 @@ import { Project, Task, TaskStatus } from "@/store/useProjectStore"
 import { DetailItem, MediaSection } from "./TaskDetailsComponents"
 import FormattedText from "@/components/FormattedText"
 import { toast } from "sonner"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 interface TaskDetailsSidebarProps {
     selectedTask: Task | null
@@ -59,12 +61,27 @@ export function TaskDetailsSidebar({
     const [editAssignee, setEditAssignee] = useState("")
     const [editLabels, setEditLabels] = useState("")
 
+    const [editDueDate, setEditDueDate] = useState("")
+
     const [comments, setComments] = useState<any[]>([])
+    const [commentsError, setCommentsError] = useState<string | null>(null)
     const [activity, setActivity] = useState<any[]>([])
     const [isLoadingTab, setIsLoadingTab] = useState(false)
     const [newComment, setNewComment] = useState("")
     const [isPostingComment, setIsPostingComment] = useState(false)
     const [expandedHistory, setExpandedHistory] = useState<Set<number>>(new Set())
+
+    const { confirm, dialog: confirmDialog } = useConfirm()
+
+    const isDirty = isEditing && selectedTask && (
+        editTitle !== selectedTask.title ||
+        editDescription !== (selectedTask.description || "") ||
+        editStatus !== selectedTask.status ||
+        editPriority !== selectedTask.priority ||
+        editAssignee !== (selectedTask.assignee || "") ||
+        editLabels !== (selectedTask.labels || "") ||
+        editDueDate !== (selectedTask.dueDate || "")
+    )
 
     useEffect(() => {
         if (selectedTask) {
@@ -74,9 +91,10 @@ export function TaskDetailsSidebar({
             setEditPriority(selectedTask.priority)
             setEditAssignee(selectedTask.assignee || "")
             setEditLabels(selectedTask.labels || "")
+            setEditDueDate(selectedTask.dueDate || "")
             setIsEditing(false)
         }
-    }, [selectedTask])
+    }, [selectedTask?.id])
 
     const getLinearApiKey = useCallback(async (connId?: string) => {
         return getConnectionApiKey(api, 'linear_api_key', connId, activeProject?.id)
@@ -101,17 +119,24 @@ export function TaskDetailsSidebar({
         if (!selectedTask) return
         setActiveTab(tab)
         setIsLoadingTab(true)
+        if (tab === 'comments') setCommentsError(null)
 
         try {
             if (tab === 'comments') {
                 if (selectedTask.source === 'linear') {
                     const key = await getLinearApiKey(selectedTask.connectionId)
-                    if (key) setComments(await api.getLinearComments({ apiKey: key, issueId: selectedTask.sourceIssueId }))
-                    else toast.error("Linear API key not found.")
+                    if (key) {
+                        setComments(await api.getLinearComments({ apiKey: key, issueId: selectedTask.sourceIssueId }))
+                    } else {
+                        setCommentsError("Linear API key not configured. Check Settings.")
+                    }
                 } else if (selectedTask.source === 'jira') {
                     const creds = await getJiraCredentials(selectedTask.connectionId)
-                    if (creds) setComments(await api.getJiraComments({ ...creds, issueKey: selectedTask.sourceIssueId }))
-                    else toast.error("Jira credentials not found.")
+                    if (creds) {
+                        setComments(await api.getJiraComments({ ...creds, issueKey: selectedTask.sourceIssueId }))
+                    } else {
+                        setCommentsError("Jira credentials not configured. Check Settings.")
+                    }
                 }
             } else if (tab === 'activity') {
                 if (selectedTask.source === 'linear') {
@@ -123,7 +148,8 @@ export function TaskDetailsSidebar({
                 }
             }
         } catch (e: any) {
-            toast.error(e.message || "Error loading tab.")
+            if (tab === 'comments') setCommentsError(e.message || "Failed to load comments.")
+            else toast.error(e.message || "Error loading tab.")
         } finally {
             setIsLoadingTab(false)
         }
@@ -142,9 +168,22 @@ export function TaskDetailsSidebar({
             status: editStatus,
             priority: editPriority,
             assignee: editAssignee,
-            labels: editLabels
+            labels: editLabels,
+            dueDate: editDueDate || undefined
         })
         setIsEditing(false)
+    }
+
+    const handleClose = async () => {
+        if (isDirty) {
+            const confirmed = await confirm("Discard unsaved changes?", {
+                description: "Your edits will be lost if you close without saving.",
+                confirmLabel: "Discard",
+                destructive: true
+            })
+            if (!confirmed) return
+        }
+        onClose()
     }
 
     const handlePostComment = async () => {
@@ -187,13 +226,14 @@ export function TaskDetailsSidebar({
             "bg-[#13131A] border-l border-[#2A2A3A] transition-all duration-300 ease-in-out flex flex-col overflow-hidden shadow-2xl",
             "w-[500px]"
         )}>
+            {confirmDialog}
             <div className="flex-none p-5 border-b border-[#2A2A3A] space-y-4">
                 <div className="flex items-start justify-between">
                     <div className="space-y-1">
                         <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">{selectedTask.sourceIssueId || 'MANUAL TASK'}</p>
                         <h2 className="text-lg font-semibold text-[#E2E8F0] leading-tight">{selectedTask.title}</h2>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#E2E8F0]" onClick={onClose}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#E2E8F0]" onClick={handleClose}>
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
@@ -324,7 +364,16 @@ export function TaskDetailsSidebar({
                                         </div>
                                         <div className="grid gap-1.5">
                                             <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Due Date</label>
-                                            <DetailItem icon={Calendar} label="DUE DATE" value={selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : 'No date'} />
+                                            {isEditing ? (
+                                                <input
+                                                    type="date"
+                                                    value={editDueDate}
+                                                    onChange={(e) => setEditDueDate(e.target.value)}
+                                                    className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none focus:ring-1 focus:ring-[#A78BFA]/50"
+                                                />
+                                            ) : (
+                                                <DetailItem icon={Calendar} label="DUE DATE" value={selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : 'No date'} />
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -345,6 +394,12 @@ export function TaskDetailsSidebar({
                     <TabsContent value="comments" className="m-0 h-full flex flex-col gap-4">
                         {isLoadingTab ? (
                             <div className="flex-1 flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#A78BFA]" /></div>
+                        ) : commentsError ? (
+                            <div className="flex flex-col items-center justify-center text-center mt-10 gap-2">
+                                <AlertCircle className="h-8 w-8 text-[#EF4444]/60" />
+                                <p className="text-xs font-bold uppercase tracking-wider text-[#EF4444]/80">Failed to load comments</p>
+                                <p className="text-[11px] text-[#6B7280]">{commentsError}</p>
+                            </div>
                         ) : comments.length === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30 mt-10">
                                 <MessageSquare className="h-10 w-10 mb-2" />

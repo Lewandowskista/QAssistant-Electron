@@ -450,7 +450,7 @@ if (app) {
         ipcMain.handle('sync-linear', async (_e: any, { apiKey, teamKey, connectionId }: any) => await integrations.fetchLinearIssues(apiKey, teamKey, connectionId));
         ipcMain.handle('get-linear-comments', async (_e: any, { apiKey, issueId }: any) => await integrations.getLinearComments(apiKey, issueId));
         ipcMain.handle('add-linear-comment', async (_e: any, { apiKey, issueId, body }: any) => { await integrations.addLinearComment(apiKey, issueId, body); return { success: true }; });
-        ipcMain.handle('get-linear-workflow-states', async (_e: any, { apiKey }: any) => await integrations.getLinearWorkflowStates(apiKey));
+        ipcMain.handle('get-linear-workflow-states', async (_e: any, { apiKey, teamId }: any) => await integrations.getLinearWorkflowStates(apiKey, teamId));
         ipcMain.handle('update-linear-status', async (_e: any, { apiKey, issueId, stateId }: any) => { await integrations.updateLinearIssueStatus(apiKey, issueId, stateId); return { success: true }; });
         ipcMain.handle('get-linear-history', async (_e: any, { apiKey, issueId }: any) => await integrations.getLinearIssueHistory(apiKey, issueId));
         ipcMain.handle('create-linear-issue', async (_e: any, { apiKey, teamId, title, description, priority }: any) => await integrations.createLinearIssue(apiKey, teamId, title, description, priority));

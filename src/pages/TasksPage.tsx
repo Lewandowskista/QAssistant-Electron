@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useCallback } from "react"
 import { useProjectStore, Project, Task, TaskStatus } from "@/store/useProjectStore"
 import type { AnalysisEntry } from "@/types/project"
 import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
+import { useLinearAutoSync } from "@/hooks/useLinearAutoSync"
 import {
     Plus,
     Search,
@@ -76,6 +77,7 @@ export default function TasksPage() {
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false)
     const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false)
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+    const [syncTimestamp, setSyncTimestamp] = useState<number | null>(null)
 
     const selectedTask = useMemo(() => tasks.find((t: Task) => t.id === detailsId) || null, [tasks, detailsId])
 
@@ -144,6 +146,69 @@ export default function TasksPage() {
         return null
     }, [activeProject, api])
 
+    const syncLinearTasks = useCallback(async (allSyncedTasks: Task[]) => {
+        if (!activeProjectId || !activeProject) return
+
+        const allColumns: Column[] = []
+        const conns = activeProject.linearConnections || []
+
+        for (const conn of conns) {
+            const apiKey = await getConnectionApiKey(api, 'linear_api_key', conn.id, activeProject?.id)
+            if (apiKey) {
+                const states = await api.getLinearWorkflowStates({ apiKey, teamId: conn.teamId })
+                states.forEach((s: { name: string; color?: string; type?: string }) => {
+                    if (!allColumns.find(c => c.id === s.name)) {
+                        allColumns.push({
+                            id: s.name,
+                            title: s.name.toUpperCase(),
+                            color: s.color ? `bg-[${s.color}]` : 'bg-[#3B82F6]',
+                            textColor: s.color ? `text-[${s.color}]` : 'text-[#3B82F6]',
+                            type: s.type
+                        })
+                    }
+                })
+            }
+        }
+
+        const existing = activeProject.tasks || []
+        const otherSourceTasks = existing.filter((t: Task) => t.source !== 'linear')
+        await updateProject(activeProjectId, { tasks: [...otherSourceTasks, ...allSyncedTasks], columns: allColumns })
+        await loadProjects()
+        setSyncTimestamp(Date.now())
+    }, [activeProjectId, activeProject, api, updateProject, loadProjects])
+
+    // Format relative time for display
+    const formatRelativeTime = (timestamp: number): string => {
+        const now = Date.now()
+        const diffMs = now - timestamp
+        const diffS = Math.floor(diffMs / 1000)
+        const diffM = Math.floor(diffS / 60)
+        const diffH = Math.floor(diffM / 60)
+
+        if (diffS < 60) return 'just now'
+        if (diffM < 60) return `${diffM}m ago`
+        if (diffH < 24) return `${diffH}h ago`
+        return `${Math.floor(diffH / 24)}d ago`
+    }
+
+    // Update sync timestamp display every 30 seconds
+    useEffect(() => {
+        const interval = setInterval(() => setSyncTimestamp(prev => prev ? prev : null), 30000)
+        return () => clearInterval(interval)
+    }, [])
+
+    // Auto-sync hook for Linear
+    const { lastSyncedAt } = useLinearAutoSync({
+        activeProject: activeProject || null,
+        sourceMode,
+        api,
+        onSyncComplete: syncLinearTasks,
+        intervalMs: 45_000
+    })
+
+    // Use auto-sync timestamp when available, fall back to manual timestamp
+    const displaySyncTime = lastSyncedAt || syncTimestamp
+
     const handleSync = async (specificSource?: 'linear' | 'jira') => {
         if (!activeProjectId || !activeProject) return
         const mode = specificSource || sourceMode
@@ -154,31 +219,16 @@ export default function TasksPage() {
             if (mode === 'linear') {
                 const conns = activeProject.linearConnections || []
                 let allSyncedTasks: Task[] = []
-                const allColumns: Column[] = []
 
                 for (const conn of conns) {
                     const apiKey = await getConnectionApiKey(api, 'linear_api_key', conn.id, activeProject?.id)
                     if (apiKey) {
                         const syncedTasks = await api.syncLinear({ apiKey, teamKey: conn.teamId, connectionId: conn.id })
                         allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
-                        const states = await api.getLinearWorkflowStates({ apiKey })
-                        states.forEach((s: { name: string; color?: string; type?: string }) => {
-                            if (!allColumns.find(c => c.id === s.name)) {
-                                allColumns.push({
-                                    id: s.name,
-                                    title: s.name.toUpperCase(),
-                                    color: s.color ? `bg-[${s.color}]` : 'bg-[#3B82F6]',
-                                    textColor: s.color ? `text-[${s.color}]` : 'text-[#3B82F6]',
-                                    type: s.type
-                                })
-                            }
-                        })
                     }
                 }
-                const existing = activeProject.tasks || []
-                const otherSourceTasks = existing.filter((t: Task) => t.source !== 'linear')
-                await updateProject(activeProjectId, { tasks: [...otherSourceTasks, ...allSyncedTasks], columns: allColumns })
-                await loadProjects()
+
+                await syncLinearTasks(allSyncedTasks)
             } else if (mode === 'jira') {
                 const conns = activeProject.jiraConnections || []
                 let allSyncedTasks: Task[] = []
@@ -334,16 +384,23 @@ export default function TasksPage() {
         if (over && activeTask) {
             // Sync status change back to source if external task
             try {
-                const overColumn = currentColumns.find((c: Column) => c.id === over.id?.toString())
-                if (overColumn && activeTask.status !== overColumn.id) {
-                    const newStatus = overColumn.id
+                const overColumnId = over.id?.toString()
+                const overColumn = currentColumns.find((c: Column) => c.id === overColumnId)
+                // If dropped on a task card (not a column), resolve the target column from that task
+                const overTask = !overColumn ? tasks.find((t: Task) => t.id === overColumnId) : null
+                const newStatus = overColumn?.id ?? overTask?.status
+
+                if (newStatus && activeTask.status !== newStatus) {
                     if (activeTask.source === 'linear' && activeTask.externalId) {
                         const apiKey = await getLinearApiKey(activeTask.connectionId)
                         if (apiKey) {
-                            const states: Array<{id: string; name: string; type?: string; color?: string}> = await api.getLinearWorkflowStates({ apiKey })
+                            const conn = activeProject?.linearConnections?.find((c) => c.id === activeTask.connectionId)
+                            const states: Array<{id: string; name: string; type?: string; color?: string}> = await api.getLinearWorkflowStates({ apiKey, teamId: conn?.teamId })
                             const targetState = states.find((s) => s.name === newStatus)
                             if (targetState?.id) {
                                 await api.updateLinearStatus({ apiKey, issueId: activeTask.externalId, stateId: targetState.id })
+                            } else {
+                                toast.error(`Could not find Linear state: ${newStatus}`)
                             }
                         }
                     } else if (activeTask.source === 'jira' && activeTask.externalId) {
@@ -354,6 +411,7 @@ export default function TasksPage() {
                     }
                 }
             } catch (e) {
+                toast.error(`Failed to sync status: ${e instanceof Error ? e.message : String(e)}`)
                 console.error('Failed to sync drag status change:', e)
             }
         }
@@ -377,10 +435,17 @@ export default function TasksPage() {
                         ))}
                     </div>
                     {sourceMode !== 'manual' && (
-                        <Button onClick={() => handleSync()} disabled={isSyncing} className="h-8 px-3 text-[11px] font-bold bg-[#A78BFA]/10 text-[#A78BFA] gap-1.5 border border-[#A78BFA]/20" variant="ghost">
-                            {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                            Sync {sourceMode.charAt(0).toUpperCase() + sourceMode.slice(1)}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button onClick={() => handleSync()} disabled={isSyncing} className="h-8 px-3 text-[11px] font-bold bg-[#A78BFA]/10 text-[#A78BFA] gap-1.5 border border-[#A78BFA]/20" variant="ghost">
+                                {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                Sync {sourceMode.charAt(0).toUpperCase() + sourceMode.slice(1)}
+                            </Button>
+                            {displaySyncTime && (
+                                <span className="text-[10px] text-[#6B7280]">
+                                    Last synced: {formatRelativeTime(displaySyncTime)}
+                                </span>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -422,7 +487,8 @@ export default function TasksPage() {
                                         const apiKey = await getLinearApiKey(selectedTask.connectionId)
                                         if (apiKey) {
                                             // Get workflow states and find the ID for the new status
-                                            const states: Array<{id: string; name: string; type?: string; color?: string}> = await api.getLinearWorkflowStates({ apiKey })
+                                            const conn = activeProject?.linearConnections?.find((c) => c.id === selectedTask.connectionId)
+                                            const states: Array<{id: string; name: string; type?: string; color?: string}> = await api.getLinearWorkflowStates({ apiKey, teamId: conn?.teamId })
                                             const targetState = states.find((s) => s.name === updates.status)
                                             if (targetState?.id) {
                                                 await api.updateLinearStatus({ apiKey, issueId: selectedTask.externalId, stateId: targetState.id })

@@ -95,7 +95,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
 
             <div className="relative w-full max-w-2xl bg-card border-none shadow-[0_32px_96px_-12px_rgba(0,0,0,0.5)] rounded-[2.5rem] overflow-hidden flex flex-col focus-visible:outline-none ring-1 ring-white/10 ring-inset">
                 <div className="flex items-center px-8 border-b border-border/50 h-20">
-                    <Search className="h-6 w-6 text-indigo-500 mr-4 shrink-0" />
+                    <Search className="h-6 w-6 text-[#A78BFA] mr-4 shrink-0" />
                     <input
                         autoFocus
                         placeholder="Search mission protocols, tests, or environments..."
@@ -123,11 +123,11 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                                     className={cn(
                                         "flex items-center gap-4 px-6 py-4 rounded-2xl cursor-pointer transition-all duration-150 select-none",
                                         idx === selectedIndex
-                                            ? "bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 translate-x-2"
+                                            ? "bg-[#A78BFA] text-[#0F0F13] shadow-xl shadow-[#A78BFA]/20 translate-x-2"
                                             : "hover:bg-muted/50 text-muted-foreground"
                                     )}
                                 >
-                                    <cmd.icon className={cn("h-5 w-5", idx === selectedIndex ? "text-white" : "text-indigo-500")} />
+                                    <cmd.icon className={cn("h-5 w-5", idx === selectedIndex ? "text-[#0F0F13]" : "text-[#A78BFA]")} />
                                     <span className="font-bold tracking-tight">{cmd.title}</span>
                                     {idx === selectedIndex && (
                                         <div className="ml-auto text-[10px] font-black uppercase tracking-widest opacity-60 animate-in slide-in-from-right-2">

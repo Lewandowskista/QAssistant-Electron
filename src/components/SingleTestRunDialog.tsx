@@ -81,12 +81,12 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl">
-                <div className="h-2 bg-indigo-500 w-full" />
+                <div className="h-2 bg-[#A78BFA] w-full" />
                 <div className="p-8">
                     <DialogHeader className="mb-6">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-indigo-500 mb-2">
-                                <div className="p-2 bg-indigo-500/10 rounded-lg">
+                            <div className="flex items-center gap-3 text-[#A78BFA] mb-2">
+                                <div className="p-2 bg-[#A78BFA]/10 rounded-lg">
                                     <PlayCircle className="h-6 w-6" />
                                 </div>
                                 <DialogTitle className="text-2xl font-black tracking-tight">
@@ -97,7 +97,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                             {/* Timer Badge */}
                             <div className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-full border font-mono text-sm font-bold transition-all",
-                                isActive ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-500 animate-pulse" : "bg-zinc-500/10 border-zinc-500/30 text-zinc-500"
+                                isActive ? "bg-[#A78BFA]/10 border-[#A78BFA]/30 text-[#A78BFA] animate-pulse" : "bg-[#2A2A3A]/50 border-[#2A2A3A] text-[#6B7280]"
                             )}>
                                 <Clock className="h-4 w-4" />
                                 {formatTime(seconds)}
@@ -127,7 +127,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
 
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Expected Result</Label>
-                                <div className="text-xs p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10 text-emerald-600 dark:text-emerald-400 min-h-[60px]">
+                                <div className="text-xs p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10 text-emerald-400 min-h-[60px]">
                                     <FormattedText content={testCase.expectedResult} compact projectId={activeProjectId || undefined} />
                                 </div>
                             </div>
@@ -209,7 +209,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                         </Button>
                         <Button
                             onClick={handleRecord}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-8 shadow-lg shadow-indigo-600/20"
+                            className="bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] font-black px-8 shadow-lg shadow-[#A78BFA]/20"
                         >
                             <Save className="h-4 w-4 mr-2" /> Save Execution Result
                         </Button>

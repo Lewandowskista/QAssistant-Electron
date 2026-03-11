@@ -30,11 +30,19 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
             setDescription("")
             setIsRegression(false)
         }
+        setNameError("")
     }, [editingPlan, open])
+
+    const [nameError, setNameError] = useState("")
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!activeProjectId || !name.trim()) return
+        if (!activeProjectId) return
+        if (!name.trim()) {
+            setNameError("Plan name is required.")
+            return
+        }
+        setNameError("")
 
         if (editingPlan) {
             await updateTestPlan(activeProjectId, editingPlan.id, {
@@ -43,19 +51,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                 isRegressionSuite: isRegression
             })
         } else {
-            // Note: addTestPlan helper in store currently doesn't take isRegressionSuite,
-            // we'll fix it if needed but let's assume it defaults to false or we update it.
-            // Actually I'll just use updateTestPlan if I need to set it, but I'll update store action first
-            await addTestPlan(activeProjectId, name, description)
-            // If it was supposed to be a regression suite, we can update it immediately
-            if (isRegression) {
-                const projects = useProjectStore.getState().projects
-                const proj = projects.find(p => p.id === activeProjectId)
-                const newPlan = proj?.testPlans.find(p => p.name === name)
-                if (newPlan) {
-                    await updateTestPlan(activeProjectId, newPlan.id, { isRegressionSuite: true })
-                }
-            }
+            await addTestPlan(activeProjectId, name, description, isRegression)
         }
         onOpenChange(false)
     }
@@ -63,11 +59,11 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[450px] p-0 border-none shadow-2xl overflow-hidden">
-                <div className="h-2 bg-indigo-600 w-full" />
+                <div className="h-2 bg-[#A78BFA] w-full" />
                 <form onSubmit={handleSubmit} className="p-8">
                     <DialogHeader className="mb-6">
-                        <div className="flex items-center gap-3 text-indigo-600">
-                            <div className="p-2 bg-indigo-600/10 rounded-lg text-indigo-600">
+                        <div className="flex items-center gap-3 text-[#A78BFA]">
+                            <div className="p-2 bg-[#A78BFA]/10 rounded-lg text-[#A78BFA]">
                                 <Layers className="h-6 w-6" />
                             </div>
                             <DialogTitle className="text-2xl font-black tracking-tight">
@@ -85,11 +81,11 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                             <Input
                                 id="plan-name"
                                 value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setNameError("") }}
                                 placeholder="e.g. Core Regression v2.4"
-                                className="h-11 bg-background focus-visible:ring-indigo-500/30 font-bold"
-                                required
+                                className={cn("h-11 bg-background focus-visible:ring-[#A78BFA]/30 font-bold", nameError && "border-red-500/70")}
                             />
+                            {nameError && <p className="text-xs text-red-400 px-1">{nameError}</p>}
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="plan-desc" className="text-[10px] font-black uppercase text-muted-foreground px-1 tracking-widest">Strategic Overview</Label>
@@ -98,7 +94,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 placeholder="Objectives, scope, and target components..."
-                                className="bg-background focus-visible:ring-indigo-500/30 resize-none min-h-[100px]"
+                                className="bg-background focus-visible:ring-[#A78BFA]/30 resize-none min-h-[100px]"
                             />
                         </div>
 
@@ -112,7 +108,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                             onClick={() => setIsRegression(!isRegression)}
                         >
                             <div className={cn("p-2 rounded-xl ring-1 transition-all",
-                                isRegression ? "bg-green-100 text-green-600 ring-green-600/20" : "bg-zinc-100 text-zinc-400 ring-zinc-400/20"
+                                isRegression ? "bg-[#A78BFA]/10 text-[#A78BFA] ring-[#A78BFA]/20" : "bg-[#2A2A3A] text-[#6B7280] ring-[#2A2A3A]"
                             )}>
                                 <ShieldCheck className="h-5 w-5" />
                             </div>
@@ -121,20 +117,20 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                                 <div className="text-[10px] font-bold text-muted-foreground leading-tight">Muted plans won't appear in baseline health checks.</div>
                             </div>
                             <div className={cn("w-10 h-5 rounded-full relative transition-all p-1",
-                                isRegression ? "bg-green-500" : "bg-zinc-300"
+                                isRegression ? "bg-[#A78BFA]" : "bg-[#2A2A3A]"
                             )}>
-                                <div className={cn("bg-white w-3 h-3 rounded-full shadow-sm transition-all",
+                                <div className={cn("bg-[#E2E8F0] w-3 h-3 rounded-full shadow-sm transition-all",
                                     isRegression ? "translate-x-5" : "translate-x-0"
                                 )} />
                             </div>
                         </div>
                     </div>
 
-                    <DialogFooter className="mt-8 pt-6 border-t border-border/50 gap-2 bg-[#13131A]">
+                    <DialogFooter className="mt-8 pt-6 border-t border-[#2A2A3A] gap-2 bg-[#13131A]">
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="font-bold">
                             Cancel
                         </Button>
-                        <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-8">
+                        <Button type="submit" className="bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] font-black px-8">
                             {editingPlan ? "Sync Blueprint" : "Establish Suite"}
                         </Button>
                     </DialogFooter>

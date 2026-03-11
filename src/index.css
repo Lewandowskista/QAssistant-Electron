@@ -67,6 +67,37 @@
     --input: 240 16% 20%;
     --ring: 255 92% 76%;
   }
+
+  .light {
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 92%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 220 14% 92%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 13% 87%;
+    --input: 220 13% 87%;
+
+    --surface: 0 0% 100%;
+    --surface-hover: 220 14% 92%;
+
+    /* --primary (#A78BFA) and --ring remain purple */
+  }
 }
 
 @layer base {
@@ -145,3 +176,56 @@
 .custom-scrollbar::-webkit-scrollbar-thumb {
   @apply bg-[#A78BFA]/20 rounded-full;
 }
+
+/* ─── Light Theme: Structural Color Overrides ─────────────────────────────
+   Placed inside @layer utilities so these rules share the same cascade layer
+   as Tailwind's arbitrary-value utilities. The .light parent selector then
+   wins by specificity (2 classes vs 1 class) without needing !important.
+   Purple accent (#A78BFA), status colors, and neutral #6B7280 are preserved.
+   ──────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+  /* Backgrounds — note: # must be escaped as \# to match Tailwind's generated selectors */
+  .light .bg-\[\#0F0F13\], .light .bg-\[\#0A0A0D\]  { background-color: #F0F4F8; }
+  .light .bg-\[\#0F0F13\]\/80                        { background-color: rgba(240,244,248,0.85); }
+  .light .bg-\[\#13131A\]                            { background-color: #FFFFFF; }
+  .light .bg-\[\#13131A\]\/50                        { background-color: rgba(255,255,255,0.6); }
+  .light .bg-\[\#1A1A24\]                            { background-color: #F0F4F8; }
+  .light .bg-\[\#1A1A24\]\/50,
+  .light .bg-\[\#1A1A24\]\/40,
+  .light .bg-\[\#1A1A24\]\/60                        { background-color: rgba(240,244,248,0.5); }
+  .light .bg-\[\#2D2D3F\], .light .bg-\[\#3D3D5F\]  { background-color: #E8EDF5; }
+  .light .bg-\[\#252535\]                            { background-color: #EBF0F7; }
+  .light .bg-\[\#2A2A3A\]                            { background-color: #D1D9E6; }
+  .light .bg-\[\#1E1E32\], .light .bg-\[\#1F2937\]  { background-color: #EEF2F7; }
+
+  /* Borders */
+  .light .border-\[\#2A2A3A\]                        { border-color: #D1D9E6; }
+  .light .border-\[\#3D3D5F\]                        { border-color: #B0BEDA; }
+  .light .border-\[\#1F1F24\]                        { border-color: #D8DEE9; }
+  .light .border-\[\#2A2A3A\]\/50,
+  .light .border-\[\#2A2A3A\]\/30                    { border-color: rgba(180,190,210,0.5); }
+
+  /* Text */
+  .light .text-\[\#E2E8F0\]                         { color: #1A2035; }
+  .light .text-\[\#9CA3AF\]                         { color: #4B5568; }
+  .light .text-\[\#4B5563\]                         { color: #9CA3AF; }
+  .light .hover\:text-\[\#E2E8F0\]:hover            { color: #1A2035; }
+  .light .placeholder\:text-\[\#4B5563\]::placeholder { color: #9CA3AF; }
+
+  /* Semantic Tailwind classes used in StatusBanner (dark-specific shades) */
+  .light .bg-emerald-950\/60  { background-color: rgb(240 253 244); }
+  .light .text-emerald-400    { color: #047857; }
+  .light .bg-red-950\/60      { background-color: rgb(255 241 242); }
+  .light .text-red-400        { color: #b91c1c; }
+
+  /* glass-card utility */
+  .light .glass-card {
+    background-color: rgba(255,255,255,0.7);
+    border-color: rgba(209,217,230,0.6);
+  }
+}
+
+/* Scrollbar (outside layer — pseudo-elements don't work well inside @layer) */
+.light ::-webkit-scrollbar-thumb       { background: hsla(255,92%,76%,0.15); }
+.light ::-webkit-scrollbar-thumb:hover { background: hsla(255,92%,76%,0.3); }
+

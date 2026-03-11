@@ -1,12 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
 
-const MODEL_3_1_FLASH_LITE = 'gemini-3.1-flash-lite';
-const MODEL_3_0_FLASH = 'gemini-3.0-flash';
-const MODEL_2_5_FLASH_LITE = 'gemini-2.5-flash-lite';
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
-
-let preferredModel = MODEL_3_1_FLASH_LITE;
+const MODEL_3_FLASH_PREVIEW = 'gemini-3-flash-preview';
 
 /**
  * AI Service for Gemini integration with full TOON (Token-Oriented Object Notation) prompt system.
@@ -15,6 +11,7 @@ let preferredModel = MODEL_3_1_FLASH_LITE;
 export class GeminiService {
     private genAI: GoogleGenerativeAI
     private apiKey: string
+    private preferredModel: string = MODEL_3_FLASH_PREVIEW
 
     constructor(apiKey: string) {
         this.apiKey = apiKey
@@ -57,13 +54,11 @@ export class GeminiService {
         // Build unique sequence of models starting with override, then preferred, then available ones
         const models = Array.from(new Set([
             modelOverride,
-            preferredModel,
-            MODEL_3_1_FLASH_LITE,
-            MODEL_3_0_FLASH,
-            MODEL_2_5_FLASH_LITE,
+            this.preferredModel,
+            MODEL_3_FLASH_PREVIEW,
             MODEL_2_5_FLASH
         ].filter(Boolean) as string[]));
-        
+
         let lastError: any;
         for (const modelName of models) {
             try {
@@ -71,9 +66,9 @@ export class GeminiService {
                 const result = await model.generateContent(prompt);
 
                 // If successful and we were using a non-preferred model, update it
-                if (modelName !== preferredModel) {
+                if (modelName !== this.preferredModel) {
                     console.log(`Gemini switching preferred model to ${modelName} after successful response`);
-                    preferredModel = modelName;
+                    this.preferredModel = modelName;
                 }
 
                 // Log token usage for cost/quota visibility
@@ -85,10 +80,10 @@ export class GeminiService {
                 return result.response.text();
             } catch (err: any) {
                 lastError = err;
-                
+
                 let errorMsg = "";
                 let errorStatus = "";
-                
+
                 try {
                     if (err && typeof err === 'object') {
                         errorMsg = typeof err.message === 'string' ? err.message : "";
@@ -102,19 +97,20 @@ export class GeminiService {
 
                 const errorStr = `${errorStatus} ${errorMsg}`.toLowerCase();
 
-                const isRateLimit = errorStatus === '429' || errorStr.includes('429') || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted') || errorStr.includes('too many requests');
-                const isUnavailable = errorStatus === '404' || errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('not supported') || errorStr.includes('invalid') || errorStr.includes('permission');
+                // Prefer HTTP status code checks over string matching to avoid false positives
+                const isRateLimit = errorStatus === '429' || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted') || errorStr.includes('too many requests');
+                const isUnavailable = errorStatus === '404' || errorStatus === '400' || errorStr.includes('model not found') || errorStr.includes('model_not_found');
 
                 if (isRateLimit || isUnavailable) {
                     console.warn(`Gemini model ${modelName} ${isRateLimit ? 'rate limited' : 'unavailable/invalid'}. Trying next fallback...`);
                     // Switch preferred model for future calls to avoid this one if it failed consistently
-                    if (modelName === preferredModel) {
+                    if (modelName === this.preferredModel) {
                         const nextIndex = (models.indexOf(modelName) + 1) % models.length;
-                        preferredModel = models[nextIndex];
+                        this.preferredModel = models[nextIndex];
                     }
                     continue;
                 }
-                
+
                 console.error(`Gemini model ${modelName} failed with unexpected error:`, errorStr);
                 continue;
             }
@@ -205,6 +201,36 @@ export class GeminiService {
         if (project.testDataGroups?.length > 0) {
             const dataDomains = [...new Set(project.testDataGroups.map((g: any) => g.category).filter(Boolean))]
             if (dataDomains.length > 0) lines.push(` test_data_domains:${dataDomains.join(',')}`)
+        }
+
+        // --- Tracked issues (JIRA / Linear) ---
+        const DONE_STATUSES = new Set([
+            'done', 'closed', 'resolved', 'cancelled', 'canceled',
+            "won't fix", 'wont fix', 'duplicate'
+        ])
+        const MAX_ISSUES = 25
+        const allTasks: any[] = project.tasks || []
+        const activeTasks = allTasks.filter((t: any) => {
+            if (t.source === 'manual') return false
+            return !DONE_STATUSES.has(String(t.status || '').toLowerCase().trim())
+        })
+        if (activeTasks.length > 0) {
+            const blocker = activeTasks.filter((t: any) => t.priority === 'critical').length
+            const high    = activeTasks.filter((t: any) => t.priority === 'high').length
+            const medium  = activeTasks.filter((t: any) => t.priority === 'medium').length
+            const low     = activeTasks.filter((t: any) => t.priority === 'low').length
+            lines.push(` tasks_summary:total=${allTasks.length},active=${activeTasks.length},shown=${Math.min(activeTasks.length, MAX_ISSUES)},blocker=${blocker},high=${high},medium=${medium},low=${low}`)
+            lines.push(' tracked_issues[')
+            for (const task of activeTasks.slice(0, MAX_ISSUES)) {
+                const issueId = GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId, 60)
+                const title   = GeminiService.sanitizeToonValue(task.title, 150)
+                let entry = `  {id:${issueId},t:${title},status:${task.status || 'unknown'},priority:${task.priority || 'medium'}`
+                if (task.assignee) entry += `,assignee:${GeminiService.sanitizeToonValue(task.assignee, 80)}`
+                if (task.labels)   entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 100)}`
+                entry += '}'
+                lines.push(entry)
+            }
+            lines.push(' ]')
         }
 
         lines.push('}')

@@ -34,6 +34,7 @@ export function BugReportDialog({ open, onOpenChange, defaultEnv }: BugReportDia
     const environments = activeProject?.environments || []
 
     const [title, setTitle] = useState("")
+    const [titleError, setTitleError] = useState("")
     const [description, setDescription] = useState("")
     const [selectedEnvId, setSelectedEnvId] = useState<string>(defaultEnv?.id || environments.find(e => e.isDefault)?.id || "")
     const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
@@ -46,7 +47,12 @@ export function BugReportDialog({ open, onOpenChange, defaultEnv }: BugReportDia
     const selectedEnv = environments.find(e => e.id === selectedEnvId)
 
     const handleSubmit = async () => {
-        if (!activeProjectId || !title) return
+        if (!activeProjectId) return
+        if (!title.trim()) {
+            setTitleError("Summary is required.")
+            return
+        }
+        setTitleError("")
 
         const fullDescription = `
 **[BUG REPORT]**
@@ -71,6 +77,7 @@ ${description}
 
         // Reset and close
         setTitle("")
+        setTitleError("")
         setDescription("")
         onOpenChange(false)
     }
@@ -101,9 +108,10 @@ ${description}
                                 id="bug-title"
                                 placeholder="Short, descriptive title of the issue"
                                 value={title}
-                                onChange={e => setTitle(e.target.value)}
-                                className="bg-background/50 focus-visible:ring-red-500/40 focus-visible:border-red-500/50 font-semibold"
+                                onChange={e => { setTitle(e.target.value); if (e.target.value.trim()) setTitleError("") }}
+                                className={cn("bg-background/50 focus-visible:ring-red-500/40 focus-visible:border-red-500/50 font-semibold", titleError && "border-red-500/70")}
                             />
+                            {titleError && <p className="text-xs text-red-400 px-1">{titleError}</p>}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -158,7 +166,7 @@ ${description}
                         </div>
                     </div>
 
-                    <DialogFooter className="pt-4 border-t border-border/50 gap-2">
+                    <DialogFooter className="pt-4 border-t border-[#2A2A3A] gap-2 bg-[#13131A]">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-600/20 px-8">
                             Report Bug

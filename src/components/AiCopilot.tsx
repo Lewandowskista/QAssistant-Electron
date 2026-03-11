@@ -120,6 +120,21 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         setIsLoading(true)
         abortRef.current = false
 
+        const timeoutId = setTimeout(() => {
+            abortRef.current = true
+            setIsLoading(false)
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    content: "⏱️ Request timed out — please try again.",
+                    timestamp: Date.now(),
+                    isError: true,
+                },
+            ])
+        }, 60000)
+
         try {
             const apiKey = await fetchApiKey()
             if (!apiKey) {
@@ -172,6 +187,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                 ])
             }
         } finally {
+            clearTimeout(timeoutId)
             setIsLoading(false)
         }
     }, [isLoading, messages, activeProject, fetchApiKey])
@@ -295,7 +311,8 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                     <button
                                         key={prompt}
                                         onClick={() => sendMessage(prompt)}
-                                        className="w-full text-left text-xs px-3 py-2.5 rounded-lg border border-[#2A2A3A] bg-[#13131A] text-[#6B7280] hover:border-[#A78BFA]/40 hover:text-[#E2E8F0] hover:bg-[#1A1A24] transition-all"
+                                        disabled={apiKeyMissing}
+                                        className="w-full text-left text-xs px-3 py-2.5 rounded-lg border border-[#2A2A3A] bg-[#13131A] text-[#6B7280] hover:border-[#A78BFA]/40 hover:text-[#E2E8F0] hover:bg-[#1A1A24] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#2A2A3A] disabled:hover:text-[#6B7280] disabled:hover:bg-[#13131A]"
                                     >
                                         {prompt}
                                     </button>
@@ -410,13 +427,13 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             }}
                             onKeyDown={handleKeyDown}
                             placeholder="Ask about tests, risks, SAP, coverage..."
-                            disabled={isLoading}
+                            disabled={isLoading || apiKeyMissing}
                             rows={1}
                             className="flex-1 bg-transparent border-none text-xs text-[#E2E8F0] placeholder:text-[#6B7280]/60 focus:outline-none resize-none leading-relaxed min-h-[20px] max-h-[120px] py-0.5 px-1 custom-scrollbar app-region-no-drag"
                         />
                         <button
                             onClick={() => sendMessage(input)}
-                            disabled={!input.trim() || isLoading}
+                            disabled={!input.trim() || isLoading || apiKeyMissing}
                             className={cn(
                                 "h-7 w-7 rounded-lg flex items-center justify-center shrink-0 transition-all",
                                 input.trim() && !isLoading

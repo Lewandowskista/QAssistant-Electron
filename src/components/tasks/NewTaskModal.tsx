@@ -19,6 +19,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Project, TaskStatus } from "@/store/useProjectStore"
+import { toast } from "sonner"
 
 interface NewTaskModalProps {
     isOpen: boolean
@@ -37,17 +38,9 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
     const [newTaskLabels, setNewTaskLabels] = useState("")
     const [newTaskConnectionId, setNewTaskConnectionId] = useState("")
 
-    const handleConfirm = async () => {
-        await onConfirm({
-            title: newTaskTitle,
-            description: newTaskDescription,
-            status: newTaskStatus,
-            priority: newTaskPriority,
-            source: newTaskSource,
-            labels: newTaskLabels,
-            connectionId: newTaskConnectionId
-        })
-        // Reset form
+    const [isSubmitting, setIsSubmitting] = useState(false)
+
+    const resetForm = () => {
         setNewTaskTitle("")
         setNewTaskDescription("")
         setNewTaskStatus('todo')
@@ -55,6 +48,26 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
         setNewTaskSource('manual')
         setNewTaskLabels("")
         setNewTaskConnectionId("")
+    }
+
+    const handleConfirm = async () => {
+        setIsSubmitting(true)
+        try {
+            await onConfirm({
+                title: newTaskTitle,
+                description: newTaskDescription,
+                status: newTaskStatus,
+                priority: newTaskPriority,
+                source: newTaskSource,
+                labels: newTaskLabels,
+                connectionId: newTaskConnectionId
+            })
+            resetForm()
+        } catch (err) {
+            toast.error("Failed to create task. Please try again.")
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
@@ -100,17 +113,21 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                 </SelectTrigger>
                                 <SelectContent className="bg-[#1A1A24] border-[#2A2A3A]">
                                     {newTaskSource === 'linear' ? (
-                                        activeProject?.linearConnections?.map((c: any) => (
-                                            <SelectItem key={c.id} value={c.id} className="text-xs text-[#E2E8F0]">
-                                                {c.label || c.teamId}
-                                            </SelectItem>
-                                        ))
+                                        (activeProject?.linearConnections?.length ?? 0) > 0
+                                            ? activeProject!.linearConnections!.map((c: any) => (
+                                                <SelectItem key={c.id} value={c.id} className="text-xs text-[#E2E8F0]">
+                                                    {c.label || c.teamId}
+                                                </SelectItem>
+                                            ))
+                                            : <SelectItem value="__none__" disabled className="text-xs text-[#6B7280]">No connections configured — go to Settings</SelectItem>
                                     ) : (
-                                        activeProject?.jiraConnections?.map((c: any) => (
-                                            <SelectItem key={c.id} value={c.id} className="text-xs text-[#E2E8F0]">
-                                                {c.label || `${c.domain} - ${c.projectKey}`}
-                                            </SelectItem>
-                                        ))
+                                        (activeProject?.jiraConnections?.length ?? 0) > 0
+                                            ? activeProject!.jiraConnections!.map((c: any) => (
+                                                <SelectItem key={c.id} value={c.id} className="text-xs text-[#E2E8F0]">
+                                                    {c.label || `${c.domain} - ${c.projectKey}`}
+                                                </SelectItem>
+                                            ))
+                                            : <SelectItem value="__none__" disabled className="text-xs text-[#6B7280]">No connections configured — go to Settings</SelectItem>
                                     )}
                                 </SelectContent>
                             </Select>
@@ -197,10 +214,10 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </Button>
                     <Button
                         onClick={handleConfirm}
-                        disabled={!newTaskTitle.trim() || (newTaskSource !== 'manual' && !newTaskConnectionId)}
+                        disabled={isSubmitting || !newTaskTitle.trim() || (newTaskSource !== 'manual' && !newTaskConnectionId)}
                         className="bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD] font-bold text-xs px-8 h-10"
                     >
-                        {newTaskSource === 'manual' ? 'CREATE TASK' : `CREATE IN ${newTaskSource.toUpperCase()}`}
+                        {isSubmitting ? 'CREATING...' : (newTaskSource === 'manual' ? 'CREATE TASK' : `CREATE IN ${newTaskSource.toUpperCase()}`)}
                     </Button>
                 </DialogFooter>
             </DialogContent>
