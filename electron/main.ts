@@ -169,6 +169,22 @@ if (app) {
             }
         });
 
+        // On macOS, clicking the red dot should hide the window (not destroy it)
+        // so it can be restored from the Dock without crashing.
+        mainWindow.on('close', (event) => {
+            if (process.platform === 'darwin' && !app.isQuiting) {
+                event.preventDefault();
+                mainWindow?.hide();
+            }
+        });
+
+        // Null out mainWindow when it is actually destroyed so the activate
+        // handler knows to create a fresh window rather than calling .show()
+        // on a destroyed object.
+        mainWindow.on('closed', () => {
+            mainWindow = null;
+        });
+
         ipcMain.on('window-minimize', () => mainWindow?.minimize());
         ipcMain.on('window-maximize', () => mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize());
         ipcMain.on('window-close', async () => {
@@ -191,6 +207,7 @@ if (app) {
             }
         });
         ipcMain.on('app-quit', () => {
+            (app as any).isQuiting = true;
             tray?.destroy();
             app.quit();
         });
@@ -836,7 +853,10 @@ if (app) {
         }
 
         const stopReminderService = startReminderService(PROJECTS_FILE);
-        app.on('before-quit', stopReminderService);
+        app.on('before-quit', () => {
+            (app as any).isQuiting = true;
+            stopReminderService();
+        });
     });
 
     app.on('window-all-closed', () => {
@@ -847,7 +867,7 @@ if (app) {
     });
 
     app.on('activate', () => {
-        if (!mainWindow) {
+        if (!mainWindow || mainWindow.isDestroyed()) {
             createWindow();
         } else {
             mainWindow.show();
