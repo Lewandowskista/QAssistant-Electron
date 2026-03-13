@@ -58,8 +58,13 @@ export function TaskDetailsSidebar({
     const [editDescription, setEditDescription] = useState("")
     const [editStatus, setEditStatus] = useState<TaskStatus>('todo')
     const [editPriority, setEditPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
+    const [editSeverity, setEditSeverity] = useState<'cosmetic' | 'minor' | 'major' | 'critical' | 'blocker'>('major')
+    const [editAcceptanceCriteria, setEditAcceptanceCriteria] = useState("")
+    const [editVersion, setEditVersion] = useState("")
     const [editAssignee, setEditAssignee] = useState("")
     const [editLabels, setEditLabels] = useState("")
+    const [editReproducibility, setEditReproducibility] = useState<'always' | 'sometimes' | 'rarely' | 'once' | 'unable'>('sometimes')
+    const [editFrequency, setEditFrequency] = useState<'everytime' | 'often' | 'occasionally' | 'once'>('often')
 
     const [editDueDate, setEditDueDate] = useState("")
 
@@ -78,6 +83,9 @@ export function TaskDetailsSidebar({
         editDescription !== (selectedTask.description || "") ||
         editStatus !== selectedTask.status ||
         editPriority !== selectedTask.priority ||
+        editSeverity !== (selectedTask.severity || 'major') ||
+        editAcceptanceCriteria !== (selectedTask.acceptanceCriteria || "") ||
+        editVersion !== (selectedTask.version || "") ||
         editAssignee !== (selectedTask.assignee || "") ||
         editLabels !== (selectedTask.labels || "") ||
         editDueDate !== (selectedTask.dueDate || "")
@@ -89,8 +97,13 @@ export function TaskDetailsSidebar({
             setEditDescription(selectedTask.description || "")
             setEditStatus(selectedTask.status)
             setEditPriority(selectedTask.priority)
+            setEditSeverity(selectedTask.severity || 'major')
+            setEditAcceptanceCriteria(selectedTask.acceptanceCriteria || "")
+            setEditVersion(selectedTask.version || "")
             setEditAssignee(selectedTask.assignee || "")
             setEditLabels(selectedTask.labels || "")
+            setEditReproducibility(selectedTask.reproducibility || 'sometimes')
+            setEditFrequency(selectedTask.frequency || 'often')
             setEditDueDate(selectedTask.dueDate || "")
             setIsEditing(false)
         }
@@ -138,7 +151,7 @@ export function TaskDetailsSidebar({
                         setCommentsError("Jira credentials not configured. Check Settings.")
                     }
                 }
-            } else if (tab === 'activity') {
+            } else if (tab === 'history') {
                 if (selectedTask.source === 'linear') {
                     const key = await getLinearApiKey(selectedTask.connectionId)
                     if (key) setActivity(await api.getLinearHistory({ apiKey: key, issueId: selectedTask.sourceIssueId }))
@@ -156,21 +169,30 @@ export function TaskDetailsSidebar({
     }, [selectedTask, api, getLinearApiKey, getJiraCredentials])
 
     useEffect(() => {
-        if (selectedTask && activeTab !== 'description' && activeTab !== 'details') {
+        if (selectedTask && activeTab !== 'description' && activeTab !== 'details' && activeTab !== 'analysis') {
             loadTabContent(activeTab)
         }
     }, [selectedTask?.id, activeTab, loadTabContent])
 
     const handleSave = async () => {
-        await onUpdateTask({
+        const updates: any = {
             title: editTitle,
             description: editDescription,
             status: editStatus,
             priority: editPriority,
+            severity: editSeverity,
+            acceptanceCriteria: editAcceptanceCriteria,
+            version: editVersion,
             assignee: editAssignee,
             labels: editLabels,
             dueDate: editDueDate || undefined
-        })
+        }
+        // Only include bug fields if task is a bug
+        if (selectedTask?.title.includes('[BUG]')) {
+            updates.reproducibility = editReproducibility
+            updates.frequency = editFrequency
+        }
+        await onUpdateTask(updates)
         setIsEditing(false)
     }
 
@@ -224,7 +246,7 @@ export function TaskDetailsSidebar({
     return (
         <div className={cn(
             "bg-[#13131A] border-l border-[#2A2A3A] transition-all duration-300 ease-in-out flex flex-col overflow-hidden shadow-2xl",
-            "w-[500px]"
+            "w-full max-w-[500px] shrink-0"
         )}>
             {confirmDialog}
             <div className="flex-none p-5 border-b border-[#2A2A3A] space-y-4">
@@ -255,29 +277,54 @@ export function TaskDetailsSidebar({
                 <TabsList className="flex-none w-full justify-start rounded-none bg-transparent border-b border-[#2A2A3A] h-10 px-2 gap-4">
                     <TabsTrigger value="description" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Description</TabsTrigger>
                     <TabsTrigger value="details" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Details</TabsTrigger>
+                    <TabsTrigger value="impact" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Impact</TabsTrigger>
                     <TabsTrigger value="comments" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Comments</TabsTrigger>
                     <TabsTrigger value="history" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">History</TabsTrigger>
-                    <TabsTrigger value="activity" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Activity</TabsTrigger>
+                    <TabsTrigger value="analysis" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Analysis</TabsTrigger>
                 </TabsList>
                 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <TabsContent value="description" className="m-0 focus-visible:ring-0">
                         <div className="space-y-4">
                             {isEditing && selectedTask.source === 'manual' ? (
-                                <div className="grid gap-1.5">
-                                    <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Description</label>
-                                    <textarea
-                                        value={editDescription}
-                                        onChange={(e) => setEditDescription(e.target.value)}
-                                        className="min-h-[200px] w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] p-3 text-xs text-[#E2E8F0] focus:ring-1 focus:ring-[#A78BFA]/50 outline-none resize-none app-region-no-drag"
-                                        placeholder="Task description..."
-                                    />
-                                </div>
+                                <>
+                                    <div className="grid gap-1.5">
+                                        <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Acceptance Criteria</label>
+                                        <textarea
+                                            value={editAcceptanceCriteria}
+                                            onChange={(e) => setEditAcceptanceCriteria(e.target.value)}
+                                            className="min-h-[100px] w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] p-3 text-xs text-[#E2E8F0] focus:ring-1 focus:ring-[#A78BFA]/50 outline-none resize-none app-region-no-drag"
+                                            placeholder="Clear pass/fail criteria (e.g., Given... When... Then...)"
+                                        />
+                                    </div>
+                                    <div className="grid gap-1.5">
+                                        <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Description</label>
+                                        <textarea
+                                            value={editDescription}
+                                            onChange={(e) => setEditDescription(e.target.value)}
+                                            className="min-h-[200px] w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] p-3 text-xs text-[#E2E8F0] focus:ring-1 focus:ring-[#A78BFA]/50 outline-none resize-none app-region-no-drag"
+                                            placeholder="Task description..."
+                                        />
+                                    </div>
+                                </>
                             ) : (
                                 <>
+                                    {(selectedTask.acceptanceCriteria || isEditing) && (
+                                        <div className="bg-[#1A1A24]/40 border border-[#2A2A3A]/30 rounded-lg p-3 space-y-1.5">
+                                            <div className="text-[10px] font-bold text-[#A78BFA] uppercase tracking-wider">Acceptance Criteria</div>
+                                            <div className="text-xs text-[#E2E8F0] leading-relaxed prose-container">
+                                                <FormattedText
+                                                    content={selectedTask.acceptanceCriteria || "No acceptance criteria defined"}
+                                                    source={selectedTask.source}
+                                                    connectionId={selectedTask.connectionId}
+                                                    projectId={activeProject?.id}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="prose-container min-h-[100px]">
-                                        <FormattedText 
-                                            content={selectedTask.description} 
+                                        <FormattedText
+                                            content={selectedTask.description}
                                             source={selectedTask.source}
                                             connectionId={selectedTask.connectionId}
                                             projectId={activeProject?.id}
@@ -355,6 +402,73 @@ export function TaskDetailsSidebar({
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="grid gap-1.5">
+                                            <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Severity</label>
+                                            {isEditing ? (
+                                                <select
+                                                    value={editSeverity}
+                                                    onChange={(e) => setEditSeverity(e.target.value as any)}
+                                                    className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none"
+                                                >
+                                                    <option value="cosmetic">COSMETIC</option>
+                                                    <option value="minor">MINOR</option>
+                                                    <option value="major">MAJOR</option>
+                                                    <option value="critical">CRITICAL</option>
+                                                    <option value="blocker">BLOCKER</option>
+                                                </select>
+                                            ) : (
+                                                <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{(selectedTask.severity || 'major').toUpperCase()}</div>
+                                            )}
+                                        </div>
+                                        <div className="grid gap-1.5">
+                                            <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Version</label>
+                                            {isEditing ? (
+                                                <Input value={editVersion} onChange={(e) => setEditVersion(e.target.value)} className="h-9 bg-[#1A1A24] border-[#2A2A3A] text-xs" placeholder="v1.0" />
+                                            ) : (
+                                                <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{selectedTask.version || 'N/A'}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {selectedTask.title.includes('[BUG]') && (
+                                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#2A2A3A]">
+                                            <div className="grid gap-1.5">
+                                                <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Reproducibility</label>
+                                                {isEditing ? (
+                                                    <select
+                                                        value={editReproducibility}
+                                                        onChange={(e) => setEditReproducibility(e.target.value as any)}
+                                                        className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none"
+                                                    >
+                                                        <option value="always">ALWAYS</option>
+                                                        <option value="sometimes">SOMETIMES</option>
+                                                        <option value="rarely">RARELY</option>
+                                                        <option value="once">ONCE</option>
+                                                        <option value="unable">UNABLE</option>
+                                                    </select>
+                                                ) : (
+                                                    <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{(selectedTask.reproducibility || 'sometimes').toUpperCase()}</div>
+                                                )}
+                                            </div>
+                                            <div className="grid gap-1.5">
+                                                <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Frequency</label>
+                                                {isEditing ? (
+                                                    <select
+                                                        value={editFrequency}
+                                                        onChange={(e) => setEditFrequency(e.target.value as any)}
+                                                        className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none"
+                                                    >
+                                                        <option value="everytime">EVERY TIME</option>
+                                                        <option value="often">OFTEN</option>
+                                                        <option value="occasionally">OCCASIONALLY</option>
+                                                        <option value="once">ONCE</option>
+                                                    </select>
+                                                ) : (
+                                                    <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{(selectedTask.frequency || 'often').toUpperCase()}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid gap-1.5">
                                             <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Assignee</label>
                                             {isEditing ? (
                                                 <Input value={editAssignee} onChange={(e) => setEditAssignee(e.target.value)} className="h-9 bg-[#1A1A24] border-[#2A2A3A] text-xs" />
@@ -389,6 +503,43 @@ export function TaskDetailsSidebar({
                                 <DetailItem icon={Clock} label="CREATED" value={new Date(selectedTask.createdAt || Date.now()).toLocaleDateString()} />
                             </div>
                         )}
+                    </TabsContent>
+
+                    <TabsContent value="impact" className="m-0 space-y-4">
+                        <div className="text-[10px] font-bold text-[#6B7280] uppercase px-1 mb-3">Linked Test Cases</div>
+                        {activeProject ? (() => {
+                            const linkedTestCases = activeProject.testPlans
+                                .flatMap(tp => tp.testCases)
+                                .filter(tc => tc.sourceIssueId === selectedTask.sourceIssueId || tc.linkedDefectIds?.includes(selectedTask.id))
+
+                            return linkedTestCases.length > 0 ? (
+                                <div className="space-y-2">
+                                    {linkedTestCases.map(tc => (
+                                        <div key={tc.id} className="bg-[#1A1A24] border border-[#2A2A3A]/50 rounded-lg p-3 space-y-1.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-bold text-[#A78BFA] bg-[#A78BFA]/10 px-2 py-0.5 rounded">{tc.displayId}</span>
+                                                <span className="text-[11px] text-[#E2E8F0] flex-1 truncate">{tc.title}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[10px] text-[#6B7280]">
+                                                <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
+                                                    tc.status === 'passed' ? 'bg-[#10B981]/20 text-[#10B981]' :
+                                                    tc.status === 'failed' ? 'bg-[#EF4444]/20 text-[#EF4444]' :
+                                                    'bg-[#6B7280]/20 text-[#6B7280]'
+                                                )}>
+                                                    {tc.status}
+                                                </span>
+                                                <span className="text-[10px]">Type: {tc.testType || 'unspecified'}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 opacity-30">
+                                    <p className="text-[11px] text-[#6B7280] font-medium">No linked test cases</p>
+                                    <p className="text-[10px] text-[#6B7280] mt-1">Tests will appear here when linked by sourceIssueId</p>
+                                </div>
+                            )
+                        })() : null}
                     </TabsContent>
 
                     <TabsContent value="comments" className="m-0 h-full flex flex-col gap-4">
@@ -436,7 +587,7 @@ export function TaskDetailsSidebar({
                         )}
                     </TabsContent>
 
-                    <TabsContent value="history" className="m-0 space-y-4">
+                    <TabsContent value="analysis" className="m-0 space-y-4">
                         {selectedTask.analysisHistory?.length === 0 ? (
                             <div className="text-center opacity-30 py-10">
                                 <p className="text-xs font-bold uppercase tracking-wider">No analysis history</p>
@@ -470,7 +621,7 @@ export function TaskDetailsSidebar({
                         )}
                     </TabsContent>
                     
-                    <TabsContent value="activity" className="m-0 space-y-4">
+                    <TabsContent value="history" className="m-0 space-y-4">
                         {activity.length === 0 ? (
                             <div className="text-center opacity-30 py-10">
                                 <p className="text-xs font-bold uppercase tracking-wider">No activity recorded</p>

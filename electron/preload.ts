@@ -102,5 +102,38 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sapHacGetCatalogVersions: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-catalog-versions', { baseUrl }),
   sapHacGetCatalogIds: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-catalog-ids', { baseUrl }),
   sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) => ipcRenderer.invoke('sap-hac-get-catalog-sync-diff', { baseUrl, catalogId, maxMissing }),
-  appQuit: () => ipcRenderer.send('app-quit')
+  appQuit: () => ipcRenderer.send('app-quit'),
+
+  // User profile
+  readUserProfile: () => ipcRenderer.invoke('read-user-profile'),
+  writeUserProfile: (data: any) => ipcRenderer.invoke('write-user-profile', data),
+
+  // OAuth
+  oauthStart: (provider: string) => ipcRenderer.invoke('oauth-start', { provider }),
+  oauthLogout: (provider: string) => ipcRenderer.invoke('oauth-logout', { provider }),
+  oauthGetStatus: (provider: string) => ipcRenderer.invoke('oauth-get-status', { provider }),
+  onOAuthComplete: (callback: (data: { provider: string; userInfo: any }) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('oauth-complete', listener);
+    return () => ipcRenderer.removeListener('oauth-complete', listener);
+  },
+
+  // GitHub Integration
+  githubCheckScope: () => ipcRenderer.invoke('github-check-scope'),
+  githubGetRepos: (args?: any) => ipcRenderer.invoke('github-get-repos', args || {}),
+  githubGetPullRequests: (args: any) => ipcRenderer.invoke('github-get-pull-requests', args),
+  githubGetPrDetail: (args: any) => ipcRenderer.invoke('github-get-pr-detail', args),
+  githubGetPrReviews: (args: any) => ipcRenderer.invoke('github-get-pr-reviews', args),
+  githubGetPrCheckStatus: (args: any) => ipcRenderer.invoke('github-get-pr-check-status', args),
+  githubGetCommits: (args: any) => ipcRenderer.invoke('github-get-commits', args),
+  githubGetBranches: (args: any) => ipcRenderer.invoke('github-get-branches', args),
+  githubGetReviewRequests: (args?: any) => ipcRenderer.invoke('github-get-review-requests', args || {}),
+  githubGetMyOpenPrs: (args?: any) => ipcRenderer.invoke('github-get-my-open-prs', args || {}),
+  githubGetWorkflowRuns: (args: any) => ipcRenderer.invoke('github-get-workflow-runs', args),
+  githubGetDeployments: (args: any) => ipcRenderer.invoke('github-get-deployments', args),
+  githubRerunWorkflow: (args: any) => ipcRenderer.invoke('github-rerun-workflow', args),
+
+  // Report Builder (M1)
+  generateCustomReport: (args: any) => ipcRenderer.invoke('generate-custom-report', args),
+  exportCustomReportPdf: (args: any) => ipcRenderer.invoke('export-custom-report-pdf', args),
 });

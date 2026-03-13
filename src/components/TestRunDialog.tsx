@@ -11,21 +11,25 @@ interface TestRunDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     activePlan: TestPlan | null
+    activeProject?: any
 }
 
-export default function TestRunDialog({ open, onOpenChange, activePlan }: TestRunDialogProps) {
+export default function TestRunDialog({ open, onOpenChange, activePlan, activeProject }: TestRunDialogProps) {
     const { activeProjectId, addTestRunSession } = useProjectStore()
     const [status, setStatus] = useState<TestCaseStatus>('passed')
     const [notes, setNotes] = useState("")
+    const [environmentId, setEnvironmentId] = useState("")
 
     const cases = activePlan?.testCases || []
+    const environments = activeProject?.environments || []
 
     useEffect(() => {
         if (open) {
             setStatus('passed')
             setNotes("")
+            setEnvironmentId(environments.find((e: any) => e.isDefault)?.id || "")
         }
-    }, [open])
+    }, [open, environments])
 
     const handleBatchRecord = async () => {
         if (!activeProjectId || !activePlan || cases.length === 0) return
@@ -46,9 +50,11 @@ export default function TestRunDialog({ open, onOpenChange, activePlan }: TestRu
                     snapshotSteps: tc.steps,
                     snapshotTestData: tc.testData,
                     snapshotExpectedResult: tc.expectedResult,
-                    snapshotPriority: tc.priority
+                    snapshotPriority: tc.priority,
+                    environmentId: environmentId || undefined
                 }))
-            }]
+            }],
+            environmentId: environmentId || undefined
         })
 
         onOpenChange(false)
@@ -70,27 +76,45 @@ export default function TestRunDialog({ open, onOpenChange, activePlan }: TestRu
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label>Global Result</Label>
-                        <Select value={status} onValueChange={(val: TestCaseStatus) => setStatus(val)}>
-                            <SelectTrigger className="bg-background">
-                                <SelectValue placeholder="Select outcome" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="passed">
-                                    <span className="text-green-400 font-bold">Passed</span>
-                                </SelectItem>
-                                <SelectItem value="failed">
-                                    <span className="text-red-400 font-bold">Failed</span>
-                                </SelectItem>
-                                <SelectItem value="blocked">
-                                    <span className="text-amber-400 font-bold">Blocked</span>
-                                </SelectItem>
-                                <SelectItem value="skipped">
-                                    <span className="text-zinc-400 font-bold">Skipped</span>
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Global Result</Label>
+                            <Select value={status} onValueChange={(val: TestCaseStatus) => setStatus(val)}>
+                                <SelectTrigger className="bg-background">
+                                    <SelectValue placeholder="Select outcome" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="passed">
+                                        <span className="text-green-400 font-bold">Passed</span>
+                                    </SelectItem>
+                                    <SelectItem value="failed">
+                                        <span className="text-red-400 font-bold">Failed</span>
+                                    </SelectItem>
+                                    <SelectItem value="blocked">
+                                        <span className="text-amber-400 font-bold">Blocked</span>
+                                    </SelectItem>
+                                    <SelectItem value="skipped">
+                                        <span className="text-zinc-400 font-bold">Skipped</span>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Environment</Label>
+                            <Select value={environmentId} onValueChange={setEnvironmentId}>
+                                <SelectTrigger className="bg-background">
+                                    <SelectValue placeholder="Select environment..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {environments.map((env: any) => (
+                                        <SelectItem key={env.id} value={env.id}>
+                                            {env.name} {env.isDefault ? '(Default)' : ''}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
                     <div className="space-y-2">

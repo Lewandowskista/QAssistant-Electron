@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
-import { ListChecks, Plus, Search, Trash2, Save, RefreshCcw, ShieldCheck } from "lucide-react"
+import { ListChecks, Plus, Search, Trash2, RefreshCcw, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -113,16 +113,16 @@ export default function ChecklistsPage() {
                     </div>
                 ) : (
                     <div className="h-full flex flex-col animate-in fade-in duration-500">
-                        <header className="p-6 bg-[#13131A] border-b border-[#2A2A3A] flex items-center justify-between">
-                            <div className="flex items-center gap-4 flex-1">
+                        <header className="p-6 bg-[#13131A] border-b border-[#2A2A3A] flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
                                 <Input
                                     value={selectedChecklist!.name}
                                     onChange={(e) => updateChecklist(activeProjectId!, selectedChecklist!.id, { name: e.target.value })}
-                                    className="max-w-[400px] h-9 bg-transparent border-none text-2xl font-black text-[#E2E8F0] focus-visible:ring-0 px-0"
+                                    className="max-w-[400px] h-9 bg-transparent border-none text-2xl font-black text-[#E2E8F0] focus-visible:ring-0 px-0 min-w-0"
                                 />
-                                <div className="w-px h-6 bg-[#2A2A3A]" />
+                                <div className="w-px h-6 bg-[#2A2A3A] shrink-0" />
                                 <Select value={selectedChecklist!.category} onValueChange={(val) => updateChecklist(activeProjectId!, selectedChecklist!.id, { category: val })}>
-                                    <SelectTrigger className="w-[160px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[10px] font-bold uppercase text-[#A78BFA]">
+                                    <SelectTrigger className="w-[160px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[10px] font-bold uppercase text-[#A78BFA] shrink-0">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
@@ -134,12 +134,9 @@ export default function ChecklistsPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 shrink-0">
                                 <Button variant="ghost" size="icon" onClick={() => deleteChecklist(activeProjectId!, selectedChecklist!.id)} className="text-[#EF4444] hover:bg-[#EF4444]/10">
                                     <Trash2 className="h-4 w-4" />
-                                </Button>
-                                <Button className="h-9 px-6 bg-[#A78BFA] text-[#0F0F13] font-black text-xs gap-2">
-                                    <Save className="h-3.5 w-3.5" /> SAVE
                                 </Button>
                             </div>
                         </header>
@@ -195,7 +192,7 @@ export default function ChecklistsPage() {
                                 <ShieldCheck className="h-4 w-4 text-[#10B981]" />
                                 <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest">Checklist verified</span>
                             </div>
-                            <Button variant="ghost" className="h-8 text-[10px] font-black text-[#A78BFA] uppercase tracking-widest gap-2">
+                            <Button variant="ghost" className="h-8 text-[10px] font-black text-[#A78BFA] uppercase tracking-widest gap-2" onClick={() => updateChecklist(activeProjectId!, selectedChecklist!.id, { items: selectedChecklist!.items.map(i => ({ ...i, isChecked: false })) })}>
                                 <RefreshCcw className="h-3 w-3" /> RESET ALL
                             </Button>
                         </footer>

@@ -4,14 +4,16 @@ import { useState, useEffect, useCallback } from "react"
 import {
     Zap, Globe, Cpu, Server, Share2, Database, Search,
     Plus, X, Edit2, Check, Copy, RefreshCw, ExternalLink,
-    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell, Sun
+    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell, Sun, User, LogOut
 } from "lucide-react"
 import { useTheme } from "@/hooks/useTheme"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useProjectStore } from "@/store/useProjectStore"
+import { useUserStore } from "@/store/useUserStore"
 import { LinearConnection, JiraConnection } from "@/types/project"
+import type { UserRole, AuthProvider } from "@/types/user"
 import { useConfirm } from "@/components/ConfirmDialog"
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
@@ -172,6 +174,51 @@ export default function SettingsPage() {
     const [webhookTesting, setWebhookTesting] = useState(false)
     const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
 
+    // ── User / Identity ───────────────────────────────────────────────────────
+    const { profile, isLoaded: userLoaded, loadProfile, setRole, addIdentity, removeIdentity } = useUserStore()
+    const [oauthConnecting, setOauthConnecting] = useState<AuthProvider | null>(null)
+    const [oauthStatus, setOauthStatus] = useState<StatusState>(null)
+
+    // ── Load user profile + OAuth listener ───────────────────────────────────
+    useEffect(() => {
+        if (!userLoaded) loadProfile()
+    }, [])
+
+    useEffect(() => {
+        const unsub = window.electronAPI.onOAuthComplete(async ({ provider, userInfo }) => {
+            setOauthConnecting(null)
+            await addIdentity({
+                provider: provider as AuthProvider,
+                providerId: userInfo.providerId,
+                username: userInfo.username,
+                email: userInfo.email,
+                avatarUrl: userInfo.avatarUrl,
+                connectedAt: Date.now(),
+            })
+            flash(setOauthStatus, `Connected to ${provider === 'github' ? 'GitHub' : 'Linear'} as ${userInfo.username}`, true)
+        })
+        return unsub
+    }, [addIdentity])
+
+    const handleOAuthConnect = async (provider: AuthProvider) => {
+        setOauthConnecting(provider)
+        flash(setOauthStatus, `Opening ${provider === 'github' ? 'GitHub' : 'Linear'} authorization in your browser...`, true, 8000)
+        const result = await window.electronAPI.oauthStart(provider)
+        setOauthConnecting(null)
+        if (!result.success) {
+            flash(setOauthStatus, result.error || 'Failed to start authorization', false)
+        }
+    }
+
+    const handleOAuthDisconnect = async (provider: AuthProvider) => {
+        const name = provider === 'github' ? 'GitHub' : 'Linear'
+        const confirmed = await confirmDialog(`Disconnect ${name}`, { description: `Remove your ${name} identity from QAssistant?`, destructive: true })
+        if (!confirmed) return
+        await window.electronAPI.oauthLogout(provider)
+        await removeIdentity(provider)
+        flash(setOauthStatus, `${name} identity removed.`, true)
+    }
+
     // ── Load ──────────────────────────────────────────────────────────────────
     useEffect(() => {
         const load = async () => {
@@ -266,6 +313,21 @@ export default function SettingsPage() {
 
     // ── Linear helpers ────────────────────────────────────────────────────────
     const openLinearAdd = () => setLinearForm({ open: true, editId: null, label: '', apiKey: '', teamId: '' })
+
+    const fillLinearFromOAuth = async () => {
+        const token = await api.secureStoreGet('oauth_linear_access_token')
+        if (!token) {
+            flash(setLinearStatus, 'No Linear OAuth token found. Connect via Account & Identity first.', false)
+            return
+        }
+        const identity = profile?.identities.find(i => i.provider === 'linear')
+        setLinearForm(f => ({
+            ...f,
+            apiKey: token,
+            label: f.label || (identity?.username ? `${identity.username}'s Linear` : 'Linear (OAuth)'),
+        }))
+        flash(setLinearStatus, 'OAuth token loaded. Add your Team ID and save.', true)
+    }
     const openLinearEdit = async (c: LinearConnection) => {
         const prefix = activeProject ? `project:${activeProject.id}:` : ''
         const storedKey = await api.secureStoreGet(`${prefix}linear_api_key_${c.id}`) || ''
@@ -487,6 +549,98 @@ export default function SettingsPage() {
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-3 custom-scrollbar">
 
+                {/* ── ACCOUNT & IDENTITY ───────────────────────────────────── */}
+                <Sec id="account" title="Account & Identity" icon={<User className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                    <SectionLabel>Role</SectionLabel>
+                    <div className="flex items-center gap-3">
+                        {(['qa', 'dev'] as UserRole[]).map(r => (
+                            <button
+                                key={r}
+                                onClick={() => setRole(r)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                                    (profile?.activeRole ?? 'qa') === r
+                                        ? 'bg-[#A78BFA] text-[#0F0F13] border-[#A78BFA]'
+                                        : 'bg-transparent text-[#9CA3AF] border-[#2A2A3A] hover:border-[#A78BFA]/50'
+                                }`}
+                            >
+                                {r === 'qa' ? 'QA Engineer' : 'Developer'}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-xs text-[#6B7280] mt-1">Role controls which features are visible in the sidebar.</p>
+
+                    <div className="mt-2 border-t border-[#2A2A3A] pt-4 space-y-3">
+                        <SectionLabel>Connected Identities</SectionLabel>
+
+                        {/* GitHub */}
+                        {(() => {
+                            const identity = profile?.identities.find(i => i.provider === 'github')
+                            return identity ? (
+                                <div className="flex items-center justify-between bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                        {identity.avatarUrl
+                                            ? <img src={identity.avatarUrl} className="w-8 h-8 rounded-full" alt="avatar" />
+                                            : <div className="w-8 h-8 rounded-full bg-[#2A2A3A] flex items-center justify-center"><User className="h-4 w-4 text-[#6B7280]" /></div>
+                                        }
+                                        <div>
+                                            <p className="text-sm font-semibold text-[#E2E8F0]">GitHub · {identity.username}</p>
+                                            {identity.email && <p className="text-xs text-[#6B7280]">{identity.email}</p>}
+                                        </div>
+                                    </div>
+                                    <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={() => handleOAuthDisconnect('github')}>
+                                        <LogOut className="h-3.5 w-3.5 mr-1" />Disconnect
+                                    </Button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => handleOAuthConnect('github')}
+                                    disabled={oauthConnecting === 'github'}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-[#2A2A3A] text-sm text-[#9CA3AF] hover:border-[#A78BFA]/50 hover:text-[#E2E8F0] transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                >
+                                    {oauthConnecting === 'github' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                                    {oauthConnecting === 'github' ? 'Opening browser...' : 'Connect with GitHub'}
+                                </button>
+                            )
+                        })()}
+
+                        {/* Linear */}
+                        {(() => {
+                            const identity = profile?.identities.find(i => i.provider === 'linear')
+                            return identity ? (
+                                <div className="flex items-center justify-between bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                        {identity.avatarUrl
+                                            ? <img src={identity.avatarUrl} className="w-8 h-8 rounded-full" alt="avatar" />
+                                            : <div className="w-8 h-8 rounded-full bg-[#2A2A3A] flex items-center justify-center"><User className="h-4 w-4 text-[#6B7280]" /></div>
+                                        }
+                                        <div>
+                                            <p className="text-sm font-semibold text-[#E2E8F0]">Linear · {identity.username}</p>
+                                            {identity.email && <p className="text-xs text-[#6B7280]">{identity.email}</p>}
+                                        </div>
+                                    </div>
+                                    <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={() => handleOAuthDisconnect('linear')}>
+                                        <LogOut className="h-3.5 w-3.5 mr-1" />Disconnect
+                                    </Button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => handleOAuthConnect('linear')}
+                                    disabled={oauthConnecting === 'linear'}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-[#2A2A3A] text-sm text-[#9CA3AF] hover:border-[#A78BFA]/50 hover:text-[#E2E8F0] transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                >
+                                    {oauthConnecting === 'linear' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                                    {oauthConnecting === 'linear' ? 'Opening browser...' : 'Connect with Linear'}
+                                </button>
+                            )
+                        })()}
+
+                        <StatusBanner s={oauthStatus} />
+                        <p className="text-xs text-[#4B5563] pt-1">
+                            OAuth requires you to register a GitHub or Linear OAuth app and set <code className="bg-[#0F0F13] px-1 rounded">GITHUB_CLIENT_ID</code> / <code className="bg-[#0F0F13] px-1 rounded">LINEAR_CLIENT_ID</code> environment variables before building.
+                        </p>
+                    </div>
+                </Sec>
+
                 {/* ── APPEARANCE ───────────────────────────────────────────── */}
                 <Sec id="appearance" title="Appearance" icon={<Sun className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>Theme</SectionLabel>
@@ -597,7 +751,13 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     <div className="flex items-center justify-between mb-2">
                         <div>
                             <SectionLabel>Connections</SectionLabel>
-                            <p className="text-xs text-[#6B7280] -mt-3 mb-4">Get your API key from linear.app → Settings → API → Personal API Keys</p>
+                            <p className="text-xs text-[#6B7280] -mt-3 mb-4">
+                                Use a Personal API Key, or{' '}
+                                {profile?.identities.find(i => i.provider === 'linear')
+                                    ? <span className="text-[#A78BFA] font-semibold">OAuth token from your connected Linear account</span>
+                                    : <span>connect via <strong>Account &amp; Identity</strong> to use OAuth</span>
+                                }.
+                            </p>
                         </div>
                         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[#A78BFA] font-bold text-xs" onClick={() => api.openUrl('https://linear.app/settings/api')}><ExternalLink className="h-3.5 w-3.5" />Get API Key</Button>
                     </div>
@@ -623,11 +783,21 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 onSave={saveLinear} onTest={testLinear} onCancel={cancelLinear} status={linearStatus}
                             >
                                 <div className="space-y-2">
+                                    {profile?.identities.find(i => i.provider === 'linear') && !linearForm.editId && (
+                                        <button
+                                            type="button"
+                                            onClick={fillLinearFromOAuth}
+                                            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#A78BFA]/40 text-xs text-[#A78BFA] hover:bg-[#A78BFA]/10 transition-colors font-semibold"
+                                        >
+                                            <Zap className="h-3.5 w-3.5" />
+                                            Use OAuth token from {profile.identities.find(i => i.provider === 'linear')?.username}
+                                        </button>
+                                    )}
                                     <div><FieldLabel>Label</FieldLabel>
                                         <Input value={linearForm.label} onChange={e => setLinearForm(f => ({ ...f, label: e.target.value }))} placeholder="e.g. Frontend, Backend" className={inp} />
                                     </div>
                                     <div><FieldLabel>API Key {linearForm.editId && <span className="text-[#6B7280] font-normal">(leave blank to keep existing)</span>}</FieldLabel>
-                                        <Input type={showSecrets ? 'text' : 'password'} value={linearForm.apiKey} onChange={e => setLinearForm(f => ({ ...f, apiKey: e.target.value }))} placeholder="lin_api_..." className={inp} />
+                                        <Input type={showSecrets ? 'text' : 'password'} value={linearForm.apiKey} onChange={e => setLinearForm(f => ({ ...f, apiKey: e.target.value }))} placeholder="lin_api_... or OAuth token" className={inp} />
                                     </div>
                                     <div><FieldLabel>Team ID</FieldLabel>
                                         <Input value={linearForm.teamId} onChange={e => setLinearForm(f => ({ ...f, teamId: e.target.value }))} placeholder="Your Linear Team ID" className={inp} />
@@ -783,7 +953,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 {/* ── WEBHOOKS ─────────────────────────────────────────────── */}
                 <Sec id="webhooks" title="Webhooks & Notifications" icon={<Bell className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>Outbound Webhooks</SectionLabel>
-                    <p className="text-xs text-[#6B7280] -mt-3 mb-4">Send notifications to Slack, Teams, or any generic endpoint when key events occur.</p>
+                    <p className="text-xs text-[#6B7280] -mt-3 mb-4">Send notifications to Slack, Microsoft Teams (via Power Automate Workflows), or any generic endpoint when key events occur.</p>
 
                     <div className="space-y-2 mb-3">
                         {webhooks.length === 0 && <p className="text-xs text-[#6B7280] italic">No webhooks configured.</p>}
@@ -836,14 +1006,17 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     <FieldLabel>Type</FieldLabel>
                                     <select className={`${inp} w-full appearance-none px-3 cursor-pointer`} value={webhookForm.type} onChange={e => setWebhookForm(f => ({ ...f, type: e.target.value as any }))}>
                                         <option value="Slack">Slack</option>
-                                        <option value="Teams">Microsoft Teams</option>
+                                        <option value="Teams">Microsoft Teams (Workflows)</option>
                                         <option value="Generic">Generic JSON</option>
                                     </select>
                                 </div>
                             </div>
                             <div>
                                 <FieldLabel>Webhook URL</FieldLabel>
-                                <Input value={webhookForm.url} onChange={e => setWebhookForm(f => ({ ...f, url: e.target.value }))} placeholder="https://hooks.slack.com/services/..." className={inp} />
+                                <Input value={webhookForm.url} onChange={e => setWebhookForm(f => ({ ...f, url: e.target.value }))} placeholder={webhookForm.type === 'Teams' ? 'https://<region>.logic.azure.com/workflows/...' : 'https://hooks.slack.com/services/...'} className={inp} />
+                                {webhookForm.type === 'Teams' && (
+                                    <p className="text-xs text-[#9CA3AF] mt-2">💡 Teams uses Power Automate Workflows (the old Incoming Webhooks connector is deprecated). Create a workflow in your Team Settings → Manage channel → Workflows → Incoming webhook.</p>
+                                )}
                             </div>
                             <div className="border border-[#2A2A3A] rounded-xl p-3 space-y-2">
                                 <p className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest mb-2">Notify On</p>
@@ -877,7 +1050,37 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 <Button variant="outline" size="sm" className="h-8 border-[#2A2A3A] text-[#9CA3AF] font-bold" disabled={webhookTesting || !webhookForm.url.trim()} onClick={async () => {
                                     setWebhookTesting(true)
                                     try {
-                                        await fetch(webhookForm.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'QAssistant Test', message: 'Webhook connection test from QAssistant.', timestamp: new Date().toISOString() }) })
+                                        let testPayload: string
+                                        if (webhookForm.type === 'Teams') {
+                                            testPayload = JSON.stringify({
+                                                type: 'message',
+                                                attachments: [{
+                                                    contentType: 'application/vnd.microsoft.card.adaptive',
+                                                    content: {
+                                                        $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+                                                        type: 'AdaptiveCard',
+                                                        version: '1.4',
+                                                        body: [
+                                                            { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: '✅ Test Notification' },
+                                                            { type: 'TextBlock', text: 'Webhook connection test from QAssistant.', wrap: true },
+                                                        ],
+                                                    },
+                                                }],
+                                            })
+                                        } else if (webhookForm.type === 'Slack') {
+                                            testPayload = JSON.stringify({
+                                                attachments: [{
+                                                    color: '#A78BFA',
+                                                    title: '✅ Test Notification',
+                                                    text: 'Webhook connection test from QAssistant.',
+                                                    footer: 'QAssistant',
+                                                    ts: Math.floor(Date.now() / 1000),
+                                                }]
+                                            })
+                                        } else {
+                                            testPayload = JSON.stringify({ title: '✅ Test Notification', message: 'Webhook connection test from QAssistant.', timestamp: new Date().toISOString() })
+                                        }
+                                        await fetch(webhookForm.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: testPayload })
                                         flash(setWebhookStatus, 'Test notification sent!', true)
                                     } catch (e: any) {
                                         flash(setWebhookStatus, `Test failed: ${e.message}`, false)

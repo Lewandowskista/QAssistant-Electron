@@ -9,6 +9,7 @@ import type { Request, Response } from 'express'
 import cors from 'cors'
 import bodyParser from 'body-parser'
 import { withFileLock } from './file-lock'
+import * as oauth from './oauth'
 
 const server = express()
 server.use(cors({
@@ -20,6 +21,18 @@ let authToken = crypto.randomBytes(32).toString('hex')
 let serverInstance: any = null
 const openSockets = new Set<any>()
 
+// Callback invoked after a successful OAuth exchange so main process can notify the renderer
+let oauthCompleteCallback: ((provider: string, userInfo: any) => void) | null = null
+export function setOAuthCompleteCallback(cb: (provider: string, userInfo: any) => void): void {
+    oauthCompleteCallback = cb
+}
+
+let currentPort = 5248
+
+export function getServerPort(): number {
+    return currentPort
+}
+
 export function startServer(apiToken: string, port: number = 3030) {
     // Prevent double-start (e.g. called from both IPC handler and app.whenReady)
     if (serverInstance) {
@@ -27,6 +40,7 @@ export function startServer(apiToken: string, port: number = 3030) {
         return
     }
     authToken = apiToken
+    currentPort = port
 
     const getDataPath = (): string =>
         path.join(app.getPath('userData'), 'QAssistantData', 'projects.json')
@@ -57,6 +71,41 @@ export function startServer(apiToken: string, port: number = 3030) {
             uptime: Math.floor(process.uptime()),
             platform: process.platform
         })
+    })
+
+    // ── OAuth callback (public — no auth token required) ───────────────────
+    server.get('/auth/callback', async (req: any, res: any) => {
+        const { code, state, error } = req.query
+
+        if (error) {
+            res.status(400).send(`<html><body><h2>Authorization failed</h2><p>${error}</p><script>window.close()</script></body></html>`)
+            return
+        }
+
+        if (!code || !state) {
+            res.status(400).send('<html><body><h2>Invalid callback</h2><script>window.close()</script></body></html>')
+            return
+        }
+
+        // Resolve provider from in-memory pending auth (GitHub/Linear don't echo it back)
+        const pending = oauth.getPendingAuth()
+        const provider = pending?.provider
+
+        if (!provider) {
+            res.status(400).send('<html><body><h2>No pending OAuth session</h2><script>window.close()</script></body></html>')
+            return
+        }
+
+        try {
+            const userInfo = await oauth.exchangeCode(provider as any, code as string, state as string, currentPort)
+            if (oauthCompleteCallback) {
+                oauthCompleteCallback(provider as string, userInfo)
+            }
+            res.send('<html><body><h2>Connected successfully!</h2><p>You can close this tab and return to QAssistant.</p><script>window.close()</script></body></html>')
+        } catch (e: any) {
+            console.error('[OAuth] Callback exchange failed:', e.message)
+            res.status(500).send(`<html><body><h2>Connection failed</h2><p>${e.message}</p><script>window.close()</script></body></html>`)
+        }
     })
 
     // ── Auth middleware for all protected routes ────────────────────────────

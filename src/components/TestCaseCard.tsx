@@ -48,6 +48,21 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
         }
     }
 
+    const getTestTypeColor = (testType?: string) => {
+        switch (testType?.toLowerCase()) {
+            case 'functional': return 'bg-[#1E3A5F] text-[#3B82F6]'
+            case 'regression': return 'bg-[#3F1F1F] text-[#DC2626]'
+            case 'smoke': return 'bg-[#2F2D1F] text-[#F59E0B]'
+            case 'integration': return 'bg-[#1F2D3D] text-[#0EA5E9]'
+            case 'e2e': return 'bg-[#2D1F3D] text-[#A78BFA]'
+            case 'api': return 'bg-[#1F3D2D] text-[#06B6D4]'
+            case 'performance': return 'bg-[#3D2D1F] text-[#EA580C]'
+            case 'accessibility': return 'bg-[#2D3D1F] text-[#84CC16]'
+            case 'security': return 'bg-[#3D1F2D] text-[#EC4899]'
+            default: return 'bg-[#1F2937] text-[#9CA3AF]'
+        }
+    }
+
     return (
         <div className={cn(
             "bg-[#1A1A24] border rounded-[10px] p-4 flex flex-col gap-3 transition-all",
@@ -78,6 +93,11 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                     <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", getPriorityColor(testCase.priority))}>
                         {testCase.priority || 'MEDIUM'}
                     </div>
+                    {testCase.testType && (
+                        <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", getTestTypeColor(testCase.testType))}>
+                            {testCase.testType}
+                        </div>
+                    )}
                     <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", getStatusColor(testCase.status))}>
                         {testCase.status || 'not-run'}
                     </div>

@@ -6,6 +6,14 @@ export type TestCasePriority = 'low' | 'medium' | 'major' | 'blocker'
 
 export type SapModule = 'Cart' | 'Checkout' | 'Pricing' | 'Promotions' | 'CatalogSync' | 'B2B' | 'OMS' | 'Personalization' | 'CPQ'
 
+export type TaskSeverity = 'cosmetic' | 'minor' | 'major' | 'critical' | 'blocker'
+
+export type TestType = 'functional' | 'regression' | 'smoke' | 'integration' | 'e2e' | 'api' | 'performance' | 'accessibility' | 'security'
+
+export type Reproducibility = 'always' | 'sometimes' | 'rarely' | 'once' | 'unable'
+
+export type Frequency = 'everytime' | 'often' | 'occasionally' | 'once'
+
 export type TestCase = {
     id: string
     displayId: string // e.g. TC-001
@@ -22,6 +30,14 @@ export type TestCase = {
     tags?: string[]           // e.g. ['smoke', 'regression', 'checkout']
     assignedTo?: string       // tester name/handle
     estimatedMinutes?: number // estimated execution duration
+    testType?: TestType       // Phase 1.3: functional, regression, smoke, etc.
+    linkedDefectIds?: string[] // Phase 1.7: bug task IDs linked to this test
+    changeLog?: Array<{       // Phase 2.5: audit trail of changes
+        timestamp: number
+        field: string
+        oldValue: string
+        newValue: string
+    }>
     updatedAt: number
 }
 
@@ -55,6 +71,10 @@ export type TestCaseExecution = {
     snapshotExpectedResult?: string
     snapshotPriority?: TestCasePriority
     durationSeconds?: number
+    blockedReason?: string     // Phase 1.6: reason when result is 'blocked'
+    environmentId?: string     // Phase 1.4: which environment was test executed on
+    environmentName?: string   // Phase 1.4: snapshot of environment name
+    attachments?: Attachment[] // Phase 2.6: evidence/screenshots per execution
 }
 
 export type TestPlanExecution = {
@@ -69,6 +89,8 @@ export type TestRunSession = {
     timestamp: number
     isArchived?: boolean
     planExecutions: TestPlanExecution[]
+    environmentId?: string     // Phase 1.4: which environment session used
+    environmentName?: string   // Phase 1.4: snapshot of environment name
 }
 
 export type TestPlan = {
@@ -101,6 +123,9 @@ export type Task = {
     description: string
     status: TaskStatus
     priority: 'low' | 'medium' | 'high' | 'critical'
+    severity?: TaskSeverity   // Phase 1.1: technical impact vs business priority
+    acceptanceCriteria?: string // Phase 1.2: clear pass/fail criteria
+    version?: string           // Phase 1.8: release/version tag
     sourceIssueId?: string
     externalId?: string      // The API-side UUID from Linear/Jira
     ticketUrl?: string       // URL to the issue in Linear/Jira
@@ -113,6 +138,11 @@ export type Task = {
     connectionId?: string
     attachmentUrls?: string[]
     analysisHistory?: AnalysisEntry[]
+    linkedTestCaseId?: string // Phase 1.7: back-reference to test case
+    linkedDefectIds?: string[] // Phase 1.7: bug IDs linked from tests
+    reproducibility?: Reproducibility // Phase 2.1: bug reproducibility
+    frequency?: Frequency     // Phase 2.1: bug frequency
+    affectedEnvironments?: string[] // Phase 2.1: environment IDs affected by bug
     sprint?: {
         name: string
         isActive: boolean
@@ -241,6 +271,21 @@ export type JiraConnection = {
     projectKey: string
 }
 
+export type QualityGateCriterion = {
+    id: string
+    type: 'pass_rate' | 'critical_bugs' | 'smoke_tests' | 'coverage' | 'blockers'
+    operator: 'gte' | 'lte' | 'eq'
+    value: number
+    label: string
+}
+
+export type QualityGate = {
+    id: string
+    name: string
+    criteria: QualityGateCriterion[]
+    isEnabled: boolean
+}
+
 export type Project = {
     id: string
     name: string
@@ -265,7 +310,14 @@ export type Project = {
     // Legacy single-connection fields (kept for backwards compat)
     linearConnection?: { apiKey: string; teamId: string }
     jiraConnection?: { domain: string; email: string; projectKey: string }
-    
+
     geminiModel?: string
     columns?: { id: string, title: string, color?: string, textColor?: string, type?: string }[]
+    qualityGates?: QualityGate[]
+
+    // Phase 4: Report Builder & Collaboration
+    reportTemplates?: any[] // ReportTemplate[] - lazy loaded to avoid circular imports
+    reportSchedules?: any[]
+    reportHistory?: any[]
+    customKpis?: any[]
 }

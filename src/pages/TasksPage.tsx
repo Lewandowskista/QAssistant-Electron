@@ -39,6 +39,7 @@ import { TaskColumn } from "@/components/tasks/TaskColumn"
 import { TaskDetailsSidebar } from "@/components/tasks/TaskDetailsSidebar"
 import { NewTaskModal } from "@/components/tasks/NewTaskModal"
 import AnalysisResultDialog from "@/components/tasks/AnalysisResultDialog"
+import { sanitizeProjectForAi } from "@/lib/aiUtils"
 
 type Column = { id: string; title: string; color: string; textColor: string; type?: string }
 
@@ -72,6 +73,7 @@ export default function TasksPage() {
     const [taskBeingAnalyzed, setTaskBeingAnalyzed] = useState<Task | null>(null)
     const [searchQuery, setSearchQuery] = useState("")
     const [sourceMode, setSourceMode] = useState<'manual' | 'linear' | 'jira'>('manual')
+    const [versionFilter, setVersionFilter] = useState<string | null>(null)
     const [isSyncing, setIsSyncing] = useState(false)
     const [isLoading, setIsLoading] = useState(false) // Renamed from isAnalyzing
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false)
@@ -95,10 +97,17 @@ export default function TasksPage() {
 
             if (!matchesSearch) return false
 
-            if (sourceMode === 'manual') return t.source === 'manual' || !t.source
-            return t.source === sourceMode
+            if (sourceMode === 'manual') {
+                if (t.source !== 'manual' && t.source) return false
+            } else {
+                if (t.source !== sourceMode) return false
+            }
+
+            if (versionFilter && t.version !== versionFilter) return false
+
+            return true
         })
-    }, [tasks, searchQuery, sourceMode])
+    }, [tasks, searchQuery, sourceMode, versionFilter])
 
     const currentColumns = useMemo((): Column[] => {
         if (activeProject?.columns && activeProject.columns.length > 0) {
@@ -114,10 +123,15 @@ export default function TasksPage() {
         }, {} as Record<string, Task[]>)
     }, [filteredTasks, currentColumns])
 
+    const uniqueVersions = useMemo(() => {
+        const versions = new Set(tasks.filter(t => t.version).map(t => t.version))
+        return Array.from(versions).sort()
+    }, [tasks])
+
     // Keyboard Shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.key === '/') {
+            if ((e.ctrlKey || e.metaKey) && e.key === '/') {
                 e.preventDefault()
                 setIsShortcutModalOpen(prev => !prev)
             }
@@ -323,7 +337,7 @@ export default function TasksPage() {
                 apiKey,
                 task,
                 comments: comments || [],
-                project: activeProject ? { name: activeProject.name, description: activeProject.description } : null,
+                project: sanitizeProjectForAi(activeProject),
                 modelName: activeProject?.geminiModel
             })
 
@@ -420,8 +434,8 @@ export default function TasksPage() {
 
     return (
         <div className="h-full flex flex-col animate-in fade-in duration-500 overflow-hidden text-[#E2E8F0]">
-            <header className="flex-none bg-[#0F0F13] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+            <header className="flex-none bg-[#0F0F13] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2 shrink-0">
                     <div className="flex bg-[#1A1A24] p-1 rounded-lg border border-[#2A2A3A]">
                         {(['manual', 'linear', 'jira'] as const).map(mode => (
                             <Button
@@ -449,14 +463,26 @@ export default function TasksPage() {
                     )}
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={() => setIsShortcutModalOpen(true)}><HelpCircle className="h-4 w-4" /></Button>
-                    <div className="relative group">
+                <div className="flex items-center gap-3 flex-wrap min-w-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 shrink-0" onClick={() => setIsShortcutModalOpen(true)}><HelpCircle className="h-4 w-4" /></Button>
+                    {uniqueVersions.length > 0 && (
+                        <select
+                            value={versionFilter || ''}
+                            onChange={(e) => setVersionFilter(e.target.value || null)}
+                            className="h-9 px-3 text-xs rounded-md bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] outline-none hover:border-[#A78BFA]/30 shrink-0"
+                        >
+                            <option value="">All Versions</option>
+                            {uniqueVersions.map(v => (
+                                <option key={v} value={v}>{v}</option>
+                            ))}
+                        </select>
+                    )}
+                    <div className="relative group min-w-0">
                         <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280] opacity-40" />
-                        <Input placeholder="Search board..." className="h-9 pl-9 w-64 bg-[#13131A] border-[#2A2A3A] text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                        <Input placeholder="Search board..." className="h-9 pl-9 w-48 xl:w-64 bg-[#13131A] border-[#2A2A3A] text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                     </div>
                     {sourceMode === 'manual' && (
-                        <Button onClick={() => setIsNewTaskModalOpen(true)} disabled={!activeProjectId} className="h-9 px-4 font-bold text-xs gap-2 bg-[#1A1A24] text-[#A78BFA] border border-[#A78BFA]/30"><Plus className="h-3.5 w-3.5" /> NEW TASK</Button>
+                        <Button onClick={() => setIsNewTaskModalOpen(true)} disabled={!activeProjectId} className="h-9 px-4 font-bold text-xs gap-2 bg-[#1A1A24] text-[#A78BFA] border border-[#A78BFA]/30 shrink-0 whitespace-nowrap"><Plus className="h-3.5 w-3.5" /> NEW TASK</Button>
                     )}
                 </div>
             </header>

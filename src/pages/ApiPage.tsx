@@ -18,7 +18,7 @@ import { toast } from "sonner"
 import { useConfirm } from "@/components/ConfirmDialog"
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-type ResponseTab = 'Body' | 'Headers' | 'History' | 'Compare'
+type ResponseTab = 'Body' | 'Headers'
 
 export default function ApiPage() {
     const { projects, activeProjectId, addApiRequest, updateApiRequest, deleteApiRequest } = useProjectStore()
@@ -396,7 +396,7 @@ export default function ApiPage() {
                             </div>
                         )}
                         <div className="flex gap-1 ml-4">
-                            {(['Body', 'Headers', 'History', 'Compare'] as ResponseTab[]).map(tab => (
+                            {(['Body', 'Headers'] as ResponseTab[]).map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveRespTab(tab)}
@@ -410,7 +410,17 @@ export default function ApiPage() {
                             ))}
                         </div>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-7 text-[#A78BFA] text-[10px] font-bold gap-2">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-[#A78BFA] text-[10px] font-bold gap-2"
+                        disabled={!response}
+                        onClick={() => {
+                            const text = typeof response === 'object' ? JSON.stringify(response, null, 2) : String(response ?? '')
+                            navigator.clipboard.writeText(text)
+                            toast.success('Response copied to clipboard')
+                        }}
+                    >
                         <Copy className="h-3 w-3" /> COPY
                     </Button>
                 </div>

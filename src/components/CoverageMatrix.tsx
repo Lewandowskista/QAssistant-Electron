@@ -236,6 +236,27 @@ export default function CoverageMatrix() {
                             </tr>
                         </thead>
                         <tbody>
+                            {/* Gap Highlight Row: Tasks with No Coverage */}
+                            {viewMode === 'issue' && (
+                                <tr className="bg-[#A78BFA]/5 hover:bg-[#A78BFA]/10 transition-colors">
+                                    <td className="p-3 border border-[#A78BFA]/30 bg-[#0F0F13]">
+                                        <span className="text-[10px] font-bold text-[#A78BFA] uppercase tracking-widest">⚠ Coverage Gaps</span>
+                                        <p className="text-[9px] text-[#6B7280] mt-1">Items with no test coverage</p>
+                                    </td>
+                                    {matrix.cols.map(col => {
+                                        // Count tasks in this column that have no coverage
+                                        const uncoveredInCol = matrix.rows.filter(r => !matrix.cells.get(`${r.id}::${col.id}`)?.covered).length
+                                        return (
+                                            <td key={col.id} className="p-2 text-center border border-[#A78BFA]/30 bg-[#A78BFA]/5">
+                                                <span className={cn("text-[13px] font-bold", uncoveredInCol > 0 ? "text-[#A78BFA]" : "text-[#6B7280]")}>
+                                                    {uncoveredInCol}
+                                                </span>
+                                            </td>
+                                        )
+                                    })}
+                                </tr>
+                            )}
+
                             {matrix.rows.map(row => {
                                 const task = (matrix as any).taskByIssueId?.get(row.id)
                                 const totalCovered = matrix.cols.filter(col => matrix.cells.get(`${row.id}::${col.id}`)?.covered).length
@@ -285,16 +306,22 @@ export default function CoverageMatrix() {
                                                 >
                                                     <span className="text-[13px] font-bold">{getCellLabel(cell)}</span>
                                                     {/* Tooltip */}
-                                                    {isHovered && cell?.covered && cell.cases.length > 0 && (
-                                                        <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1A1A24] border border-[#2A2A3A] rounded-lg p-3 text-left min-w-[200px] shadow-2xl pointer-events-none">
-                                                            <p className="text-[10px] font-bold text-[#6B7280] uppercase mb-1.5">Test Cases</p>
-                                                            {cell.cases.slice(0, 4).map(tc => (
-                                                                <div key={tc.id} className="flex items-center gap-1.5 py-0.5">
-                                                                    <span className={cn("w-1.5 h-1.5 rounded-full flex-none", tc.status === 'passed' ? "bg-[#10B981]" : tc.status === 'failed' ? "bg-[#EF4444]" : "bg-[#6B7280]")} />
-                                                                    <span className="text-[10px] text-[#E2E8F0] truncate">{tc.title}</span>
-                                                                </div>
-                                                            ))}
-                                                            {cell.cases.length > 4 && <p className="text-[9px] text-[#6B7280] mt-1">+{cell.cases.length - 4} more</p>}
+                                                    {isHovered && (
+                                                        <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1A1A24] border border-[#2A2A3A] rounded-lg p-3 text-left min-w-[220px] shadow-2xl pointer-events-none">
+                                                            {cell?.covered && cell.cases.length > 0 ? (
+                                                                <>
+                                                                    <p className="text-[10px] font-bold text-[#10B981] uppercase mb-1.5">✓ Test Coverage</p>
+                                                                    {cell.cases.slice(0, 4).map(tc => (
+                                                                        <div key={tc.id} className="flex items-center gap-1.5 py-0.5">
+                                                                            <span className={cn("w-1.5 h-1.5 rounded-full flex-none", tc.status === 'passed' ? "bg-[#10B981]" : tc.status === 'failed' ? "bg-[#EF4444]" : "bg-[#6B7280]")} />
+                                                                            <span className="text-[10px] text-[#E2E8F0] truncate">{tc.title}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                    {cell.cases.length > 4 && <p className="text-[9px] text-[#6B7280] mt-1">+{cell.cases.length - 4} more</p>}
+                                                                </>
+                                                            ) : (
+                                                                <p className="text-[10px] font-bold text-[#A78BFA] uppercase">⚠ No Coverage</p>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </td>

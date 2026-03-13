@@ -34,6 +34,9 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
     const [newTaskDescription, setNewTaskDescription] = useState("")
     const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>('todo')
     const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
+    const [newTaskSeverity, setNewTaskSeverity] = useState<'cosmetic' | 'minor' | 'major' | 'critical' | 'blocker'>('major')
+    const [newTaskAcceptanceCriteria, setNewTaskAcceptanceCriteria] = useState("")
+    const [newTaskVersion, setNewTaskVersion] = useState("")
     const [newTaskSource, setNewTaskSource] = useState<'manual' | 'linear' | 'jira'>('manual')
     const [newTaskLabels, setNewTaskLabels] = useState("")
     const [newTaskConnectionId, setNewTaskConnectionId] = useState("")
@@ -45,6 +48,9 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
         setNewTaskDescription("")
         setNewTaskStatus('todo')
         setNewTaskPriority('medium')
+        setNewTaskSeverity('major')
+        setNewTaskAcceptanceCriteria("")
+        setNewTaskVersion("")
         setNewTaskSource('manual')
         setNewTaskLabels("")
         setNewTaskConnectionId("")
@@ -58,6 +64,9 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                 description: newTaskDescription,
                 status: newTaskStatus,
                 priority: newTaskPriority,
+                severity: newTaskSeverity,
+                acceptanceCriteria: newTaskAcceptanceCriteria,
+                version: newTaskVersion,
                 source: newTaskSource,
                 labels: newTaskLabels,
                 connectionId: newTaskConnectionId
@@ -146,6 +155,17 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                         />
                     </div>
 
+                    {/* Acceptance Criteria */}
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Acceptance Criteria</Label>
+                        <Textarea
+                            value={newTaskAcceptanceCriteria}
+                            onChange={(e) => setNewTaskAcceptanceCriteria(e.target.value)}
+                            placeholder="Given... When... Then... (clear pass/fail criteria)"
+                            className="bg-[#1A1A24] border-[#2A2A3A] text-sm min-h-[80px] resize-none focus:ring-[#A78BFA]/30"
+                        />
+                    </div>
+
                     {/* Description */}
                     <div className="space-y-2">
                         <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Description</Label>
@@ -157,7 +177,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                         {/* Status */}
                         <div className="space-y-2">
                             <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Status</Label>
@@ -190,6 +210,34 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {/* Severity */}
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Severity</Label>
+                            <Select value={newTaskSeverity} onValueChange={(v: any) => setNewTaskSeverity(v)}>
+                                <SelectTrigger className="bg-[#1A1A24] border-[#2A2A3A] text-xs h-10 text-[#E2E8F0]">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#1A1A24] border-[#2A2A3A]">
+                                    <SelectItem value="cosmetic" className="text-xs text-[#E2E8F0]">Cosmetic</SelectItem>
+                                    <SelectItem value="minor" className="text-xs text-[#E2E8F0]">Minor</SelectItem>
+                                    <SelectItem value="major" className="text-xs text-[#E2E8F0]">Major</SelectItem>
+                                    <SelectItem value="critical" className="text-xs text-[#E2E8F0]">Critical</SelectItem>
+                                    <SelectItem value="blocker" className="text-xs text-[#E2E8F0]">Blocker</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    {/* Version */}
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">Version (Release Tag)</Label>
+                        <Input
+                            value={newTaskVersion}
+                            onChange={(e) => setNewTaskVersion(e.target.value)}
+                            placeholder="v1.0, v2.1, beta..."
+                            className="bg-[#1A1A24] border-[#2A2A3A] text-sm h-10 focus:ring-[#A78BFA]/30"
+                        />
                     </div>
 
                     {/* Labels */}

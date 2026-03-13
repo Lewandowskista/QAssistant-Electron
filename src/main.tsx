@@ -6,6 +6,7 @@ import './index.css'
 import MainLayout from '@/layouts/MainLayout'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { RequireProject } from '@/components/RequireProject'
+import { RequireRole } from '@/components/RequireRole'
 import { Loader2 } from 'lucide-react'
 
 // Lazy load pages for performance
@@ -21,6 +22,10 @@ const ChecklistsPage = lazy(() => import('@/pages/ChecklistsPage'))
 const ApiPage = lazy(() => import('@/pages/ApiPage'))
 const SapPage = lazy(() => import('@/pages/SapPage'))
 const RunbooksPage = lazy(() => import('@/pages/RunbooksPage'))
+const GitHubPage = lazy(() => import('@/pages/GitHubPage'))
+const CodeReviewsPage = lazy(() => import('@/pages/CodeReviewsPage'))
+const DeploymentsPage = lazy(() => import('@/pages/DeploymentsPage'))
+const ReportBuilderPage = lazy(() => import('@/pages/ReportBuilderPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 const PageLoader = () => (
@@ -64,6 +69,10 @@ createRoot(rootElement).render(
             <Route path="notes" element={<ErrorBoundary name="Notes"><RequireProject><NotesPage /></RequireProject></ErrorBoundary>} />
             <Route path="files" element={<ErrorBoundary name="Files"><RequireProject><FilesPage /></RequireProject></ErrorBoundary>} />
             <Route path="environments" element={<ErrorBoundary name="Environments"><RequireProject><EnvironmentsPage /></RequireProject></ErrorBoundary>} />
+            <Route path="github" element={<ErrorBoundary name="GitHub"><RequireProject><RequireRole role="dev"><GitHubPage /></RequireRole></RequireProject></ErrorBoundary>} />
+            <Route path="code-reviews" element={<ErrorBoundary name="Code Reviews"><RequireProject><RequireRole role="dev"><CodeReviewsPage /></RequireRole></RequireProject></ErrorBoundary>} />
+            <Route path="deployments" element={<ErrorBoundary name="Deployments"><RequireProject><RequireRole role="dev"><DeploymentsPage /></RequireRole></RequireProject></ErrorBoundary>} />
+            <Route path="reports" element={<ErrorBoundary name="Reports"><RequireProject><ReportBuilderPage /></RequireProject></ErrorBoundary>} />
             <Route path="settings" element={<ErrorBoundary name="Settings"><SettingsPage /></ErrorBoundary>} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>

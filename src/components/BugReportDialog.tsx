@@ -26,9 +26,17 @@ interface BugReportDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     defaultEnv?: QaEnvironment
+    prefillData?: {
+        title?: string
+        description?: string
+        testCaseId?: string
+        linkedTestCaseTitle?: string
+        expectedResult?: string
+        actualResult?: string
+    }
 }
 
-export function BugReportDialog({ open, onOpenChange, defaultEnv }: BugReportDialogProps) {
+export function BugReportDialog({ open, onOpenChange, defaultEnv, prefillData }: BugReportDialogProps) {
     const { projects, activeProjectId, addTask } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const environments = activeProject?.environments || []
@@ -38,11 +46,15 @@ export function BugReportDialog({ open, onOpenChange, defaultEnv }: BugReportDia
     const [description, setDescription] = useState("")
     const [selectedEnvId, setSelectedEnvId] = useState<string>(defaultEnv?.id || environments.find(e => e.isDefault)?.id || "")
     const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
+    const [severity, setSeverity] = useState<'minor' | 'major' | 'critical' | 'blocker'>('major')
+    const [reproducibility, setReproducibility] = useState<'always' | 'sometimes' | 'rarely' | 'once' | 'unable'>('sometimes')
     const reporter = "QA Tester" // Could be from settings
 
     useEffect(() => {
         if (defaultEnv) setSelectedEnvId(defaultEnv.id)
-    }, [defaultEnv])
+        if (prefillData?.title) setTitle(prefillData.title)
+        if (prefillData?.description) setDescription(prefillData.description)
+    }, [defaultEnv, prefillData, open])
 
     const selectedEnv = environments.find(e => e.id === selectedEnvId)
 
@@ -72,13 +84,18 @@ ${description}
         await addTask(activeProjectId, {
             title: `[BUG] ${title}`,
             description: fullDescription,
-            priority: priority === 'high' ? 'high' : priority === 'medium' ? 'medium' : 'low'
+            priority: priority === 'high' ? 'high' : priority === 'medium' ? 'medium' : 'low',
+            severity,
+            reproducibility,
+            linkedTestCaseId: prefillData?.testCaseId
         })
 
         // Reset and close
         setTitle("")
         setTitleError("")
         setDescription("")
+        setSeverity('major')
+        setReproducibility('sometimes')
         onOpenChange(false)
     }
 
@@ -137,7 +154,7 @@ ${description}
                             </div>
                             <div className="grid gap-2">
                                 <Label className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2">
-                                    <ShieldAlert className="h-3 w-3" /> Severity
+                                    <ShieldAlert className="h-3 w-3" /> Impact/Priority
                                 </Label>
                                 <Select value={priority} onValueChange={(val: any) => setPriority(val)}>
                                     <SelectTrigger className="bg-background/50">
@@ -147,6 +164,38 @@ ${description}
                                         <SelectItem value="low">Low - Minor UI</SelectItem>
                                         <SelectItem value="medium">Medium - Functional</SelectItem>
                                         <SelectItem value="high">High - Blocker</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold uppercase text-muted-foreground px-1">Technical Severity</Label>
+                                <Select value={severity} onValueChange={(val: any) => setSeverity(val)}>
+                                    <SelectTrigger className="bg-background/50">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="minor">Minor</SelectItem>
+                                        <SelectItem value="major">Major</SelectItem>
+                                        <SelectItem value="critical">Critical</SelectItem>
+                                        <SelectItem value="blocker">Blocker</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold uppercase text-muted-foreground px-1">Reproducibility</Label>
+                                <Select value={reproducibility} onValueChange={(val: any) => setReproducibility(val)}>
+                                    <SelectTrigger className="bg-background/50">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="always">Always</SelectItem>
+                                        <SelectItem value="sometimes">Sometimes</SelectItem>
+                                        <SelectItem value="rarely">Rarely</SelectItem>
+                                        <SelectItem value="once">Once</SelectItem>
+                                        <SelectItem value="unable">Unable to Reproduce</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

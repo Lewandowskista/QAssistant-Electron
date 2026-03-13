@@ -134,6 +134,12 @@ interface ProjectState {
     addRunbookStep: (projectId: string, runbookId: string, title: string) => Promise<string>
     updateRunbookStep: (projectId: string, runbookId: string, stepId: string, updates: Partial<RunbookStep>) => Promise<void>
     deleteRunbookStep: (projectId: string, runbookId: string, stepId: string) => Promise<void>
+
+    // Report Templates (M1: Custom Report Builder)
+    addReportTemplate: (projectId: string, name: string, description: string, sections: any[]) => Promise<string>
+    updateReportTemplate: (projectId: string, templateId: string, updates: any) => Promise<void>
+    deleteReportTemplate: (projectId: string, templateId: string) => Promise<void>
+    reorderReportSections: (projectId: string, templateId: string, sectionIds: string[]) => Promise<void>
 }
 
 // Canonical ElectronAPI type is now in src/types/electron.d.ts
@@ -184,6 +190,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 linearConnections: p.linearConnections || [],
                 jiraConnections: p.jiraConnections || [],
                 testRunSessions: p.testRunSessions || [],
+                reportTemplates: p.reportTemplates || [],
+                reportSchedules: p.reportSchedules || [],
+                reportHistory: p.reportHistory || [],
+                customKpis: p.customKpis || [],
             }))
 
             set({
@@ -214,7 +224,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             runbooks: [],
             linearConnections: [],
             jiraConnections: [],
-            testRunSessions: []
+            testRunSessions: [],
+            reportTemplates: [],
+            reportSchedules: [],
+            reportHistory: [],
+            customKpis: []
         }
 
         const updatedProjects = [...get().projects, newProject]
@@ -732,9 +746,31 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {
                     if (tp.id === planId) {
-                        const testCases = tp.testCases.map(tc =>
-                            tc.id === caseId ? { ...tc, ...updates, updatedAt: Date.now() } : tc
-                        )
+                        const testCases = tp.testCases.map(tc => {
+                            if (tc.id === caseId) {
+                                // Build changelog entry for any field changes
+                                const newChangeLog = [...(tc.changeLog || [])]
+                                const now = Date.now()
+
+                                // Track specific field changes (exclude updatedAt)
+                                const fieldsToTrack = ['title', 'status', 'priority', 'testType', 'steps', 'expectedResult', 'actualResult', 'tags', 'assignedTo', 'sapModule']
+                                fieldsToTrack.forEach(field => {
+                                    if (field in updates && updates[field as keyof TestCase] !== tc[field as keyof TestCase]) {
+                                        const oldValue = String(tc[field as keyof TestCase] || '')
+                                        const newValue = String(updates[field as keyof TestCase] || '')
+                                        newChangeLog.push({
+                                            timestamp: now,
+                                            field,
+                                            oldValue,
+                                            newValue
+                                        })
+                                    }
+                                })
+
+                                return { ...tc, ...updates, changeLog: newChangeLog, updatedAt: now }
+                            }
+                            return tc
+                        })
                         return { ...tp, testCases, updatedAt: Date.now() }
                     }
                     return tp
@@ -1275,6 +1311,67 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 }
                 return r
             })
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    // Report Templates (M1)
+    addReportTemplate: async (projectId: string, name: string, description: string, sections: any[]) => {
+        const templateId = generateId()
+        const now = Date.now()
+        const newTemplate = {
+            id: templateId,
+            name,
+            description,
+            sections: sections.map((s, idx) => ({ ...s, id: generateId(), order: idx })),
+            filters: {},
+            format: 'html',
+            createdAt: now,
+            updatedAt: now
+        }
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            reportTemplates: [...(p.reportTemplates || []), newTemplate]
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+        return templateId
+    },
+
+    updateReportTemplate: async (projectId: string, templateId: string, updates: any) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            reportTemplates: (p.reportTemplates || []).map(t =>
+                t.id === templateId ? { ...t, ...updates, updatedAt: Date.now() } : t
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    deleteReportTemplate: async (projectId: string, templateId: string) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            reportTemplates: (p.reportTemplates || []).filter(t => t.id !== templateId)
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    reorderReportSections: async (projectId: string, templateId: string, sectionIds: string[]) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            reportTemplates: (p.reportTemplates || []).map(t =>
+                t.id === templateId ? {
+                    ...t,
+                    sections: t.sections.map((s: any) => ({
+                        ...s,
+                        order: sectionIds.indexOf(s.id)
+                    })),
+                    updatedAt: Date.now()
+                } : t
+            )
         } : p)
         if (window.electronAPI) saveProjectsToDisk(projects)
         set({ projects })

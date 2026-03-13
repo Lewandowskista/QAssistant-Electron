@@ -226,3 +226,121 @@ export function TestStatusDonut() {
         </ResponsiveContainer>
     )
 }
+
+export function ExecutionVelocityChart() {
+    const { projects, activeProjectId } = useProjectStore()
+    const activeProject = projects.find(p => p.id === activeProjectId)
+
+    const data = useMemo(() => {
+        const sessions = [...(activeProject?.testRunSessions || [])]
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .slice(-30) // Last 30 days
+
+        // Group by date
+        const byDate: Record<string, number> = {}
+        sessions.forEach(session => {
+            const date = new Date(session.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            const execCount = session.planExecutions.reduce((sum, pe) => sum + pe.caseExecutions.length, 0)
+            byDate[date] = (byDate[date] || 0) + execCount
+        })
+
+        return Object.entries(byDate).map(([date, count]) => ({
+            date,
+            executions: count,
+        }))
+    }, [activeProject])
+
+    if (data.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-full text-[11px] text-[#6B7280] italic">
+                No execution data yet.
+            </div>
+        )
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
+                <XAxis dataKey="date" tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} label={{ value: 'Executions', angle: -90, position: 'insideLeft' }} />
+                <Tooltip
+                    {...TooltipStyle}
+                    formatter={(val: any) => [val, "Test Cases Executed"]}
+                    labelFormatter={(label) => `${label}`}
+                />
+                <Bar dataKey="executions" fill={COLORS.purple} radius={[8, 8, 0, 0]} />
+            </BarChart>
+        </ResponsiveContainer>
+    )
+}
+
+export function TestBurndownChart() {
+    const { projects, activeProjectId } = useProjectStore()
+    const activeProject = projects.find(p => p.id === activeProjectId)
+
+    const data = useMemo(() => {
+        if (!activeProject) return []
+
+        // Find active sprint
+        const activeSprint = activeProject.tasks.find(t => t.sprint?.isActive)?.sprint
+        if (!activeSprint) return []
+
+        const sprintStart = new Date(activeSprint.startDate || 0)
+        const sprintEnd = new Date(activeSprint.endDate || Date.now())
+
+        // Get test cases that should be run in this sprint
+        const sprintTestCases = activeProject.testPlans.flatMap(tp => tp.testCases)
+
+        // Build burndown data by date
+        const byDate: Record<string, number> = {}
+        const dateRange = Math.ceil((sprintEnd.getTime() - sprintStart.getTime()) / (1000 * 3600 * 24)) + 1
+
+        for (let i = 0; i < dateRange; i++) {
+            const date = new Date(sprintStart)
+            date.setDate(date.getDate() + i)
+            const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            // Start with all test cases not run
+            byDate[dateStr] = sprintTestCases.filter(tc => tc.status === 'not-run').length
+        }
+
+        // Count remaining (not-run) test cases across the sprint duration
+        return Object.entries(byDate)
+            .map(([date, count]) => ({
+                date,
+                remaining: count
+            }))
+            .slice(-14) // Last 14 days for clarity
+    }, [activeProject])
+
+    if (data.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-full text-[11px] text-[#6B7280] italic">
+                No active sprint or test cases.
+            </div>
+        )
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
+                <XAxis dataKey="date" tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} label={{ value: 'Not Run', angle: -90, position: 'insideLeft' }} />
+                <Tooltip
+                    {...TooltipStyle}
+                    formatter={(val: any) => [val, "Test Cases Remaining"]}
+                    labelFormatter={(label) => `${label}`}
+                />
+                <Line
+                    type="monotone"
+                    dataKey="remaining"
+                    stroke={COLORS.purple}
+                    strokeWidth={2}
+                    dot={{ fill: COLORS.purple, r: 3 }}
+                    activeDot={{ r: 5 }}
+                />
+            </LineChart>
+        </ResponsiveContainer>
+    )
+}

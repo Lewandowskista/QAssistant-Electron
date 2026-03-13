@@ -3,16 +3,38 @@ const fsp = fs.promises;
 const path = require('node:path');
 const os = require('node:os');
 
+// Load .env file from project root (dev mode — production builds have vars baked in via electron.vite.config.ts)
+;(function loadDotEnv() {
+    try {
+        const envPath = path.join(__dirname, '../../.env')
+        if (fs.existsSync(envPath)) {
+            const lines = fs.readFileSync(envPath, 'utf8').split('\n')
+            for (const line of lines) {
+                const trimmed = line.trim()
+                if (!trimmed || trimmed.startsWith('#')) continue
+                const eq = trimmed.indexOf('=')
+                if (eq === -1) continue
+                const key = trimmed.slice(0, eq).trim()
+                const value = trimmed.slice(eq + 1).trim()
+                if (!process.env[key]) process.env[key] = value
+            }
+        }
+    } catch { /* ignore */ }
+})()
+
 import { setCredential, getCredential, deleteCredential, listCredentials, initCredentials } from './credentialService';
+import * as oauth from './oauth';
+import * as github from './github';
 import { assertString, assertArray, assertObject } from './ipc-validation';
 import { withFileLock } from './file-lock';
 import { AI_RATE_LIMIT_MS, MAX_SAP_HAC_INSTANCES } from './constants';
 import { initFileStorage } from './fileStorage';
 import { GeminiService } from './gemini';
-import { startServer, stopServer } from './server';
+import { startServer, stopServer, setOAuthCompleteCallback } from './server';
 import { startReminderService } from './reminders';
 import * as health from './health';
 import * as report from './report';
+import * as reportBuilder from './report-builder';
 import * as integrations from './integrations';
 import { saveFile, saveBytes, deleteFile } from './fileStorage';
 import * as bugReport from './bug-report';
@@ -74,6 +96,7 @@ if (app) {
     let ATTACHMENTS_DIR = '';
     let SETTINGS_FILE = '';
     let tray: any = null;
+    let USER_PROFILE_FILE = '';
 
     const isMac = process.platform === 'darwin';
 
@@ -282,12 +305,12 @@ if (app) {
             return null;
         }
 
-        ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName }: any) => {
+        ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName, comments }: any) => {
             const rateErr = checkAiRateLimit('ai-generate-cases'); if (rateErr) return rateErr;
             assertString(apiKey, 'apiKey');
             const s = new GeminiService(apiKey);
             try {
-                return await s.generateTestCases(tasks, sourceName, project, designDoc, modelName);
+                return await s.generateTestCases(tasks, sourceName, project, designDoc, modelName, comments);
             } catch (err: any) {
                 // Return a flat wrapper to the IPC boundary to safely cross context bridges without native cloning recursion
                 return { __isError: true, message: String(err) };
@@ -419,10 +442,40 @@ if (app) {
             if (res.canceled) return { success: false };
             const printWindow = new BrowserWindow({ show: false });
             await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-            const data = await printWindow.webContents.printToPDF({});
+            const data = await printWindow.webContents.printToPDF({ printBackground: true, pageSize: 'A4' });
             await fsp.writeFile(res.filePath!, data);
             printWindow.close();
             return { success: true, path: res.filePath };
+        });
+
+        // Report Builder Handlers (M1: Custom Report Templates)
+        ipcMain.handle('generate-custom-report', async (_e: any, { project: p, template }: any) => {
+            try {
+                const html = reportBuilder.generateCustomReport(p, template);
+                return { success: true, html };
+            } catch (err: any) {
+                return { success: false, error: String(err) };
+            }
+        });
+
+        ipcMain.handle('export-custom-report-pdf', async (_e: any, { project: p, template }: any) => {
+            try {
+                if (!mainWindow) return { success: false, error: 'No main window' };
+                const html = reportBuilder.generateCustomReport(p, template);
+                const res = await dialog.showSaveDialog(mainWindow, {
+                    defaultPath: `${p.name.replace(/\s+/g, '-')}-${template.name.replace(/\s+/g, '-')}.pdf`,
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                });
+                if (res.canceled) return { success: false };
+                const printWindow = new BrowserWindow({ show: false });
+                await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+                const data = await printWindow.webContents.printToPDF({ printBackground: true, pageSize: 'A4' });
+                await fsp.writeFile(res.filePath!, data);
+                printWindow.close();
+                return { success: true, path: res.filePath };
+            } catch (err: any) {
+                return { success: false, error: String(err) };
+            }
         });
 
         // File/CSV Handlers
@@ -511,6 +564,121 @@ if (app) {
             assertString(baseUrl, 'baseUrl', 500);
             assertString(catalogId, 'catalogId', 500);
             return await getSapHac(baseUrl).getCatalogSyncDiff(catalogId, maxMissing);
+        });
+
+        // User Profile
+        ipcMain.handle('read-user-profile', async () => {
+            try {
+                if (fs.existsSync(USER_PROFILE_FILE)) {
+                    const content = await fsp.readFile(USER_PROFILE_FILE, 'utf8');
+                    return JSON.parse(content);
+                }
+            } catch (e) {
+                console.error('Error reading user profile:', e);
+            }
+            return null;
+        });
+        ipcMain.handle('write-user-profile', async (_e: any, data: any) => {
+            try {
+                assertObject(data, 'userProfile');
+                await fsp.writeFile(USER_PROFILE_FILE, JSON.stringify(data, null, 2));
+                return true;
+            } catch (e) {
+                console.error('Error writing user profile:', e);
+                return false;
+            }
+        });
+
+        // OAuth
+        ipcMain.handle('oauth-start', async (_e: any, { provider }: any) => {
+            try {
+                assertString(provider, 'provider', 20);
+                // Determine the current server port (default 5248)
+                let settings: any = {};
+                try {
+                    if (fs.existsSync(SETTINGS_FILE)) {
+                        settings = JSON.parse(await fsp.readFile(SETTINGS_FILE, 'utf8'));
+                    }
+                } catch { /* use default port */ }
+                const port = parseInt(settings.automationPort || '5248', 10);
+                const url = oauth.generateAuthUrl(provider as any, port);
+                await shell.openExternal(url);
+                return { success: true };
+            } catch (e: any) {
+                return { success: false, error: e.message };
+            }
+        });
+        ipcMain.handle('oauth-logout', async (_e: any, { provider }: any) => {
+            try {
+                assertString(provider, 'provider', 20);
+                await oauth.revokeTokens(provider as any);
+                return { success: true };
+            } catch (e: any) {
+                return { success: false, error: e.message };
+            }
+        });
+        ipcMain.handle('oauth-get-status', async (_e: any, { provider }: any) => {
+            try {
+                assertString(provider, 'provider', 20);
+                const connected = await oauth.isConnected(provider as any);
+                return { connected };
+            } catch {
+                return { connected: false };
+            }
+        });
+
+        // GitHub Integration
+        ipcMain.handle('github-check-scope', async () => {
+            try { return await github.checkTokenScope(); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-repos', async (_e: any, { forceRefresh }: any = {}) => {
+            try { return await github.getRepos(!!forceRefresh); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-pull-requests', async (_e: any, { owner, repo, state, forceRefresh }: any) => {
+            try { return await github.getPullRequests(owner, repo, state, !!forceRefresh); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-pr-detail', async (_e: any, { owner, repo, prNumber }: any) => {
+            try { return await github.getPrDetail(owner, repo, prNumber); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-pr-reviews', async (_e: any, { owner, repo, prNumber }: any) => {
+            try { return await github.getPrReviews(owner, repo, prNumber); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-pr-check-status', async (_e: any, { owner, repo, ref }: any) => {
+            try { return await github.getPrCheckStatus(owner, repo, ref); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-commits', async (_e: any, { owner, repo, branch, forceRefresh }: any) => {
+            try { return await github.getCommits(owner, repo, branch, !!forceRefresh); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-branches', async (_e: any, { owner, repo, forceRefresh }: any) => {
+            try { return await github.getBranches(owner, repo, !!forceRefresh); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-review-requests', async (_e: any, { forceRefresh }: any = {}) => {
+            try { return await github.getReviewRequests(!!forceRefresh); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-my-open-prs', async (_e: any, { forceRefresh }: any = {}) => {
+            try { return await github.getMyOpenPrs(!!forceRefresh); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-workflow-runs', async (_e: any, { owner, repo, forceRefresh }: any) => {
+            try { return await github.getWorkflowRuns(owner, repo, !!forceRefresh); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-get-deployments', async (_e: any, { owner, repo, forceRefresh }: any) => {
+            try { return await github.getDeployments(owner, repo, !!forceRefresh); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
+        });
+        ipcMain.handle('github-rerun-workflow', async (_e: any, { owner, repo, runId }: any) => {
+            try { return await github.rerunWorkflow(owner, repo, runId); }
+            catch (e: any) { return { __isError: true, message: e.message }; }
         });
 
         ipcMain.handle('get-system-info', () => ({ platform: process.platform }));
@@ -614,6 +782,7 @@ if (app) {
         CREDENTIALS_FILE = path.join(APP_DATA_DIR, 'credentials.json');
         ATTACHMENTS_DIR = path.join(APP_DATA_DIR, 'attachments');
         SETTINGS_FILE = path.join(APP_DATA_DIR, 'settings.json');
+        USER_PROFILE_FILE = path.join(APP_DATA_DIR, 'user.json');
 
         if (!fs.existsSync(APP_DATA_DIR)) fs.mkdirSync(APP_DATA_DIR, { recursive: true });
         if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
@@ -622,6 +791,13 @@ if (app) {
         initCredentials(CREDENTIALS_FILE);
 
         setupIpc();
+        // Notify renderer when OAuth completes via the Express callback route
+        setOAuthCompleteCallback((provider, userInfo) => {
+            mainWindow?.webContents.send('oauth-complete', { provider, userInfo });
+        });
+        // Auto-start the server so the OAuth /auth/callback endpoint is always available
+        const crypto = require('node:crypto');
+        startServer(crypto.randomBytes(32).toString('hex'), 5248);
         createWindow();
         createTray();
 
@@ -666,7 +842,15 @@ if (app) {
     app.on('window-all-closed', () => {
         const settings = fs.existsSync(SETTINGS_FILE) ? JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) : {};
         if (process.platform !== 'darwin' && !settings.minimizeToTray) {
-            app.quit(); 
+            app.quit();
+        }
+    });
+
+    app.on('activate', () => {
+        if (!mainWindow) {
+            createWindow();
+        } else {
+            mainWindow.show();
         }
     });
 } else {

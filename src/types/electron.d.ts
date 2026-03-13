@@ -1,4 +1,6 @@
 import { Project, TestCase, Task, Attachment } from './project';
+import { UserProfile } from './user';
+import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem } from './github';
 
 export interface ElectronAPI {
     // Window controls
@@ -92,6 +94,35 @@ export interface ElectronAPI {
     checkEnvironmentsHealth: (environments: any[]) => Promise<any>;
     startHealthService: (environments: any[], intervalMs?: number) => Promise<void>;
     stopHealthService: () => Promise<void>;
+
+    // User profile
+    readUserProfile: () => Promise<UserProfile | null>;
+    writeUserProfile: (data: UserProfile) => Promise<boolean>;
+
+    // OAuth
+    oauthStart: (provider: string) => Promise<{ success: boolean; error?: string }>;
+    oauthLogout: (provider: string) => Promise<{ success: boolean; error?: string }>;
+    oauthGetStatus: (provider: string) => Promise<{ connected: boolean }>;
+    onOAuthComplete: (callback: (data: { provider: string; userInfo: any }) => void) => () => void;
+
+    // GitHub Integration
+    githubCheckScope: () => Promise<{ hasRepoScope: boolean; scopes: string } | { __isError: boolean; message: string }>;
+    githubGetRepos: (args?: { forceRefresh?: boolean }) => Promise<GitHubRepo[] | { __isError: boolean; message: string }>;
+    githubGetPullRequests: (args: { owner: string; repo: string; state?: string; forceRefresh?: boolean }) => Promise<GitHubPullRequest[] | { __isError: boolean; message: string }>;
+    githubGetPrDetail: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubPrDetail | { __isError: boolean; message: string }>;
+    githubGetPrReviews: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubReview[] | { __isError: boolean; message: string }>;
+    githubGetPrCheckStatus: (args: { owner: string; repo: string; ref: string }) => Promise<string | null | { __isError: boolean; message: string }>;
+    githubGetCommits: (args: { owner: string; repo: string; branch?: string; forceRefresh?: boolean }) => Promise<GitHubCommit[] | { __isError: boolean; message: string }>;
+    githubGetBranches: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<{ name: string; sha: string }[] | { __isError: boolean; message: string }>;
+    githubGetReviewRequests: (args?: { forceRefresh?: boolean }) => Promise<GitHubSearchItem[] | { __isError: boolean; message: string }>;
+    githubGetMyOpenPrs: (args?: { forceRefresh?: boolean }) => Promise<GitHubSearchItem[] | { __isError: boolean; message: string }>;
+    githubGetWorkflowRuns: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<GitHubWorkflowRun[] | { __isError: boolean; message: string }>;
+    githubGetDeployments: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<GitHubDeployment[] | { __isError: boolean; message: string }>;
+    githubRerunWorkflow: (args: { owner: string; repo: string; runId: number }) => Promise<{ success: boolean } | { __isError: boolean; message: string }>;
+
+    // Report Builder (M1)
+    generateCustomReport: (args: { project: any; template: any }) => Promise<{ success: boolean; html?: string; error?: string }>;
+    exportCustomReportPdf: (args: { project: any; template: any }) => Promise<{ success: boolean; path?: string; error?: string }>;
 
     // System
     showNotification: (title: string, body: string) => void;

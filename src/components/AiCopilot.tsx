@@ -17,6 +17,7 @@ import {
     Lightbulb,
 } from "lucide-react"
 import FormattedText from "@/components/FormattedText"
+import { sanitizeProjectForAi } from "@/lib/aiUtils"
 
 interface Message {
     id: string
@@ -158,7 +159,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                 apiKey,
                 userMessage: text.trim(),
                 history: messages.map((m) => ({ role: m.role, content: m.content })),
-                project: activeProject || null,
+                project: sanitizeProjectForAi(activeProject),
                 modelName: activeProject?.geminiModel,
             })
 

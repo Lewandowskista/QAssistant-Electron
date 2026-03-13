@@ -4,9 +4,20 @@ import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
 const MODEL_3_FLASH_PREVIEW = 'gemini-3-flash-preview';
 
+// Per-feature output token limits — prevents rambling and reduces cost
+const MAX_TOKENS: Record<string, number> = {
+    chat: 4096,
+    issue_analysis: 4096,
+    test_generation: 8192,
+    criticality: 2048,
+    suggestions: 2048,
+    smoke_subset: 1024,
+    project_analysis: 4096,
+}
+
 /**
- * AI Service for Gemini integration with full TOON (Token-Oriented Object Notation) prompt system.
- * Mirrors the C# GeminiService.cs implementation exactly.
+ * AI Service for Gemini integration with TOON (Token-Oriented Object Notation) prompt system.
+ * Uses systemInstruction for role/rules separation and responseMimeType for JSON outputs.
  */
 export class GeminiService {
     private genAI: GoogleGenerativeAI
@@ -39,18 +50,27 @@ export class GeminiService {
         }
     }
 
-    private getModel(modelName: string, temperature = 0.7) {
+    private getModel(modelName: string, temperature = 0.7, maxOutputTokens = 8192, systemInstruction?: string, jsonMode = false) {
         return this.genAI.getGenerativeModel({
             model: modelName,
+            systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
             generationConfig: {
                 temperature,
                 topP: 0.9,
-                maxOutputTokens: 8192,
+                maxOutputTokens,
+                ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
             }
         })
     }
 
-    private async executeWithFallback(prompt: string | any, modelOverride?: string, temperature = 0.7): Promise<string> {
+    private async executeWithFallback(
+        prompt: string | any,
+        modelOverride?: string,
+        temperature = 0.7,
+        maxOutputTokens = 8192,
+        systemInstruction?: string,
+        jsonMode = false
+    ): Promise<string> {
         // Build unique sequence of models starting with override, then preferred, then available ones
         const models = Array.from(new Set([
             modelOverride,
@@ -62,7 +82,7 @@ export class GeminiService {
         let lastError: any;
         for (const modelName of models) {
             try {
-                const model = this.getModel(modelName, temperature);
+                const model = this.getModel(modelName, temperature, maxOutputTokens, systemInstruction, jsonMode);
                 const result = await model.generateContent(prompt);
 
                 // If successful and we were using a non-preferred model, update it
@@ -162,7 +182,12 @@ export class GeminiService {
 
     // ── QA Context Block ─────────────────────────────────────────────────────
 
-    private static appendQaContext(lines: string[], project: any): void {
+    /**
+     * Appends project QA context in TOON format.
+     * @param excludeTrackedIssues - Set true when the calling prompt already includes a dedicated issues block
+     *   (test case generation, criticality assessment) to avoid doubling token usage.
+     */
+    private static appendQaContext(lines: string[], project: any, excludeTrackedIssues = false): void {
         if (!project) return
 
         lines.push('qa_context{')
@@ -204,33 +229,36 @@ export class GeminiService {
         }
 
         // --- Tracked issues (JIRA / Linear) ---
-        const DONE_STATUSES = new Set([
-            'done', 'closed', 'resolved', 'cancelled', 'canceled',
-            "won't fix", 'wont fix', 'duplicate'
-        ])
-        const MAX_ISSUES = 25
-        const allTasks: any[] = project.tasks || []
-        const activeTasks = allTasks.filter((t: any) => {
-            if (t.source === 'manual') return false
-            return !DONE_STATUSES.has(String(t.status || '').toLowerCase().trim())
-        })
-        if (activeTasks.length > 0) {
-            const blocker = activeTasks.filter((t: any) => t.priority === 'critical').length
-            const high    = activeTasks.filter((t: any) => t.priority === 'high').length
-            const medium  = activeTasks.filter((t: any) => t.priority === 'medium').length
-            const low     = activeTasks.filter((t: any) => t.priority === 'low').length
-            lines.push(` tasks_summary:total=${allTasks.length},active=${activeTasks.length},shown=${Math.min(activeTasks.length, MAX_ISSUES)},blocker=${blocker},high=${high},medium=${medium},low=${low}`)
-            lines.push(' tracked_issues[')
-            for (const task of activeTasks.slice(0, MAX_ISSUES)) {
-                const issueId = GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId, 60)
-                const title   = GeminiService.sanitizeToonValue(task.title, 150)
-                let entry = `  {id:${issueId},t:${title},status:${task.status || 'unknown'},priority:${task.priority || 'medium'}`
-                if (task.assignee) entry += `,assignee:${GeminiService.sanitizeToonValue(task.assignee, 80)}`
-                if (task.labels)   entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 100)}`
-                entry += '}'
-                lines.push(entry)
+        // Skip when the calling prompt already includes a dedicated issues block to avoid doubling tokens
+        if (!excludeTrackedIssues) {
+            const DONE_STATUSES = new Set([
+                'done', 'closed', 'resolved', 'cancelled', 'canceled',
+                "won't fix", 'wont fix', 'duplicate'
+            ])
+            const MAX_ISSUES = 25
+            const allTasks: any[] = project.tasks || []
+            const activeTasks = allTasks.filter((t: any) => {
+                if (t.source === 'manual') return false
+                return !DONE_STATUSES.has(String(t.status || '').toLowerCase().trim())
+            })
+            if (activeTasks.length > 0) {
+                const blocker = activeTasks.filter((t: any) => t.priority === 'critical').length
+                const high    = activeTasks.filter((t: any) => t.priority === 'high').length
+                const medium  = activeTasks.filter((t: any) => t.priority === 'medium').length
+                const low     = activeTasks.filter((t: any) => t.priority === 'low').length
+                lines.push(` tasks_summary:total=${allTasks.length},active=${activeTasks.length},shown=${Math.min(activeTasks.length, MAX_ISSUES)},blocker=${blocker},high=${high},medium=${medium},low=${low}`)
+                lines.push(' tracked_issues[')
+                for (const task of activeTasks.slice(0, MAX_ISSUES)) {
+                    const issueId = GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId, 60)
+                    const title   = GeminiService.sanitizeToonValue(task.title, 150)
+                    let entry = `  {id:${issueId},t:${title},status:${task.status || 'unknown'},priority:${task.priority || 'medium'}`
+                    if (task.assignee) entry += `,assignee:${GeminiService.sanitizeToonValue(task.assignee, 80)}`
+                    if (task.labels)   entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 100)}`
+                    entry += '}'
+                    lines.push(entry)
+                }
+                lines.push(' ]')
             }
-            lines.push(' ]')
         }
 
         lines.push('}')
@@ -243,97 +271,99 @@ export class GeminiService {
         }
     }
 
-    // ── Prompt Builders (matching C# GeminiService.cs exactly) ──────────────
+    // ── Prompt Builders ──────────────────────────────────────────────────────
+    // Each builder returns { system, user } so role/rules go into systemInstruction
+    // and actual data goes into the user turn — improving instruction adherence.
 
-    static buildToonPrompt(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0): string {
-        const lines: string[] = []
-        lines.push('@role:sr_qa_engineer')
-        lines.push('@task:deep_issue_analysis')
-        lines.push('@perspective:qa_engineer—focus on testability,reproducibility,regression_risk,environment_impact')
-        lines.push('@out_fmt:md_sections[## Root Cause Analysis,## Impact Assessment,## Suggested Fix,## Prevention Recommendations]')
-        lines.push('@rules:all_sections_required|multi_sentence|specific_actionable|infer_if_brief|no_skip|no_merge|consider_env_context|reference_project_functionality|use_tables_for_structured_data|bold_key_findings')
-        lines.push('---')
+    static buildToonPrompt(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0): { system: string; user: string } {
+        const sysLines: string[] = []
+        sysLines.push('@role:sr_qa_engineer')
+        sysLines.push('@task:deep_issue_analysis')
+        sysLines.push('@perspective:qa_engineer—focus on testability,reproducibility,regression_risk,environment_impact')
+        sysLines.push('@out_fmt:md_sections[## Root Cause Analysis,## Impact Assessment,## Suggested Fix,## Prevention Recommendations]')
+        sysLines.push('@rules:all_sections_required|multi_sentence|specific_actionable|infer_if_brief|no_skip|no_merge|consider_env_context|reference_project_functionality|use_tables_for_structured_data|bold_key_findings')
+        sysLines.push('@priority_mapping:task_priorities(critical=Blocker,high=Major,medium=Medium,low=Low)|tc_priorities(Blocker,Major,Medium,Low)')
 
-        GeminiService.appendQaContext(lines, project)
+        const userLines: string[] = []
+        GeminiService.appendQaContext(userLines, project)
 
-        lines.push('issue{')
-        lines.push(` t:${GeminiService.sanitizeToonValue(task.title, 300)}`)
-        if (task.sourceIssueId) lines.push(` id:${GeminiService.sanitizeToonValue(task.sourceIssueId, 100)}`)
-        lines.push(` status:${task.status}`)
-        lines.push(` priority:${task.priority}`)
-        if (task.assignee) lines.push(` assignee:${GeminiService.sanitizeToonValue(task.assignee, 200)}`)
-        if (task.labels) lines.push(` labels:${GeminiService.sanitizeToonValue(task.labels, 200)}`)
-        if (task.dueDate) lines.push(` due:${new Date(task.dueDate).toISOString().split('T')[0]}`)
-        lines.push(` desc:${task.description ? GeminiService.sanitizeToonValue(task.description) : '(none—infer from title+metadata)'}`)
-        lines.push('}')
+        userLines.push('issue{')
+        userLines.push(` t:${GeminiService.sanitizeToonValue(task.title, 300)}`)
+        if (task.sourceIssueId) userLines.push(` id:${GeminiService.sanitizeToonValue(task.sourceIssueId, 100)}`)
+        userLines.push(` status:${task.status}`)
+        userLines.push(` priority:${task.priority}`)
+        if (task.assignee) userLines.push(` assignee:${GeminiService.sanitizeToonValue(task.assignee, 200)}`)
+        if (task.labels) userLines.push(` labels:${GeminiService.sanitizeToonValue(task.labels, 200)}`)
+        if (task.dueDate) userLines.push(` due:${new Date(task.dueDate).toISOString().split('T')[0]}`)
+        userLines.push(` desc:${task.description ? GeminiService.sanitizeToonValue(task.description) : '(none—infer from title+metadata)'}`)
+        userLines.push('}')
 
         if (comments.length > 0) {
-            lines.push('comments[')
+            userLines.push('comments[')
             for (const c of comments) {
-                lines.push(` {author:${GeminiService.sanitizeToonValue(c.authorName, 200)},date:${c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : ''},body:${GeminiService.sanitizeToonValue(c.body)}}`)
+                userLines.push(` {author:${GeminiService.sanitizeToonValue(c.authorName, 200)},date:${c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : ''},body:${GeminiService.sanitizeToonValue(c.body)}}`)
             }
-            lines.push(']')
+            userLines.push(']')
         }
 
         const images = task.attachmentUrls?.length || 0
         const totalImages = Math.max(attachedImageCount, images)
 
         if (totalImages > 0) {
-            lines.push(`@media:${totalImages}_image(s)_attached—analyze following visual content for additional context (screenshots, error messages, UI state, logs)`)
+            userLines.push(`@media:${totalImages}_image(s)_attached—analyze following visual content for additional context (screenshots, error messages, UI state, logs)`)
         }
 
         if (project?.contextTasks?.length > 0) {
-            lines.push('---')
-            lines.push('project_context_tasks[')
+            userLines.push('---')
+            userLines.push('project_context_tasks[')
             for (const t of project.contextTasks) {
                 let entry = ` {t:${GeminiService.sanitizeToonValue(t.title, 200)},type:${GeminiService.sanitizeToonValue(t.issueType, 60)}`
                 if (t.labels) entry += `,labels:${GeminiService.sanitizeToonValue(t.labels, 100)}`
                 if (t.description) entry += `,desc:${GeminiService.sanitizeToonValue(t.description, 300)}`
                 entry += '}'
-                lines.push(entry)
+                userLines.push(entry)
             }
-            lines.push(']')
+            userLines.push(']')
         }
 
-        return lines.join('\n')
+        return { system: sysLines.join('\n'), user: userLines.join('\n') }
     }
 
-    static buildTestCaseGenerationPrompt(tasks: any[], sourceName: string, project?: any, designDoc?: string): string {
-        const lines: string[] = []
-        lines.push('@role:sr_qa_engineer')
-        lines.push('@task:generate_test_cases')
-        lines.push('@perspective:qa_engineer—generate functional and integration tests specifically covering the provided issues')
-        lines.push(`@source:${sourceName}`)
-        lines.push('@out_fmt:json_array[{testCaseId,title,preConditions,testSteps,testData,expectedResult,priority,sourceIssueId}]')
-        lines.push('@out_rules:raw_json_only|no_markdown_wrap|no_code_block')
-        lines.push('@rules:comprehensive|all_fields_required|specific_actionable|realistic_test_data|cover_positive_negative_edge|no_generic|env_aware|use_known_test_data_when_applicable|focus_only_on_provided_issues|exclude_general_regression_or_smoke_tests')
+    static buildTestCaseGenerationPrompt(tasks: any[], sourceName: string, project?: any, designDoc?: string, comments?: Record<string, any[]>): { system: string; user: string } {
+        const sysLines: string[] = []
+        sysLines.push('@role:sr_qa_engineer')
+        sysLines.push('@task:generate_test_cases')
+        sysLines.push('@perspective:qa_engineer—generate functional and integration tests specifically covering the provided issues')
+        sysLines.push(`@source:${sourceName}`)
+        sysLines.push('@out_fmt:json_array[{testCaseId,title,preConditions,testSteps,testData,expectedResult,priority,sourceIssueId}]')
+        sysLines.push('@rules:comprehensive|all_fields_required|specific_actionable|realistic_test_data|cover_positive_negative_edge|no_generic|env_aware|use_known_test_data_when_applicable|focus_only_on_provided_issues|exclude_general_regression_or_smoke_tests')
+        sysLines.push('@priority_mapping:task_priorities(critical=Blocker,high=Major,medium=Medium,low=Low)|output_priority_must_be_one_of(Blocker,Major,Medium,Low)')
         if (designDoc) {
-            lines.push('@extra_context:design_document_provided—use it to improve accuracy,coverage,and specificity of generated test cases')
+            sysLines.push('@extra_context:design_document_provided—use it to improve accuracy,coverage,and specificity of generated test cases')
         }
-        lines.push('---')
+        sysLines.push('field_spec{')
+        sysLines.push(' testCaseId:sequential(TC-001,TC-002,...)')
+        sysLines.push(' title:clear_descriptive')
+        sysLines.push(' preConditions:state_before_execution')
+        sysLines.push(' testSteps:numbered_step_by_step')
+        sysLines.push(' testData:specific_values')
+        sysLines.push(' expectedResult:pass_criteria')
+        sysLines.push(' priority:one_of(Blocker,Major,Medium,Low)_based_on_issue_severity_and_impact')
+        sysLines.push(' sourceIssueId:exact_id_of_the_source_issue_this_test_case_covers(IssueIdentifier_field_value)')
+        sysLines.push('}')
 
-        GeminiService.appendQaContext(lines, project)
+        const userLines: string[] = []
+        // Exclude tracked_issues from qa_context — the project_issues block below already covers them
+        GeminiService.appendQaContext(userLines, project, true)
 
         if (designDoc) {
-            lines.push('design_document{')
-            lines.push(GeminiService.sanitizeToonValueForTestGen(designDoc, 20000))
-            lines.push('}')
-            lines.push('---')
+            userLines.push('design_document{')
+            userLines.push(GeminiService.sanitizeToonValueForTestGen(designDoc, 20000))
+            userLines.push('}')
+            userLines.push('---')
         }
 
-        lines.push('field_spec{')
-        lines.push(' testCaseId:sequential(TC-001,TC-002,...)')
-        lines.push(' title:clear_descriptive')
-        lines.push(' preConditions:state_before_execution')
-        lines.push(' testSteps:numbered_step_by_step')
-        lines.push(' testData:specific_values')
-        lines.push(' expectedResult:pass_criteria')
-        lines.push(' priority:one_of(Blocker,Major,Medium,Low)_based_on_issue_severity_and_impact')
-        lines.push(' sourceIssueId:exact_id_of_the_source_issue_this_test_case_covers(IssueIdentifier_field_value)')
-        lines.push('}')
-        lines.push('---')
-
-        lines.push('project_issues[')
+        userLines.push('project_issues[')
         for (const task of tasks) {
             let entry = ` {id:${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId, 100)},title:${GeminiService.sanitizeToonValue(task.title, 300)},status:${task.status || 'todo'},priority:${task.priority || 'medium'}`
             if (task.description) entry += `,desc:${GeminiService.sanitizeToonValueForTestGen(task.description, 2000)}`
@@ -341,25 +371,38 @@ export class GeminiService {
             if (task.labels) entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 200)}`
             if (task.attachmentUrls?.length) entry += `,has_images:true(${task.attachmentUrls.length}_attached)`
             entry += '}'
-            lines.push(entry)
-        }
-        lines.push(']')
+            userLines.push(entry)
 
-        return lines.join('\n')
+            // Include up to 5 most recent comments per issue for richer context
+            const issueId = task.sourceIssueId || task.externalId
+            const issueComments = comments?.[issueId]?.slice(0, 5) || []
+            if (issueComments.length > 0) {
+                userLines.push(` issue_comments_for_${GeminiService.sanitizeToonValue(issueId, 30)}[`)
+                for (const c of issueComments) {
+                    userLines.push(`  {author:${GeminiService.sanitizeToonValue(c.authorName, 100)},body:${GeminiService.sanitizeToonValueForTestGen(c.body, 500)}}`)
+                }
+                userLines.push(' ]')
+            }
+        }
+        userLines.push(']')
+
+        return { system: sysLines.join('\n'), user: userLines.join('\n') }
     }
 
-    static buildCriticalityAssessmentPrompt(tasks: any[], testPlans: any[], executions: any[], project?: any): string {
-        const lines: string[] = []
+    static buildCriticalityAssessmentPrompt(tasks: any[], testPlans: any[], executions: any[], project?: any): { system: string; user: string } {
         const allCases = testPlans.flatMap(tp => tp.testCases || [])
 
-        lines.push('@role:sr_qa_engineer')
-        lines.push('@task:criticality_assessment')
-        lines.push('@perspective:qa_engineer—assess release risk from QA standpoint considering environment health,test coverage gaps,checklist completion,blocker density')
-        lines.push('@out_fmt:md_sections[## Failure Summary by Priority,## Overall Risk Level,## Key Areas of Concern,## Recommended Actions,## Release Readiness]')
-        lines.push('@rules:concise|actionable|data_driven|risk_focused|all_sections_required|include_counts_per_priority(Blocker,Major,Medium,Low)|risk_level_one_of(Critical,High,Moderate,Low)|actions_ordered_by_severity|no_skip|no_merge|factor_env_coverage|factor_checklist_gaps')
-        lines.push('---')
+        const sysLines: string[] = []
+        sysLines.push('@role:sr_qa_engineer')
+        sysLines.push('@task:criticality_assessment')
+        sysLines.push('@perspective:qa_engineer—assess release risk from QA standpoint considering environment health,test coverage gaps,checklist completion,blocker density')
+        sysLines.push('@out_fmt:md_sections[## Failure Summary by Priority,## Overall Risk Level,## Key Areas of Concern,## Recommended Actions,## Release Readiness]')
+        sysLines.push('@rules:concise|actionable|data_driven|risk_focused|all_sections_required|include_counts_per_priority(Blocker,Major,Medium,Low)|risk_level_one_of(Critical,High,Moderate,Low)|actions_ordered_by_severity|no_skip|no_merge|factor_env_coverage|factor_checklist_gaps')
+        sysLines.push('@priority_mapping:task_priorities(critical=Blocker,high=Major,medium=Medium,low=Low)|tc_priorities(blocker,major,medium,low)')
 
-        GeminiService.appendQaContext(lines, project)
+        const userLines: string[] = []
+        // Exclude tracked_issues — project_tasks block below covers the same data
+        GeminiService.appendQaContext(userLines, project, true)
 
         const failedCases = allCases.filter((tc: any) => tc.status === 'failed')
         const blockerFailed = failedCases.filter((tc: any) => tc.priority === 'blocker').length
@@ -367,49 +410,49 @@ export class GeminiService {
         const mediumFailed = failedCases.filter((tc: any) => tc.priority === 'medium').length
         const lowFailed = failedCases.filter((tc: any) => tc.priority === 'low').length
 
-        lines.push('failure_summary{')
-        lines.push(` total_test_cases:${allCases.length}`)
-        lines.push(` total_failed:${failedCases.length}`)
-        lines.push(` blocker_failed:${blockerFailed}`)
-        lines.push(` major_failed:${majorFailed}`)
-        lines.push(` medium_failed:${mediumFailed}`)
-        lines.push(` low_failed:${lowFailed}`)
-        lines.push(` total_executions:${executions.length}`)
-        lines.push(` total_test_plans:${testPlans.length}`)
-        lines.push('}')
-        lines.push('---')
+        userLines.push('failure_summary{')
+        userLines.push(` total_test_cases:${allCases.length}`)
+        userLines.push(` total_failed:${failedCases.length}`)
+        userLines.push(` blocker_failed:${blockerFailed}`)
+        userLines.push(` major_failed:${majorFailed}`)
+        userLines.push(` medium_failed:${mediumFailed}`)
+        userLines.push(` low_failed:${lowFailed}`)
+        userLines.push(` total_executions:${executions.length}`)
+        userLines.push(` total_test_plans:${testPlans.length}`)
+        userLines.push('}')
+        userLines.push('---')
 
         if (testPlans.length > 0) {
-            lines.push('test_plans[')
+            userLines.push('test_plans[')
             for (const plan of testPlans.slice(0, 20)) {
                 const planCases = plan.testCases || []
                 const planFailed = planCases.filter((tc: any) => tc.status === 'failed').length
-                lines.push(` {name:${GeminiService.sanitizeToonValue(plan.name, 200)},total:${planCases.length},failed:${planFailed},source:${GeminiService.sanitizeToonValue(plan.source, 60)}}`)
+                userLines.push(` {name:${GeminiService.sanitizeToonValue(plan.name, 200)},total:${planCases.length},failed:${planFailed},source:${GeminiService.sanitizeToonValue(plan.source, 60)}}`)
             }
-            lines.push(']')
-            lines.push('---')
+            userLines.push(']')
+            userLines.push('---')
         }
 
         if (tasks.length > 0) {
-            lines.push('project_tasks[')
+            userLines.push('project_tasks[')
             for (const task of tasks.slice(0, 50)) {
                 let entry = ` {id:${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId, 100)},title:${GeminiService.sanitizeToonValue(task.title, 300)},status:${task.status},priority:${task.priority}`
                 if (task.issueType) entry += `,type:${GeminiService.sanitizeToonValue(task.issueType, 100)}`
                 entry += '}'
-                lines.push(entry)
+                userLines.push(entry)
             }
-            lines.push(']')
+            userLines.push(']')
         }
 
         if (failedCases.length > 0) {
-            lines.push('failed_test_cases[')
+            userLines.push('failed_test_cases[')
             for (const tc of failedCases.slice(0, 50)) {
                 let entry = ` {id:${GeminiService.sanitizeToonValue(tc.displayId, 100)},title:${GeminiService.sanitizeToonValue(tc.title, 300)},priority:${tc.priority},source:${tc.source || 'Manual'}`
                 if (tc.actualResult) entry += `,actual_result:${GeminiService.sanitizeToonValue(tc.actualResult, 200)}`
                 entry += '}'
-                lines.push(entry)
+                userLines.push(entry)
             }
-            lines.push(']')
+            userLines.push(']')
         }
 
         if (executions && executions.length > 0) {
@@ -418,14 +461,13 @@ export class GeminiService {
                 return acc
             }, {})
             const groupStrs = Object.entries(resultGroups).map(([k, v]) => `${k}:${v}`)
-            lines.push(`exec_results{${groupStrs.join(',')}}`)
+            userLines.push(`exec_results{${groupStrs.join(',')}}`)
         }
 
-        return lines.join('\n')
+        return { system: sysLines.join('\n'), user: userLines.join('\n') }
     }
 
-    static buildTestRunSuggestionsPrompt(testPlans: any[], executions: any[], project?: any): string {
-        const lines: string[] = []
+    static buildTestRunSuggestionsPrompt(testPlans: any[], executions: any[], project?: any): { system: string; user: string } {
         const allCases = testPlans.flatMap(tp => tp.testCases || [])
         const total = allCases.length
         const passed = allCases.filter((tc: any) => tc.status === 'passed').length
@@ -435,29 +477,31 @@ export class GeminiService {
         const notRun = allCases.filter((tc: any) => tc.status === 'not-run').length
         const passRate = total > 0 ? (passed / total * 100).toFixed(1) : '0.0'
 
-        lines.push('@role:sr_qa_engineer')
-        lines.push('@task:test_run_suggestions')
-        lines.push('@perspective:qa_engineer—give specific,actionable QA gate and deployment suggestions based on test run results,pass rates per plan,and failed test case impact')
-        lines.push('@out_fmt:md_sections[## Overall Status,## Deployment Readiness,## Key Risks,## Suggestions]')
-        lines.push('@rules:concise|specific|data_driven|bold_decisions|deployment_verdict_prominent|reference_failing_areas|no_generic_advice|all_sections_required|suggestions_imperative_sentences_referencing_actual_data')
-        lines.push('@example_output:Do not deploy to UAT — 3 blocker failures in the Checkout UI module|Retest Payment flow before promoting to staging — 2 major failures detected|UI regression suite is at 45% pass rate — address before UAT')
-        lines.push('---')
+        const sysLines: string[] = []
+        sysLines.push('@role:sr_qa_engineer')
+        sysLines.push('@task:test_run_suggestions')
+        sysLines.push('@perspective:qa_engineer—give specific,actionable QA gate and deployment suggestions based on test run results,pass rates per plan,and failed test case impact')
+        sysLines.push('@out_fmt:md_sections[## Overall Status,## Deployment Readiness,## Key Risks,## Suggestions]')
+        sysLines.push('@rules:concise|specific|data_driven|bold_decisions|deployment_verdict_prominent|reference_failing_areas|no_generic_advice|all_sections_required|suggestions_imperative_sentences_referencing_actual_data')
+        sysLines.push('@example_output:Do not deploy to UAT — 3 blocker failures in the Checkout UI module|Retest Payment flow before promoting to staging — 2 major failures detected|UI regression suite is at 45% pass rate — address before UAT')
+        sysLines.push('@priority_mapping:tc_priorities(blocker,major,medium,low)')
 
-        GeminiService.appendQaContext(lines, project)
+        const userLines: string[] = []
+        GeminiService.appendQaContext(userLines, project)
 
-        lines.push('overall_stats{')
-        lines.push(` total_cases:${total}`)
-        lines.push(` passed:${passed}`)
-        lines.push(` failed:${failed}`)
-        lines.push(` blocked:${blocked}`)
-        lines.push(` skipped:${skipped}`)
-        lines.push(` not_run:${notRun}`)
-        lines.push(` pass_rate:${passRate}%`)
-        lines.push(` total_executions:${executions.length}`)
-        lines.push('}')
+        userLines.push('overall_stats{')
+        userLines.push(` total_cases:${total}`)
+        userLines.push(` passed:${passed}`)
+        userLines.push(` failed:${failed}`)
+        userLines.push(` blocked:${blocked}`)
+        userLines.push(` skipped:${skipped}`)
+        userLines.push(` not_run:${notRun}`)
+        userLines.push(` pass_rate:${passRate}%`)
+        userLines.push(` total_executions:${executions.length}`)
+        userLines.push('}')
 
         if (testPlans.length > 0) {
-            lines.push('plan_results[')
+            userLines.push('plan_results[')
             for (const plan of testPlans.slice(0, 20)) {
                 const planCases = plan.testCases || []
                 const planTotal = planCases.length
@@ -465,35 +509,35 @@ export class GeminiService {
                 const planFailed = planCases.filter((tc: any) => tc.status === 'failed').length
                 const planBlocked = planCases.filter((tc: any) => tc.status === 'blocked').length
                 const planRate = planTotal > 0 ? (planPassed / planTotal * 100).toFixed(1) : '0.0'
-                lines.push(` {name:${GeminiService.sanitizeToonValue(plan.name, 200)},total:${planTotal},passed:${planPassed},failed:${planFailed},blocked:${planBlocked},pass_rate:${planRate}%,source:${plan.source || 'Manual'}}`)
+                userLines.push(` {name:${GeminiService.sanitizeToonValue(plan.name, 200)},total:${planTotal},passed:${planPassed},failed:${planFailed},blocked:${planBlocked},pass_rate:${planRate}%,source:${plan.source || 'Manual'}}`)
             }
-            lines.push(']')
+            userLines.push(']')
         }
 
         const failedCases = allCases.filter((tc: any) => tc.status === 'failed')
         if (failedCases.length > 0) {
-            lines.push('failed_cases[')
+            userLines.push('failed_cases[')
             for (const tc of failedCases.slice(0, 50)) {
                 let entry = ` {id:${GeminiService.sanitizeToonValue(tc.displayId, 100)},title:${GeminiService.sanitizeToonValue(tc.title, 300)},priority:${tc.priority}`
                 if (tc.sapModule) entry += `,module:${tc.sapModule}`
                 if (tc.actualResult) entry += `,actual:${GeminiService.sanitizeToonValue(tc.actualResult, 200)}`
                 if (tc.sourceIssueId) entry += `,issue:${GeminiService.sanitizeToonValue(tc.sourceIssueId, 60)}`
                 entry += '}'
-                lines.push(entry)
+                userLines.push(entry)
             }
-            lines.push(']')
+            userLines.push(']')
         }
 
         const blockedCases = allCases.filter((tc: any) => tc.status === 'blocked')
         if (blockedCases.length > 0) {
-            lines.push('blocked_cases[')
+            userLines.push('blocked_cases[')
             for (const tc of blockedCases.slice(0, 20)) {
                 let entry = ` {title:${GeminiService.sanitizeToonValue(tc.title, 200)},priority:${tc.priority}`
                 if (tc.sapModule) entry += `,module:${tc.sapModule}`
                 entry += '}'
-                lines.push(entry)
+                userLines.push(entry)
             }
-            lines.push(']')
+            userLines.push(']')
         }
 
         if (executions && executions.length > 0) {
@@ -502,35 +546,36 @@ export class GeminiService {
                 return acc
             }, {})
             const groupStrs = Object.entries(resultGroups).map(([k, v]) => `${k}:${v}`)
-            lines.push(`exec_results{${groupStrs.join(',')}}`)
+            userLines.push(`exec_results{${groupStrs.join(',')}}`)
         }
 
-        return lines.join('\n')
+        return { system: sysLines.join('\n'), user: userLines.join('\n') }
     }
 
-    static buildSmokeSubsetPrompt(candidates: any[], doneTasks: any[], project?: any): string {
-        const lines: string[] = []
-        lines.push('@role:sr_qa_engineer')
-        lines.push('@task:smoke_subset_selection')
-        lines.push('@goal:minimal_tc_set_max_regression_coverage')
-        lines.push('@out_fmt:json_array_of_strings')
-        lines.push('@out_rules:raw_json_only|no_wrap|ids_only|max_30')
-        lines.push('@sel_rules:prefer(B>MAJ>MED>L)|cover_distinct_areas|no_dupes|exact_ids')
-        lines.push('@schema:t=title|p=priority(B=Blocker,MAJ=Major,MED=Medium,L=Low)|s=status(F=Failed,P=Passed,BL=Blocked,SK=Skipped)|iss=source_issue_id')
-        lines.push('---')
+    static buildSmokeSubsetPrompt(candidates: any[], doneTasks: any[], project?: any): { system: string; user: string } {
+        const sysLines: string[] = []
+        sysLines.push('@role:sr_qa_engineer')
+        sysLines.push('@task:smoke_subset_selection')
+        sysLines.push('@goal:minimal_tc_set_max_regression_coverage')
+        sysLines.push('@out_fmt:json_array_of_strings')
+        sysLines.push('@out_rules:raw_json_only|no_wrap|ids_only|max_30')
+        sysLines.push('@sel_rules:prefer(B>MAJ>MED>L)|cover_distinct_areas|no_dupes|exact_ids')
+        sysLines.push('@schema:t=title|p=priority(B=Blocker,MAJ=Major,MED=Medium,L=Low)|s=status(F=Failed,P=Passed,BL=Blocked,SK=Skipped)|iss=source_issue_id')
+        sysLines.push('@priority_mapping:task_priorities(critical=B,high=MAJ,medium=MED,low=L)|tc_priorities(blocker=B,major=MAJ,medium=MED,low=L)')
 
-        GeminiService.appendQaContext(lines, project)
+        const userLines: string[] = []
+        GeminiService.appendQaContext(userLines, project)
 
         if (doneTasks.length > 0) {
-            lines.push('done[')
+            userLines.push('done[')
             for (const task of doneTasks.slice(0, 50)) {
                 const p = task.priority === 'critical' ? 'B' : task.priority === 'high' ? 'MAJ' : task.priority === 'medium' ? 'MED' : 'L'
-                lines.push(` {id:${GeminiService.sanitizeToonValue(task.sourceIssueId, 60)},t:${GeminiService.sanitizeToonValue(task.title, 120)},p:${p}}`)
+                userLines.push(` {id:${GeminiService.sanitizeToonValue(task.sourceIssueId, 60)},t:${GeminiService.sanitizeToonValue(task.title, 120)},p:${p}}`)
             }
-            lines.push(']')
+            userLines.push(']')
         }
 
-        lines.push('tc[')
+        userLines.push('tc[')
         for (const tc of candidates.slice(0, 200)) {
             const p = tc.priority === 'blocker' ? 'B' : tc.priority === 'major' ? 'MAJ' : tc.priority === 'medium' ? 'MED' : 'L'
             const sMap: Record<string, string> = { failed: 'F', passed: 'P', blocked: 'BL', skipped: 'SK' }
@@ -538,11 +583,11 @@ export class GeminiService {
             if (tc.status !== 'not-run' && sMap[tc.status]) entry += `,s:${sMap[tc.status]}`
             if (tc.sourceIssueId) entry += `,iss:${GeminiService.sanitizeToonValue(tc.sourceIssueId, 60)}`
             entry += '}'
-            lines.push(entry)
+            userLines.push(entry)
         }
-        lines.push(']')
+        userLines.push(']')
 
-        return lines.join('\n')
+        return { system: sysLines.join('\n'), user: userLines.join('\n') }
     }
 
     // ── JSON Extraction ──────────────────────────────────────────────────────
@@ -584,33 +629,43 @@ export class GeminiService {
 
     /** Analyze a task issue using TOON prompts */
     async analyzeIssue(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0, modelName?: string): Promise<string> {
-        const prompt = GeminiService.buildToonPrompt(task, comments, project, attachedImageCount)
-        return await this.executeWithFallback(prompt, modelName, 0.3) // analytical: low temperature
+        const { system, user } = GeminiService.buildToonPrompt(task, comments, project, attachedImageCount)
+        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.issue_analysis, system)
     }
 
-    /** Generate test cases from tasks using TOON prompts */
-    async generateTestCases(tasks: any[] = [], sourceName: string, project?: any, designDoc?: string, modelName?: string): Promise<any[]> {
-        const prompt = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc)
-        const text = await this.executeWithFallback(prompt, modelName, 0.4) // generative but deterministic
+    /** Generate test cases from tasks using TOON prompts with native JSON mode */
+    async generateTestCases(tasks: any[] = [], sourceName: string, project?: any, designDoc?: string, modelName?: string, comments?: Record<string, any[]>): Promise<any[]> {
+        const { system, user } = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc, comments)
+        // jsonMode=true forces the API to return valid JSON — no extraction needed
+        const text = await this.executeWithFallback(user, modelName, 0.4, MAX_TOKENS.test_generation, system, true)
 
-        const extracted = GeminiService.extractFirstJsonArray(text)
-        if (!extracted) {
-            console.error('[GeminiService] Failed to extract JSON array. Raw response:', text);
-            const preview = String(text).length > 500 ? String(text).substring(0, 500) + '...' : String(text);
-            throw `Could not locate a JSON array in the model response. Raw Response: \n${preview}`;
-        }
-
+        // JSON mode guarantees valid JSON, but we still parse safely
         let parsed: any[]
         try {
-            parsed = JSON.parse(extracted)
+            const raw = JSON.parse(text)
+            // The model may return the array directly or wrapped in an object
+            parsed = Array.isArray(raw) ? raw : (Array.isArray(raw?.testCases) ? raw.testCases : null)
+            if (!parsed) throw new Error('not_array')
         } catch {
-            throw 'Model returned invalid JSON for test cases'
+            // Fallback: try extracting from text if JSON mode produced unexpected wrapping
+            const extracted = GeminiService.extractFirstJsonArray(text)
+            if (!extracted) {
+                console.error('[GeminiService] Failed to parse JSON. Raw response:', text.substring(0, 500));
+                throw `Could not parse JSON array from model response. Raw Response: \n${text.substring(0, 500)}`;
+            }
+            try { parsed = JSON.parse(extracted) } catch { throw 'Model returned invalid JSON for test cases' }
         }
         if (!Array.isArray(parsed)) throw 'Model returned unexpected structure for test cases (expected array)'
-        const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'critical'])
+
+        // Priority normalization: model outputs Blocker/Major/Medium/Low — map to internal scale
+        const PRIORITY_MAP: Record<string, string> = {
+            blocker: 'critical', major: 'high', medium: 'medium', low: 'low',
+            critical: 'critical', high: 'high', // pass-through if model uses task scale
+        }
         return parsed.map((item: any, i: number) => {
             if (typeof item !== 'object' || item === null) throw `Invalid test case at index ${i}`
-            const priority = String(item.priority || 'medium').toLowerCase()
+            const rawPriority = String(item.priority || 'medium').toLowerCase()
+            const priority = PRIORITY_MAP[rawPriority] || 'medium'
             return {
                 testCaseId: String(item.testCaseId || `TC-${String(i + 1).padStart(3, '0')}`).substring(0, 50),
                 title: String(item.title || `Test Case ${i + 1}`).substring(0, 300),
@@ -618,7 +673,7 @@ export class GeminiService {
                 steps: String(item.testSteps || item.steps || '').substring(0, 5000),
                 testData: String(item.testData || '').substring(0, 2000),
                 expectedResult: String(item.expectedResult || '').substring(0, 2000),
-                priority: (VALID_PRIORITIES.has(priority) ? priority : 'medium') as any,
+                priority: priority as any,
                 sourceIssueId: String(item.sourceIssueId || '').substring(0, 100),
                 sapModule: item.sapModule ? String(item.sapModule).substring(0, 100) : undefined,
             }
@@ -627,94 +682,149 @@ export class GeminiService {
 
     /** Criticality assessment for the current test state */
     async assessCriticality(tasks: any[], testPlans: any[], executions: any[], project?: any, modelName?: string): Promise<string> {
-        const prompt = GeminiService.buildCriticalityAssessmentPrompt(tasks, testPlans, executions, project)
-        return await this.executeWithFallback(prompt, modelName, 0.3) // analytical: low temperature
+        const { system, user } = GeminiService.buildCriticalityAssessmentPrompt(tasks, testPlans, executions, project)
+        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.criticality, system)
     }
 
     /** Test run suggestions / deployment readiness */
     async getTestRunSuggestions(testPlans: any[], executions: any[], project?: any, modelName?: string): Promise<string> {
-        const prompt = GeminiService.buildTestRunSuggestionsPrompt(testPlans, executions, project)
-        return await this.executeWithFallback(prompt, modelName, 0.3) // analytical: low temperature
+        const { system, user } = GeminiService.buildTestRunSuggestionsPrompt(testPlans, executions, project)
+        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.suggestions, system)
     }
 
-    /** Select a minimal smoke test subset from candidates */
+    /** Select a minimal smoke test subset from candidates using JSON mode */
     async selectSmokeSubset(candidates: any[], doneTasks: any[], project?: any, modelName?: string): Promise<string[]> {
-        const prompt = GeminiService.buildSmokeSubsetPrompt(candidates, doneTasks, project)
-        const text = await this.executeWithFallback(prompt, modelName, 0.3) // deterministic subset selection
+        const { system, user } = GeminiService.buildSmokeSubsetPrompt(candidates, doneTasks, project)
+        // jsonMode=true guarantees a valid JSON array response
+        const text = await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.smoke_subset, system, true)
 
-        const extracted = GeminiService.extractFirstJsonArray(text)
-        if (!extracted) return []
         let parsed: any[]
         try {
-            parsed = JSON.parse(extracted)
+            parsed = JSON.parse(text)
         } catch {
-            return []
+            const extracted = GeminiService.extractFirstJsonArray(text)
+            if (!extracted) return []
+            try { parsed = JSON.parse(extracted) } catch { return [] }
         }
         if (!Array.isArray(parsed)) return []
-        // Validate: must be an array of strings (test case IDs)
         return parsed.filter((v: any) => typeof v === 'string').map((v: string) => v.substring(0, 100))
     }
 
     /** Strategic project analysis using TOON prompts */
     async analyzeProject(projectContext: string, project?: any, modelName?: string): Promise<string> {
-        const lines: string[] = []
-        lines.push('@role:sr_qa_engineer')
-        lines.push('@task:project_strategic_analysis')
-        lines.push('@perspective:qa_engineer—strategic,holistic view of project health and risk')
-        lines.push('@out_fmt:md_sections[## Strategic Gaps,## Coverage Optimization,## Risk Assessment]')
-        lines.push('@rules:strategic|actionable|data_driven|bold_decisions|no_generic_advice|all_sections_required|use_tables_for_structured_data|bold_key_findings')
-        lines.push('---')
+        const sysLines: string[] = []
+        sysLines.push('@role:sr_qa_engineer')
+        sysLines.push('@task:project_strategic_analysis')
+        sysLines.push('@perspective:qa_engineer—strategic,holistic view of project health and risk')
+        sysLines.push('@out_fmt:md_sections[## Strategic Gaps,## Coverage Optimization,## Risk Assessment]')
+        sysLines.push('@rules:strategic|actionable|data_driven|bold_decisions|no_generic_advice|all_sections_required|use_tables_for_structured_data|bold_key_findings')
+        sysLines.push('@priority_mapping:task_priorities(critical=Blocker,high=Major,medium=Medium,low=Low)')
 
+        const userLines: string[] = []
         if (project) {
-            GeminiService.appendQaContext(lines, project)
+            GeminiService.appendQaContext(userLines, project)
         }
+        userLines.push('analysis_context_and_data{')
+        userLines.push(` context:${GeminiService.sanitizeToonValue(projectContext, 5000)}`)
+        userLines.push('}')
 
-        lines.push('analysis_context_and_data{')
-        lines.push(` context:${GeminiService.sanitizeToonValue(projectContext, 5000)}`)
-        lines.push('}')
-
-        const prompt = lines.join('\n')
-        return await this.executeWithFallback(prompt, modelName, 0.4) // strategic but controlled
+        return await this.executeWithFallback(userLines.join('\n'), modelName, 0.4, MAX_TOKENS.project_analysis, sysLines.join('\n'))
     }
 
-    /** Freeform conversational QA chat with project context */
+    /** Freeform conversational QA chat using multi-turn Gemini chat API */
     async chat(
         userMessage: string,
         history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
         project?: any,
         modelName?: string
     ): Promise<string> {
-        // Build a system context preamble using TOON
-        const systemLines: string[] = []
-        systemLines.push('@role:sr_qa_engineer')
-        systemLines.push('@task:freeform_qa_assistant_chat')
-        systemLines.push('@perspective:qa_engineer—helpful,concise,context-aware QA expert with deep SAP Commerce knowledge')
-        systemLines.push('@rules:conversational|helpful|specific|reference_project_data_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context')
-        systemLines.push('---')
-
+        // Build system instruction with role, rules, and project context
+        const sysLines: string[] = []
+        sysLines.push('@role:sr_qa_engineer')
+        sysLines.push('@task:freeform_qa_assistant_chat')
+        sysLines.push('@perspective:qa_engineer—helpful,concise,context-aware QA expert with deep SAP Commerce knowledge')
+        sysLines.push('@rules:conversational|helpful|specific|reference_project_data_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context')
         if (project) {
-            GeminiService.appendQaContext(systemLines, project)
+            GeminiService.appendQaContext(sysLines, project)
         }
+        const systemInstruction = sysLines.join('\n')
 
-        // Build the conversation as a single string prompt
-        const conversationLines: string[] = []
-        if (history.length > 0) {
-            conversationLines.push('conversation_history[')
-            for (const turn of history.slice(-10)) { // last 10 turns for context window management
-                if (!['user', 'assistant'].includes(turn.role)) continue // reject invalid roles
-                const role = turn.role === 'user' ? 'user' : 'assistant'
-                conversationLines.push(` {role:${role},msg:${GeminiService.sanitizeToonValueForTestGen(turn.content, 1000)}}`)
+        // Use the preferred model with fallback, trying multi-turn chat API
+        const models = Array.from(new Set([
+            modelName,
+            this.preferredModel,
+            MODEL_3_FLASH_PREVIEW,
+            MODEL_2_5_FLASH
+        ].filter(Boolean) as string[]))
+
+        let lastError: any
+        for (const currentModelName of models) {
+            try {
+                const model = this.getModel(currentModelName, 0.7, MAX_TOKENS.chat, systemInstruction)
+
+                // Convert history to Gemini multi-turn format (last 6 turns to control tokens)
+                // Older turns lose relevance and the system instruction carries the project context
+                const geminiHistory = history.slice(-6)
+                    .filter(turn => ['user', 'assistant'].includes(turn.role))
+                    .map(turn => ({
+                        role: turn.role === 'user' ? 'user' : 'model' as 'user' | 'model',
+                        parts: [{ text: turn.content.substring(0, 2000) }]
+                    }))
+
+                const chat = model.startChat({ history: geminiHistory })
+                const result = await chat.sendMessage(userMessage.substring(0, 3000))
+
+                if (currentModelName !== this.preferredModel) {
+                    console.log(`Gemini switching preferred model to ${currentModelName} after successful response`)
+                    this.preferredModel = currentModelName
+                }
+
+                const usage = result.response.usageMetadata
+                if (usage) {
+                    console.log(`[Gemini] ${currentModelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`)
+                }
+
+                return result.response.text()
+            } catch (err: any) {
+                lastError = err
+                let errorMsg = ''
+                let errorStatus = ''
+                try {
+                    if (err && typeof err === 'object') {
+                        errorMsg = typeof err.message === 'string' ? err.message : ''
+                        errorStatus = err.status !== undefined ? String(err.status) : ''
+                    } else {
+                        errorMsg = String(err)
+                    }
+                } catch { errorMsg = 'Unparseable error' }
+
+                const errorStr = `${errorStatus} ${errorMsg}`.toLowerCase()
+                const isRateLimit = errorStatus === '429' || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted')
+                const isUnavailable = errorStatus === '404' || errorStatus === '400' || errorStr.includes('model not found')
+
+                if (isRateLimit || isUnavailable) {
+                    console.warn(`Gemini chat model ${currentModelName} ${isRateLimit ? 'rate limited' : 'unavailable'}. Trying next fallback...`)
+                    if (currentModelName === this.preferredModel) {
+                        const nextIndex = (models.indexOf(currentModelName) + 1) % models.length
+                        this.preferredModel = models[nextIndex]
+                    }
+                    continue
+                }
+                console.error(`Gemini chat model ${currentModelName} failed:`, errorStr)
+                continue
             }
-            conversationLines.push(']')
-            conversationLines.push('---')
         }
 
-        conversationLines.push(`current_user_message{`)
-        conversationLines.push(` msg:${GeminiService.sanitizeToonValueForTestGen(userMessage, 3000)}`)
-        conversationLines.push(`}`)
-        conversationLines.push('@respond_to:current_user_message|be_direct|use_project_context_above')
+        let finalMsg = 'Unknown API Error'
+        try {
+            if (lastError && typeof lastError === 'object') {
+                finalMsg = typeof lastError.message === 'string' ? lastError.message : 'Chat API Call Failed'
+            } else {
+                finalMsg = String(lastError)
+            }
+            finalMsg = finalMsg.replace(/https?:\/\/[^\s]*/gi, '[url]').replace(/\n\s+at\s+.*/g, '')
+        } catch { finalMsg = 'Crash parsing error object' }
 
-        const fullPrompt = [...systemLines, ...conversationLines].join('\n')
-        return await this.executeWithFallback(fullPrompt, modelName, 0.7) // conversational: higher creativity
+        throw `Gemini Chat API Error: ${finalMsg}`
     }
 }

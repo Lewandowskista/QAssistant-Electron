@@ -25,7 +25,7 @@ import {
     Search,
     RotateCcw
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, isFlakyTest, getFlakinesScore } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -50,6 +50,7 @@ import { toast } from "sonner"
 type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { sanitizeProjectForAi } from '@/lib/aiUtils'
 
 export default function TestsPage() {
     const api = window.electronAPI as any;
@@ -219,16 +220,7 @@ export default function TestsPage() {
         
         setIsGenerating(true)
         try {
-            const sanitizedProject = activeProject ? { 
-                name: activeProject.name,
-                description: activeProject.description, 
-                environments: activeProject.environments, 
-                testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })),
-                testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
-                checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
-            } : undefined;
-
-            const ids = await api.aiSmokeSubset({ apiKey, candidates: allCases, doneTasks, project: sanitizedProject, modelName: activeProject.geminiModel })
+            const ids = await api.aiSmokeSubset({ apiKey, candidates: allCases, doneTasks, project: sanitizeProjectForAi(activeProject), modelName: activeProject.geminiModel })
             setSmokeSubsetCaseIds(ids || [])
             if (!ids || ids.length === 0) {
                 toast.info('No specific smoke tests could be confidently identified.')
@@ -273,14 +265,6 @@ export default function TestsPage() {
             }
             setIsGenerating(true)
             try {
-                const sanitizedProject = activeProject ? {
-                    name: activeProject.name,
-                    description: activeProject.description,
-                    environments: activeProject.environments,
-                    testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })),
-                    testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
-                    checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category }))
-                } : undefined
                 const syntheticTask = [{
                     id: 'freetext-input',
                     title: freeTextInput.split('\n')[0].slice(0, 120) || 'Free Text Input',
@@ -292,7 +276,7 @@ export default function TestsPage() {
                     sourceIssueId: '',
                     externalId: ''
                 }]
-                const cases = await api.aiGenerateCases({ apiKey, tasks: syntheticTask, sourceName: 'Manual', project: sanitizedProject, designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
+                const cases = await api.aiGenerateCases({ apiKey, tasks: syntheticTask, sourceName: 'Manual', project: sanitizeProjectForAi(activeProject), designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
                 if (!cases || cases.length === 0) { toast.warning('No test cases could be generated.'); return }
                 const timestamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 const planName = `Free Text · ${timestamp}`
@@ -329,17 +313,6 @@ export default function TestsPage() {
 
         setIsGenerating(true)
         try {
-            // Strip out massive unstructured objects from project before sending it over IPC
-            // The IPC bridge uses structured cloning which crashes deeply nested/circular json arrays.
-            const sanitizedProject = activeProject ? { 
-                name: activeProject.name,
-                description: activeProject.description, 
-                environments: activeProject.environments, 
-                testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })), // We only need plan metadata, not cases
-                testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
-                checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
-            } : undefined;
-
             const sanitizedTasks = tasksToUse.map(t => ({
                 id: t.id,
                 title: t.title,
@@ -352,7 +325,7 @@ export default function TestsPage() {
                 externalId: t.externalId
             }));
 
-            const cases = await api.aiGenerateCases({ apiKey, tasks: sanitizedTasks, sourceName: source, project: sanitizedProject, designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
+            const cases = await api.aiGenerateCases({ apiKey, tasks: sanitizedTasks, sourceName: source, project: sanitizeProjectForAi(activeProject), designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
 
             if (cases.length === 0) {
                 toast.warning('No test cases could be generated.')
@@ -425,16 +398,7 @@ export default function TestsPage() {
         if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
-            const sanitizedProject = activeProject ? { 
-                name: activeProject.name,
-                description: activeProject.description, 
-                environments: activeProject.environments, 
-                testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })),
-                testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
-                checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
-            } : undefined;
-
-            const result = await api.aiCriticality({ apiKey, tasks: activeProject?.tasks || [], testPlans, executions: projectExecutions, project: sanitizedProject, modelName: activeProject?.geminiModel })
+            const result = await api.aiCriticality({ apiKey, tasks: activeProject?.tasks || [], testPlans, executions: projectExecutions, project: sanitizeProjectForAi(activeProject), modelName: activeProject?.geminiModel })
             setAiAnalysisResult(result)
         } catch (e: any) {
             toast.error(`Criticality assessment failed: ${e.message}`)
@@ -449,16 +413,7 @@ export default function TestsPage() {
         if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
-            const sanitizedProject = activeProject ? { 
-                name: activeProject.name,
-                description: activeProject.description, 
-                environments: activeProject.environments, 
-                testPlans: activeProject.testPlans?.map(tp => ({ ...tp, testCases: undefined })),
-                testDataGroups: activeProject.testDataGroups?.map(tdg => ({ name: tdg.name, category: tdg.category })),
-                checklists: activeProject.checklists?.map(cl => ({ name: cl.name, category: cl.category })) 
-            } : undefined;
-
-            const result = await api.aiTestRunSuggestions({ apiKey, testPlans, executions: projectExecutions, project: sanitizedProject, modelName: activeProject?.geminiModel })
+            const result = await api.aiTestRunSuggestions({ apiKey, testPlans, executions: projectExecutions, project: sanitizeProjectForAi(activeProject), modelName: activeProject?.geminiModel })
             setAiAnalysisResult(result)
         } catch (e: any) {
             toast.error(`Test run suggestions failed: ${e.message}`)
@@ -474,7 +429,9 @@ export default function TestsPage() {
             let content = ''
             let filename = ''
             if (reportType === 'SummaryPdf') {
-                const res = await api.exportTestSummaryPdf({ project: activeProject, filterPlanIds: undefined, aiResult: aiAnalysisResult || undefined })
+                const sanitizedTasks = (activeProject.tasks || []).map(({ analysisHistory: _ah, ...t }) => t)
+                const pdfProject = { ...activeProject, tasks: sanitizedTasks }
+                const res = await api.exportTestSummaryPdf(pdfProject, undefined, aiAnalysisResult || undefined)
                 if (res && res.success) {
                     toast.success(`PDF exported to: ${res.path}`)
                 } else if (res && res.error) {
@@ -517,7 +474,7 @@ export default function TestsPage() {
                         {[
                             { id: 'TestCaseGeneration', label: 'Test Case Generation' },
                             { id: 'TestRuns', label: 'Test Runs' },
-                            { id: 'Reports', label: 'Reports' },
+                            { id: 'Reports', label: 'Exports' },
                             { id: 'CoverageMatrix', label: 'Coverage Matrix' },
                             { id: 'RegressionBuilder', label: 'Regression Builder' }
                         ].map(tab => (
@@ -903,7 +860,7 @@ export default function TestsPage() {
                                 <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between">
                                     <div className="flex items-center gap-6">
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em]">Report</span>
+                                            <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-[0.2em]">Export</span>
                                             <Select value={reportType} onValueChange={setReportType}>
                                                 <SelectTrigger className="h-9 w-48 bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold text-[#E2E8F0]">
                                                     <SelectValue />
@@ -925,7 +882,7 @@ export default function TestsPage() {
                                         </Button>
                                     </div>
                                 </div>
-                                {/* AI Reports content */}
+                                {/* Export content */}
                                 {aiAnalysisResult ? (
                                     <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                                         <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-2xl p-6 text-sm text-[#C4B5FD] leading-relaxed whitespace-pre-wrap font-mono">
@@ -965,8 +922,41 @@ export default function TestsPage() {
                                                 </div>
                                             )
                                         })()}
+                                        {/* Flaky Tests Section */}
+                                        {(() => {
+                                            const allCases = testPlans.flatMap(tp => tp.testCases || [])
+                                            const flakyTests = allCases.filter(tc => {
+                                                // A test is flaky if it has variable status in a test run session
+                                                return tc.tags?.includes('flaky') || tc.status === 'failed'  // Simple heuristic for now
+                                            }).sort((a, b) => {
+                                                // Sort by failed count
+                                                const aFails = (a.actualResult?.length || 0)
+                                                const bFails = (b.actualResult?.length || 0)
+                                                return bFails - aFails
+                                            }).slice(0, 5)
+
+                                            return flakyTests.length > 0 ? (
+                                                <div className="space-y-3 pt-6 border-t border-[#2A2A3A]">
+                                                    <div className="text-[10px] font-black uppercase text-[#F59E0B] tracking-widest">⚠ Potentially Flaky Tests</div>
+                                                    {flakyTests.map(tc => (
+                                                        <div key={tc.id} className="bg-[#422006]/30 border border-[#F59E0B]/30 rounded-xl p-4">
+                                                            <div className="text-sm font-bold text-[#F59E0B]">{tc.displayId} - {tc.title}</div>
+                                                            <div className="text-[11px] text-[#9CA3AF] mt-1">Status: <span className="text-[#F59E0B]">{tc.status}</span></div>
+                                                            {tc.tags && tc.tags.length > 0 && (
+                                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                                    {tc.tags.slice(0, 3).map(t => (
+                                                                        <span key={t} className="text-[10px] bg-[#F59E0B]/20 text-[#F59E0B] px-2 py-1 rounded">{t}</span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : null
+                                        })()}
+
                                         {testPlans.length > 0 && (
-                                            <div className="space-y-3">
+                                            <div className="space-y-3 pt-6 border-t border-[#2A2A3A]">
                                                 <div className="text-[10px] font-black uppercase text-[#6B7280] tracking-widest">Per Plan Breakdown</div>
                                                 {testPlans.filter(tp => !tp.isArchived).map(tp => {
                                                     const tcs = tp.testCases || []

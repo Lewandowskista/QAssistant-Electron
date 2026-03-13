@@ -7,7 +7,9 @@ import {
     ChevronUp,
     ChevronDown,
     Minus,
-    Clock3
+    Clock3,
+    CheckCircle2,
+    AlertTriangle
 } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -17,6 +19,7 @@ interface TaskCardProps {
     isOverlay?: boolean
     isSelected?: boolean
     onClick?: () => void
+    testCoverageCount?: number
 }
 
 // Moved outside component - this object is constant and doesn't need to be recreated on every render
@@ -27,13 +30,22 @@ const priorityConfig = {
     low: { icon: ChevronDown, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" },
 } as const
 
-export const TaskCard = memo(function TaskCard({ task, isOverlay, isSelected, onClick }: TaskCardProps) {
+const severityConfig = {
+    blocker: { color: "text-red-600", bg: "bg-red-500/10", border: "border-red-500/20", label: "BLOCKER" },
+    critical: { color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
+    major: { color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "MAJOR" },
+    minor: { color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "MINOR" },
+    cosmetic: { color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20", label: "COSMETIC" },
+} as const
+
+export const TaskCard = memo(function TaskCard({ task, isOverlay, isSelected, onClick, testCoverageCount = 0 }: TaskCardProps) {
 
     const config = priorityConfig[task.priority] || priorityConfig.medium
+    const severityConfig_ = severityConfig[(task.severity || 'major') as keyof typeof severityConfig]
     const PriorityIcon = config.icon
 
     return (
-        <div 
+        <div
             onClick={onClick}
             className={cn(
                 "bg-[#1A1A24]/60 backdrop-blur-md border border-[#2A2A3A] rounded-xl p-4 shadow-sm hover:border-[#A78BFA]/50 transition-all select-none group relative overflow-hidden",
@@ -64,9 +76,27 @@ export const TaskCard = memo(function TaskCard({ task, isOverlay, isSelected, on
                         <span className="text-[9px] font-bold text-[#6B7280] tracking-tight uppercase">{task.sourceIssueId || 'Draft'}</span>
                     </div>
 
-                    <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black", config.bg, config.color, config.border)}>
-                        <PriorityIcon className="h-2.5 w-2.5" />
-                        {config.label}
+                    <div className="flex items-center gap-1">
+                        <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black", config.bg, config.color, config.border)}>
+                            <PriorityIcon className="h-2.5 w-2.5" />
+                            {config.label}
+                        </div>
+                        {(task.severity || 'major') !== 'major' && (
+                            <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black", severityConfig_.bg, severityConfig_.color, severityConfig_.border)}>
+                                {severityConfig_.label}
+                            </div>
+                        )}
+                        {testCoverageCount > 0 ? (
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[9px] font-black text-emerald-500">
+                                <CheckCircle2 className="h-2.5 w-2.5" />
+                                {testCoverageCount}
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-red-500/20 bg-red-500/10 text-[9px] font-black text-red-500">
+                                <AlertTriangle className="h-2.5 w-2.5" />
+                                0
+                            </div>
+                        )}
                     </div>
                 </div>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -15,31 +15,38 @@ interface SingleTestRunDialogProps {
     onOpenChange: (open: boolean) => void
     plan: TestPlan | null
     testCase: TestCase | null
+    activeProject?: any
 }
 
-export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase }: SingleTestRunDialogProps) {
+export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase, activeProject }: SingleTestRunDialogProps) {
     const { activeProjectId, addTestExecution } = useProjectStore()
     const [status, setStatus] = useState<TestCaseStatus>('passed')
     const [actualResult, setActualResult] = useState("")
     const [notes, setNotes] = useState("")
-    
+    const [environmentId, setEnvironmentId] = useState("")
+    const [blockedReason, setBlockedReason] = useState("")
+
     // Timer state
     const [seconds, setSeconds] = useState(0)
     const [isActive, setIsActive] = useState(false)
     const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+    const environments = useMemo(() => activeProject?.environments || [], [activeProject?.environments])
 
     useEffect(() => {
         if (open) {
             setStatus('passed')
             setActualResult("")
             setNotes("")
+            setBlockedReason("")
+            setEnvironmentId(environments.find((e: any) => e.isDefault)?.id || "")
             setSeconds(0)
             setIsActive(true) // Start timer immediately
         } else {
             setIsActive(false)
             if (timerRef.current) clearInterval(timerRef.current)
         }
-    }, [open])
+    }, [open, environments])
 
     useEffect(() => {
         if (isActive) {
@@ -70,7 +77,9 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
             actualResult,
             notes,
             snapshotTestCaseTitle: testCase.title,
-            durationSeconds: seconds
+            durationSeconds: seconds,
+            environmentId: environmentId || undefined,
+            blockedReason: status === 'blocked' ? blockedReason : undefined
         })
 
         onOpenChange(false)
@@ -159,14 +168,42 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                             </div>
 
                             <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Environment</Label>
+                                <Select value={environmentId} onValueChange={setEnvironmentId}>
+                                    <SelectTrigger className="h-11 bg-background font-bold">
+                                        <SelectValue placeholder="Select environment..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {environments.map((env: any) => (
+                                            <SelectItem key={env.id} value={env.id}>
+                                                {env.name} {env.isDefault ? '(Default)' : ''}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Actual Result</Label>
                                 <Textarea
                                     placeholder="What actually happened? Leave empty if it matches expected."
                                     value={actualResult}
                                     onChange={(e) => setActualResult(e.target.value)}
-                                    className="h-24 resize-none bg-background text-sm"
+                                    className="h-20 resize-none bg-background text-sm"
                                 />
                             </div>
+
+                            {status === 'blocked' && (
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase text-amber-400 tracking-widest">Blocked Reason</Label>
+                                    <Textarea
+                                        placeholder="Why is this test blocked? (e.g., environment unavailable, dependency not met, etc.)"
+                                        value={blockedReason}
+                                        onChange={(e) => setBlockedReason(e.target.value)}
+                                        className="h-20 resize-none bg-amber-500/5 border-amber-500/20 text-sm"
+                                    />
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Execution Notes / Evidence</Label>
@@ -174,7 +211,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                                     placeholder="Add any additional notes, logs, or comments..."
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
-                                    className="h-24 resize-none bg-background text-sm italic"
+                                    className="h-16 resize-none bg-background text-sm italic"
                                 />
                             </div>
                             

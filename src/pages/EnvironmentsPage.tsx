@@ -7,7 +7,7 @@ interface HealthEntry {
     lastChecked: string;
     latencyMs?: number;
 }
-import { Plus, Trash2, Save, Activity, Server, ShieldCheck, Globe, Database, Layout, Key, StickyNote, Star, Bug, Monitor, Lock, Unlock } from "lucide-react"
+import { Plus, Trash2, Save, Activity, Server, ShieldCheck, Globe, Database, Key, StickyNote, Star, Bug, Monitor, Lock, Unlock } from "lucide-react"
 import { BugReportDialog } from "@/components/BugReportDialog"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -241,19 +241,19 @@ export default function EnvironmentsPage() {
             <main className="flex-1 overflow-y-auto custom-scrollbar bg-[#0F0F13]">
                 {localEnv ? (
                     <div className="max-w-4xl mx-auto p-10 space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
-                        <header className="flex items-start justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-2xl bg-[#1A1A24] border border-[#2A2A3A] flex items-center justify-center shadow-2xl">
+                        <header className="flex items-start justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-4 min-w-0">
+                                <div className="w-14 h-14 rounded-2xl bg-[#1A1A24] border border-[#2A2A3A] flex items-center justify-center shadow-2xl shrink-0">
                                     <Monitor className="h-7 w-7 text-[#A78BFA]" />
                                 </div>
-                                <div className="space-y-1">
-                                    <h2 className="text-2xl font-black text-[#E2E8F0]">{localEnv.name}</h2>
+                                <div className="space-y-1 min-w-0">
+                                    <h2 className="text-2xl font-black text-[#E2E8F0] truncate">{localEnv.name}</h2>
                                     <p className="text-xs font-bold text-[#6B7280] uppercase tracking-widest flex items-center gap-2">
-                                        Target ID: <span className="text-[#A78BFA]">{localEnv.id}</span>
+                                        Target ID: <span className="text-[#A78BFA] truncate">{localEnv.id}</span>
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap shrink-0">
                                 <Button onClick={handleSwitchActive} variant="outline" size="sm" className="h-10 px-4 border-[#10B981]/20 text-[#10B981] hover:bg-[#10B981]/10 font-bold text-xs gap-2">
                                     <Activity className="h-4 w-4" /> Switch Active
                                 </Button>
@@ -466,9 +466,6 @@ export default function EnvironmentsPage() {
                         <div className="pt-6 flex items-center justify-between border-t border-[#2A2A3A]">
                             <p className="text-[10px] font-black text-[#EF4444] uppercase tracking-widest opacity-40">Security Subsystem: Critical Controls</p>
                             <div className="flex gap-4">
-                                <Button variant="outline" className="h-10 border-[#2A2A3A] text-[#6B7280] font-bold text-xs gap-2">
-                                    <Layout className="h-3.5 w-3.5" /> DOCKER COMPOSE INFO
-                                </Button>
                                 <Button onClick={() => handleDelete(localEnv.id)} className="h-10 bg-[#3F1A1A] text-[#EF4444] hover:bg-[#522525] border border-[#EF4444]/20 font-bold text-xs gap-2">
                                     <Trash2 className="h-3.5 w-3.5" /> DELETE ENVIRONMENT
                                 </Button>

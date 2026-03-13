@@ -42,6 +42,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
         sourceIssueId: "",
         assignedTo: "",
         estimatedMinutes: 0,
+        testType: "functional" as any,
         tags: "" // comma separated for input
     })
     const [previewField, setPreviewField] = useState<string | null>(null)
@@ -61,6 +62,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                 sourceIssueId: editingCase.sourceIssueId || "",
                 assignedTo: editingCase.assignedTo || "",
                 estimatedMinutes: editingCase.estimatedMinutes || 0,
+                testType: editingCase.testType || "functional",
                 tags: editingCase.tags ? editingCase.tags.join(", ") : ""
             })
         } else {
@@ -77,6 +79,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                 sourceIssueId: "",
                 assignedTo: "",
                 estimatedMinutes: 0,
+                testType: "functional",
                 tags: ""
             })
         }
@@ -165,7 +168,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-4 gap-4">
                             <div className="grid gap-2">
                                 <Label className="text-xs font-bold uppercase text-muted-foreground px-1">Priority</Label>
                                 <Select
@@ -180,6 +183,28 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                         <SelectItem value="medium">Medium</SelectItem>
                                         <SelectItem value="major">Major</SelectItem>
                                         <SelectItem value="blocker">Blocker</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold uppercase text-muted-foreground px-1">Test Type</Label>
+                                <Select
+                                    value={form.testType}
+                                    onValueChange={(v: any) => setForm(f => ({ ...f, testType: v }))}
+                                >
+                                    <SelectTrigger className="bg-background/50">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="functional">Functional</SelectItem>
+                                        <SelectItem value="regression">Regression</SelectItem>
+                                        <SelectItem value="smoke">Smoke</SelectItem>
+                                        <SelectItem value="integration">Integration</SelectItem>
+                                        <SelectItem value="e2e">E2E</SelectItem>
+                                        <SelectItem value="api">API</SelectItem>
+                                        <SelectItem value="performance">Performance</SelectItem>
+                                        <SelectItem value="accessibility">Accessibility</SelectItem>
+                                        <SelectItem value="security">Security</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -328,6 +353,26 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                             </div>
                         </div>
                     </div>
+
+                    {editingCase && editingCase.changeLog && editingCase.changeLog.length > 0 && (
+                        <div className="mt-6 p-4 bg-[#0F0F13] border border-[#2A2A3A] rounded-lg">
+                            <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider mb-3">Change History ({editingCase.changeLog.length})</p>
+                            <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar">
+                                {[...editingCase.changeLog].reverse().map((entry, idx) => (
+                                    <div key={idx} className="text-[10px] bg-[#1A1A24]/50 p-2 rounded border border-[#2A2A3A]/30">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-[#A78BFA]">{entry.field}</span>
+                                            <span className="text-[#6B7280]">{new Date(entry.timestamp).toLocaleString()}</span>
+                                        </div>
+                                        <div className="text-[9px] text-[#9CA3AF] mt-1 space-y-0.5">
+                                            <div><span className="text-[#EF4444]">−</span> {entry.oldValue || '(empty)'}</div>
+                                            <div><span className="text-[#10B981]">+</span> {entry.newValue || '(empty)'}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <DialogFooter className="mt-10 pt-6 border-t border-[#2A2A3A] gap-2">
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="font-bold">

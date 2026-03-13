@@ -1,9 +1,10 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3 } from "lucide-react"
 import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
+import { useUserStore } from "@/store/useUserStore"
 import { ProjectDialog } from "@/components/ProjectDialog"
 import CommandPalette from "@/components/CommandPalette"
 import { lazy, Suspense } from "react"
@@ -35,6 +36,10 @@ export default function MainLayout() {
     const environments = activeProject?.environments || []
     const defaultEnv = environments.find(e => e.isDefault) || environments[0]
 
+    const { profile: userProfile, isLoaded: userLoaded, loadProfile } = useUserStore()
+    const activeRole = userProfile?.activeRole ?? 'qa'
+    const connectedIdentity = userProfile?.identities?.[0] ?? null
+
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editingProject, setEditingProject] = useState<Project | undefined>(undefined)
     const [paletteOpen, setPaletteOpen] = useState(false)
@@ -49,11 +54,12 @@ export default function MainLayout() {
     const [currentTheme, setCurrentTheme] = useState<'dark' | 'light'>('dark')
 
     // Routes that use h-full flex layouts and need the full content area (no padding/max-width)
-    const FULL_BLEED_ROUTES = ['/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks']
+    const FULL_BLEED_ROUTES = ['/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks', '/github', '/code-reviews', '/deployments']
     const isFullBleedRoute = FULL_BLEED_ROUTES.some(r => location.pathname.startsWith(r))
 
     useEffect(() => {
         loadProjects()
+        if (!userLoaded) loadProfile()
         const api = window.electronAPI as any;
         if (api) {
 
@@ -145,25 +151,37 @@ export default function MainLayout() {
             title: "ORGANIZATION",
             items: [
                 { name: "Notes", href: "/notes", icon: FileText },
-                { name: "Files", href: "/files", icon: FileText }, // Should probably be Files/Images
+                { name: "Files", href: "/files", icon: FileText },
             ]
         },
         {
-            title: "QA BASIC",
+            title: activeRole === 'dev' ? "DEVELOPMENT" : "QA BASIC",
             items: [
                 { name: "Tasks", href: "/tasks", icon: CheckSquare },
-                { name: "Tests", href: "/tests", icon: FlaskConical },
-                { name: "Test Data", href: "/test-data", icon: Database },
-                { name: "Checklists", href: "/checklists", icon: ListChecks },
+                ...(activeRole === 'dev' ? [
+                    { name: "GitHub", href: "/github", icon: GitBranch },
+                    { name: "Code Reviews", href: "/code-reviews", icon: MessageSquare },
+                ] : [
+                    { name: "Tests", href: "/tests", icon: FlaskConical },
+                    { name: "Test Data", href: "/test-data", icon: Database },
+                    { name: "Checklists", href: "/checklists", icon: ListChecks },
+                ]),
             ]
         },
         {
-            title: "QA ADVANCED",
+            title: activeRole === 'dev' ? "DEV TOOLS" : "QA ADVANCED",
             items: [
                 { name: "Environments", href: "/environments", icon: Globe },
                 { name: "API", href: "/api", icon: Code },
                 { name: "Runbooks", href: "/runbooks", icon: BookOpen },
-                { name: "SAP HAC", href: "/sap", icon: ServerCog },
+                ...(activeRole === 'qa' ? [
+                    { name: "Reports", href: "/reports", icon: BarChart3 },
+                ] : []),
+                ...(activeRole === 'dev' ? [
+                    { name: "Deployments", href: "/deployments", icon: Rocket },
+                ] : [
+                    { name: "SAP HAC", href: "/sap", icon: ServerCog },
+                ]),
             ]
         }
     ]
@@ -289,34 +307,59 @@ export default function MainLayout() {
                         )
                     })}
                 </div>
+
+                {/* User identity badge */}
+                <div className="p-2 border-t border-[#2A2A3A]">
+                    <button
+                        onClick={() => setSettingsOpen(true)}
+                        className="w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-[#252535] transition-colors group"
+                        title="Account & Identity"
+                    >
+                        {connectedIdentity?.avatarUrl ? (
+                            <img src={connectedIdentity.avatarUrl} className="w-6 h-6 rounded-full shrink-0" alt="avatar" />
+                        ) : (
+                            <div className="w-6 h-6 rounded-full bg-[#2A2A3A] flex items-center justify-center shrink-0">
+                                <User className="h-3 w-3 text-[#6B7280]" />
+                            </div>
+                        )}
+                        <div className="flex flex-col min-w-0 text-left">
+                            <span className="text-[11px] font-semibold text-[#9CA3AF] group-hover:text-[#E2E8F0] truncate transition-colors">
+                                {connectedIdentity?.username ?? 'No account'}
+                            </span>
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] text-[#6B7280]">
+                                {activeRole === 'dev' ? 'Developer' : 'QA Engineer'}
+                            </span>
+                        </div>
+                    </button>
+                </div>
             </aside>
 
             {/* 3. MAIN CONTENT */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#0F0F13] relative">
+            <div className="flex-1 flex flex-col min-w-0 bg-[#0F0F13] relative overflow-hidden">
                 {/* TITLEBAR */}
                 <header className={cn(
                     "h-12 border-b border-[#2A2A3A] bg-[#13131A]/80 backdrop-blur-md flex items-center justify-between px-4 app-region-drag shrink-0 relative z-50 shadow-sm",
                     isMac && "pl-20" // Leave room for traffic lights
                 )}>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
                         {toolsCollapsed && (
-                            <button onClick={() => setToolsCollapsed(false)} aria-label="Expand sidebar" className="app-region-no-drag p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280]">
+                            <button onClick={() => setToolsCollapsed(false)} aria-label="Expand sidebar" className="app-region-no-drag p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280] shrink-0">
                                 <ChevronRight className="h-3 w-3" />
                             </button>
                         )}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                             <div className="w-5 h-5 bg-[#A78BFA] rounded flex items-center justify-center">
                                 <FlaskConical className="h-3 w-3 text-[#0F0F13] stroke-[3]" />
                             </div>
                             <span className="text-xs font-bold tracking-tight text-[#A78BFA]">QAssistant</span>
                         </div>
-                        <div className="w-px h-4 bg-[#2A2A3A] mx-2" />
-                        <span className="text-xs font-medium text-[#6B7280] truncate max-w-[300px]">
+                        <div className="w-px h-4 bg-[#2A2A3A] mx-2 shrink-0" />
+                        <span className="text-xs font-medium text-[#6B7280] truncate min-w-0">
                             {activeProject?.name || "QAssistant"}
                         </span>
                     </div>
 
-                    <div className="flex items-center gap-0 app-region-no-drag">
+                    <div className="flex items-center shrink-0 app-region-no-drag">
                         {/* Environment quick-switch */}
                         {environments.length > 0 && (
                             <DropdownMenu>
@@ -423,7 +466,7 @@ export default function MainLayout() {
                 >
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSettingsOpen(false)} />
                     <div className={cn(
-                        "absolute top-0 right-0 h-full w-[680px] bg-[#0F0F13] border-l border-[#2A2A3A] shadow-2xl transition-transform duration-300 ease-out flex flex-col",
+                        "absolute top-0 right-0 h-full w-full max-w-[680px] bg-[#0F0F13] border-l border-[#2A2A3A] shadow-2xl transition-transform duration-300 ease-out flex flex-col",
                         settingsOpen ? "translate-x-0" : "translate-x-full"
                     )}>
                         <button onClick={() => setSettingsOpen(false)} className="absolute top-3 right-3 z-10 p-2 hover:bg-[#252535] rounded-md transition-colors">

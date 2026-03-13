@@ -20,6 +20,7 @@ interface CommandPaletteProps {
 
 export default function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     const navigate = useNavigate()
+    const isMac = navigator.userAgent.toUpperCase().includes('MAC')
     const projects = useProjectStore(state => state.projects)
     const activeProjectId = useProjectStore(state => state.activeProjectId)
     const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId])
@@ -155,7 +156,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                             <span>Select</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">Ctrl+1–5</div>
+                            <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">{isMac ? '⌘+1–5' : 'Ctrl+1–5'}</div>
                             <span>Quick Nav</span>
                         </div>
                     </div>

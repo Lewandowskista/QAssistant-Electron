@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { TestCaseExecution, useProjectStore } from "@/store/useProjectStore"
 import {
     Trash2,
@@ -5,6 +6,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import FormattedText from "./FormattedText"
+import { BugReportDialog } from "./BugReportDialog"
 
 interface TestCaseExecutionCardProps {
     planName: string
@@ -16,6 +18,7 @@ interface TestCaseExecutionCardProps {
 
 export default function TestCaseExecutionCard({ planName, caseExecution, activeProjectId, sessionId, planExecutionId }: TestCaseExecutionCardProps) {
     const { deleteTestCaseExecution } = useProjectStore()
+    const [bugDialogOpen, setBugDialogOpen] = useState(false)
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -147,11 +150,26 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                     variant="outline"
                     size="sm"
                     className="h-7 bg-[#14281C] text-[#34D399] border-[#1E3C28] hover:bg-[#1E3C28] hover:text-[#10B981] font-bold text-[11px] gap-1.5 px-3"
-                    title="Generate a structured bug report from this execution (TBD)"
+                    onClick={() => setBugDialogOpen(true)}
+                    disabled={caseExecution.result !== 'failed'}
+                    title={caseExecution.result === 'failed' ? 'Create bug report from this failure' : 'Only available for failed tests'}
                 >
                     <Bug className="h-3 w-3" /> Bug Report
                 </Button>
             </div>
+
+            <BugReportDialog
+                open={bugDialogOpen}
+                onOpenChange={setBugDialogOpen}
+                prefillData={{
+                    title: `Failed: ${caseExecution.snapshotTestCaseTitle}`,
+                    description: `**Expected:** ${caseExecution.snapshotExpectedResult || 'N/A'}\n\n**Actual:** ${caseExecution.actualResult || 'N/A'}\n\n**Steps:** ${caseExecution.snapshotSteps || 'N/A'}`,
+                    testCaseId: caseExecution.testCaseId,
+                    linkedTestCaseTitle: caseExecution.snapshotTestCaseTitle,
+                    expectedResult: caseExecution.snapshotExpectedResult,
+                    actualResult: caseExecution.actualResult
+                }}
+            />
         </div>
     )
 }
