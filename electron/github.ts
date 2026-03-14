@@ -220,6 +220,7 @@ export async function getPullRequests(owner: string, repo: string, state: 'open'
         additions: pr.additions || 0,
         deletions: pr.deletions || 0,
         changedFiles: pr.changed_files || 0,
+        labels: (pr.labels || []).map((l: any) => ({ name: l.name, color: l.color })),
         checkStatus: null, // filled by separate call if needed
     }))
 }
@@ -242,6 +243,7 @@ export async function getPrDetail(owner: string, repo: string, prNumber: number)
         additions: pr.additions || 0,
         deletions: pr.deletions || 0,
         changedFiles: pr.changed_files || 0,
+        labels: (pr.labels || []).map((l: any) => ({ name: l.name, color: l.color })),
         mergeable: pr.mergeable,
         mergeableState: pr.mergeable_state,
         body: pr.body || '',
@@ -399,6 +401,68 @@ export async function getBranches(owner: string, repo: string, forceRefresh = fa
 export async function rerunWorkflow(owner: string, repo: string, runId: number) {
     await githubFetch(`/repos/${owner}/${repo}/actions/runs/${runId}/rerun`, {
         method: 'POST',
+    })
+    return { success: true }
+}
+
+export async function getPrComments(owner: string, repo: string, prNumber: number) {
+    const [issueComments, reviewComments] = await Promise.all([
+        githubFetch<any[]>(`/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=50`, { cacheTtlMs: 60_000 }),
+        githubFetch<any[]>(`/repos/${owner}/${repo}/pulls/${prNumber}/comments?per_page=50`, { cacheTtlMs: 60_000 }),
+    ])
+
+    const all = [
+        ...issueComments.map((c: any) => ({
+            id: c.id,
+            user: c.user?.login || '',
+            userAvatar: c.user?.avatar_url || '',
+            body: c.body || '',
+            createdAt: c.created_at,
+        })),
+        ...reviewComments.map((c: any) => ({
+            id: c.id,
+            user: c.user?.login || '',
+            userAvatar: c.user?.avatar_url || '',
+            body: c.body || '',
+            createdAt: c.created_at,
+        })),
+    ]
+
+    all.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    return all
+}
+
+export async function getWorkflowJobs(owner: string, repo: string, runId: number) {
+    const data = await githubFetch<any>(`/repos/${owner}/${repo}/actions/runs/${runId}/jobs`, { cacheTtlMs: 30_000 })
+    return (data.jobs || []).map((job: any) => ({
+        id: job.id,
+        name: job.name,
+        status: job.status,
+        conclusion: job.conclusion,
+        startedAt: job.started_at || '',
+        completedAt: job.completed_at || null,
+        steps: (job.steps || []).map((s: any) => ({
+            name: s.name,
+            status: s.status,
+            conclusion: s.conclusion,
+        })),
+    }))
+}
+
+export async function getWorkflowsList(owner: string, repo: string) {
+    const data = await githubFetch<any>(`/repos/${owner}/${repo}/actions/workflows?per_page=50`, { cacheTtlMs: 5 * 60_000 })
+    return (data.workflows || []).map((w: any) => ({
+        id: w.id,
+        name: w.name,
+        state: w.state,
+        path: w.path,
+    }))
+}
+
+export async function dispatchWorkflow(owner: string, repo: string, workflowId: number, ref: string) {
+    await githubFetch(`/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`, {
+        method: 'POST',
+        body: JSON.stringify({ ref }),
     })
     return { success: true }
 }

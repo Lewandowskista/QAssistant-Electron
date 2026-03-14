@@ -1,73 +1,198 @@
-# React + TypeScript + Vite
+# QAssistant
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+QAssistant is an Electron desktop workspace for balanced QA/dev teams that need one place to manage:
 
-Currently, two official plugins are available:
+- task and defect triage
+- manual test planning and execution
+- QA-to-dev handoffs
+- release verification queues
+- GitHub review and PR context
+- environments, runbooks, evidence, and reports
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+It is designed for local-first usage. Project data lives on disk on the user's machine, integrations stay optional, and teams can pilot the app without standing up a backend.
 
-## React Compiler
+## Who It Is For
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- QA engineers running regression, retest, and release-readiness workflows
+- developers collaborating with QA through structured handoffs instead of scattered ticket comments
+- mixed squads that want traceability between tasks, tests, evidence, and PRs
 
-## Expanding the ESLint configuration
+## Core Workflow
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+The app is opinionated around one collaboration loop:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1. Sync or create a task
+2. Link test coverage and execute a run
+3. Create a handoff packet with evidence
+4. Link the fixing PR
+5. Mark the fix ready for QA
+6. Verify or reject the fix from the release queue
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Quick Start
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Install and run
+
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Useful scripts
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run lint
+npm run test
+npm run build
 ```
+
+### First-run options
+
+When you open QAssistant with no projects:
+
+- create an empty project from the sidebar or dashboard
+- load the built-in demo workspace to explore the intended flow
+
+The demo workspace includes:
+
+- linked tasks and tests
+- a failing checkout defect
+- a ready-for-QA handoff
+- release gate data
+- evidence and PR links
+
+## Main Areas
+
+- `Dashboard`: high-level QA/dev health, release-readiness metrics, and collaboration KPIs
+- `Tasks`: operational board for manual, Linear, or Jira-backed work
+- `Tests`: test plans, case generation, regression suite building, and execution history
+- `Release Queue`: ready-for-QA fixes, missing-evidence handoffs, and retest focus
+- `GitHub` / `Code Reviews`: repo, PR, checks, deployment, and review visibility
+- `Environments`, `API`, `Runbooks`, `SAP`, `Reports`: support tooling around delivery and diagnosis
+
+## Integrations
+
+Integrations are configured from `Settings`.
+
+### GitHub
+
+- connect with OAuth
+- browse repos, PRs, checks, comments, deployments, and review requests
+
+### Linear / Jira
+
+- sync tasks into the board
+- load comments and status history
+- push status changes back to the source system
+
+### Gemini
+
+- generate test cases
+- analyze issues
+- build smoke subsets and prioritization suggestions
+
+### Automation API
+
+QAssistant starts a local automation API that can ingest results and expose release state.
+
+Health check:
+
+```bash
+curl http://localhost:5248/health
+```
+
+Protected endpoints require the automation API bearer token configured in `Settings`.
+
+Examples:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:5248/api/projects
+curl -H "Authorization: Bearer <token>" http://localhost:5248/api/projects/<projectId>/release-readiness
+curl -H "Authorization: Bearer <token>" http://localhost:5248/api/projects/<projectId>/retest-queue
+```
+
+Submit a test result:
+
+```bash
+curl -X POST http://localhost:5248/api/results ^
+  -H "Authorization: Bearer <token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"displayId\":\"TC-101\",\"status\":\"failed\",\"actualResult\":\"500 on payment step\"}"
+```
+
+Create a handoff:
+
+```bash
+curl -X POST http://localhost:5248/api/handoffs ^
+  -H "Authorization: Bearer <token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"projectId\":\"<projectId>\",\"taskId\":\"<taskId>\",\"summary\":\"Checkout fails\",\"reproSteps\":\"...\",\"expectedResult\":\"Order completes\",\"actualResult\":\"500 returned\",\"severity\":\"critical\",\"environmentName\":\"Staging\"}"
+```
+
+## Data Model and Storage
+
+QAssistant stores data under the Electron user-data directory in `QAssistantData`.
+
+Key files:
+
+- `projects.json`: project workspace data
+- `settings.json`: app-level settings
+- `user.json`: role and identity state
+- `attachments/`: copied evidence and generated reports
+
+Credentials and tokens are stored separately via the secure credential service and are not included in project exports.
+
+## Schema Versioning and Migration
+
+Current schema version: `2`
+
+Recent changes in schema version 2:
+
+- added explicit `schemaVersion`
+- added handoff completeness fields: `isComplete`, `missingFields`
+- added branch/release metadata on handoffs
+- added `components` tags on tasks and test cases
+- migrated legacy `testExecutions` into derived archived `testRunSessions` when session history is missing
+
+Backward compatibility rules:
+
+- legacy `testExecutions` are still read
+- old projects without `schemaVersion` are normalized to schema version 2 on load
+- imported project data gets fresh IDs to avoid collisions in local storage
+
+## Export / Import
+
+Use `Settings -> Export / Import` to share a project with teammates.
+
+What is exported:
+
+- tasks, tests, handoffs, evidence links, reports, and runbooks
+
+What is not exported:
+
+- secure credentials
+- OAuth sessions
+- machine-local secrets
+
+## Testing Strategy
+
+Baseline automated coverage currently targets the new adoption-first workflow helpers:
+
+- handoff completeness validation
+- release queue derivation
+- legacy execution migration
+
+Recommended next additions:
+
+- store-level workflow tests
+- UI smoke tests for project creation, handoff creation, and verification
+- automation API contract tests
+
+## Current Limitations
+
+- GitHub data is visible in-app, but change-impact suggestions are still heuristic
+- import remapping still favors local safety over preserving original IDs
+- some large store modules still need decomposition into smaller domain slices
+
+## License / Ownership
+
+Internal project for QAssistant development.

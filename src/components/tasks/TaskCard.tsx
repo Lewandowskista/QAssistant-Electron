@@ -1,33 +1,43 @@
 import { memo } from "react"
-import { Task } from "@/store/useProjectStore"
-import { cn } from "@/lib/utils"
-import {
-    User,
-    AlertCircle,
-    ChevronUp,
-    ChevronDown,
-    Minus,
-    Clock3,
-    CheckCircle2,
-    AlertTriangle
-} from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import {
+    AlertCircle,
+    AlertTriangle,
+    ChevronDown,
+    ChevronUp,
+    Clock3,
+    Copy,
+    ExternalLink,
+    GripVertical,
+    Minus,
+    Microscope,
+    User
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import type { Task } from "@/store/useProjectStore"
+import type { TaskViewModel } from "@/lib/tasks"
+import { TaskStateBadge, collabStateLabel, collabStateTone, coverageStateTone, dueStateTone, handoffStateTone } from "./TaskStateBadge"
 
 interface TaskCardProps {
     task: Task
+    taskView?: TaskViewModel
     isOverlay?: boolean
     isSelected?: boolean
     onClick?: () => void
-    testCoverageCount?: number
+    onAnalyze?: () => void
+    onOpenExternal?: () => void
+    onOpenHandoff?: () => void
+    onCopyReference?: () => void
+    dragHandleProps?: Record<string, unknown>
+    dragDisabled?: boolean
 }
 
-// Moved outside component - this object is constant and doesn't need to be recreated on every render
 const priorityConfig = {
     critical: { icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
     high: { icon: ChevronUp, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "HIGH" },
     medium: { icon: Minus, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "MEDIUM" },
-    low: { icon: ChevronDown, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" },
+    low: { icon: ChevronDown, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" }
 } as const
 
 const severityConfig = {
@@ -35,103 +45,196 @@ const severityConfig = {
     critical: { color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
     major: { color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "MAJOR" },
     minor: { color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "MINOR" },
-    cosmetic: { color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20", label: "COSMETIC" },
+    cosmetic: { color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20", label: "COSMETIC" }
 } as const
 
-export const TaskCard = memo(function TaskCard({ task, isOverlay, isSelected, onClick, testCoverageCount = 0 }: TaskCardProps) {
+function labelList(task: Task) {
+    return (task.labels || "")
+        .split(",")
+        .map((label) => label.trim())
+        .filter(Boolean)
+}
 
+function sourceLabel(task: Task) {
+    if (task.source === "jira") return "JIRA"
+    if (task.source === "linear") return "LINEAR"
+    return "MANUAL"
+}
+
+function sourceClasses(task: Task) {
+    if (task.source === "jira") return "bg-blue-500/10 border-blue-500/20 text-blue-400"
+    if (task.source === "linear") return "bg-[#5E6AD2]/10 border-[#5E6AD2]/20 text-[#5E6AD2]"
+    return "bg-amber-500/10 border-amber-500/20 text-amber-400"
+}
+
+export const TaskCard = memo(function TaskCard({
+    task,
+    taskView,
+    isOverlay,
+    isSelected,
+    onClick,
+    onAnalyze,
+    onOpenExternal,
+    onOpenHandoff,
+    onCopyReference,
+    dragHandleProps,
+    dragDisabled
+}: TaskCardProps) {
     const config = priorityConfig[task.priority] || priorityConfig.medium
-    const severityConfig_ = severityConfig[(task.severity || 'major') as keyof typeof severityConfig]
+    const severityConfig_ = severityConfig[(task.severity || "major") as keyof typeof severityConfig]
     const PriorityIcon = config.icon
+    const labels = labelList(task)
+    const visibleLabels = labels.slice(0, 2)
+    const hiddenLabelCount = Math.max(labels.length - visibleLabels.length, 0)
 
     return (
         <div
             onClick={onClick}
             className={cn(
-                "bg-[#1A1A24]/60 backdrop-blur-md border border-[#2A2A3A] rounded-xl p-4 shadow-sm hover:border-[#A78BFA]/50 transition-all select-none group relative overflow-hidden",
+                "group relative overflow-hidden rounded-xl border border-[#2A2A3A] bg-[#1A1A24]/60 p-4 shadow-sm transition-all hover:border-[#A78BFA]/40",
                 isSelected && "border-[#A78BFA] ring-1 ring-[#A78BFA]/30 bg-[#1A1A24]/90",
-                isOverlay && "opacity-90 shadow-2xl scale-[1.02] border-[#A78BFA] z-[100]"
+                isOverlay && "scale-[1.02] border-[#A78BFA] shadow-2xl opacity-95"
             )}
         >
-            {/* Priority accent border */}
-            <div className={cn("absolute left-0 top-0 bottom-0 w-1", config.color.replace('text-', 'bg-'))} />
+            <div className={cn("absolute left-0 top-0 bottom-0 w-1", config.color.replace("text-", "bg-"))} />
 
             <div className="space-y-3">
-                {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2">
-                        {task.source === 'jira' ? (
-                            <div className="p-1 px-1.5 rounded bg-blue-500/10 border border-blue-500/20">
-                                <span className="text-[9px] font-black text-blue-400">JIRA</span>
-                            </div>
-                        ) : task.source === 'linear' ? (
-                            <div className="p-1 px-1.5 rounded bg-[#5E6AD2]/10 border border-[#5E6AD2]/20">
-                                <span className="text-[9px] font-black text-[#5E6AD2]">LINEAR</span>
-                            </div>
-                        ) : (
-                            <div className="p-1 px-1.5 rounded bg-amber-500/10 border border-amber-500/20">
-                                <span className="text-[9px] font-black text-amber-400">MANUAL</span>
-                            </div>
-                        )}
-                        <span className="text-[9px] font-bold text-[#6B7280] tracking-tight uppercase">{task.sourceIssueId || 'Draft'}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                        <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black", config.bg, config.color, config.border)}>
-                            <PriorityIcon className="h-2.5 w-2.5" />
-                            {config.label}
+                        <div className={cn("rounded border px-1.5 py-1", sourceClasses(task))}>
+                            <span className="text-[9px] font-black">{sourceLabel(task)}</span>
                         </div>
-                        {(task.severity || 'major') !== 'major' && (
-                            <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black", severityConfig_.bg, severityConfig_.color, severityConfig_.border)}>
-                                {severityConfig_.label}
-                            </div>
+                        <span className="text-[10px] font-bold uppercase tracking-tight text-[#6B7280]">
+                            {task.sourceIssueId || task.externalId || "Draft"}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                            type="button"
+                            className="rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-1 text-[#6B7280] hover:text-[#E2E8F0]"
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                onCopyReference?.()
+                            }}
+                            title="Copy task reference"
+                        >
+                            <Copy className="h-3 w-3" />
+                        </button>
+                        <button
+                            type="button"
+                            className="rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-1 text-[#6B7280] hover:text-[#C4B5FD]"
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                onAnalyze?.()
+                            }}
+                            title="Analyze issue"
+                        >
+                            <Microscope className="h-3 w-3" />
+                        </button>
+                        {task.source !== "manual" && task.ticketUrl && (
+                            <button
+                                type="button"
+                                className="rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-1 text-[#6B7280] hover:text-[#38BDF8]"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    onOpenExternal?.()
+                                }}
+                                title="Open source ticket"
+                            >
+                                <ExternalLink className="h-3 w-3" />
+                            </button>
                         )}
-                        {testCoverageCount > 0 ? (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[9px] font-black text-emerald-500">
-                                <CheckCircle2 className="h-2.5 w-2.5" />
-                                {testCoverageCount}
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-red-500/20 bg-red-500/10 text-[9px] font-black text-red-500">
-                                <AlertTriangle className="h-2.5 w-2.5" />
-                                0
-                            </div>
+                        {taskView?.hasActiveHandoff && (
+                            <button
+                                type="button"
+                                className="rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-1 text-[#6B7280] hover:text-[#A78BFA]"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    onOpenHandoff?.()
+                                }}
+                                title="Open handoff"
+                            >
+                                <AlertTriangle className="h-3 w-3" />
+                            </button>
+                        )}
+                        {!dragDisabled && dragHandleProps && (
+                            <button
+                                type="button"
+                                className="cursor-grab rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-1 text-[#6B7280] hover:text-[#E2E8F0]"
+                                onClick={(event) => event.stopPropagation()}
+                                title="Drag task"
+                                {...dragHandleProps}
+                            >
+                                <GripVertical className="h-3 w-3" />
+                            </button>
                         )}
                     </div>
                 </div>
 
-                {/* Title */}
-                <h4 className="text-[13px] font-bold text-[#E2E8F0] leading-snug line-clamp-2 group-hover:text-white transition-colors">
+                <h4 className="line-clamp-2 text-[13px] font-bold leading-snug text-[#E2E8F0] transition-colors group-hover:text-white">
                     {task.title}
                 </h4>
 
-                {/* Labels */}
-                {task.labels && task.labels.trim() !== "" && (
+                <div className="flex flex-wrap gap-1.5">
+                    <div className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black", config.bg, config.color, config.border)}>
+                        <PriorityIcon className="h-2.5 w-2.5" />
+                        {config.label}
+                    </div>
+                    {["major", "critical", "blocker"].includes(task.severity || "major") && (
+                        <div className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-black", severityConfig_.bg, severityConfig_.color, severityConfig_.border)}>
+                            {severityConfig_.label}
+                        </div>
+                    )}
+                    <TaskStateBadge label={collabStateLabel(task.collabState)} tone={collabStateTone(task.collabState)} />
+                    {taskView?.dueState && taskView.dueState !== "none" && taskView.dueLabel ? (
+                        <TaskStateBadge label={taskView.dueLabel} tone={dueStateTone(taskView.dueState)} />
+                    ) : null}
+                    {taskView ? (
+                        <TaskStateBadge label={`${taskView.linkedTestCount} tests`} tone={coverageStateTone(taskView.coverageState)} />
+                    ) : null}
+                    {taskView?.hasActiveHandoff ? (
+                        <TaskStateBadge
+                            label={taskView.handoffState === "incomplete" ? `Need ${taskView.handoffMissingFields[0] || "evidence"}` : "Handoff"}
+                            tone={handoffStateTone(taskView.handoffState)}
+                        />
+                    ) : null}
+                </div>
+
+                {(task.components?.length || visibleLabels.length > 0 || hiddenLabelCount > 0) && (
                     <div className="flex flex-wrap gap-1.5">
-                        {task.labels.split(',').map((label, idx) => (
-                            <div key={idx} className="px-2 py-0.5 rounded-md bg-[#2A2A3A]/50 border border-[#3A3A3A] text-[9px] font-bold text-[#9CA3AF] uppercase tracking-wider">
-                                {label.trim()}
-                            </div>
+                        {(task.components || []).slice(0, 3).map((component) => (
+                            <span key={component} className="rounded-md border border-[#38BDF8]/20 bg-[#38BDF8]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#38BDF8]">
+                                {component}
+                            </span>
                         ))}
+                        {visibleLabels.map((label) => (
+                            <span key={label} className="rounded-md border border-[#3A3A3A] bg-[#2A2A3A]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9CA3AF]">
+                                {label}
+                            </span>
+                        ))}
+                        {hiddenLabelCount > 0 && (
+                            <span className="rounded-md border border-[#3A3A3A] bg-[#2A2A3A]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9CA3AF]">
+                                +{hiddenLabelCount}
+                            </span>
+                        )}
                     </div>
                 )}
 
-                {/* Footer */}
-                <div className="flex items-center justify-between pt-3 border-t border-[#2A2A3A]/40">
+                <div className="flex items-center justify-between border-t border-[#2A2A3A]/40 pt-3">
                     <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#A78BFA]/20 to-[#6366F1]/20 flex items-center justify-center overflow-hidden border border-[#A78BFA]/30">
+                        <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-[#A78BFA]/30 bg-gradient-to-br from-[#A78BFA]/20 to-[#6366F1]/20">
                             {task.assignee ? (
                                 <span className="text-[8px] font-bold text-[#A78BFA]">{task.assignee.substring(0, 2).toUpperCase()}</span>
                             ) : (
                                 <User className="h-2.5 w-2.5 text-[#6B7280]" />
                             )}
                         </div>
-                        <span className="text-[10px] font-bold text-[#8E9196] truncate max-w-[80px]">{task.assignee || 'Unassigned'}</span>
+                        <span className="max-w-[90px] truncate text-[10px] font-bold text-[#8E9196]">{task.assignee || "Unassigned"}</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-1.5 text-[9px] font-medium text-[#6B7280]">
                         <Clock3 className="h-3 w-3 opacity-60" />
-                        {new Date(task.updatedAt || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        {new Date(task.updatedAt || Date.now()).toLocaleDateString([], { month: "short", day: "numeric" })}
                     </div>
                 </div>
             </div>
@@ -139,41 +242,51 @@ export const TaskCard = memo(function TaskCard({ task, isOverlay, isSelected, on
     )
 })
 
-export function SortableTaskCard({ task, isSelected, onClick }: { task: Task, isSelected: boolean, onClick: () => void }) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({ id: task.id })
-
+export function SortableTaskCard({
+    task,
+    taskView,
+    isSelected,
+    onClick,
+    onAnalyze,
+    onOpenExternal,
+    onOpenHandoff,
+    onCopyReference,
+    dragDisabled
+}: {
+    task: Task
+    taskView: TaskViewModel
+    isSelected: boolean
+    onClick: () => void
+    onAnalyze?: () => void
+    onOpenExternal?: () => void
+    onOpenHandoff?: () => void
+    onCopyReference?: () => void
+    dragDisabled?: boolean
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: dragDisabled })
     const style = {
         transform: CSS.Translate.toString(transform),
-        transition,
+        transition
     }
 
     if (isDragging) {
-        return (
-            <div
-                ref={setNodeRef}
-                style={style}
-                className="h-[100px] rounded-xl border-2 border-dashed border-[#A78BFA]/30 bg-[#A78BFA]/5"
-            />
-        )
+        return <div ref={setNodeRef} style={style} className="h-[160px] rounded-xl border-2 border-dashed border-[#A78BFA]/30 bg-[#A78BFA]/5" />
     }
 
     return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            {...attributes}
-            {...listeners}
-            onClick={onClick}
-            className="cursor-default"
-        >
-            <TaskCard task={task} isSelected={isSelected} />
+        <div ref={setNodeRef} style={style} {...attributes} className="cursor-default">
+            <TaskCard
+                task={task}
+                taskView={taskView}
+                isSelected={isSelected}
+                onClick={onClick}
+                onAnalyze={onAnalyze}
+                onOpenExternal={onOpenExternal}
+                onOpenHandoff={onOpenHandoff}
+                onCopyReference={onCopyReference}
+                dragHandleProps={listeners}
+                dragDisabled={dragDisabled}
+            />
         </div>
     )
 }

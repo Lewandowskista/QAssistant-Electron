@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
+import { useUserStore } from "@/store/useUserStore"
 import { cn } from "@/lib/utils"
 import { getApiKey } from "@/lib/credentials"
 import {
@@ -15,9 +16,13 @@ import {
     Check,
     RotateCcw,
     Lightbulb,
+    SlidersHorizontal,
 } from "lucide-react"
 import FormattedText from "@/components/FormattedText"
-import { sanitizeProjectForAi } from "@/lib/aiUtils"
+import { buildProjectAiContext } from "@/lib/aiUtils"
+import { Checkbox } from "@/components/ui/checkbox"
+import type { AiContextSelection, AiRole } from "@/types/ai"
+import type { Checklist, HandoffPacket, Project, QaEnvironment, Task, TestDataGroup, TestPlan } from "@/types/project"
 
 interface Message {
     id: string
@@ -27,28 +32,117 @@ interface Message {
     isError?: boolean
 }
 
-const STARTER_PROMPTS = [
-    "What are the riskiest areas in this sprint?",
-    "Summarize the current test pass rate and suggest improvements",
-    "Which failed tests should I prioritize for retest?",
-    "What SAP ImpEx would help me test product catalog sync?",
+type ContextSectionKey = "tasks" | "testPlans" | "environments" | "testDataGroups" | "checklists" | "handoffPackets"
+
+const QA_CONTEXT_SECTION_META: Array<{ key: ContextSectionKey; label: string; selectionKey: keyof AiContextSelection }> = [
+    { key: "tasks", label: "Tasks", selectionKey: "taskIds" },
+    { key: "testPlans", label: "Test Plans", selectionKey: "testPlanIds" },
+    { key: "environments", label: "Environments", selectionKey: "environmentIds" },
+    { key: "testDataGroups", label: "Test Data", selectionKey: "testDataGroupIds" },
+    { key: "checklists", label: "Checklists", selectionKey: "checklistIds" },
 ]
+
+const DEV_CONTEXT_SECTION_META: Array<{ key: ContextSectionKey; label: string; selectionKey: keyof AiContextSelection }> = [
+    { key: "tasks", label: "Tasks", selectionKey: "taskIds" },
+    { key: "handoffPackets", label: "Handoffs", selectionKey: "handoffIds" },
+    { key: "environments", label: "Environments", selectionKey: "environmentIds" },
+]
+
+const ROLE_CONTENT: Record<AiRole, {
+    title: string
+    introTitle: string
+    introBody: string
+    placeholder: string
+    footer: string
+    starterPrompts: string[]
+}> = {
+    qa: {
+        title: "QA Copilot",
+        introTitle: "Ask me anything about quality, coverage, and risk",
+        introBody: "I only use the QA context you selected above for this chat.",
+        placeholder: "Ask about tests, risks, SAP, coverage...",
+        footer: "Enter to send | Shift+Enter for new line | Context-aware QA assistant",
+        starterPrompts: [
+            "What are the riskiest areas in this sprint?",
+            "Summarize the current test pass rate and suggest improvements.",
+            "Which failed tests should I prioritize for retest?",
+            "What SAP ImpEx would help me test product catalog sync?",
+        ],
+    },
+    dev: {
+        title: "Dev Copilot",
+        introTitle: "Ask me about implementation, handoffs, and release readiness",
+        introBody: "I only use the Dev context you selected above for this chat.",
+        placeholder: "Ask about implementation scope, handoffs, PR readiness...",
+        footer: "Enter to send | Shift+Enter for new line | Context-aware Dev assistant",
+        starterPrompts: [
+            "Summarize the active QA handoffs and the likely implementation work.",
+            "Which linked PRs or handoffs look closest to ready for QA?",
+            "What information is missing before development can pick up these tasks?",
+            "Which environments or release details should I confirm before merging?",
+        ],
+    },
+}
+
+type ContextSectionItemMap = {
+    tasks: Task
+    testPlans: TestPlan
+    environments: QaEnvironment
+    testDataGroups: TestDataGroup
+    checklists: Checklist
+    handoffPackets: HandoffPacket
+}
+
+function getContextItemLabel(item: Task | TestPlan | QaEnvironment | TestDataGroup | Checklist | HandoffPacket): string {
+    if ("title" in item) return item.title
+    if ("summary" in item) return item.summary
+    return item.name
+}
+
+function getContextItemSecondaryText(key: ContextSectionKey, item: Task | TestPlan | QaEnvironment | TestDataGroup | Checklist | HandoffPacket): string {
+    if (key === "tasks" && "title" in item) return item.sourceIssueId || item.status || "Task"
+    if (key === "testPlans" && "testCases" in item) return `${item.testCases.length} cases`
+    if (key === "handoffPackets" && "summary" in item) return item.branchName || item.environmentName || item.type
+    if ("category" in item) return item.category || ""
+    if ("type" in item) return item.type || ""
+    return ""
+}
 
 function formatTime(ts: number) {
     return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
+function buildFullSelection(role: AiRole, project: Project | undefined): AiContextSelection {
+    return {
+        taskIds: (project?.tasks || []).map((item) => item.id),
+        testPlanIds: role === "qa" ? (project?.testPlans || []).map((item) => item.id) : [],
+        environmentIds: (project?.environments || []).map((item) => item.id),
+        testDataGroupIds: role === "qa" ? (project?.testDataGroups || []).map((item) => item.id) : [],
+        checklistIds: role === "qa" ? (project?.checklists || []).map((item) => item.id) : [],
+        handoffIds: role === "dev" ? (project?.handoffPackets || []).map((item) => item.id) : [],
+        includeSapCommerce: role === "qa",
+    }
+}
+
+function getSelectedIds(selection: AiContextSelection, key: keyof AiContextSelection): string[] {
+    const value = selection[key]
+    return Array.isArray(value) ? value : []
+}
+
 interface CopyButtonProps {
     text: string
 }
+
 function CopyButton({ text }: CopyButtonProps) {
     const [copied, setCopied] = useState(false)
+
     const handleCopy = () => {
         navigator.clipboard.writeText(text).then(() => {
             setCopied(true)
             setTimeout(() => setCopied(false), 1500)
         })
     }
+
     return (
         <button
             onClick={handleCopy}
@@ -67,45 +161,89 @@ interface AiCopilotProps {
 
 export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     const { projects, activeProjectId } = useProjectStore()
+    const activeRole = useUserStore((state) => state.activeRole)
     const activeProject = projects.find((p) => p.id === activeProjectId)
 
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [apiKeyMissing, setApiKeyMissing] = useState(false)
+    const [contextOpen, setContextOpen] = useState(false)
+    const [contextSelection, setContextSelection] = useState<AiContextSelection>(() => buildFullSelection("qa", undefined))
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const abortRef = useRef<boolean>(false)
 
-    // Scroll to bottom when messages change
+    useEffect(() => {
+        setContextSelection(buildFullSelection(activeRole, activeProject))
+        setContextOpen(false)
+    }, [activeProjectId, activeProject, activeRole])
+
+    const roleContent = ROLE_CONTENT[activeRole]
+    const contextSectionMeta = activeRole === "dev" ? DEV_CONTEXT_SECTION_META : QA_CONTEXT_SECTION_META
+
+    const filteredProjectContext = useMemo(
+        () => buildProjectAiContext(activeProject, activeRole, contextSelection),
+        [activeProject, activeRole, contextSelection]
+    )
+
+    const contextSummary = useMemo(() => {
+        if (!filteredProjectContext) return "No context selected"
+        if (filteredProjectContext.role === "dev") {
+            return `${filteredProjectContext.tasks.length} tasks | ${filteredProjectContext.handoffs.length} handoffs | ${filteredProjectContext.environments.length} envs`
+        }
+        const caseCount = filteredProjectContext.testPlans.reduce((sum, plan) => sum + (plan.testCaseCount || 0), 0)
+        return `${caseCount} cases | ${filteredProjectContext.tasks.length} tasks | ${filteredProjectContext.environments.length} envs`
+    }, [filteredProjectContext])
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [messages])
 
     const fetchApiKey = useCallback(async (): Promise<string | null> => {
-        const api = window.electronAPI as any
-        return getApiKey(api, 'gemini_api_key', activeProjectId)
+        const api = window.electronAPI
+        return getApiKey(api, "gemini_api_key", activeProjectId)
     }, [activeProjectId])
 
-    // Focus input when opened
     useEffect(() => {
         if (open) {
             setTimeout(() => inputRef.current?.focus(), 150)
-
-            // Re-check API key when opening
-            fetchApiKey().then(key => {
+            fetchApiKey().then((key) => {
                 setApiKeyMissing(!key)
             })
         }
     }, [open, fetchApiKey])
 
-    // Check API key when project changes
     useEffect(() => {
-        fetchApiKey().then(key => {
+        fetchApiKey().then((key) => {
             setApiKeyMissing(!key)
         })
     }, [activeProjectId, fetchApiKey])
+
+    const toggleContextItem = useCallback((selectionKey: keyof AiContextSelection, itemId: string) => {
+        setContextSelection((current) => {
+            const next = new Set(getSelectedIds(current, selectionKey))
+            if (next.has(itemId)) {
+                next.delete(itemId)
+            } else {
+                next.add(itemId)
+            }
+            return { ...current, [selectionKey]: Array.from(next) }
+        })
+    }, [])
+
+    const toggleAllContextItems = useCallback((selectionKey: keyof AiContextSelection, itemIds: string[]) => {
+        setContextSelection((current) => {
+            const currentIds = new Set(getSelectedIds(current, selectionKey))
+            const allSelected = itemIds.length > 0 && itemIds.every((id) => currentIds.has(id))
+            return { ...current, [selectionKey]: allSelected ? [] : itemIds }
+        })
+    }, [])
+
+    const resetContextSelection = useCallback(() => {
+        setContextSelection(buildFullSelection(activeRole, activeProject))
+    }, [activeProject, activeRole])
 
     const sendMessage = useCallback(async (text: string) => {
         if (!text.trim() || isLoading) return
@@ -129,7 +267,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                 {
                     id: crypto.randomUUID(),
                     role: "assistant",
-                    content: "⏱️ Request timed out — please try again.",
+                    content: "Request timed out. Please try again.",
                     timestamp: Date.now(),
                     isError: true,
                 },
@@ -145,7 +283,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     {
                         id: crypto.randomUUID(),
                         role: "assistant",
-                        content: "⚠️ No Gemini API key configured. Please add your API key in **Settings → AI Configuration**.",
+                        content: "No Gemini API key configured. Add it in Settings -> AI Configuration.",
                         timestamp: Date.now(),
                         isError: true,
                     },
@@ -154,12 +292,12 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             }
             setApiKeyMissing(false)
 
-            const api = window.electronAPI as any
-            const result = await api.aiChat({
+            const result = await window.electronAPI.aiChat({
                 apiKey,
                 userMessage: text.trim(),
                 history: messages.map((m) => ({ role: m.role, content: m.content })),
-                project: sanitizeProjectForAi(activeProject),
+                role: activeRole,
+                project: filteredProjectContext,
                 modelName: activeProject?.geminiModel,
             })
 
@@ -174,14 +312,14 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     timestamp: Date.now(),
                 },
             ])
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (!abortRef.current) {
                 setMessages((prev) => [
                     ...prev,
                     {
                         id: crypto.randomUUID(),
                         role: "assistant",
-                        content: `❌ ${String(err?.message || err)}`,
+                        content: `Error: ${err instanceof Error ? err.message : String(err)}`,
                         timestamp: Date.now(),
                         isError: true,
                     },
@@ -191,7 +329,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             clearTimeout(timeoutId)
             setIsLoading(false)
         }
-    }, [isLoading, messages, activeProject, fetchApiKey])
+    }, [isLoading, messages, filteredProjectContext, activeProject, fetchApiKey, activeRole])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -214,13 +352,12 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     const retryLast = () => {
         const lastUser = [...messages].reverse().find((m) => m.role === "user")
         if (!lastUser) return
-        setMessages((prev) => prev.slice(0, -1)) // remove last assistant msg
+        setMessages((prev) => prev.slice(0, -1))
         sendMessage(lastUser.content)
     }
 
     return (
         <>
-            {/* Backdrop */}
             <div
                 className={cn(
                     "fixed inset-0 z-[110] transition-opacity duration-300",
@@ -229,30 +366,42 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                 onClick={onClose}
             />
 
-            {/* Panel */}
             <div
                 className={cn(
                     "fixed top-0 right-0 h-full z-[120] flex flex-col app-region-no-drag",
                     "w-[480px] bg-[#0F0F13] border-l border-[#2A2A3A] transition-all duration-300 ease-in-out",
-                    open 
-                        ? "translate-x-0 opacity-100 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]" 
+                    open
+                        ? "translate-x-0 opacity-100 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]"
                         : "translate-x-full opacity-0 invisible pointer-events-none"
                 )}
             >
-                {/* Header */}
                 <div className="h-14 flex items-center justify-between px-4 border-b border-[#2A2A3A] shrink-0 bg-[#13131A]">
                     <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shadow-lg shadow-[#A78BFA]/20">
                             <Sparkles className="h-3.5 w-3.5 text-white" />
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-[#E2E8F0]">AI Copilot</p>
+                            <p className="text-xs font-bold text-[#E2E8F0]">{roleContent.title}</p>
                             <p className="text-[10px] text-[#6B7280]">
                                 {activeProject ? activeProject.name : "No project selected"}
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-1">
+                        {activeProject && (
+                            <button
+                                onClick={() => setContextOpen((current) => !current)}
+                                className={cn(
+                                    "p-2 rounded-md transition-colors",
+                                    contextOpen
+                                        ? "bg-[#252535] text-[#A78BFA]"
+                                        : "hover:bg-[#252535] text-[#6B7280] hover:text-[#E2E8F0]"
+                                )}
+                                title="Select AI context"
+                            >
+                                <SlidersHorizontal className="h-3.5 w-3.5" />
+                            </button>
+                        )}
                         {messages.length > 0 && (
                             <button
                                 onClick={clearChat}
@@ -271,24 +420,107 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     </div>
                 </div>
 
-                {/* Context pill */}
                 {activeProject && (
                     <div className="px-4 py-2 border-b border-[#2A2A3A]/50 bg-[#13131A]/50 flex items-center gap-2 shrink-0">
                         <div className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />
                         <span className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">
-                            Context injected:
+                            Context selected:
                         </span>
                         <span className="text-[10px] text-[#A78BFA] font-mono">
-                            {activeProject.testPlans?.flatMap((tp: any) => tp.testCases || []).length || 0} cases
-                            {" · "}
-                            {activeProject.tasks?.length || 0} tasks
-                            {" · "}
-                            {activeProject.environments?.length || 0} envs
+                            {contextSummary}
                         </span>
                     </div>
                 )}
 
-                {/* Messages area */}
+                {activeProject && contextOpen && (
+                    <div className="border-b border-[#2A2A3A]/50 bg-[#101018] px-4 py-3 space-y-3 shrink-0">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#A78BFA]">Manual Context</p>
+                                <p className="text-[10px] text-[#6B7280]">Choose exactly what the copilot can use for this chat.</p>
+                            </div>
+                            <button
+                                onClick={resetContextSelection}
+                                className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] transition-colors hover:text-[#E2E8F0]"
+                            >
+                                Reset
+                            </button>
+                        </div>
+
+                        <div className="grid gap-2 max-h-[240px] overflow-y-auto pr-1 custom-scrollbar">
+                            {contextSectionMeta.map(({ key, label, selectionKey }) => {
+                                const items = (activeProject[key] || []) as ContextSectionItemMap[typeof key][]
+                                const itemIds = items.map((item) => item.id)
+                                const selectedIds = getSelectedIds(contextSelection, selectionKey)
+                                const allSelected = itemIds.length > 0 && itemIds.every((id) => selectedIds.includes(id))
+
+                                return (
+                                    <div key={key} className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-3">
+                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                            <div>
+                                                <p className="text-[11px] font-semibold text-[#E2E8F0]">{label}</p>
+                                                <p className="text-[10px] text-[#6B7280]">{selectedIds.length}/{items.length} selected</p>
+                                            </div>
+                                            <button
+                                                onClick={() => toggleAllContextItems(selectionKey, itemIds)}
+                                                className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] transition-colors hover:text-[#A78BFA]"
+                                            >
+                                                {allSelected ? "Clear" : "All"}
+                                            </button>
+                                        </div>
+
+                                        {items.length === 0 ? (
+                                            <p className="text-[10px] text-[#6B7280]">No {label.toLowerCase()} available.</p>
+                                        ) : (
+                                            <div className="space-y-1.5">
+                                                {items.map((item) => {
+                                                    const isChecked = selectedIds.includes(item.id)
+                                                    const secondaryText = getContextItemSecondaryText(key, item)
+
+                                                    return (
+                                                        <label
+                                                            key={item.id}
+                                                            className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-[#1A1A24]"
+                                                        >
+                                                            <Checkbox
+                                                                checked={isChecked}
+                                                                onCheckedChange={() => toggleContextItem(selectionKey, item.id)}
+                                                                className="mt-0.5 border-[#3A3A52] data-[state=checked]:bg-[#A78BFA] data-[state=checked]:text-[#0F0F13]"
+                                                            />
+                                                            <span className="min-w-0 flex-1">
+                                                                <span className="block truncate text-[11px] text-[#E2E8F0]">{getContextItemLabel(item)}</span>
+                                                                {secondaryText ? (
+                                                                    <span className="block truncate text-[10px] text-[#6B7280]">{secondaryText}</span>
+                                                                ) : null}
+                                                            </span>
+                                                        </label>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
+
+                            {activeRole === "qa" && (
+                                <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-3">
+                                    <label className="flex cursor-pointer items-start gap-2">
+                                        <Checkbox
+                                            checked={contextSelection.includeSapCommerce !== false}
+                                            onCheckedChange={(checked) => setContextSelection((current) => ({ ...current, includeSapCommerce: checked === true }))}
+                                            className="mt-0.5 border-[#3A3A52] data-[state=checked]:bg-[#A78BFA] data-[state=checked]:text-[#0F0F13]"
+                                        />
+                                        <span>
+                                            <span className="block text-[11px] font-semibold text-[#E2E8F0]">SAP Commerce context</span>
+                                            <span className="block text-[10px] text-[#6B7280]">Include the SAP guidance block and selected SAP-capable environments.</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">
                     {messages.length === 0 && (
                         <div className="flex flex-col items-center justify-center h-full text-center gap-6 py-8">
@@ -296,9 +528,9 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                 <Sparkles className="h-7 w-7 text-[#A78BFA]" />
                             </div>
                             <div className="space-y-1">
-                                <p className="text-sm font-bold text-[#E2E8F0]">Ask me anything about your QA</p>
+                                <p className="text-sm font-bold text-[#E2E8F0]">{roleContent.introTitle}</p>
                                 <p className="text-xs text-[#6B7280]">
-                                    I have full context on your project, tests, tasks, and environments.
+                                    {roleContent.introBody}
                                 </p>
                             </div>
                             <div className="w-full space-y-2">
@@ -308,7 +540,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                         Suggestions
                                     </span>
                                 </div>
-                                {STARTER_PROMPTS.map((prompt) => (
+                                {roleContent.starterPrompts.map((prompt) => (
                                     <button
                                         key={prompt}
                                         onClick={() => sendMessage(prompt)}
@@ -330,7 +562,6 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                 msg.role === "user" ? "flex-row-reverse" : "flex-row"
                             )}
                         >
-                            {/* Avatar */}
                             <div className={cn(
                                 "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5",
                                 msg.role === "user"
@@ -343,7 +574,6 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                 }
                             </div>
 
-                            {/* Bubble */}
                             <div className={cn(
                                 "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed relative",
                                 msg.role === "user"
@@ -381,7 +611,6 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                         </div>
                     ))}
 
-                    {/* Loading indicator */}
                     {isLoading && (
                         <div className="flex gap-2.5">
                             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shrink-0 shadow-md shadow-[#A78BFA]/20">
@@ -406,7 +635,6 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* API key warning banner */}
                 {apiKeyMissing && (
                     <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-500/20 text-amber-400 text-[11px] flex items-center gap-2">
                         <Sparkles className="h-3 w-3 shrink-0" />
@@ -414,7 +642,6 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     </div>
                 )}
 
-                {/* Input area */}
                 <div className="p-3 border-t border-[#2A2A3A] bg-[#13131A] shrink-0">
                     <div className="relative flex items-end gap-2 rounded-xl border border-[#2A2A3A] bg-[#0F0F13] focus-within:border-[#A78BFA]/40 transition-colors p-2 app-region-no-drag">
                         <textarea
@@ -422,12 +649,11 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             value={input}
                             onChange={(e) => {
                                 setInput(e.target.value)
-                                // Auto-resize
                                 e.target.style.height = "auto"
                                 e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"
                             }}
                             onKeyDown={handleKeyDown}
-                            placeholder="Ask about tests, risks, SAP, coverage..."
+                            placeholder={roleContent.placeholder}
                             disabled={isLoading || apiKeyMissing}
                             rows={1}
                             className="flex-1 bg-transparent border-none text-xs text-[#E2E8F0] placeholder:text-[#6B7280]/60 focus:outline-none resize-none leading-relaxed min-h-[20px] max-h-[120px] py-0.5 px-1 custom-scrollbar app-region-no-drag"
@@ -450,12 +676,11 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                         </button>
                     </div>
                     <p className="text-[9px] text-[#6B7280]/50 mt-1.5 text-center">
-                        Enter to send · Shift+Enter for new line · Context-aware QA assistant
+                        {roleContent.footer}
                     </p>
                 </div>
             </div>
 
-            {/* Scroll-to-bottom button (visible when scrolled up) */}
             {messages.length > 3 && (
                 <button
                     onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })}

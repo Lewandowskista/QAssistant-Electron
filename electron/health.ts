@@ -114,7 +114,7 @@ function str(obj: any, key: string): string {
     return obj?.[key] ?? '';
 }
 
-function makeHeaders(apiToken: string): HeadersInit {
+function makeHeaders(apiToken: string): Record<string, string> {
     return {
         'Authorization': `Bearer ${apiToken}`,
         'Accept': 'application/json',
@@ -129,7 +129,7 @@ export async function ccv2GetEnvironments(
     const url = `${apiBase}/v2/subscriptions/${encodeURIComponent(subscriptionCode)}/environments`;
     const res = await fetch(url, { headers: makeHeaders(apiToken), signal: AbortSignal.timeout(30000) });
     if (!res.ok) throw new Error(`CCv2 environments failed: ${res.status}`);
-    const json = await res.json();
+    const json = await res.json() as { value?: any[] };
     return (json.value || []).map((item: any) => ({
         code: str(item, 'code'),
         name: str(item, 'name'),
@@ -150,7 +150,7 @@ export async function ccv2GetDeployments(
     const url = `${apiBase}/v2/subscriptions/${encodeURIComponent(subscriptionCode)}/deployments?${qs}`;
     const res = await fetch(url, { headers: makeHeaders(apiToken), signal: AbortSignal.timeout(30000) });
     if (!res.ok) throw new Error(`CCv2 deployments failed: ${res.status}`);
-    const json = await res.json();
+    const json = await res.json() as { value?: any[] };
     return (json.value || []).map((item: any) => ({
         code: str(item, 'code'),
         environmentCode: str(item, 'environmentCode'),
@@ -172,7 +172,7 @@ export async function ccv2GetBuild(
         const url = `${apiBase}/v2/subscriptions/${encodeURIComponent(subscriptionCode)}/builds/${encodeURIComponent(buildCode)}`;
         const res = await fetch(url, { headers: makeHeaders(apiToken), signal: AbortSignal.timeout(30000) });
         if (!res.ok) return null;
-        const item = await res.json();
+        const item = await res.json() as any;
         return {
             code: str(item, 'code'),
             name: str(item, 'name'),

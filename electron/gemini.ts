@@ -38,7 +38,6 @@ export class GeminiService {
                 signal: AbortSignal.timeout(30_000),
             });
             if (!response.ok) {
-                const errorText = await response.text();
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json() as any;
@@ -53,7 +52,7 @@ export class GeminiService {
     private getModel(modelName: string, temperature = 0.7, maxOutputTokens = 8192, systemInstruction?: string, jsonMode = false) {
         return this.genAI.getGenerativeModel({
             model: modelName,
-            systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+            systemInstruction,
             generationConfig: {
                 temperature,
                 topP: 0.9,
@@ -209,13 +208,29 @@ export class GeminiService {
         }
 
         // Test coverage snapshot
-        const allCases = project.testPlans?.flatMap((tp: any) => tp.testCases || []) || []
-        if (allCases.length > 0) {
-            const passed = allCases.filter((tc: any) => tc.status === 'passed').length
-            const failed = allCases.filter((tc: any) => tc.status === 'failed').length
-            const blocked = allCases.filter((tc: any) => tc.status === 'blocked').length
-            const notRun = allCases.filter((tc: any) => tc.status === 'not-run').length
-            lines.push(` test_coverage:total=${allCases.length},passed=${passed},failed=${failed},blocked=${blocked},not_run=${notRun}`)
+        const planSummaries = project.testPlans || []
+        const totalCaseCount = planSummaries.reduce((sum: number, plan: any) => sum + (plan.testCaseCount || plan.testCases?.length || 0), 0)
+        if (totalCaseCount > 0) {
+            const aggregateStatusCounts = planSummaries.reduce((acc: Record<string, number>, plan: any) => {
+                if (plan.statusCounts && typeof plan.statusCounts === 'object') {
+                    for (const [status, count] of Object.entries(plan.statusCounts)) {
+                        acc[status] = (acc[status] || 0) + Number(count || 0)
+                    }
+                    return acc
+                }
+
+                for (const testCase of plan.testCases || []) {
+                    const status = testCase?.status || 'not-run'
+                    acc[status] = (acc[status] || 0) + 1
+                }
+                return acc
+            }, {})
+
+            const passed = aggregateStatusCounts.passed || 0
+            const failed = aggregateStatusCounts.failed || 0
+            const blocked = aggregateStatusCounts.blocked || 0
+            const notRun = aggregateStatusCounts['not-run'] || 0
+            lines.push(` test_coverage:total=${totalCaseCount},passed=${passed},failed=${failed},blocked=${blocked},not_run=${notRun}`)
         }
 
         if (project.checklists?.length > 0) {
@@ -264,11 +279,96 @@ export class GeminiService {
         lines.push('}')
         lines.push('---')
 
-        // Conditionally append SAP Commerce context if the project appears related
-        if (project.sapHac && project.sapHac.length > 0) {
+        if (project.sapCommerce?.enabled) {
+            const sapEnvSummary = (project.sapCommerce.environments || [])
+                .slice(0, 5)
+                .map((env: any) => {
+                    const tags = [
+                        env.type,
+                        env.isDefault ? 'default' : '',
+                        env.hacUrl ? 'hac' : '',
+                        env.backOfficeUrl ? 'backoffice' : '',
+                        env.occBasePath ? `occ=${GeminiService.sanitizeToonValue(env.occBasePath, 80)}` : '',
+                    ].filter(Boolean).join('|')
+                    return `${GeminiService.sanitizeToonValue(env.name, 60)}(${tags})`
+                })
+                .join(',')
+
+            if (sapEnvSummary) {
+                lines.push(` sap_commerce_envs:${sapEnvSummary}`)
+            }
             lines.push(SAP_COMMERCE_CONTEXT_BLOCK)
             lines.push('---')
         }
+    }
+
+    private static appendDevContext(lines: string[], project: any): void {
+        if (!project) return
+
+        lines.push('dev_context{')
+        lines.push(` project:${GeminiService.sanitizeToonValue(project.name, 200)}`)
+        if (project.description) {
+            lines.push(` project_desc:${GeminiService.sanitizeToonValue(project.description, 300)}`)
+        }
+
+        const activeEnv = project.environments?.find((environment: any) => environment.isDefault) ?? project.environments?.[0]
+        if (activeEnv) {
+            lines.push(` active_env:${GeminiService.sanitizeToonValue(activeEnv.name, 100)}`)
+            lines.push(` env_type:${activeEnv.type}`)
+            if (activeEnv.baseUrl) lines.push(` env_url:${GeminiService.sanitizeToonValue(activeEnv.baseUrl, 200)}`)
+        }
+
+        if (project.environments?.length > 0) {
+            const environmentSummary = project.environments
+                .map((environment: any) => `${GeminiService.sanitizeToonValue(environment.name, 60)}(${environment.type})`)
+                .join(',')
+            lines.push(` environments:${environmentSummary}`)
+        }
+
+        if (project.tasks?.length > 0) {
+            lines.push(` work_summary:tasks=${project.tasks.length}`)
+            lines.push('tracked_work[')
+            for (const task of project.tasks.slice(0, 40)) {
+                let entry = `  {id:${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId || task.id, 60)},t:${GeminiService.sanitizeToonValue(task.title, 150)},status:${task.status},priority:${task.priority}`
+                if (task.assignee) entry += `,assignee:${GeminiService.sanitizeToonValue(task.assignee, 80)}`
+                if (task.collabState) entry += `,collab:${GeminiService.sanitizeToonValue(task.collabState, 40)}`
+                if (task.activeHandoffId) entry += `,handoff:${GeminiService.sanitizeToonValue(task.activeHandoffId, 80)}`
+                if (task.labels) entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 120)}`
+                entry += '}'
+                lines.push(entry)
+            }
+            lines.push(' ]')
+        }
+
+        if (project.handoffs?.length > 0) {
+            lines.push(` handoff_summary:total=${project.handoffs.length}`)
+            lines.push(' handoffs[')
+            for (const handoff of project.handoffs.slice(0, 25)) {
+                let entry = `  {id:${GeminiService.sanitizeToonValue(handoff.id, 80)},task:${GeminiService.sanitizeToonValue(handoff.taskId, 80)},type:${GeminiService.sanitizeToonValue(handoff.type, 40)},summary:${GeminiService.sanitizeToonValue(handoff.summary, 240)}`
+                if (handoff.environmentName) entry += `,env:${GeminiService.sanitizeToonValue(handoff.environmentName, 80)}`
+                if (handoff.severity) entry += `,severity:${GeminiService.sanitizeToonValue(handoff.severity, 40)}`
+                if (handoff.branchName) entry += `,branch:${GeminiService.sanitizeToonValue(handoff.branchName, 120)}`
+                if (handoff.releaseVersion) entry += `,release:${GeminiService.sanitizeToonValue(handoff.releaseVersion, 80)}`
+                if (handoff.isComplete !== undefined) entry += `,complete:${handoff.isComplete ? 'yes' : 'no'}`
+                entry += '}'
+                lines.push(entry)
+
+                if (handoff.linkedPrs?.length > 0) {
+                    lines.push(`   linked_prs_for_${GeminiService.sanitizeToonValue(handoff.id, 40)}[`)
+                    for (const linkedPr of handoff.linkedPrs.slice(0, 10)) {
+                        let prEntry = `    {repo:${GeminiService.sanitizeToonValue(linkedPr.repoFullName, 120)},pr:${linkedPr.prNumber}`
+                        if (linkedPr.status) prEntry += `,status:${GeminiService.sanitizeToonValue(linkedPr.status, 40)}`
+                        prEntry += '}'
+                        lines.push(prEntry)
+                    }
+                    lines.push('   ]')
+                }
+            }
+            lines.push(' ]')
+        }
+
+        lines.push('}')
+        lines.push('---')
     }
 
     // ── Prompt Builders ──────────────────────────────────────────────────────
@@ -735,21 +835,36 @@ export class GeminiService {
     async chat(
         userMessage: string,
         history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+        role: 'qa' | 'dev' = 'qa',
         project?: any,
         modelName?: string
     ): Promise<string> {
-        // Build system instruction with role, rules, and project context
         const sysLines: string[] = []
-        sysLines.push('@role:sr_qa_engineer')
-        sysLines.push('@task:freeform_qa_assistant_chat')
-        sysLines.push('@perspective:qa_engineer—helpful,concise,context-aware QA expert with deep SAP Commerce knowledge')
-        sysLines.push('@rules:conversational|helpful|specific|reference_project_data_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context')
-        if (project) {
-            GeminiService.appendQaContext(sysLines, project)
-        }
-        const systemInstruction = sysLines.join('\n')
+        const userLines: string[] = []
 
-        // Use the preferred model with fallback, trying multi-turn chat API
+        if (role === 'dev') {
+            sysLines.push('@role:sr_software_engineer')
+            sysLines.push('@task:freeform_dev_assistant_chat')
+            sysLines.push('@perspective:software_engineer—helpful,concise,context-aware developer focused on implementation,risk,release_readiness,and code review coordination')
+            sysLines.push('@rules:conversational|specific|implementation_focused|reference_handoff_and_pr_context_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context')
+            if (project) {
+                GeminiService.appendDevContext(userLines, project)
+            }
+        } else {
+            sysLines.push('@role:sr_qa_engineer')
+            sysLines.push('@task:freeform_qa_assistant_chat')
+            sysLines.push('@perspective:qa_engineer—helpful,concise,context-aware QA expert with deep SAP Commerce knowledge')
+            sysLines.push('@rules:conversational|helpful|specific|reference_project_data_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context')
+            if (project) {
+                GeminiService.appendQaContext(userLines, project)
+            }
+        }
+        userLines.push('user_request{')
+        userLines.push(` message:${GeminiService.sanitizeToonValueForTestGen(userMessage, 3000)}`)
+        userLines.push('}')
+        const systemInstruction = sysLines.join('\n')
+        const requestPayload = userLines.join('\n')
+
         const models = Array.from(new Set([
             modelName,
             this.preferredModel,
@@ -772,7 +887,7 @@ export class GeminiService {
                     }))
 
                 const chat = model.startChat({ history: geminiHistory })
-                const result = await chat.sendMessage(userMessage.substring(0, 3000))
+                const result = await chat.sendMessage(requestPayload)
 
                 if (currentModelName !== this.preferredModel) {
                     console.log(`Gemini switching preferred model to ${currentModelName} after successful response`)

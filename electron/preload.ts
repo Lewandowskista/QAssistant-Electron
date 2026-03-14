@@ -132,6 +132,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   githubGetWorkflowRuns: (args: any) => ipcRenderer.invoke('github-get-workflow-runs', args),
   githubGetDeployments: (args: any) => ipcRenderer.invoke('github-get-deployments', args),
   githubRerunWorkflow: (args: any) => ipcRenderer.invoke('github-rerun-workflow', args),
+  githubGetPrComments: (args: any) => ipcRenderer.invoke('github-get-pr-comments', args),
+  githubGetWorkflowJobs: (args: any) => ipcRenderer.invoke('github-get-workflow-jobs', args),
+  githubGetWorkflowsList: (args: any) => ipcRenderer.invoke('github-get-workflows-list', args),
+  githubDispatchWorkflow: (args: any) => ipcRenderer.invoke('github-dispatch-workflow', args),
 
   // Report Builder (M1)
   generateCustomReport: (args: any) => ipcRenderer.invoke('generate-custom-report', args),

@@ -21,7 +21,7 @@ interface Project {
  */
 function renderSection(
   section: ReportSection,
-  project: Project,
+  _project: Project,
   context: {
     plans: any[]
     allCases: any[]
@@ -56,7 +56,7 @@ function renderSection(
   }
 }
 
-function renderOverviewStats(context: any, config: any): string {
+function renderOverviewStats(context: any, _config: any): string {
   const { plans, allCases, allExecs } = context
   const passed = allCases.filter((c: any) => c.status === 'passed').length
   const total = allCases.length
@@ -73,7 +73,7 @@ function renderOverviewStats(context: any, config: any): string {
   `
 }
 
-function renderStatusBreakdown(context: any, config: any): string {
+function renderStatusBreakdown(context: any, _config: any): string {
   const { allCases } = context
   const passed = allCases.filter((c: any) => c.status === 'passed').length
   const failed = allCases.filter((c: any) => c.status === 'failed').length
@@ -95,7 +95,7 @@ function renderStatusBreakdown(context: any, config: any): string {
   `
 }
 
-function renderHealthScore(context: any, config: any): string {
+function renderHealthScore(context: any, _config: any): string {
   const { tasks } = context
   if (!tasks || tasks.length === 0) return ''
 
@@ -118,7 +118,7 @@ function renderHealthScore(context: any, config: any): string {
   `
 }
 
-function renderImpactAssessment(context: any, config: any): string {
+function renderImpactAssessment(context: any, _config: any): string {
   const { plans, tasks } = context
   if (!tasks || tasks.length === 0) return ''
 
@@ -139,7 +139,7 @@ function renderImpactAssessment(context: any, config: any): string {
   return html
 }
 
-function renderTestPlanDetails(context: any, config: any): string {
+function renderTestPlanDetails(context: any, _config: any): string {
   const { plans } = context
   if (!plans || plans.length === 0) return ''
 
@@ -163,7 +163,7 @@ function renderTestPlanDetails(context: any, config: any): string {
   return html
 }
 
-function renderExecutionHistory(context: any, config: any): string {
+function renderExecutionHistory(context: any, _config: any): string {
   const { allExecs } = context
   if (!allExecs || allExecs.length === 0) return ''
 
@@ -177,7 +177,7 @@ function renderExecutionHistory(context: any, config: any): string {
   return html
 }
 
-function renderSessionSummary(context: any, config: any): string {
+function renderSessionSummary(context: any, _config: any): string {
   const { sessions, plans } = context
   if (!sessions || sessions.length === 0) return ''
 
@@ -201,7 +201,7 @@ function renderSessionSummary(context: any, config: any): string {
   return html
 }
 
-function renderTaskSummary(context: any, config: any): string {
+function renderTaskSummary(context: any, _config: any): string {
   const { tasks } = context
   if (!tasks || tasks.length === 0) return ''
 

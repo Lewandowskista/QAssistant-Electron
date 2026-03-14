@@ -22,7 +22,7 @@ type StatusState = { msg: string; ok: boolean } | null
 function StatusBanner({ s }: { s: StatusState }) {
     if (!s) return null
     return (
-        <div className={`mt-3 px-4 py-2.5 rounded-xl text-xs font-semibold ${s.ok ? 'bg-emerald-950/60 text-emerald-400' : 'bg-red-950/60 text-red-400'}`}>
+        <div className={`mt-3 rounded-xl border px-4 py-2.5 text-xs font-semibold ${s.ok ? 'app-status-success' : 'app-status-danger'}`}>
             {s.msg}
         </div>
     )
@@ -32,7 +32,7 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
     return (
         <button
             onClick={onToggle}
-            className={`h-6 w-11 rounded-full transition-colors flex-none ${on ? 'bg-[#A78BFA]' : 'bg-[#2A2A3A]'}`}
+            className={`h-6 w-11 rounded-full border transition-colors flex-none ${on ? 'border-primary/30 bg-primary' : 'border-ui bg-panel-muted'}`}
         >
             <div className={`h-4 w-4 rounded-full bg-white shadow transition-transform mx-1 ${on ? 'translate-x-5' : 'translate-x-0'}`} />
         </button>
@@ -41,21 +41,21 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 
 function SectionCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
     return (
-        <div className={`bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-6 ${className}`}>
+        <div className={`app-panel p-6 ${className}`}>
             {children}
         </div>
     )
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-    return <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6B7280] mb-4">{children}</p>
+    return <p className="app-section-label mb-4">{children}</p>
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-    return <Label className="text-[11px] font-semibold text-[#9CA3AF] mb-1 block">{children}</Label>
+    return <Label className="app-field-label">{children}</Label>
 }
 
-const inp = "h-10 bg-[#0F0F13] border-[#2A2A3A] text-[#E2E8F0] text-sm placeholder:text-[#4B5563] focus-visible:ring-[#A78BFA]/30 rounded-lg"
+const inp = "h-10 rounded-xl text-sm"
 
 // ── Components ────────────────────────────────────────────────────────────────
 function Sec({ id, title, icon, children, activeSection, setActiveSection }: { 
@@ -70,26 +70,26 @@ function Sec({ id, title, icon, children, activeSection, setActiveSection }: {
                 onClick={() => setActiveSection(open ? null : id)}
             >
                 <div className="flex items-center gap-3">
-                    <span className="text-[#A78BFA] opacity-80 group-hover:opacity-100 transition-opacity">{icon}</span>
-                    <span className="font-bold text-[#E2E8F0] text-sm">{title}</span>
+                    <span className="text-primary opacity-80 group-hover:opacity-100 transition-opacity">{icon}</span>
+                    <span className="font-semibold text-foreground text-sm">{title}</span>
                 </div>
-                {open ? <ChevronUp className="h-4 w-4 text-[#6B7280]" /> : <ChevronDown className="h-4 w-4 text-[#6B7280]" />}
+                {open ? <ChevronUp className="h-4 w-4 text-muted-ui" /> : <ChevronDown className="h-4 w-4 text-muted-ui" />}
             </button>
-            {open && <div className="mt-5 border-t border-[#2A2A3A] pt-5 space-y-4">{children}</div>}
+            {open && <div className="mt-5 border-t app-divider pt-5 space-y-4">{children}</div>}
         </SectionCard>
     )
 }
 
 function ConnCard({ label, subtitle, onEdit, onDelete }: { label: string; subtitle: string; onEdit: () => void; onDelete: () => void }) {
     return (
-        <div className="flex items-center justify-between bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3">
+        <div className="app-panel-muted flex items-center justify-between px-4 py-3">
             <div>
-                <p className="text-sm font-semibold text-[#E2E8F0]">{label}</p>
-                <p className="text-xs text-[#6B7280] mt-0.5">{subtitle}</p>
+                <p className="text-sm font-semibold text-foreground">{label}</p>
+                <p className="text-xs text-muted-ui mt-0.5">{subtitle}</p>
             </div>
             <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="h-8 px-3 text-[#A78BFA] hover:bg-[#A78BFA]/10 text-xs font-bold" onClick={onEdit}><Edit2 className="h-3 w-3 mr-1" />Edit</Button>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[#6B7280] hover:text-red-400 hover:bg-red-950/30" onClick={onDelete}><X className="h-3.5 w-3.5" /></Button>
+                <Button variant="ghost" size="sm" className="h-8 px-3 text-primary hover:bg-primary/10 text-xs" onClick={onEdit}><Edit2 className="h-3 w-3 mr-1" />Edit</Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-ui hover:text-red-400 hover:bg-red-500/10" onClick={onDelete}><X className="h-3.5 w-3.5" /></Button>
             </div>
         </div>
     )
@@ -100,13 +100,13 @@ function FormPanel({ title, onSave, onTest, onCancel, children, status }: {
     children: React.ReactNode; status: StatusState
 }) {
     return (
-        <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl p-4 space-y-3">
-            <p className="text-sm font-bold text-[#E2E8F0]">{title}</p>
+        <div className="app-panel-muted p-4 space-y-3">
+            <p className="text-sm font-semibold text-foreground">{title}</p>
             {children}
             <div className="flex items-center gap-2 pt-1">
-                <Button size="sm" className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-8" onClick={onSave}><Check className="h-3.5 w-3.5 mr-1" />Save</Button>
-                {onTest && <Button variant="outline" size="sm" className="h-8 border-[#2A2A3A] text-[#9CA3AF] font-bold" onClick={onTest}>Test</Button>}
-                <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={onCancel}>Cancel</Button>
+                <Button size="sm" className="h-8" onClick={onSave}><Check className="h-3.5 w-3.5 mr-1" />Save</Button>
+                {onTest && <Button variant="outline" size="sm" className="h-8" onClick={onTest}>Test</Button>}
+                <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-500/10" onClick={onCancel}>Cancel</Button>
             </div>
             <StatusBanner s={status} />
         </div>
@@ -167,9 +167,9 @@ export default function SettingsPage() {
     const [shareStatus, setShareStatus] = useState<StatusState>(null)
 
     // ── Webhook ───────────────────────────────────────────────────────────────
-    interface WebhookConfig { id: string; name: string; url: string; type: 'Slack' | 'Teams' | 'Generic'; isEnabled: boolean; notifyOnTestPlanFail: boolean; notifyOnHighPriorityDone: boolean; notifyOnDueDate: boolean; notifyOnAiAnalysis: boolean; }
+    interface WebhookConfig { id: string; name: string; url: string; type: 'Slack' | 'Teams' | 'Generic'; isEnabled: boolean; notifyOnTestPlanFail: boolean; notifyOnHighPriorityDone: boolean; notifyOnDueDate: boolean; notifyOnAiAnalysis: boolean; notifyOnHandoffSent?: boolean; notifyOnReadyForQa?: boolean; notifyOnVerificationFailed?: boolean; notifyOnPrLinkedToHandoff?: boolean; }
     const [webhooks, setWebhooks] = useState<WebhookConfig[]>([])
-    const [webhookForm, setWebhookForm] = useState<{ open: boolean; editId: string | null; name: string; url: string; type: WebhookConfig['type']; notifyOnTestPlanFail: boolean; notifyOnHighPriorityDone: boolean; notifyOnDueDate: boolean; notifyOnAiAnalysis: boolean; }>({ open: false, editId: null, name: '', url: '', type: 'Slack', notifyOnTestPlanFail: true, notifyOnHighPriorityDone: false, notifyOnDueDate: false, notifyOnAiAnalysis: false })
+    const [webhookForm, setWebhookForm] = useState<{ open: boolean; editId: string | null; name: string; url: string; type: WebhookConfig['type']; notifyOnTestPlanFail: boolean; notifyOnHighPriorityDone: boolean; notifyOnDueDate: boolean; notifyOnAiAnalysis: boolean; notifyOnHandoffSent: boolean; notifyOnReadyForQa: boolean; notifyOnVerificationFailed: boolean; notifyOnPrLinkedToHandoff: boolean; }>({ open: false, editId: null, name: '', url: '', type: 'Slack', notifyOnTestPlanFail: true, notifyOnHighPriorityDone: false, notifyOnDueDate: false, notifyOnAiAnalysis: false, notifyOnHandoffSent: true, notifyOnReadyForQa: true, notifyOnVerificationFailed: true, notifyOnPrLinkedToHandoff: true })
     const [webhookStatus, setWebhookStatus] = useState<StatusState>(null)
     const [webhookTesting, setWebhookTesting] = useState(false)
     const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
@@ -319,6 +319,15 @@ export default function SettingsPage() {
         if (!token) {
             flash(setLinearStatus, 'No Linear OAuth token found. Connect via Account & Identity first.', false)
             return
+        }
+        // Check expiry - the credential is stored as epoch ms by oauth.ts
+        const expiresAtStr = await api.secureStoreGet('oauth_linear_expires_at')
+        if (expiresAtStr) {
+            const expiresAt = Number(expiresAtStr)
+            if (!isNaN(expiresAt) && expiresAt < Date.now()) {
+                flash(setLinearStatus, 'Your Linear OAuth token has expired. Please reconnect via Account & Identity.', false)
+                return
+            }
         }
         const identity = profile?.identities.find(i => i.provider === 'linear')
         setLinearForm(f => ({
@@ -973,7 +982,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                         await saveSetting({ webhooks: updated })
                                     }} />
                                     <Button variant="ghost" size="sm" className="h-8 px-3 text-[#A78BFA] hover:bg-[#A78BFA]/10 text-xs font-bold" onClick={() => {
-                                        setWebhookForm({ open: true, editId: wh.id, name: wh.name, url: wh.url, type: wh.type, notifyOnTestPlanFail: wh.notifyOnTestPlanFail, notifyOnHighPriorityDone: wh.notifyOnHighPriorityDone, notifyOnDueDate: wh.notifyOnDueDate, notifyOnAiAnalysis: wh.notifyOnAiAnalysis })
+                                        setWebhookForm({ open: true, editId: wh.id, name: wh.name, url: wh.url, type: wh.type, notifyOnTestPlanFail: wh.notifyOnTestPlanFail, notifyOnHighPriorityDone: wh.notifyOnHighPriorityDone, notifyOnDueDate: wh.notifyOnDueDate, notifyOnAiAnalysis: wh.notifyOnAiAnalysis, notifyOnHandoffSent: !!wh.notifyOnHandoffSent, notifyOnReadyForQa: !!wh.notifyOnReadyForQa, notifyOnVerificationFailed: !!wh.notifyOnVerificationFailed, notifyOnPrLinkedToHandoff: !!wh.notifyOnPrLinkedToHandoff })
                                     }}><Edit2 className="h-3 w-3 mr-1" />Edit</Button>
                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-[#6B7280] hover:text-red-400 hover:bg-red-950/30" onClick={async () => {
                                         const updated = webhooks.filter(w => w.id !== wh.id)
@@ -988,7 +997,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
 
                     {!webhookForm.open && (
                         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[#A78BFA] font-bold text-xs" onClick={() =>
-                            setWebhookForm({ open: true, editId: null, name: '', url: '', type: 'Slack', notifyOnTestPlanFail: true, notifyOnHighPriorityDone: false, notifyOnDueDate: false, notifyOnAiAnalysis: false })
+                            setWebhookForm({ open: true, editId: null, name: '', url: '', type: 'Slack', notifyOnTestPlanFail: true, notifyOnHighPriorityDone: false, notifyOnDueDate: false, notifyOnAiAnalysis: false, notifyOnHandoffSent: true, notifyOnReadyForQa: true, notifyOnVerificationFailed: true, notifyOnPrLinkedToHandoff: true })
                         }>
                             <Plus className="h-3.5 w-3.5" /> Add Webhook
                         </Button>
@@ -1025,6 +1034,10 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     { key: 'notifyOnHighPriorityDone', label: 'High-Priority Task Completed' },
                                     { key: 'notifyOnDueDate', label: 'Due Date Reminders' },
                                     { key: 'notifyOnAiAnalysis', label: 'AI Analysis Complete' },
+                                    { key: 'notifyOnHandoffSent', label: 'Handoff Sent to Developer' },
+                                    { key: 'notifyOnReadyForQa', label: 'Fix Ready for QA' },
+                                    { key: 'notifyOnVerificationFailed', label: 'QA Verification Failed' },
+                                    { key: 'notifyOnPrLinkedToHandoff', label: 'PR Linked to Handoff' },
                                 ].map(({ key, label }) => (
                                     <div key={key} className="flex items-center justify-between">
                                         <span className="text-xs text-[#9CA3AF]">{label}</span>

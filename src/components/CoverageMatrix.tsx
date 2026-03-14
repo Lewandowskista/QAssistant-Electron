@@ -290,7 +290,6 @@ export default function CoverageMatrix() {
                                         {/* Data Cells */}
                                         {matrix.cols.map(col => {
                                             const cell = matrix.cells.get(`${row.id}::${col.id}`)
-                                            const key = `${row.id}::${col.id}`
                                             const isHovered = hoveredCell?.row === row.id && hoveredCell?.col === col.id
 
                                             return (

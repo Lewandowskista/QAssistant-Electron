@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
 import { useProjectStore } from "@/store/useProjectStore"
 import { TestCase, TestPlan, SapModule, TestCasePriority } from "@/types/project"
 import {
@@ -87,7 +88,18 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!activeProjectId || !activePlan || !form.title.trim()) return
+        if (!activeProjectId) {
+            toast.error('No active project selected. Please select a project first.')
+            return
+        }
+        if (!activePlan) {
+            toast.error('No test plan selected. Please open a test plan first.')
+            return
+        }
+        if (!form.title.trim()) {
+            toast.error('Case Summary is required.')
+            return
+        }
 
         const submissionData = {
             ...form,

@@ -1,21 +1,11 @@
 import { useState, useEffect } from 'react'
 import { GitHubScopeGuard } from '@/components/GitHubScopeGuard'
 import { GitHubSearchItem } from '@/types/github'
-import { MessageSquare, RefreshCw, Loader2, ExternalLink, GitPullRequest, Eye, Plus, Minus } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { MessageSquare, RefreshCw, Loader2, ExternalLink, GitPullRequest, Eye, Plus, Minus, ArrowUpDown, EyeOff, ChevronDown } from 'lucide-react'
+import { cn, formatTimeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-
-function formatTimeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return 'just now'
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    const days = Math.floor(hrs / 24)
-    if (days < 30) return `${days}d ago`
-    return new Date(dateStr).toLocaleDateString()
-}
+import { useGitHubStore } from '@/store/useGitHubStore'
+import { PrDetailPanel } from '@/components/github/PrDetailPanel'
 
 interface EnrichedPr {
     additions?: number
@@ -25,11 +15,18 @@ interface EnrichedPr {
     draft?: boolean
 }
 
-function ReviewItem({ item, enriched }: { item: GitHubSearchItem; enriched?: EnrichedPr }) {
+function ReviewItem({ item, enriched, onAcknowledge, onSelect, isSelected }: {
+    item: GitHubSearchItem
+    enriched?: EnrichedPr
+    onAcknowledge?: () => void
+    onSelect?: () => void
+    isSelected?: boolean
+}) {
     return (
+        <div className={cn("flex items-center gap-2 w-full rounded-lg bg-[#13131A] border transition-colors group", isSelected ? "border-[#A78BFA]/60" : "border-[#2A2A3A] hover:border-[#3D3D5F]")}>
         <button
-            onClick={() => window.electronAPI.openUrl(item.htmlUrl)}
-            className="w-full flex items-center gap-3 p-3 rounded-lg bg-[#13131A] border border-[#2A2A3A] hover:border-[#3D3D5F] transition-colors text-left group"
+            onClick={onSelect ?? (() => window.electronAPI.openUrl(item.htmlUrl))}
+            className="flex-1 flex items-center gap-3 p-3 text-left"
         >
             <GitPullRequest className={cn("h-4 w-4 shrink-0", enriched?.draft ? "text-[#6B7280]" : "text-emerald-400")} />
             <div className="flex-1 min-w-0">
@@ -75,11 +72,32 @@ function ReviewItem({ item, enriched }: { item: GitHubSearchItem; enriched?: Enr
             </div>
             <ExternalLink className="h-3 w-3 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
         </button>
+        {onSelect && (
+            <button
+                onClick={(e) => { e.stopPropagation(); window.electronAPI.openUrl(item.htmlUrl) }}
+                className="p-2 rounded text-[#6B7280] hover:text-[#A78BFA] opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                title="Open on GitHub"
+            >
+                <ExternalLink className="h-3.5 w-3.5" />
+            </button>
+        )}
+        {onAcknowledge && (
+            <button
+                onClick={onAcknowledge}
+                className="p-2 mr-1 rounded text-[#6B7280] hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                title="Dismiss"
+            >
+                <EyeOff className="h-3.5 w-3.5" />
+            </button>
+        )}
+        </div>
     )
 }
 
 function CodeReviewsContent() {
     const api = window.electronAPI
+    const { acknowledge, unacknowledge, isAcknowledged } = useGitHubStore()
+    const [showAcknowledged, setShowAcknowledged] = useState(false)
 
     const [reviewRequests, setReviewRequests] = useState<GitHubSearchItem[]>([])
     const [myPrs, setMyPrs] = useState<GitHubSearchItem[]>([])
@@ -87,7 +105,9 @@ function CodeReviewsContent() {
     const [error, setError] = useState<string | null>(null)
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
     const [enriched, setEnriched] = useState<Record<string, EnrichedPr>>({})
+    const [selectedItem, setSelectedItem] = useState<GitHubSearchItem | null>(null)
     const [enriching, setEnriching] = useState(false)
+    const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'largest'>('newest')
 
     const enrichItems = async (items: GitHubSearchItem[]) => {
         if (items.length === 0) return
@@ -146,6 +166,22 @@ function CodeReviewsContent() {
 
     const getKey = (item: GitHubSearchItem) => `${item.repoFullName}#${item.number}`
 
+    const sortItems = (items: GitHubSearchItem[]) => {
+        const sorted = [...items]
+        if (sortBy === 'oldest') {
+            sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        } else if (sortBy === 'largest') {
+            sorted.sort((a, b) => {
+                const aSize = (enriched[getKey(a)]?.additions ?? 0) + (enriched[getKey(a)]?.deletions ?? 0)
+                const bSize = (enriched[getKey(b)]?.additions ?? 0) + (enriched[getKey(b)]?.deletions ?? 0)
+                return bSize - aSize
+            })
+        } else {
+            sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        }
+        return sorted
+    }
+
     return (
         <div className="h-full flex flex-col bg-[#0F0F13]">
             {/* Header */}
@@ -158,6 +194,23 @@ function CodeReviewsContent() {
                         <Loader2 className="h-3 w-3 animate-spin" /> Enriching…
                     </span>
                 )}
+                <div className="flex items-center gap-1">
+                    <ArrowUpDown className="h-3 w-3 text-[#6B7280]" />
+                    {(['newest', 'oldest', 'largest'] as const).map(s => (
+                        <button
+                            key={s}
+                            onClick={() => setSortBy(s)}
+                            className={cn(
+                                "px-2 py-1 rounded text-[10px] font-bold capitalize transition-colors",
+                                sortBy === s
+                                    ? "bg-[#A78BFA]/20 text-[#A78BFA]"
+                                    : "text-[#6B7280] hover:text-[#E2E8F0]"
+                            )}
+                        >
+                            {s}
+                        </button>
+                    ))}
+                </div>
                 <Button
                     variant="ghost"
                     size="sm"
@@ -174,6 +227,7 @@ function CodeReviewsContent() {
             </div>
 
             {/* Content */}
+            <div className="flex-1 flex overflow-hidden">
             <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
                 {error && (
                     <div className="p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300">{error}</div>
@@ -187,28 +241,66 @@ function CodeReviewsContent() {
                     <>
                         {/* Awaiting My Review */}
                         <section>
-                            <div className="flex items-center gap-2 mb-3">
-                                <Eye className="h-3.5 w-3.5 text-amber-400" />
-                                <h2 className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">Awaiting My Review</h2>
-                                <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-[10px] font-bold text-amber-400">
-                                    {reviewRequests.length}
-                                </span>
-                            </div>
-                            {reviewRequests.length === 0 ? (
-                                <div className="text-center py-8 text-[#6B7280] text-xs bg-[#13131A] rounded-lg border border-[#2A2A3A]">
-                                    No reviews pending — you're all caught up!
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {reviewRequests.map(item => (
-                                        <ReviewItem
-                                            key={getKey(item)}
-                                            item={item}
-                                            enriched={enriched[getKey(item)]}
-                                        />
-                                    ))}
-                                </div>
-                            )}
+                            {(() => {
+                                const sorted = sortItems(reviewRequests)
+                                const unacked = sorted.filter(item => !isAcknowledged(getKey(item)))
+                                const acked = sorted.filter(item => isAcknowledged(getKey(item)))
+                                return (
+                                    <>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Eye className="h-3.5 w-3.5 text-amber-400" />
+                                            <h2 className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">Awaiting My Review</h2>
+                                            <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-[10px] font-bold text-amber-400">
+                                                {unacked.length}
+                                            </span>
+                                        </div>
+                                        {unacked.length === 0 ? (
+                                            <div className="text-center py-8 text-[#6B7280] text-xs bg-[#13131A] rounded-lg border border-[#2A2A3A]">
+                                                No reviews pending — you're all caught up!
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {unacked.map(item => (
+                                                    <ReviewItem
+                                                        key={getKey(item)}
+                                                        item={item}
+                                                        enriched={enriched[getKey(item)]}
+                                                        onAcknowledge={() => acknowledge(getKey(item))}
+                                                        onSelect={() => setSelectedItem(selectedItem?.number === item.number && selectedItem?.repoFullName === item.repoFullName ? null : item)}
+                                                        isSelected={selectedItem?.number === item.number && selectedItem?.repoFullName === item.repoFullName}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                        {acked.length > 0 && (
+                                            <div className="mt-3">
+                                                <button
+                                                    onClick={() => setShowAcknowledged(v => !v)}
+                                                    className="flex items-center gap-1.5 text-[10px] text-[#6B7280] hover:text-[#9CA3AF] transition-colors mb-2"
+                                                >
+                                                    <ChevronDown className={cn("h-3 w-3 transition-transform", showAcknowledged && "rotate-180")} />
+                                                    <EyeOff className="h-3 w-3" />
+                                                    {acked.length} dismissed
+                                                </button>
+                                                {showAcknowledged && (
+                                                    <div className="space-y-2 opacity-50">
+                                                        {acked.map(item => (
+                                                            <ReviewItem
+                                                                key={getKey(item)}
+                                                                item={item}
+                                                                enriched={enriched[getKey(item)]}
+                                                                onAcknowledge={() => unacknowledge(getKey(item))}
+                                                                onSelect={() => setSelectedItem(selectedItem?.number === item.number && selectedItem?.repoFullName === item.repoFullName ? null : item)}
+                                                                isSelected={selectedItem?.number === item.number && selectedItem?.repoFullName === item.repoFullName}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )
+                            })()}
                         </section>
 
                         {/* My Open PRs */}
@@ -226,11 +318,13 @@ function CodeReviewsContent() {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {myPrs.map(item => (
+                                    {sortItems(myPrs).map(item => (
                                         <ReviewItem
                                             key={getKey(item)}
                                             item={item}
                                             enriched={enriched[getKey(item)]}
+                                            onSelect={() => setSelectedItem(selectedItem?.number === item.number && selectedItem?.repoFullName === item.repoFullName ? null : item)}
+                                            isSelected={selectedItem?.number === item.number && selectedItem?.repoFullName === item.repoFullName}
                                         />
                                     ))}
                                 </div>
@@ -238,6 +332,20 @@ function CodeReviewsContent() {
                         </section>
                     </>
                 )}
+            </div>
+            {selectedItem && (() => {
+                const [owner, repo] = selectedItem.repoFullName.split('/')
+                return (
+                    <PrDetailPanel
+                        owner={owner}
+                        repo={repo}
+                        prNumber={selectedItem.number}
+                        prTitle={selectedItem.title}
+                        prHtmlUrl={selectedItem.htmlUrl}
+                        onClose={() => setSelectedItem(null)}
+                    />
+                )
+            })()}
             </div>
         </div>
     )

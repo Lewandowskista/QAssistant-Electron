@@ -59,17 +59,17 @@ export async function parseImportFile(file: File): Promise<ParsedImportData> {
 
     if (ext === 'csv') {
         return new Promise((resolve, reject) => {
-            Papa.parse<Record<string, string>>(file, {
+            Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
-                complete: (results) => {
+                complete: (results: any) => {
                     resolve({
                         headers: results.meta.fields || [],
                         rows: results.data,
                         fileName: file.name
                     })
                 },
-                error: (error) => {
+                error: (error: any) => {
                     reject(error)
                 }
             })

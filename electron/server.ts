@@ -10,6 +10,7 @@ import cors from 'cors'
 import bodyParser from 'body-parser'
 import { withFileLock } from './file-lock'
 import * as oauth from './oauth'
+import { enrichHandoffCompleteness, getReleaseQueue, PROJECT_SCHEMA_VERSION } from '../src/lib/collaboration'
 
 const server = express()
 server.use(cors({
@@ -28,9 +29,14 @@ export function setOAuthCompleteCallback(cb: (provider: string, userInfo: any) =
 }
 
 let currentPort = 5248
+let requestedPort = 5248
 
 export function getServerPort(): number {
     return currentPort
+}
+
+export function isServerRunning(): boolean {
+    return !!serverInstance
 }
 
 export function startServer(apiToken: string, port: number = 3030) {
@@ -41,6 +47,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     }
     authToken = apiToken
     currentPort = port
+    requestedPort = port
 
     const getDataPath = (): string =>
         path.join(app.getPath('userData'), 'QAssistantData', 'projects.json')
@@ -49,7 +56,11 @@ export function startServer(apiToken: string, port: number = 3030) {
         try {
             if (!fs.existsSync(getDataPath())) return []
             const content = await fs.promises.readFile(getDataPath(), 'utf8');
-            return JSON.parse(content)
+            return JSON.parse(content).map((project: any) => ({
+                ...project,
+                schemaVersion: project.schemaVersion || PROJECT_SCHEMA_VERSION,
+                handoffPackets: (project.handoffPackets || []).map((packet: any) => enrichHandoffCompleteness(packet)),
+            }))
         } catch (e) {
             console.warn('[AutomationAPI] Failed to read projects file:', e)
             return []
@@ -142,6 +153,73 @@ export function startServer(apiToken: string, port: number = 3030) {
             const project = projects.find((p: any) => p.id === req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
             res.json(project)
+        } catch (e: any) {
+            res.status(500).json({ error: e.message })
+        }
+    })
+
+    server.get('/api/projects/:id/release-readiness', async (req: any, res: any) => {
+        try {
+            const projects = await readProjects()
+            const project = projects.find((item: any) => item.id === req.params.id)
+            if (!project) return res.status(404).json({ error: 'Project not found.' })
+
+            const queue = getReleaseQueue(project)
+            res.json({
+                projectId: project.id,
+                projectName: project.name,
+                readyForQaCount: queue.tasksReadyForQa.length,
+                handoffsMissingEvidenceCount: queue.handoffsMissingEvidence.length,
+                prsWaitingForRetestCount: queue.prsLinkedButNotRetested.length,
+                failedVerificationCount: queue.failedVerificationsNeedingDev.length,
+                isReady: queue.tasksReadyForQa.length === 0 && queue.handoffsMissingEvidence.length === 0,
+            })
+        } catch (e: any) {
+            res.status(500).json({ error: e.message })
+        }
+    })
+
+    server.get('/api/projects/:id/retest-queue', async (req: any, res: any) => {
+        try {
+            const projects = await readProjects()
+            const project = projects.find((item: any) => item.id === req.params.id)
+            if (!project) return res.status(404).json({ error: 'Project not found.' })
+
+            const queue = getReleaseQueue(project)
+            res.json({
+                readyForQa: queue.tasksReadyForQa,
+                missingEvidence: queue.handoffsMissingEvidence,
+                prsWaitingForRetest: queue.prsLinkedButNotRetested,
+                failedVerification: queue.failedVerificationsNeedingDev,
+            })
+        } catch (e: any) {
+            res.status(500).json({ error: e.message })
+        }
+    })
+
+    server.get('/api/projects/:id/traceability', async (req: any, res: any) => {
+        try {
+            const projects = await readProjects()
+            const project = projects.find((item: any) => item.id === req.params.id)
+            if (!project) return res.status(404).json({ error: 'Project not found.' })
+
+            const tasks = (project.tasks || []).map((task: any) => {
+                const linkedTests = (project.testPlans || []).flatMap((plan: any) => plan.testCases || []).filter((testCase: any) =>
+                    testCase.sourceIssueId === task.sourceIssueId || testCase.linkedDefectIds?.includes(task.id)
+                )
+                const handoff = (project.handoffPackets || []).find((packet: any) => packet.taskId === task.id)
+                return {
+                    taskId: task.id,
+                    taskTitle: task.title,
+                    collabState: task.collabState || 'draft',
+                    linkedTestCount: linkedTests.length,
+                    linkedTestIds: linkedTests.map((testCase: any) => testCase.id),
+                    handoffId: handoff?.id,
+                    handoffComplete: handoff?.isComplete || false,
+                }
+            })
+
+            res.json({ projectId: project.id, tasks })
         } catch (e: any) {
             res.status(500).json({ error: e.message })
         }
@@ -331,11 +409,115 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
+    server.post('/api/handoffs', async (req: any, res: any) => {
+        try {
+            const { projectId, taskId, ...payload } = req.body || {}
+            if (!projectId || !taskId) return res.status(400).json({ error: 'Required fields: projectId, taskId' })
+
+            const projects = await readProjects()
+            const project = projects.find((item: any) => item.id === projectId)
+            if (!project) return res.status(404).json({ error: 'Project not found.' })
+            const task = (project.tasks || []).find((item: any) => item.id === taskId)
+            if (!task) return res.status(404).json({ error: 'Task not found.' })
+
+            const handoff = enrichHandoffCompleteness({
+                id: crypto.randomUUID(),
+                taskId,
+                type: payload.type || 'bug_handoff',
+                createdByRole: payload.createdByRole || 'qa',
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                summary: payload.summary || task.title,
+                reproSteps: payload.reproSteps || task.description || '',
+                expectedResult: payload.expectedResult || '',
+                actualResult: payload.actualResult || '',
+                environmentId: payload.environmentId,
+                environmentName: payload.environmentName,
+                severity: payload.severity || task.severity,
+                linkedTestCaseIds: payload.linkedTestCaseIds || [],
+                linkedExecutionRefs: payload.linkedExecutionRefs || [],
+                linkedNoteIds: payload.linkedNoteIds || [],
+                linkedFileIds: payload.linkedFileIds || [],
+                linkedPrs: payload.linkedPrs || [],
+                branchName: payload.branchName,
+                releaseVersion: payload.releaseVersion,
+            })
+
+            project.handoffPackets = [handoff, ...(project.handoffPackets || [])]
+            task.activeHandoffId = handoff.id
+            task.collabState = 'ready_for_dev'
+            task.lastCollabUpdatedAt = Date.now()
+
+            await writeProjects(projects)
+            res.status(201).json(handoff)
+        } catch (e: any) {
+            res.status(500).json({ error: e.message })
+        }
+    })
+
+    server.post('/api/handoffs/:id/acknowledge', async (req: any, res: any) => {
+        try {
+            const projects = await readProjects()
+            const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
+            if (!target) return res.status(404).json({ error: 'Handoff not found.' })
+            const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
+            handoff.acknowledgedAt = Date.now()
+            handoff.updatedAt = Date.now()
+            const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
+            if (task) task.collabState = 'dev_acknowledged'
+            await writeProjects(projects)
+            res.json({ success: true })
+        } catch (e: any) {
+            res.status(500).json({ error: e.message })
+        }
+    })
+
+    server.post('/api/handoffs/:id/ready-for-qa', async (req: any, res: any) => {
+        try {
+            const projects = await readProjects()
+            const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
+            if (!target) return res.status(404).json({ error: 'Handoff not found.' })
+            const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
+            handoff.updatedAt = Date.now()
+            handoff.developerResponse = req.body?.developerResponse || handoff.developerResponse
+            handoff.resolutionSummary = req.body?.resolutionSummary || handoff.resolutionSummary
+            const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
+            if (task) task.collabState = 'ready_for_qa'
+            await writeProjects(projects)
+            res.json({ success: true })
+        } catch (e: any) {
+            res.status(500).json({ error: e.message })
+        }
+    })
+
+    server.post('/api/handoffs/:id/verify', async (req: any, res: any) => {
+        try {
+            const passed = !!req.body?.passed
+            const notes = req.body?.notes
+            if (!notes) return res.status(400).json({ error: 'Required field: notes' })
+
+            const projects = await readProjects()
+            const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
+            if (!target) return res.status(404).json({ error: 'Handoff not found.' })
+            const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
+            handoff.qaVerificationNotes = notes
+            handoff.completedAt = passed ? Date.now() : undefined
+            handoff.updatedAt = Date.now()
+            const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
+            if (task) task.collabState = passed ? 'verified' : 'ready_for_dev'
+            await writeProjects(projects)
+            res.json({ success: true, passed })
+        } catch (e: any) {
+            res.status(500).json({ error: e.message })
+        }
+    })
+
     if (serverInstance) return // already running
 
     const tryListen = (p: number) => {
         const instance = server.listen(p, () => {
             console.log(`[QAssistant] Automation API running on port ${p}`)
+            currentPort = p
             serverInstance = instance
 
             // Track keep-alive sockets so we can destroy them on shutdown
@@ -371,5 +553,6 @@ export function stopServer() {
             console.log('[QAssistant] Automation API stopped.')
         })
         serverInstance = null
+        currentPort = requestedPort
     }
 }

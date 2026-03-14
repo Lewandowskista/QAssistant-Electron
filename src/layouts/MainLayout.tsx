@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3 } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3, ClipboardCheck } from "lucide-react"
 import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
@@ -31,6 +31,7 @@ export default function MainLayout() {
     const setActiveProject = useProjectStore(state => state.setActiveProject)
     const deleteProject = useProjectStore(state => state.deleteProject)
     const setEnvironmentDefault = useProjectStore(state => state.setEnvironmentDefault)
+    const seedDemoProject = useProjectStore(state => state.seedDemoProject)
 
     const activeProject = projects.find(p => p.id === activeProjectId)
     const environments = activeProject?.environments || []
@@ -172,6 +173,7 @@ export default function MainLayout() {
             title: activeRole === 'dev' ? "DEV TOOLS" : "QA ADVANCED",
             items: [
                 { name: "Environments", href: "/environments", icon: Globe },
+                { name: "Release Queue", href: "/release-queue", icon: ClipboardCheck },
                 { name: "API", href: "/api", icon: Code },
                 { name: "Runbooks", href: "/runbooks", icon: BookOpen },
                 ...(activeRole === 'qa' ? [
@@ -189,29 +191,29 @@ export default function MainLayout() {
     return (
         <>
         <div className={cn(
-            "flex text-[#E2E8F0] h-screen overflow-hidden selection:bg-primary/30",
-            isMac ? "bg-[#0F0F13]/80 backdrop-blur-xl" : "bg-[#0F0F13]"
+            "app-shell flex selection:bg-primary/20",
+            isMac && "backdrop-blur-xl"
         )}>
             {/* 1. PROJECTS SIDEBAR (200px) */}
             <aside
                 aria-label="Projects"
                 className={cn(
-                "w-[200px] flex flex-col border-r border-[#2A2A3A] shrink-0",
-                isMac ? "bg-[#13131A]/50 backdrop-blur-md pt-8" : "bg-[#13131A]"
+                "app-sidebar w-[220px] shrink-0",
+                isMac && "pt-8 backdrop-blur-md"
             )}>
-                <div className="h-11 flex items-center px-4 border-b border-[#2A2A3A] text-[9px] font-black tracking-[0.2em] text-[#6B7280] uppercase">
+                <div className="h-12 flex items-center px-4 border-b app-divider app-section-label">
                     Projects
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
                     {projects.map((project) => (
                         <div key={project.id} className="group relative">
                             <button
                                 onClick={() => setActiveProject(project.id)}
                                 className={cn(
-                                    "w-full flex items-center gap-3 rounded-md px-3 py-2 text-xs font-semibold transition-all text-left",
+                                    "w-full flex items-center gap-3 rounded-xl border px-3 py-3 text-sm font-medium transition-all text-left",
                                     activeProjectId === project.id
-                                        ? "bg-[#2D2D3F] text-[#E2E8F0]"
-                                        : "text-[#6B7280] hover:bg-[#252535] hover:text-[#E2E8F0]"
+                                        ? "bg-panel-muted border-ui-strong text-foreground shadow-sm"
+                                        : "border-transparent text-soft hover:bg-panel-muted hover:text-foreground"
                                 )}
                             >
                                 <div className={cn("w-1 h-7 rounded-[2px] shrink-0", project.color)} />
@@ -222,9 +224,9 @@ export default function MainLayout() {
                             <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button className="p-1 rounded hover:bg-[#3D3D5F] text-[#6B7280]"><MoreVertical className="h-3 w-3" /></button>
+                                        <button className="rounded-lg p-1.5 hover:bg-panel text-muted-ui hover:text-foreground"><MoreVertical className="h-3 w-3" /></button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-32 bg-[#1A1A24] border-[#2A2A3A] text-foreground">
+                                    <DropdownMenuContent align="end" className="w-36">
                                         <DropdownMenuItem onClick={() => { setEditingProject(project); setDialogOpen(true); }}>
                                             <Edit2 className="mr-2 h-3 w-3" /> Edit
                                         </DropdownMenuItem>
@@ -237,15 +239,25 @@ export default function MainLayout() {
                         </div>
                     ))}
                 </div>
-                <div className="p-2 border-t border-[#2A2A3A]">
+                <div className="p-3 border-t app-divider space-y-2">
                     <Button
                         variant="ghost"
-                        className="w-full justify-start gap-3 h-10 text-[#A78BFA] hover:bg-[#252535] hover:text-[#A78BFA] font-bold text-xs"
+                        className="w-full justify-start gap-3 h-10 rounded-xl text-sm text-primary hover:bg-primary/10 hover:text-primary"
                         onClick={() => { setEditingProject(undefined); setDialogOpen(true); }}
                     >
                         <Plus className="h-4 w-4" />
                         New Project
                     </Button>
+                    {projects.length === 0 && (
+                        <Button
+                            variant="ghost"
+                            className="w-full justify-start gap-3 h-10 rounded-xl text-sm text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300"
+                            onClick={() => seedDemoProject()}
+                        >
+                            <ClipboardCheck className="h-4 w-4" />
+                            Load Demo
+                        </Button>
+                    )}
                 </div>
             </aside>
 
@@ -253,27 +265,27 @@ export default function MainLayout() {
             <aside
                 aria-label="Navigation"
                 className={cn(
-                    "flex flex-col border-r border-[#2A2A3A] transition-all duration-300 shrink-0",
-                    isMac ? "bg-[#13131A]/50 backdrop-blur-md pt-8" : "bg-[#13131A]",
-                    toolsCollapsed ? "w-0 overflow-hidden opacity-0" : "w-[200px]"
+                    "app-sidebar transition-all duration-300 shrink-0",
+                    isMac && "pt-8 backdrop-blur-md",
+                    toolsCollapsed ? "w-0 overflow-hidden opacity-0" : "w-[220px]"
                 )}
             >
-                <div className="h-11 flex items-center justify-between px-4 border-b border-[#2A2A3A]">
-                    <span className="text-[9px] font-black tracking-[0.2em] text-[#6B7280] uppercase">Tools</span>
-                    <button onClick={() => setToolsCollapsed(true)} aria-label="Collapse sidebar" className="p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280] transition-colors">
+                <div className="h-12 flex items-center justify-between px-4 border-b app-divider">
+                    <span className="app-section-label">Workspace</span>
+                    <button onClick={() => setToolsCollapsed(true)} aria-label="Collapse sidebar" className="rounded-lg p-1.5 text-muted-ui transition-colors hover:bg-panel-muted hover:text-foreground">
                         <ChevronLeft className="h-3 w-3" />
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
-                    <div className="px-1">
+                <div className="flex-1 overflow-y-auto p-3 space-y-5 custom-scrollbar">
+                    <div>
                         <div className="relative group">
-                            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280] opacity-50 group-focus-within:text-[#A78BFA] transition-colors pointer-events-none" />
+                            <Search className="absolute left-3 top-3 h-3.5 w-3.5 text-muted-ui opacity-70 group-focus-within:text-primary transition-colors pointer-events-none" />
                             <Input
-                                placeholder="Search..."
+                                placeholder="Search tools"
                                 aria-label="Search navigation"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="h-9 pl-9 bg-background/30 border-[#2A2A3A] text-xs focus-visible:ring-1 focus-visible:ring-[#A78BFA]/30"
+                                className="h-10 pl-9 text-sm"
                             />
                         </div>
                     </div>
@@ -286,17 +298,15 @@ export default function MainLayout() {
 
                         return (
                             <div key={idx} className="space-y-1">
-                                {group.title && <div className="px-3 py-1 text-[9px] font-black text-[#6B7280]/60 tracking-[0.2em] uppercase">{group.title}</div>}
+                                {group.title && <div className="px-3 py-1 app-section-label opacity-70">{group.title}</div>}
                                 {filteredItems.map(item => {
                                     const isActive = location.pathname === item.href
                                     return (
                                         <Link
                                             key={item.href}
                                             to={item.href}
-                                            className={cn(
-                                                "flex items-center gap-3 px-3 py-2 rounded-md text-xs font-semibold transition-all",
-                                                isActive ? "bg-[#3D3D5F] text-[#A78BFA] shadow-lg shadow-black/20" : "text-[#6B7280] hover:bg-[#252535] hover:text-[#E2E8F0]"
-                                            )}
+                                            data-active={isActive}
+                                            className="app-nav-item"
                                         >
                                             <item.icon className="h-4 w-4" />
                                             {item.name}
@@ -309,24 +319,24 @@ export default function MainLayout() {
                 </div>
 
                 {/* User identity badge */}
-                <div className="p-2 border-t border-[#2A2A3A]">
+                <div className="p-3 border-t app-divider">
                     <button
                         onClick={() => setSettingsOpen(true)}
-                        className="w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-[#252535] transition-colors group"
+                        className="app-panel-muted app-panel-hover w-full flex items-center gap-3 px-3 py-3 transition-colors group"
                         title="Account & Identity"
                     >
                         {connectedIdentity?.avatarUrl ? (
                             <img src={connectedIdentity.avatarUrl} className="w-6 h-6 rounded-full shrink-0" alt="avatar" />
                         ) : (
-                            <div className="w-6 h-6 rounded-full bg-[#2A2A3A] flex items-center justify-center shrink-0">
-                                <User className="h-3 w-3 text-[#6B7280]" />
+                            <div className="w-8 h-8 rounded-full bg-panel flex items-center justify-center shrink-0 border border-ui">
+                                <User className="h-3.5 w-3.5 text-muted-ui" />
                             </div>
                         )}
                         <div className="flex flex-col min-w-0 text-left">
-                            <span className="text-[11px] font-semibold text-[#9CA3AF] group-hover:text-[#E2E8F0] truncate transition-colors">
+                            <span className="text-sm font-medium text-soft group-hover:text-foreground truncate transition-colors">
                                 {connectedIdentity?.username ?? 'No account'}
                             </span>
-                            <span className="text-[9px] font-black uppercase tracking-[0.15em] text-[#6B7280]">
+                            <span className="app-section-label opacity-80">
                                 {activeRole === 'dev' ? 'Developer' : 'QA Engineer'}
                             </span>
                         </div>
@@ -335,26 +345,26 @@ export default function MainLayout() {
             </aside>
 
             {/* 3. MAIN CONTENT */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#0F0F13] relative overflow-hidden">
+            <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
                 {/* TITLEBAR */}
                 <header className={cn(
-                    "h-12 border-b border-[#2A2A3A] bg-[#13131A]/80 backdrop-blur-md flex items-center justify-between px-4 app-region-drag shrink-0 relative z-50 shadow-sm",
+                    "app-titlebar h-14 flex items-center justify-between px-4 app-region-drag shrink-0 relative z-50",
                     isMac && "pl-20" // Leave room for traffic lights
                 )}>
                     <div className="flex items-center gap-4 min-w-0 flex-1">
                         {toolsCollapsed && (
-                            <button onClick={() => setToolsCollapsed(false)} aria-label="Expand sidebar" className="app-region-no-drag p-1.5 hover:bg-[#252535] rounded-md text-[#6B7280] shrink-0">
+                            <button onClick={() => setToolsCollapsed(false)} aria-label="Expand sidebar" className="app-region-no-drag rounded-lg p-1.5 hover:bg-panel-muted text-muted-ui hover:text-foreground shrink-0">
                                 <ChevronRight className="h-3 w-3" />
                             </button>
                         )}
-                        <div className="flex items-center gap-2 shrink-0">
-                            <div className="w-5 h-5 bg-[#A78BFA] rounded flex items-center justify-center">
-                                <FlaskConical className="h-3 w-3 text-[#0F0F13] stroke-[3]" />
+                        <div className="flex items-center gap-3 shrink-0">
+                            <div className="w-8 h-8 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
+                                <FlaskConical className="h-4 w-4 text-primary stroke-[2.4]" />
                             </div>
-                            <span className="text-xs font-bold tracking-tight text-[#A78BFA]">QAssistant</span>
+                            <span className="text-sm font-semibold tracking-tight text-foreground">QAssistant</span>
                         </div>
-                        <div className="w-px h-4 bg-[#2A2A3A] mx-2 shrink-0" />
-                        <span className="text-xs font-medium text-[#6B7280] truncate min-w-0">
+                        <div className="w-px h-5 bg-border mx-1 shrink-0" />
+                        <span className="text-sm font-medium text-muted-ui truncate min-w-0">
                             {activeProject?.name || "QAssistant"}
                         </span>
                     </div>
@@ -364,73 +374,73 @@ export default function MainLayout() {
                         {environments.length > 0 && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <button className="flex items-center gap-1.5 px-2.5 py-1 mr-1 rounded-full border border-[#2A2A3A] bg-[#1A1A24]/60 hover:bg-[#252535] hover:border-[#3D3D5F] transition-all app-region-no-drag group" title="Switch active environment">
+                                    <button className="app-chip mr-2 app-region-no-drag group normal-case tracking-normal text-[11px]" title="Switch active environment">
                                         <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: defaultEnv?.color || '#6B7280' }} />
-                                        <span className="text-[10px] font-bold text-[#9CA3AF] group-hover:text-[#E2E8F0] truncate max-w-[100px] transition-colors">{defaultEnv?.name || 'No Env'}</span>
-                                        <ChevronDown className="h-2.5 w-2.5 text-[#6B7280] group-hover:text-[#9CA3AF] transition-colors" />
+                                        <span className="truncate max-w-[100px] transition-colors group-hover:text-foreground">{defaultEnv?.name || 'No Env'}</span>
+                                        <ChevronDown className="h-3 w-3 text-muted-ui group-hover:text-soft transition-colors" />
                                     </button>
                                 </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-48 bg-[#1A1A24] border-[#2A2A3A] text-foreground">
-                                    <div className="px-2 py-1.5 text-[9px] font-black text-[#6B7280] uppercase tracking-[0.2em]">Active Environment</div>
-                                    <DropdownMenuSeparator className="bg-[#2A2A3A]" />
+                                                <DropdownMenuContent align="end" className="w-56">
+                                    <div className="px-2 py-1.5 app-section-label">Active Environment</div>
+                                    <DropdownMenuSeparator className="bg-border" />
                                     {environments.map(env => (
                                         <DropdownMenuItem
                                             key={env.id}
                                             onClick={() => activeProjectId && setEnvironmentDefault(activeProjectId, env.id)}
-                                            className={cn("flex items-center gap-2 cursor-pointer text-xs", env.isDefault ? "text-[#E2E8F0]" : "text-[#9CA3AF]")}
+                                            className={cn("flex items-center gap-2 cursor-pointer text-sm", env.isDefault ? "text-foreground" : "text-soft")}
                                         >
                                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: env.color || '#6B7280' }} />
                                             <span className="flex-1 truncate">{env.name}</span>
-                                            {env.isDefault && <span className="text-[9px] font-black text-[#A78BFA] uppercase tracking-wider">Active</span>}
+                                            {env.isDefault && <span className="app-section-label text-primary">Active</span>}
                                         </DropdownMenuItem>
                                     ))}
-                                    <DropdownMenuSeparator className="bg-[#2A2A3A]" />
-                                    <DropdownMenuItem onClick={() => navigate('/environments')} className="text-xs text-[#6B7280] cursor-pointer">
+                                    <DropdownMenuSeparator className="bg-border" />
+                                    <DropdownMenuItem onClick={() => navigate('/environments')} className="text-sm text-soft cursor-pointer">
                                         <Globe className="h-3 w-3 mr-2" /> Manage Environments
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         )}
                         {isSapActive && (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#A78BFA]/10 border border-[#A78BFA]/20 rounded-full mr-2 group cursor-help transition-all hover:bg-[#A78BFA]/20" title="SAP Commerce Context is active and injected into AI analysis">
-                                <div className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />
-                                <span className="text-[10px] font-black text-[#A78BFA] tracking-tighter uppercase">SAP ACTIVE</span>
+                            <div className="app-chip mr-2 border-cyan-400/20 bg-cyan-500/10 text-cyan-300 group cursor-help transition-all hover:bg-cyan-500/15" title="SAP Commerce Context is active and injected into AI analysis">
+                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-pulse" />
+                                <span>SAP Active</span>
                             </div>
                         )}
                         <button
                             onClick={() => setCopilotOpen(prev => !prev)}
                             className={cn(
-                                "w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors relative",
-                                copilotOpen ? "text-[#A78BFA]" : "text-[#6B7280]"
+                                "w-10 h-10 flex items-center justify-center rounded-xl hover:bg-panel-muted group transition-colors relative",
+                                copilotOpen ? "text-primary" : "text-muted-ui"
                             )}
                             title="AI Copilot"
                         >
-                            <Sparkles className={cn("h-4 w-4 transition-all", copilotOpen ? "text-[#A78BFA] drop-shadow-[0_0_6px_#A78BFA]" : "group-hover:text-[#A78BFA]")} />
+                            <Sparkles className={cn("h-4 w-4 transition-all", copilotOpen ? "text-primary drop-shadow-[0_0_8px_rgba(96,165,250,0.45)]" : "group-hover:text-primary")} />
                             {copilotOpen && (
-                                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />
+                                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                             )}
                         </button>
-                        <button onClick={() => setSettingsOpen(true)} aria-label="Settings" className="w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors">
-                            <Settings className="h-4 w-4 text-[#6B7280] group-hover:text-[#A78BFA]" />
+                        <button onClick={() => setSettingsOpen(true)} aria-label="Settings" className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-panel-muted group transition-colors">
+                            <Settings className="h-4 w-4 text-muted-ui group-hover:text-primary" />
                         </button>
                         <button
                             onClick={handlePinToggle}
                             className={cn(
-                                "w-10 h-10 flex items-center justify-center hover:bg-[#252535] group transition-colors relative",
-                                isPinned ? "text-[#A78BFA]" : "text-[#6B7280]"
+                                "w-10 h-10 flex items-center justify-center rounded-xl hover:bg-panel-muted group transition-colors relative",
+                                isPinned ? "text-primary" : "text-muted-ui"
                             )}
                             title={isPinned ? "Unpin Window" : "Pin Window"}
                         >
-                            <Pin className={cn("h-4 w-4 transition-transform", isPinned ? "fill-current rotate-45" : "group-hover:text-[#A78BFA]")} />
+                            <Pin className={cn("h-4 w-4 transition-transform", isPinned ? "fill-current rotate-45" : "group-hover:text-primary")} />
                         </button>
 
                         {!isMac && (
                             <>
-                                <button onClick={() => window.electronAPI?.minimize()} aria-label="Minimize window" className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
-                                    <Minus className="h-4 w-4 text-[#A78BFA]" />
+                                <button onClick={() => window.electronAPI?.minimize()} aria-label="Minimize window" className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-panel-muted">
+                                    <Minus className="h-4 w-4 text-primary" />
                                 </button>
-                                <button onClick={() => window.electronAPI?.maximize()} aria-label={isMaximized ? "Restore window" : "Maximize window"} className="w-10 h-10 flex items-center justify-center hover:bg-[#252535]">
-                                    {isMaximized ? <Copy className="h-3.5 w-3.5 text-[#A78BFA] rotate-180" /> : <Square className="h-3.5 w-3.5 text-[#A78BFA]" />}
+                                <button onClick={() => window.electronAPI?.maximize()} aria-label={isMaximized ? "Restore window" : "Maximize window"} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-panel-muted">
+                                    {isMaximized ? <Copy className="h-3.5 w-3.5 text-primary rotate-180" /> : <Square className="h-3.5 w-3.5 text-primary" />}
                                 </button>
                                 <button onClick={() => window.electronAPI?.close()} aria-label="Close window" className="w-11 h-10 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">
                                     <X className="h-4 w-4" />
@@ -466,15 +476,15 @@ export default function MainLayout() {
                 >
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSettingsOpen(false)} />
                     <div className={cn(
-                        "absolute top-0 right-0 h-full w-full max-w-[680px] bg-[#0F0F13] border-l border-[#2A2A3A] shadow-2xl transition-transform duration-300 ease-out flex flex-col",
+                        "absolute top-0 right-0 h-full w-full max-w-[680px] bg-background border-l border-ui shadow-2xl transition-transform duration-300 ease-out flex flex-col",
                         settingsOpen ? "translate-x-0" : "translate-x-full"
                     )}>
-                        <button onClick={() => setSettingsOpen(false)} className="absolute top-3 right-3 z-10 p-2 hover:bg-[#252535] rounded-md transition-colors">
-                            <X className="h-4 w-4 text-[#6B7280]" />
+                        <button onClick={() => setSettingsOpen(false)} className="absolute top-3 right-3 z-10 p-2 hover:bg-panel-muted rounded-xl transition-colors">
+                            <X className="h-4 w-4 text-muted-ui" />
                         </button>
                         <div className="flex-1 overflow-hidden">
                             {settingsOpen && (
-                                <Suspense fallback={<div className="p-6 text-[#6B7280]">Loading...</div>}>
+                                <Suspense fallback={<div className="p-6 text-muted-ui">Loading...</div>}>
                                     <SettingsPage />
                                 </Suspense>
                             )}

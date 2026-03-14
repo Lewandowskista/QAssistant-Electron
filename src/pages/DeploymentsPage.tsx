@@ -1,60 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { GitHubScopeGuard } from '@/components/GitHubScopeGuard'
-import { GitHubRepo, GitHubWorkflowRun, GitHubDeployment } from '@/types/github'
+import { GitHubRepo, GitHubWorkflowRun, GitHubDeployment, GitHubWorkflowJob, GitHubWorkflow, GitHubCommit } from '@/types/github'
+import { useGitHubRepos } from '@/hooks/useGitHubRepos'
 import {
-    Rocket, RefreshCw, Loader2, ExternalLink, ChevronDown,
-    Lock, Globe, Check, X, Clock, Play, RotateCcw, CircleDot, Search
+    Rocket, RefreshCw, Loader2, ExternalLink,
+    RotateCcw, Search, Play, ChevronDown, ChevronRight, Check, X, CircleDot, GitBranch
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatTimeAgo, formatDuration } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-
-function formatTimeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return 'just now'
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    const days = Math.floor(hrs / 24)
-    if (days < 30) return `${days}d ago`
-    return new Date(dateStr).toLocaleDateString()
-}
-
-function formatDuration(ms: number | null): string {
-    if (!ms) return '—'
-    const secs = Math.floor(ms / 1000)
-    if (secs < 60) return `${secs}s`
-    const mins = Math.floor(secs / 60)
-    const remSecs = secs % 60
-    if (mins < 60) return `${mins}m ${remSecs}s`
-    const hrs = Math.floor(mins / 60)
-    return `${hrs}h ${mins % 60}m`
-}
+import { RepoSelector } from '@/components/github/RepoSelector'
+import { statusBadge, deployStatusColor } from '@/components/github/StatusBadges'
 
 type Tab = 'workflows' | 'deployments'
-
-function statusBadge(status: string, conclusion: string | null) {
-    if (status === 'completed') {
-        if (conclusion === 'success') return { icon: Check, color: 'text-emerald-400', bg: 'bg-emerald-500/20', label: 'Success' }
-        if (conclusion === 'failure') return { icon: X, color: 'text-red-400', bg: 'bg-red-500/20', label: 'Failed' }
-        if (conclusion === 'cancelled') return { icon: X, color: 'text-[#6B7280]', bg: 'bg-[#2A2A3A]', label: 'Cancelled' }
-        if (conclusion === 'skipped') return { icon: CircleDot, color: 'text-[#6B7280]', bg: 'bg-[#2A2A3A]', label: 'Skipped' }
-        if (conclusion === 'timed_out') return { icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/20', label: 'Timed out' }
-        return { icon: CircleDot, color: 'text-[#6B7280]', bg: 'bg-[#2A2A3A]', label: conclusion || 'Done' }
-    }
-    if (status === 'in_progress') return { icon: Play, color: 'text-amber-400', bg: 'bg-amber-500/20', label: 'Running' }
-    if (status === 'queued') return { icon: Clock, color: 'text-[#6B7280]', bg: 'bg-[#2A2A3A]', label: 'Queued' }
-    if (status === 'waiting') return { icon: Clock, color: 'text-[#6B7280]', bg: 'bg-[#2A2A3A]', label: 'Waiting' }
-    return { icon: Clock, color: 'text-[#6B7280]', bg: 'bg-[#2A2A3A]', label: status }
-}
-
-function deployStatusColor(state: string) {
-    if (state === 'success') return 'text-emerald-400 bg-emerald-500/20'
-    if (state === 'failure' || state === 'error') return 'text-red-400 bg-red-500/20'
-    if (state === 'in_progress' || state === 'pending') return 'text-amber-400 bg-amber-500/20'
-    if (state === 'inactive') return 'text-[#6B7280] bg-[#2A2A3A]'
-    return 'text-[#6B7280] bg-[#2A2A3A]'
-}
 
 function groupByEnvironment(deps: GitHubDeployment[]): Record<string, GitHubDeployment[]> {
     return deps.reduce((acc, dep) => {
@@ -66,11 +23,7 @@ function groupByEnvironment(deps: GitHubDeployment[]): Record<string, GitHubDepl
 
 function DeploymentsContent() {
     const api = window.electronAPI
-
-    const [repos, setRepos] = useState<GitHubRepo[]>([])
-    const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null)
-    const [repoDropdownOpen, setRepoDropdownOpen] = useState(false)
-    const [loadingRepos, setLoadingRepos] = useState(true)
+    const { repos, selectedRepo, setSelectedRepo, loading: loadingRepos, error: repoError } = useGitHubRepos()
 
     const [workflows, setWorkflows] = useState<GitHubWorkflowRun[]>([])
     const [deployments, setDeployments] = useState<GitHubDeployment[]>([])
@@ -83,23 +36,20 @@ function DeploymentsContent() {
     const [workflowFilter, setWorkflowFilter] = useState('')
     const [isPolling, setIsPolling] = useState(false)
 
-    useEffect(() => {
-        (async () => {
-            try {
-                const result = await api.githubGetRepos()
-                if ('__isError' in result) {
-                    setError(result.message)
-                } else {
-                    setRepos(result)
-                    if (result.length > 0 && !selectedRepo) setSelectedRepo(result[0])
-                }
-            } catch (e: any) {
-                setError(e.message)
-            } finally {
-                setLoadingRepos(false)
-            }
-        })()
-    }, [])
+    // Expandable workflow job details
+    const [expandedRunId, setExpandedRunId] = useState<number | null>(null)
+    const [runJobs, setRunJobs] = useState<Record<number, GitHubWorkflowJob[]>>({})
+    const [loadingJobs, setLoadingJobs] = useState<number | null>(null)
+
+    // Commit messages keyed by short SHA prefix
+    const [commitBySha, setCommitBySha] = useState<Record<string, GitHubCommit>>({})
+
+    // Workflow dispatch
+    const [showDispatch, setShowDispatch] = useState(false)
+    const [availableWorkflows, setAvailableWorkflows] = useState<GitHubWorkflow[]>([])
+    const [dispatchWorkflowId, setDispatchWorkflowId] = useState<number | null>(null)
+    const [dispatchRef, setDispatchRef] = useState('')
+    const [dispatching, setDispatching] = useState(false)
 
     const loadRepoData = useCallback(async (repo: GitHubRepo, force = false) => {
         setLoadingData(true)
@@ -114,6 +64,18 @@ function DeploymentsContent() {
             setWorkflows(wfResult)
             setDeployments(depResult)
             setLastUpdated(new Date())
+
+            // Fetch commits for deployment SHA enrichment (non-blocking)
+            api.githubGetCommits({ owner: repo.owner.login, repo: repo.name }).then(commitResult => {
+                if (!('__isError' in commitResult)) {
+                    const map: Record<string, GitHubCommit> = {}
+                    ;(commitResult as GitHubCommit[]).forEach(c => {
+                        map[c.sha] = c
+                        map[c.shortSha] = c
+                    })
+                    setCommitBySha(map)
+                }
+            })
         } catch (e: any) {
             setError(e.message)
         } finally {
@@ -151,6 +113,59 @@ function DeploymentsContent() {
         }
     }
 
+    const toggleRunExpand = async (runId: number) => {
+        if (expandedRunId === runId) {
+            setExpandedRunId(null)
+            return
+        }
+        setExpandedRunId(runId)
+        if (!runJobs[runId] && selectedRepo) {
+            setLoadingJobs(runId)
+            try {
+                const result = await api.githubGetWorkflowJobs({ owner: selectedRepo.owner.login, repo: selectedRepo.name, runId })
+                if (!('__isError' in result)) {
+                    setRunJobs(prev => ({ ...prev, [runId]: result as GitHubWorkflowJob[] }))
+                }
+            } finally {
+                setLoadingJobs(null)
+            }
+        }
+    }
+
+    const handleDispatch = async () => {
+        if (!selectedRepo || !dispatchWorkflowId || !dispatchRef) return
+        setDispatching(true)
+        try {
+            const result = await api.githubDispatchWorkflow({
+                owner: selectedRepo.owner.login,
+                repo: selectedRepo.name,
+                workflowId: dispatchWorkflowId,
+                ref: dispatchRef,
+            })
+            if ('__isError' in result) throw new Error(result.message)
+            setShowDispatch(false)
+            setTimeout(() => loadRepoData(selectedRepo, true), 2000)
+        } catch (e: any) {
+            setError(e.message)
+        } finally {
+            setDispatching(false)
+        }
+    }
+
+    const openDispatchDialog = async () => {
+        if (!selectedRepo) return
+        setShowDispatch(true)
+        setDispatchRef(selectedRepo.defaultBranch)
+        try {
+            const result = await api.githubGetWorkflowsList({ owner: selectedRepo.owner.login, repo: selectedRepo.name })
+            if (!('__isError' in result)) {
+                const wfs = result as GitHubWorkflow[]
+                setAvailableWorkflows(wfs)
+                if (wfs.length > 0) setDispatchWorkflowId(wfs[0].id)
+            }
+        } catch { /* non-fatal */ }
+    }
+
     const filteredWorkflows = workflowFilter.trim()
         ? workflows.filter(r =>
             r.name.toLowerCase().includes(workflowFilter.toLowerCase()) ||
@@ -177,46 +192,23 @@ function DeploymentsContent() {
                     </div>
                 )}
 
-                {/* Repo selector */}
-                <div className="relative">
-                    <button
-                        onClick={() => setRepoDropdownOpen(prev => !prev)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-[#2A2A3A] bg-[#1A1A24] hover:bg-[#252535] transition-colors text-xs font-semibold text-[#E2E8F0] min-w-[200px]"
-                    >
-                        {selectedRepo ? (
-                            <>
-                                {selectedRepo.private ? <Lock className="h-3 w-3 text-[#6B7280]" /> : <Globe className="h-3 w-3 text-[#6B7280]" />}
-                                <span className="truncate flex-1 text-left">{selectedRepo.fullName}</span>
-                            </>
-                        ) : (
-                            <span className="text-[#6B7280]">Select repository...</span>
-                        )}
-                        <ChevronDown className="h-3 w-3 text-[#6B7280] shrink-0" />
-                    </button>
-                    {repoDropdownOpen && (
-                        <>
-                            <div className="fixed inset-0 z-40" onClick={() => setRepoDropdownOpen(false)} />
-                            <div className="absolute right-0 top-full mt-1 z-50 w-80 max-h-80 overflow-y-auto bg-[#1A1A24] border border-[#2A2A3A] rounded-lg shadow-xl custom-scrollbar">
-                                {loadingRepos ? (
-                                    <div className="p-4 flex items-center justify-center"><Loader2 className="h-4 w-4 text-[#A78BFA] animate-spin" /></div>
-                                ) : repos.map(repo => (
-                                    <button
-                                        key={repo.id}
-                                        onClick={() => { setSelectedRepo(repo); setRepoDropdownOpen(false) }}
-                                        className={cn(
-                                            "w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[#252535] transition-colors text-left",
-                                            selectedRepo?.id === repo.id && "bg-[#2D2D3F]"
-                                        )}
-                                    >
-                                        {repo.private ? <Lock className="h-3 w-3 text-[#6B7280] shrink-0" /> : <Globe className="h-3 w-3 text-[#6B7280] shrink-0" />}
-                                        <span className="font-semibold text-[#E2E8F0] truncate">{repo.fullName}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
+                <RepoSelector
+                    repos={repos}
+                    selectedRepo={selectedRepo}
+                    onSelect={setSelectedRepo}
+                    loading={loadingRepos}
+                />
 
+                <Button
+                    variant="ghost" size="sm"
+                    onClick={openDispatchDialog}
+                    disabled={!selectedRepo}
+                    className="h-8 px-2 text-xs text-[#6B7280] hover:text-[#A78BFA] flex items-center gap-1"
+                    title="Run workflow"
+                >
+                    <Play className="h-3 w-3" />
+                    <span className="hidden sm:inline">Run</span>
+                </Button>
                 <Button
                     variant="ghost" size="sm"
                     onClick={() => selectedRepo && loadRepoData(selectedRepo, true)}
@@ -255,8 +247,8 @@ function DeploymentsContent() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                {error && (
-                    <div className="m-4 p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300">{error}</div>
+                {(error || repoError) && (
+                    <div className="m-4 p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300">{error || repoError}</div>
                 )}
 
                 {loadingData && (
@@ -287,61 +279,126 @@ function DeploymentsContent() {
                             const badge = statusBadge(run.status, run.conclusion)
                             const BadgeIcon = badge.icon
                             const isActive = run.status === 'in_progress' || run.status === 'queued'
+                            const isExpanded = expandedRunId === run.id
+                            const jobs = runJobs[run.id] || []
                             return (
                                 <div
                                     key={run.id}
                                     className={cn(
-                                        "flex items-center gap-3 p-3 rounded-lg border transition-colors group",
+                                        "rounded-lg border transition-colors",
                                         isActive
                                             ? "bg-[#13131A] border-amber-900/40"
                                             : "bg-[#13131A] border-[#2A2A3A] hover:border-[#3D3D5F]"
                                     )}
                                 >
-                                    <div className={cn("shrink-0 w-7 h-7 rounded-full flex items-center justify-center", badge.bg)}>
-                                        <BadgeIcon className={cn("h-3.5 w-3.5", badge.color, isActive && "animate-pulse")} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-semibold text-[#E2E8F0] truncate">{run.name}</span>
-                                            <span className={cn("shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase", badge.bg, badge.color)}>
-                                                {badge.label}
-                                            </span>
+                                    {/* Run row */}
+                                    <div className="flex items-center gap-3 p-3 group">
+                                        <div className={cn("shrink-0 w-7 h-7 rounded-full flex items-center justify-center", badge.bg)}>
+                                            <BadgeIcon className={cn("h-3.5 w-3.5", badge.color, isActive && "animate-pulse")} />
                                         </div>
-                                        <div className="flex items-center gap-2 mt-1 text-[11px] text-[#6B7280]">
-                                            <code className="font-mono text-[#9CA3AF]">{run.headBranch}</code>
-                                            <span>·</span>
-                                            <span>{run.event}</span>
-                                            <span>·</span>
-                                            <span>{formatTimeAgo(run.createdAt)}</span>
-                                            {run.durationMs && run.status === 'completed' && (
-                                                <>
-                                                    <span>·</span>
-                                                    <span>{formatDuration(run.durationMs)}</span>
-                                                </>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-semibold text-[#E2E8F0] truncate">{run.name}</span>
+                                                <span className={cn("shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase", badge.bg, badge.color)}>
+                                                    {badge.label}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1 text-[11px] text-[#6B7280]">
+                                                <code className="font-mono text-[#9CA3AF]">{run.headBranch}</code>
+                                                <span>·</span>
+                                                <span>{run.event}</span>
+                                                <span>·</span>
+                                                <span>{formatTimeAgo(run.createdAt)}</span>
+                                                {run.durationMs && run.status === 'completed' && (
+                                                    <>
+                                                        <span>·</span>
+                                                        <span>{formatDuration(run.durationMs)}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="shrink-0 flex items-center gap-1">
+                                            {run.status === 'completed' && run.conclusion === 'failure' && (
+                                                <Button
+                                                    variant="ghost" size="sm"
+                                                    onClick={() => handleRerun(run.id)}
+                                                    disabled={rerunningId === run.id}
+                                                    className="h-7 px-2 text-[10px] text-[#6B7280] hover:text-[#A78BFA]"
+                                                    title="Re-run failed jobs"
+                                                >
+                                                    <RotateCcw className={cn("h-3 w-3 mr-1", rerunningId === run.id && "animate-spin")} />
+                                                    <span className="text-[10px]">Re-run</span>
+                                                </Button>
+                                            )}
+                                            <button
+                                                onClick={() => api.openUrl(run.htmlUrl)}
+                                                className="p-1.5 rounded hover:bg-[#252535] text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity"
+                                                title="View on GitHub"
+                                            >
+                                                <ExternalLink className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                                onClick={() => toggleRunExpand(run.id)}
+                                                className="p-1.5 rounded hover:bg-[#252535] text-[#6B7280] hover:text-[#E2E8F0] transition-colors"
+                                                title="Toggle job details"
+                                            >
+                                                {isExpanded
+                                                    ? <ChevronDown className="h-3.5 w-3.5" />
+                                                    : <ChevronRight className="h-3.5 w-3.5" />
+                                                }
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {/* Expanded job details */}
+                                    {isExpanded && (
+                                        <div className="border-t border-[#2A2A3A] px-3 pb-3 pt-2">
+                                            {loadingJobs === run.id ? (
+                                                <div className="flex items-center gap-2 py-2">
+                                                    <Loader2 className="h-3 w-3 text-[#A78BFA] animate-spin" />
+                                                    <span className="text-[11px] text-[#6B7280]">Loading jobs…</span>
+                                                </div>
+                                            ) : jobs.length === 0 ? (
+                                                <p className="text-[11px] text-[#6B7280] py-2">No job data available</p>
+                                            ) : (
+                                                <div className="space-y-1.5">
+                                                    {jobs.map(job => (
+                                                        <div key={job.id}>
+                                                            <div className="flex items-center gap-2 py-1">
+                                                                {job.conclusion === 'success'
+                                                                    ? <Check className="h-3 w-3 text-emerald-400 shrink-0" />
+                                                                    : job.conclusion === 'failure'
+                                                                    ? <X className="h-3 w-3 text-red-400 shrink-0" />
+                                                                    : job.status === 'in_progress'
+                                                                    ? <Loader2 className="h-3 w-3 text-amber-400 animate-spin shrink-0" />
+                                                                    : <CircleDot className="h-3 w-3 text-[#6B7280] shrink-0" />
+                                                                }
+                                                                <span className="text-[11px] text-[#E2E8F0] font-semibold">{job.name}</span>
+                                                            </div>
+                                                            {job.steps.length > 0 && (
+                                                                <div className="ml-5 space-y-0.5">
+                                                                    {job.steps.map((step, si) => (
+                                                                        <div key={si} className="flex items-center gap-1.5">
+                                                                            {step.conclusion === 'success'
+                                                                                ? <Check className="h-2.5 w-2.5 text-emerald-400 shrink-0" />
+                                                                                : step.conclusion === 'failure'
+                                                                                ? <X className="h-2.5 w-2.5 text-red-400 shrink-0" />
+                                                                                : step.conclusion === 'skipped'
+                                                                                ? <CircleDot className="h-2.5 w-2.5 text-[#6B7280] shrink-0" />
+                                                                                : step.status === 'in_progress'
+                                                                                ? <Loader2 className="h-2.5 w-2.5 text-amber-400 animate-spin shrink-0" />
+                                                                                : <CircleDot className="h-2.5 w-2.5 text-[#6B7280] opacity-40 shrink-0" />
+                                                                            }
+                                                                            <span className="text-[10px] text-[#9CA3AF]">{step.name}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             )}
                                         </div>
-                                    </div>
-                                    <div className="shrink-0 flex items-center gap-1">
-                                        {run.status === 'completed' && run.conclusion === 'failure' && (
-                                            <Button
-                                                variant="ghost" size="sm"
-                                                onClick={() => handleRerun(run.id)}
-                                                disabled={rerunningId === run.id}
-                                                className="h-7 px-2 text-[10px] text-[#6B7280] hover:text-[#A78BFA]"
-                                                title="Re-run failed jobs"
-                                            >
-                                                <RotateCcw className={cn("h-3 w-3 mr-1", rerunningId === run.id && "animate-spin")} />
-                                                <span className="text-[10px]">Re-run</span>
-                                            </Button>
-                                        )}
-                                        <button
-                                            onClick={() => api.openUrl(run.htmlUrl)}
-                                            className="p-1.5 rounded hover:bg-[#252535] text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity"
-                                            title="View on GitHub"
-                                        >
-                                            <ExternalLink className="h-3 w-3" />
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
                             )
                         })}
@@ -382,6 +439,11 @@ function DeploymentsContent() {
                                                     <span>·</span>
                                                     <span>{formatTimeAgo(dep.createdAt)}</span>
                                                 </div>
+                                                {(commitBySha[dep.sha] ?? commitBySha[dep.sha.slice(0, 7)]) && (
+                                                    <p className="text-[11px] text-[#9CA3AF] mt-0.5 truncate">
+                                                        {(commitBySha[dep.sha] ?? commitBySha[dep.sha.slice(0, 7)]).message.split('\n')[0]}
+                                                    </p>
+                                                )}
                                                 {dep.latestStatus?.description && (
                                                     <p className="text-[11px] text-[#6B7280] mt-0.5 truncate">{dep.latestStatus.description}</p>
                                                 )}
@@ -403,6 +465,62 @@ function DeploymentsContent() {
                     </div>
                 )}
             </div>
+
+            {/* Workflow Dispatch Dialog */}
+            {showDispatch && (
+                <>
+                    <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowDispatch(false)} />
+                    <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-80 bg-[#1A1A24] border border-[#2A2A3A] rounded-xl shadow-2xl p-5">
+                        <h2 className="text-sm font-bold text-[#E2E8F0] mb-4 flex items-center gap-2">
+                            <Play className="h-4 w-4 text-[#A78BFA]" /> Run Workflow
+                        </h2>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-1 block">Workflow</label>
+                                <select
+                                    value={dispatchWorkflowId ?? ''}
+                                    onChange={e => setDispatchWorkflowId(Number(e.target.value))}
+                                    className="w-full px-3 py-2 rounded-md bg-[#13131A] border border-[#2A2A3A] text-xs text-[#E2E8F0] focus:outline-none focus:border-[#A78BFA]/60"
+                                >
+                                    {availableWorkflows.length === 0 && <option value="">Loading…</option>}
+                                    {availableWorkflows.map(wf => (
+                                        <option key={wf.id} value={wf.id}>{wf.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-1 block">Branch / Tag</label>
+                                <div className="relative">
+                                    <GitBranch className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[#6B7280] pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={dispatchRef}
+                                        onChange={e => setDispatchRef(e.target.value)}
+                                        placeholder="main"
+                                        className="w-full pl-8 pr-3 py-2 rounded-md bg-[#13131A] border border-[#2A2A3A] text-xs text-[#E2E8F0] font-mono focus:outline-none focus:border-[#A78BFA]/60"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-5">
+                            <button
+                                onClick={() => setShowDispatch(false)}
+                                className="flex-1 px-3 py-2 rounded-md border border-[#2A2A3A] text-xs text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#252535] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDispatch}
+                                disabled={dispatching || !dispatchWorkflowId || !dispatchRef}
+                                className="flex-1 px-3 py-2 rounded-md bg-[#A78BFA] text-white text-xs font-semibold hover:bg-[#9B7CF4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+                            >
+                                {dispatching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                                Run
+                            </button>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     )
 }

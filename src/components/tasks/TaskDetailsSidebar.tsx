@@ -1,34 +1,35 @@
-import { useState, useEffect, useCallback } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
-    X,
-    User,
+    Activity as ActivityIcon,
     Calendar,
-    Tag,
-    Clock,
+    ExternalLink,
     Loader2,
     MessageSquare,
-    Trash2,
-    Send,
+    Tag,
     Target,
-    ExternalLink,
-    Activity as ActivityIcon,
-    AlertCircle
+    Trash2,
+    User,
+    X
 } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { getConnectionApiKey, getApiKey } from "@/lib/credentials"
+import { toast } from "sonner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Project, Task, TaskStatus } from "@/store/useProjectStore"
-import { DetailItem, MediaSection } from "./TaskDetailsComponents"
+import { Textarea } from "@/components/ui/textarea"
 import FormattedText from "@/components/FormattedText"
-import { toast } from "sonner"
-import { useConfirm } from "@/components/ConfirmDialog"
+import { Project, Task, TaskStatus, useProjectStore } from "@/store/useProjectStore"
+import { DetailItem, MediaSection } from "./TaskDetailsComponents"
+import { HandoffPanel } from "./HandoffPanel"
+import { TraceabilityPanel } from "./TraceabilityPanel"
+import { CollaborationTimeline } from "./CollaborationTimeline"
+import { TaskStateBadge, collabStateLabel, collabStateTone, coverageStateTone, dueStateTone, handoffStateTone } from "./TaskStateBadge"
+import { deriveTaskViewModels } from "@/lib/tasks"
+import { getConnectionApiKey } from "@/lib/credentials"
 
 interface TaskDetailsSidebarProps {
     selectedTask: Task | null
     activeProject: Project | undefined
-    currentColumns: any[]
+    currentColumns: Array<{ id: string; title: string; textColor?: string }>
     onClose: () => void
     onUpdateTask: (updates: Partial<Task>) => Promise<void>
     onAnalyze: (task: Task) => Promise<void>
@@ -37,6 +38,10 @@ interface TaskDetailsSidebarProps {
     onDeleteAnalysis: (entry: any) => void
     onDelete: () => void
     api: any
+}
+
+function SectionTitle({ children }: { children: string }) {
+    return <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">{children}</h3>
 }
 
 export function TaskDetailsSidebar({
@@ -52,630 +57,337 @@ export function TaskDetailsSidebar({
     onDelete,
     api
 }: TaskDetailsSidebarProps) {
-    const [activeTab, setActiveTab] = useState('description')
+    const [activeTab, setActiveTab] = useState("overview")
     const [isEditing, setIsEditing] = useState(false)
-    const [editTitle, setEditTitle] = useState("")
-    const [editDescription, setEditDescription] = useState("")
-    const [editStatus, setEditStatus] = useState<TaskStatus>('todo')
-    const [editPriority, setEditPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
-    const [editSeverity, setEditSeverity] = useState<'cosmetic' | 'minor' | 'major' | 'critical' | 'blocker'>('major')
-    const [editAcceptanceCriteria, setEditAcceptanceCriteria] = useState("")
-    const [editVersion, setEditVersion] = useState("")
-    const [editAssignee, setEditAssignee] = useState("")
-    const [editLabels, setEditLabels] = useState("")
-    const [editReproducibility, setEditReproducibility] = useState<'always' | 'sometimes' | 'rarely' | 'once' | 'unable'>('sometimes')
-    const [editFrequency, setEditFrequency] = useState<'everytime' | 'often' | 'occasionally' | 'once'>('often')
-
-    const [editDueDate, setEditDueDate] = useState("")
-
+    const [draft, setDraft] = useState<Partial<Task>>({})
     const [comments, setComments] = useState<any[]>([])
     const [commentsError, setCommentsError] = useState<string | null>(null)
     const [activity, setActivity] = useState<any[]>([])
-    const [isLoadingTab, setIsLoadingTab] = useState(false)
     const [newComment, setNewComment] = useState("")
+    const [isLoadingTab, setIsLoadingTab] = useState(false)
     const [isPostingComment, setIsPostingComment] = useState(false)
-    const [expandedHistory, setExpandedHistory] = useState<Set<number>>(new Set())
-
-    const { confirm, dialog: confirmDialog } = useConfirm()
-
-    const isDirty = isEditing && selectedTask && (
-        editTitle !== selectedTask.title ||
-        editDescription !== (selectedTask.description || "") ||
-        editStatus !== selectedTask.status ||
-        editPriority !== selectedTask.priority ||
-        editSeverity !== (selectedTask.severity || 'major') ||
-        editAcceptanceCriteria !== (selectedTask.acceptanceCriteria || "") ||
-        editVersion !== (selectedTask.version || "") ||
-        editAssignee !== (selectedTask.assignee || "") ||
-        editLabels !== (selectedTask.labels || "") ||
-        editDueDate !== (selectedTask.dueDate || "")
-    )
+    const getTaskTraceability = useProjectStore((state) => state.getTaskTraceability)
 
     useEffect(() => {
-        if (selectedTask) {
-            setEditTitle(selectedTask.title)
-            setEditDescription(selectedTask.description || "")
-            setEditStatus(selectedTask.status)
-            setEditPriority(selectedTask.priority)
-            setEditSeverity(selectedTask.severity || 'major')
-            setEditAcceptanceCriteria(selectedTask.acceptanceCriteria || "")
-            setEditVersion(selectedTask.version || "")
-            setEditAssignee(selectedTask.assignee || "")
-            setEditLabels(selectedTask.labels || "")
-            setEditReproducibility(selectedTask.reproducibility || 'sometimes')
-            setEditFrequency(selectedTask.frequency || 'often')
-            setEditDueDate(selectedTask.dueDate || "")
-            setIsEditing(false)
-        }
+        if (!selectedTask) return
+        setDraft({
+            title: selectedTask.title,
+            description: selectedTask.description,
+            status: selectedTask.status,
+            priority: selectedTask.priority,
+            severity: selectedTask.severity || "major",
+            acceptanceCriteria: selectedTask.acceptanceCriteria || "",
+            version: selectedTask.version || "",
+            assignee: selectedTask.assignee || "",
+            labels: selectedTask.labels || "",
+            components: selectedTask.components || [],
+            dueDate: selectedTask.dueDate
+        })
+        setIsEditing(false)
+        setActiveTab("overview")
     }, [selectedTask?.id])
 
-    const getLinearApiKey = useCallback(async (connId?: string) => {
-        return getConnectionApiKey(api, 'linear_api_key', connId, activeProject?.id)
-    }, [activeProject, api])
+    const traceability = useMemo(() => {
+        if (!activeProject || !selectedTask) return null
+        return getTaskTraceability(activeProject.id, selectedTask.id)
+    }, [activeProject, selectedTask, getTaskTraceability])
 
-    const getJiraCredentials = useCallback(async (connId?: string) => {
-        if (connId) {
-            const conn = activeProject?.jiraConnections?.find((c: any) => c.id === connId)
-            if (conn) {
-                const key = await getConnectionApiKey(api, 'jira_api_token', connId, activeProject?.id)
-                if (key) return { domain: conn.domain, email: conn.email, apiKey: key }
-            }
-        }
-        const domain = await getApiKey(api, 'jira_domain', activeProject?.id)
-        const email = await getApiKey(api, 'jira_email', activeProject?.id)
-        const key = await getApiKey(api, 'jira_api_token', activeProject?.id)
-        if (domain && email && key) return { domain, email, apiKey: key }
-        return null
-    }, [activeProject, api])
+    const taskView = useMemo(() => {
+        if (!activeProject || !selectedTask) return null
+        return deriveTaskViewModels(activeProject).find((entry) => entry.task.id === selectedTask.id) || null
+    }, [activeProject, selectedTask])
 
-    const loadTabContent = useCallback(async (tab: string) => {
-        if (!selectedTask) return
+    const timelineEvents = (activeProject?.collaborationEvents || []).filter((event) => event.taskId === selectedTask?.id)
+    const activeHandoff = traceability?.activeHandoff || traceability?.handoffs?.[0]
+    const statusLabel = currentColumns.find((col) => col.id === selectedTask?.status)?.title || selectedTask?.status || "Unknown"
+
+    const loadTabContent = async (tab: string) => {
         setActiveTab(tab)
+        if (!selectedTask || !["comments", "activity"].includes(tab)) return
         setIsLoadingTab(true)
-        if (tab === 'comments') setCommentsError(null)
-
+        if (tab === "comments") setCommentsError(null)
         try {
-            if (tab === 'comments') {
-                if (selectedTask.source === 'linear') {
-                    const key = await getLinearApiKey(selectedTask.connectionId)
-                    if (key) {
-                        setComments(await api.getLinearComments({ apiKey: key, issueId: selectedTask.sourceIssueId }))
-                    } else {
-                        setCommentsError("Linear API key not configured. Check Settings.")
-                    }
-                } else if (selectedTask.source === 'jira') {
-                    const creds = await getJiraCredentials(selectedTask.connectionId)
-                    if (creds) {
-                        setComments(await api.getJiraComments({ ...creds, issueKey: selectedTask.sourceIssueId }))
-                    } else {
-                        setCommentsError("Jira credentials not configured. Check Settings.")
-                    }
-                }
-            } else if (tab === 'history') {
-                if (selectedTask.source === 'linear') {
-                    const key = await getLinearApiKey(selectedTask.connectionId)
-                    if (key) setActivity(await api.getLinearHistory({ apiKey: key, issueId: selectedTask.sourceIssueId }))
-                } else if (selectedTask.source === 'jira') {
-                    const creds = await getJiraCredentials(selectedTask.connectionId)
-                    if (creds) setActivity(await api.getJiraHistory({ ...creds, issueKey: selectedTask.sourceIssueId }))
+            if (tab === "comments") {
+                if (selectedTask.source === "linear") {
+                    const key = await getConnectionApiKey(api, "linear_api_key", selectedTask.connectionId, activeProject?.id)
+                    if (!key) throw new Error("Linear API key not configured.")
+                    setComments(await api.getLinearComments({ apiKey: key, issueId: selectedTask.sourceIssueId }))
+                } else if (selectedTask.source === "jira") {
+                    const conn = activeProject?.jiraConnections?.find((item) => item.id === selectedTask.connectionId)
+                    const apiKey = await getConnectionApiKey(api, "jira_api_token", selectedTask.connectionId, activeProject?.id)
+                    if (!conn || !apiKey) throw new Error("Jira credentials not configured.")
+                    setComments(await api.getJiraComments({ domain: conn.domain, email: conn.email, apiKey, issueKey: selectedTask.sourceIssueId }))
                 }
             }
-        } catch (e: any) {
-            if (tab === 'comments') setCommentsError(e.message || "Failed to load comments.")
-            else toast.error(e.message || "Error loading tab.")
+            if (tab === "activity") {
+                if (selectedTask.source === "linear") {
+                    const key = await getConnectionApiKey(api, "linear_api_key", selectedTask.connectionId, activeProject?.id)
+                    if (key) setActivity(await api.getLinearHistory({ apiKey: key, issueId: selectedTask.sourceIssueId }))
+                } else if (selectedTask.source === "jira") {
+                    const conn = activeProject?.jiraConnections?.find((item) => item.id === selectedTask.connectionId)
+                    const apiKey = await getConnectionApiKey(api, "jira_api_token", selectedTask.connectionId, activeProject?.id)
+                    if (conn && apiKey) setActivity(await api.getJiraHistory({ domain: conn.domain, email: conn.email, apiKey, issueKey: selectedTask.sourceIssueId }))
+                }
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to load task data."
+            if (tab === "comments") setCommentsError(message)
+            else toast.error(message)
         } finally {
             setIsLoadingTab(false)
         }
-    }, [selectedTask, api, getLinearApiKey, getJiraCredentials])
-
-    useEffect(() => {
-        if (selectedTask && activeTab !== 'description' && activeTab !== 'details' && activeTab !== 'analysis') {
-            loadTabContent(activeTab)
-        }
-    }, [selectedTask?.id, activeTab, loadTabContent])
-
-    const handleSave = async () => {
-        const updates: any = {
-            title: editTitle,
-            description: editDescription,
-            status: editStatus,
-            priority: editPriority,
-            severity: editSeverity,
-            acceptanceCriteria: editAcceptanceCriteria,
-            version: editVersion,
-            assignee: editAssignee,
-            labels: editLabels,
-            dueDate: editDueDate || undefined
-        }
-        // Only include bug fields if task is a bug
-        if (selectedTask?.title.includes('[BUG]')) {
-            updates.reproducibility = editReproducibility
-            updates.frequency = editFrequency
-        }
-        await onUpdateTask(updates)
-        setIsEditing(false)
     }
 
-    const handleClose = async () => {
-        if (isDirty) {
-            const confirmed = await confirm("Discard unsaved changes?", {
-                description: "Your edits will be lost if you close without saving.",
-                confirmLabel: "Discard",
-                destructive: true
-            })
-            if (!confirmed) return
-        }
-        onClose()
+    const handleSave = async () => {
+        await onUpdateTask({
+            ...draft,
+            components: Array.isArray(draft.components)
+                ? draft.components
+                : String(draft.components || "").split(",").map((value) => value.trim()).filter(Boolean)
+        })
+        setIsEditing(false)
     }
 
     const handlePostComment = async () => {
         if (!selectedTask || !newComment.trim()) return
         setIsPostingComment(true)
         try {
-            if (selectedTask.source === 'linear') {
-                const key = await getLinearApiKey(selectedTask.connectionId)
-                if (key) {
-                    await api.addLinearComment({ apiKey: key, issueId: selectedTask.externalId, body: newComment })
-                    setNewComment("")
-                    loadTabContent('comments')
-                }
-            } else if (selectedTask.source === 'jira') {
-                const creds = await getJiraCredentials(selectedTask.connectionId)
-                if (creds) {
-                    await api.addJiraComment({ ...creds, issueKey: selectedTask.sourceIssueId, body: newComment })
-                    setNewComment("")
-                    loadTabContent('comments')
-                }
+            if (selectedTask.source === "linear") {
+                const apiKey = await getConnectionApiKey(api, "linear_api_key", selectedTask.connectionId, activeProject?.id)
+                if (!apiKey) throw new Error("Linear API key not configured.")
+                await api.addLinearComment({ apiKey, issueId: selectedTask.externalId, body: newComment })
+            } else if (selectedTask.source === "jira") {
+                const conn = activeProject?.jiraConnections?.find((item) => item.id === selectedTask.connectionId)
+                const apiKey = await getConnectionApiKey(api, "jira_api_token", selectedTask.connectionId, activeProject?.id)
+                if (!conn || !apiKey) throw new Error("Jira credentials not configured.")
+                await api.addJiraComment({ domain: conn.domain, email: conn.email, apiKey, issueKey: selectedTask.sourceIssueId, body: newComment })
+            } else {
+                throw new Error("Comments are only available for synced tasks.")
             }
-        } catch (e: any) {
-            toast.error(`Comment failed: ${e.message}`)
+            setNewComment("")
+            await loadTabContent("comments")
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to post comment.")
         } finally {
             setIsPostingComment(false)
         }
     }
 
-    const toggleHistoryExpand = (i: number) => {
-        const next = new Set(expandedHistory)
-        if (next.has(i)) next.delete(i)
-        else next.add(i)
-        setExpandedHistory(next)
-    }
-
     if (!selectedTask) return null
 
     return (
-        <div className={cn(
-            "bg-[#13131A] border-l border-[#2A2A3A] transition-all duration-300 ease-in-out flex flex-col overflow-hidden shadow-2xl",
-            "w-full max-w-[500px] shrink-0"
-        )}>
-            {confirmDialog}
-            <div className="flex-none p-5 border-b border-[#2A2A3A] space-y-4">
-                <div className="flex items-start justify-between">
+        <div className="flex w-full max-w-[520px] shrink-0 flex-col overflow-hidden border-l border-[#2A2A3A] bg-[#13131A] shadow-2xl">
+            <div className="space-y-4 border-b border-[#2A2A3A] p-5">
+                <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">{selectedTask.sourceIssueId || 'MANUAL TASK'}</p>
-                        <h2 className="text-lg font-semibold text-[#E2E8F0] leading-tight">{selectedTask.title}</h2>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">{selectedTask.sourceIssueId || selectedTask.externalId || "MANUAL TASK"}</p>
+                        <h2 className="text-lg font-semibold leading-tight text-[#E2E8F0]">{selectedTask.title}</h2>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#E2E8F0]" onClick={handleClose}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#E2E8F0]" onClick={onClose}>
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
-                <div className="flex items-center gap-2">
-                    <div className={cn(
-                        "px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase",
-                        currentColumns.find((c: any) => c.id === selectedTask.status)?.textColor || "text-[#A78BFA]",
-                        "bg-[#1A1A24] border border-[#2A2A3A]"
-                    )}>
-                        {selectedTask.status}
+
+                <div className="rounded-xl border border-[#2A2A3A] bg-[#0F0F13] p-4">
+                    <div className="mb-3 flex flex-wrap gap-2">
+                        <TaskStateBadge label={statusLabel} tone="neutral" />
+                        <TaskStateBadge label={selectedTask.priority} tone={selectedTask.priority === "critical" ? "red" : selectedTask.priority === "high" ? "amber" : "neutral"} />
+                        <TaskStateBadge label={selectedTask.severity || "major"} tone={selectedTask.severity === "critical" || selectedTask.severity === "blocker" ? "red" : "amber"} />
+                        <TaskStateBadge label={collabStateLabel(selectedTask.collabState)} tone={collabStateTone(selectedTask.collabState)} />
+                        {taskView && taskView.dueState !== "none" && taskView.dueLabel && <TaskStateBadge label={taskView.dueLabel} tone={dueStateTone(taskView.dueState)} />}
+                        {taskView && <TaskStateBadge label={`${taskView.linkedTestCount} linked tests`} tone={coverageStateTone(taskView.coverageState)} />}
+                        {taskView?.hasActiveHandoff && <TaskStateBadge label={taskView.handoffState} tone={handoffStateTone(taskView.handoffState)} />}
                     </div>
-                    <div className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase bg-[#2A2010] text-[#F59E0B] border border-[#F59E0B]/20">
-                        {selectedTask.priority}
+                    <div className="grid grid-cols-2 gap-2">
+                        <DetailItem icon={User} label="ASSIGNEE" value={selectedTask.assignee || "Unassigned"} />
+                        <DetailItem icon={Calendar} label="DUE DATE" value={selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"} />
+                        <DetailItem icon={Tag} label="COMPONENTS" value={selectedTask.components?.join(", ") || "No components"} />
+                        <DetailItem icon={Tag} label="HANDOFF" value={activeHandoff ? (activeHandoff.isComplete ? "Complete" : "Needs fields") : "No handoff"} />
                     </div>
                 </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={loadTabContent} className="flex-1 flex flex-col min-h-0">
-                <TabsList className="flex-none w-full justify-start rounded-none bg-transparent border-b border-[#2A2A3A] h-10 px-2 gap-4">
-                    <TabsTrigger value="description" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Description</TabsTrigger>
-                    <TabsTrigger value="details" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Details</TabsTrigger>
-                    <TabsTrigger value="impact" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Impact</TabsTrigger>
-                    <TabsTrigger value="comments" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Comments</TabsTrigger>
-                    <TabsTrigger value="history" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">History</TabsTrigger>
-                    <TabsTrigger value="analysis" className="text-xs font-bold data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] transition-none rounded-none px-2 h-full">Analysis</TabsTrigger>
-                </TabsList>
-                
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                    <TabsContent value="description" className="m-0 focus-visible:ring-0">
-                        <div className="space-y-4">
-                            {isEditing && selectedTask.source === 'manual' ? (
-                                <>
-                                    <div className="grid gap-1.5">
-                                        <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Acceptance Criteria</label>
-                                        <textarea
-                                            value={editAcceptanceCriteria}
-                                            onChange={(e) => setEditAcceptanceCriteria(e.target.value)}
-                                            className="min-h-[100px] w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] p-3 text-xs text-[#E2E8F0] focus:ring-1 focus:ring-[#A78BFA]/50 outline-none resize-none app-region-no-drag"
-                                            placeholder="Clear pass/fail criteria (e.g., Given... When... Then...)"
-                                        />
-                                    </div>
-                                    <div className="grid gap-1.5">
-                                        <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Description</label>
-                                        <textarea
-                                            value={editDescription}
-                                            onChange={(e) => setEditDescription(e.target.value)}
-                                            className="min-h-[200px] w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] p-3 text-xs text-[#E2E8F0] focus:ring-1 focus:ring-[#A78BFA]/50 outline-none resize-none app-region-no-drag"
-                                            placeholder="Task description..."
-                                        />
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    {(selectedTask.acceptanceCriteria || isEditing) && (
-                                        <div className="bg-[#1A1A24]/40 border border-[#2A2A3A]/30 rounded-lg p-3 space-y-1.5">
-                                            <div className="text-[10px] font-bold text-[#A78BFA] uppercase tracking-wider">Acceptance Criteria</div>
-                                            <div className="text-xs text-[#E2E8F0] leading-relaxed prose-container">
-                                                <FormattedText
-                                                    content={selectedTask.acceptanceCriteria || "No acceptance criteria defined"}
-                                                    source={selectedTask.source}
-                                                    connectionId={selectedTask.connectionId}
-                                                    projectId={activeProject?.id}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                    <div className="prose-container min-h-[100px]">
-                                        <FormattedText
-                                            content={selectedTask.description}
-                                            source={selectedTask.source}
-                                            connectionId={selectedTask.connectionId}
-                                            projectId={activeProject?.id}
-                                        />
-                                    </div>
-                                    <MediaSection
-                                        task={selectedTask}
-                                        onImageClick={(url) => { if (api.openUrl) api.openUrl(url) }}
-                                        projectId={activeProject?.id}
-                                    />
-                                </>
-                            )}
+            <Tabs value={activeTab} onValueChange={loadTabContent} className="flex min-h-0 flex-1 flex-col">
+                <div className="overflow-x-auto border-b border-[#2A2A3A] custom-scrollbar">
+                    <TabsList className="h-10 w-max min-w-full justify-start gap-4 rounded-none bg-transparent px-2">
+                        <TabsTrigger value="overview" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Overview</TabsTrigger>
+                        <TabsTrigger value="collaboration" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Collaboration</TabsTrigger>
+                        <TabsTrigger value="traceability" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Traceability</TabsTrigger>
+                        <TabsTrigger value="comments" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Comments</TabsTrigger>
+                        <TabsTrigger value="history" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">History</TabsTrigger>
+                        <TabsTrigger value="activity" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Activity</TabsTrigger>
+                    </TabsList>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-6 custom-scrollbar">
+                    <TabsContent value="overview" className="m-0 space-y-5">
+                        <div className="flex items-center justify-between">
+                            <SectionTitle>Overview</SectionTitle>
+                            <Button variant="outline" className="border-[#2A2A3A] text-[#E2E8F0]" onClick={() => setIsEditing((value) => !value)}>
+                                {isEditing ? "Cancel Edit" : "Edit Task"}
+                            </Button>
                         </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="details" className="m-0 space-y-4">
-                        {selectedTask.source === 'manual' ? (
+                        {isEditing ? (
                             <div className="space-y-4">
-                                <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-xs font-bold text-[#6B7280] uppercase tracking-widest">Manual Task Details</h3>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 text-[10px] font-bold text-[#A78BFA] hover:text-[#C4B5FD] hover:bg-[#A78BFA]/10"
-                                        onClick={() => setIsEditing(!isEditing)}
-                                    >
-                                        {isEditing ? 'CANCEL' : 'EDIT'}
-                                    </Button>
+                                <Input value={String(draft.title || "")} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                <Textarea value={String(draft.acceptanceCriteria || "")} onChange={(event) => setDraft((current) => ({ ...current, acceptanceCriteria: event.target.value }))} placeholder="Acceptance criteria" className="min-h-[90px] border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                <Textarea value={String(draft.description || "")} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Description" className="min-h-[140px] border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <select value={String(draft.status || selectedTask.status)} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as TaskStatus }))} className="h-10 rounded-md border border-[#2A2A3A] bg-[#1A1A24] px-3 text-xs text-[#E2E8F0]">
+                                        {currentColumns.map((column) => <option key={column.id} value={column.id}>{column.title}</option>)}
+                                    </select>
+                                    <Input value={String(draft.assignee || "")} onChange={(event) => setDraft((current) => ({ ...current, assignee: event.target.value }))} placeholder="Assignee" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                    <Input value={String(draft.version || "")} onChange={(event) => setDraft((current) => ({ ...current, version: event.target.value }))} placeholder="Version" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                    <Input type="date" value={draft.dueDate ? new Date(draft.dueDate).toISOString().slice(0, 10) : ""} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value ? new Date(event.target.value).getTime() : undefined }))} className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                    <Input value={String(draft.labels || "")} onChange={(event) => setDraft((current) => ({ ...current, labels: event.target.value }))} placeholder="Labels" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                    <Input value={Array.isArray(draft.components) ? draft.components.join(", ") : String(draft.components || "")} onChange={(event) => setDraft((current) => ({ ...current, components: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) }))} placeholder="Components" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
                                 </div>
-                                <div className="space-y-3">
-                                    <div className="grid gap-1.5">
-                                        <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Title</label>
-                                        {isEditing ? (
-                                            <Input
-                                                value={editTitle}
-                                                onChange={(e) => setEditTitle(e.target.value)}
-                                                className="h-9 bg-[#1A1A24] border-[#2A2A3A] text-xs focus-visible:ring-[#A78BFA]/50"
-                                            />
-                                        ) : (
-                                            <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-medium text-[#E2E8F0]">{selectedTask.title}</div>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="grid gap-1.5">
-                                            <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Status</label>
-                                            {isEditing ? (
-                                                <select
-                                                    value={editStatus}
-                                                    onChange={(e) => setEditStatus(e.target.value as TaskStatus)}
-                                                    className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none"
-                                                >
-                                                    {currentColumns.map((c: any) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                                                </select>
-                                            ) : (
-                                                <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-[10px] font-bold text-[#E2E8F0]">{selectedTask.status.toUpperCase()}</div>
-                                            )}
-                                        </div>
-                                        <div className="grid gap-1.5">
-                                            <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Priority</label>
-                                            {isEditing ? (
-                                                <select
-                                                    value={editPriority}
-                                                    onChange={(e) => setEditPriority(e.target.value as any)}
-                                                    className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none"
-                                                >
-                                                    <option value="low">LOW</option>
-                                                    <option value="medium">MEDIUM</option>
-                                                    <option value="high">HIGH</option>
-                                                    <option value="critical">CRITICAL</option>
-                                                </select>
-                                            ) : (
-                                                <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{selectedTask.priority.toUpperCase()}</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="grid gap-1.5">
-                                            <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Severity</label>
-                                            {isEditing ? (
-                                                <select
-                                                    value={editSeverity}
-                                                    onChange={(e) => setEditSeverity(e.target.value as any)}
-                                                    className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none"
-                                                >
-                                                    <option value="cosmetic">COSMETIC</option>
-                                                    <option value="minor">MINOR</option>
-                                                    <option value="major">MAJOR</option>
-                                                    <option value="critical">CRITICAL</option>
-                                                    <option value="blocker">BLOCKER</option>
-                                                </select>
-                                            ) : (
-                                                <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{(selectedTask.severity || 'major').toUpperCase()}</div>
-                                            )}
-                                        </div>
-                                        <div className="grid gap-1.5">
-                                            <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Version</label>
-                                            {isEditing ? (
-                                                <Input value={editVersion} onChange={(e) => setEditVersion(e.target.value)} className="h-9 bg-[#1A1A24] border-[#2A2A3A] text-xs" placeholder="v1.0" />
-                                            ) : (
-                                                <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{selectedTask.version || 'N/A'}</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {selectedTask.title.includes('[BUG]') && (
-                                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#2A2A3A]">
-                                            <div className="grid gap-1.5">
-                                                <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Reproducibility</label>
-                                                {isEditing ? (
-                                                    <select
-                                                        value={editReproducibility}
-                                                        onChange={(e) => setEditReproducibility(e.target.value as any)}
-                                                        className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none"
-                                                    >
-                                                        <option value="always">ALWAYS</option>
-                                                        <option value="sometimes">SOMETIMES</option>
-                                                        <option value="rarely">RARELY</option>
-                                                        <option value="once">ONCE</option>
-                                                        <option value="unable">UNABLE</option>
-                                                    </select>
-                                                ) : (
-                                                    <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{(selectedTask.reproducibility || 'sometimes').toUpperCase()}</div>
-                                                )}
-                                            </div>
-                                            <div className="grid gap-1.5">
-                                                <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Frequency</label>
-                                                {isEditing ? (
-                                                    <select
-                                                        value={editFrequency}
-                                                        onChange={(e) => setEditFrequency(e.target.value as any)}
-                                                        className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none"
-                                                    >
-                                                        <option value="everytime">EVERY TIME</option>
-                                                        <option value="often">OFTEN</option>
-                                                        <option value="occasionally">OCCASIONALLY</option>
-                                                        <option value="once">ONCE</option>
-                                                    </select>
-                                                ) : (
-                                                    <div className="px-3 py-2 rounded-lg bg-[#1A1A24]/40 border border-[#2A2A3A]/30 text-xs font-bold text-[#E2E8F0]">{(selectedTask.frequency || 'often').toUpperCase()}</div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="grid gap-1.5">
-                                            <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Assignee</label>
-                                            {isEditing ? (
-                                                <Input value={editAssignee} onChange={(e) => setEditAssignee(e.target.value)} className="h-9 bg-[#1A1A24] border-[#2A2A3A] text-xs" />
-                                            ) : (
-                                                <DetailItem icon={User} label="ASSIGNEE" value={selectedTask.assignee || 'Unassigned'} />
-                                            )}
-                                        </div>
-                                        <div className="grid gap-1.5">
-                                            <label className="text-[10px] font-bold text-[#6B7280] uppercase px-1">Due Date</label>
-                                            {isEditing ? (
-                                                <input
-                                                    type="date"
-                                                    value={editDueDate}
-                                                    onChange={(e) => setEditDueDate(e.target.value)}
-                                                    className="h-9 w-full rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 py-1 text-xs text-[#E2E8F0] outline-none focus:ring-1 focus:ring-[#A78BFA]/50"
-                                                />
-                                            ) : (
-                                                <DetailItem icon={Calendar} label="DUE DATE" value={selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : 'No date'} />
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                                {isEditing && (
-                                    <Button className="w-full h-9 mt-2 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold text-[10px]" onClick={handleSave}>SAVE CHANGES</Button>
-                                )}
+                                <Button className="w-full bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]" onClick={handleSave}>Save Changes</Button>
                             </div>
                         ) : (
-                            <div className="grid gap-2">
-                                <DetailItem icon={User} label="ASSIGNEE" value={selectedTask.assignee || 'Unassigned'} />
-                                <DetailItem icon={Calendar} label="DUE DATE" value={selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : 'No date'} />
-                                <DetailItem icon={Tag} label="LABELS" value={selectedTask.labels || 'No labels'} />
-                                <DetailItem icon={Clock} label="CREATED" value={new Date(selectedTask.createdAt || Date.now()).toLocaleDateString()} />
+                            <div className="space-y-5">
+                                <div>
+                                    <SectionTitle>Acceptance Criteria</SectionTitle>
+                                    <div className="mt-2 rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4 text-sm leading-relaxed text-[#E2E8F0]">
+                                        <FormattedText content={selectedTask.acceptanceCriteria || "No acceptance criteria yet."} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <SectionTitle>Description</SectionTitle>
+                                    <div className="mt-2 rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4 text-sm leading-relaxed text-[#E2E8F0]">
+                                        <FormattedText content={selectedTask.description || "No description yet."} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <DetailItem icon={User} label="ASSIGNEE" value={selectedTask.assignee || "Unassigned"} />
+                                    <DetailItem icon={Calendar} label="DUE DATE" value={selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"} />
+                                    <DetailItem icon={Tag} label="LABELS" value={selectedTask.labels || "No labels"} />
+                                    <DetailItem icon={Tag} label="COMPONENTS" value={selectedTask.components?.join(", ") || "No components"} />
+                                </div>
+                                <MediaSection task={selectedTask} projectId={activeProject?.id} onImageClick={(url) => api.openUrl(url)} />
                             </div>
                         )}
                     </TabsContent>
 
-                    <TabsContent value="impact" className="m-0 space-y-4">
-                        <div className="text-[10px] font-bold text-[#6B7280] uppercase px-1 mb-3">Linked Test Cases</div>
-                        {activeProject ? (() => {
-                            const linkedTestCases = activeProject.testPlans
-                                .flatMap(tp => tp.testCases)
-                                .filter(tc => tc.sourceIssueId === selectedTask.sourceIssueId || tc.linkedDefectIds?.includes(selectedTask.id))
-
-                            return linkedTestCases.length > 0 ? (
-                                <div className="space-y-2">
-                                    {linkedTestCases.map(tc => (
-                                        <div key={tc.id} className="bg-[#1A1A24] border border-[#2A2A3A]/50 rounded-lg p-3 space-y-1.5">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-bold text-[#A78BFA] bg-[#A78BFA]/10 px-2 py-0.5 rounded">{tc.displayId}</span>
-                                                <span className="text-[11px] text-[#E2E8F0] flex-1 truncate">{tc.title}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-[10px] text-[#6B7280]">
-                                                <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
-                                                    tc.status === 'passed' ? 'bg-[#10B981]/20 text-[#10B981]' :
-                                                    tc.status === 'failed' ? 'bg-[#EF4444]/20 text-[#EF4444]' :
-                                                    'bg-[#6B7280]/20 text-[#6B7280]'
-                                                )}>
-                                                    {tc.status}
-                                                </span>
-                                                <span className="text-[10px]">Type: {tc.testType || 'unspecified'}</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                    <TabsContent value="collaboration" className="m-0 space-y-5">
+                        <div>
+                            <SectionTitle>Collaboration</SectionTitle>
+                            <p className="mt-2 text-xs text-[#9CA3AF]">Track handoff completeness, PR context, release state, and QA verification without leaving the drawer.</p>
+                        </div>
+                        {activeProject ? <HandoffPanel activeProject={activeProject} task={selectedTask} /> : null}
+                        {timelineEvents.length > 0 && (
+                            <div>
+                                <SectionTitle>Recent Timeline</SectionTitle>
+                                <div className="mt-3">
+                                    <CollaborationTimeline events={timelineEvents.slice(0, 6)} />
                                 </div>
-                            ) : (
-                                <div className="text-center py-8 opacity-30">
-                                    <p className="text-[11px] text-[#6B7280] font-medium">No linked test cases</p>
-                                    <p className="text-[10px] text-[#6B7280] mt-1">Tests will appear here when linked by sourceIssueId</p>
-                                </div>
-                            )
-                        })() : null}
+                            </div>
+                        )}
                     </TabsContent>
 
-                    <TabsContent value="comments" className="m-0 h-full flex flex-col gap-4">
+                    <TabsContent value="traceability" className="m-0 space-y-5">
+                        <div>
+                            <SectionTitle>Traceability</SectionTitle>
+                            <p className="mt-2 text-xs text-[#9CA3AF]">Coverage is derived from linked test cases, linked defects, and shared component tags.</p>
+                        </div>
+                        {traceability ? <TraceabilityPanel traceability={traceability} /> : null}
+                    </TabsContent>
+
+                    <TabsContent value="comments" className="m-0 space-y-4">
                         {isLoadingTab ? (
-                            <div className="flex-1 flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#A78BFA]" /></div>
+                            <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#A78BFA]" /></div>
                         ) : commentsError ? (
-                            <div className="flex flex-col items-center justify-center text-center mt-10 gap-2">
-                                <AlertCircle className="h-8 w-8 text-[#EF4444]/60" />
-                                <p className="text-xs font-bold uppercase tracking-wider text-[#EF4444]/80">Failed to load comments</p>
-                                <p className="text-[11px] text-[#6B7280]">{commentsError}</p>
-                            </div>
+                            <div className="rounded-xl border border-[#EF4444]/20 bg-[#EF4444]/10 p-4 text-xs text-[#FCA5A5]">{commentsError}</div>
                         ) : comments.length === 0 ? (
-                            <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30 mt-10">
-                                <MessageSquare className="h-10 w-10 mb-2" />
+                            <div className="flex flex-col items-center justify-center py-10 text-center opacity-40">
+                                <MessageSquare className="mb-2 h-10 w-10" />
                                 <p className="text-xs font-bold uppercase tracking-wider">No comments yet</p>
                             </div>
                         ) : (
-                            <div className="flex-1 space-y-4">
-                                {comments.map((c, i) => (
-                                    <div key={i} className="bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-3 space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-[#A78BFA]">{c.authorName}</span>
-                                            <span className="text-[9px] text-[#6B7280]">{new Date(c.createdAt).toLocaleString()}</span>
+                            <div className="space-y-4">
+                                {comments.map((comment, index) => (
+                                    <div key={index} className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3">
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <span className="text-[10px] font-bold text-[#A78BFA]">{comment.authorName}</span>
+                                            <span className="text-[9px] text-[#6B7280]">{new Date(comment.createdAt).toLocaleString()}</span>
                                         </div>
-                                        <div className="text-xs text-[#E2E8F0] leading-relaxed">
-                                            <FormattedText content={c.body} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
+                                        <div className="text-xs text-[#E2E8F0]">
+                                            <FormattedText content={comment.body} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         )}
-                        {(selectedTask.externalId || selectedTask.sourceIssueId) && (
-                            <div className="flex-none flex gap-2 pt-4 border-t border-[#2A2A3A]">
-                                <Input
-                                    placeholder="Add a comment..."
-                                    className="flex-1 h-10 bg-[#1A1A24] border-[#2A2A3A] text-xs"
-                                    value={newComment}
-                                    onChange={e => setNewComment(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && handlePostComment()}
-                                />
-                                <Button size="icon" className="bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]" onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
-                                    {isPostingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {(selectedTask.externalId || selectedTask.sourceIssueId) && selectedTask.source !== "manual" && (
+                            <div className="flex gap-2 border-t border-[#2A2A3A] pt-4">
+                                <Input value={newComment} onChange={(event) => setNewComment(event.target.value)} placeholder="Add a comment..." className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-xs" />
+                                <Button className="bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]" onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
+                                    {isPostingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : "Post"}
                                 </Button>
                             </div>
                         )}
                     </TabsContent>
 
-                    <TabsContent value="analysis" className="m-0 space-y-4">
-                        {selectedTask.analysisHistory?.length === 0 ? (
-                            <div className="text-center opacity-30 py-10">
+                    <TabsContent value="history" className="m-0 space-y-4">
+                        {!selectedTask.analysisHistory?.length ? (
+                            <div className="py-10 text-center opacity-40">
                                 <p className="text-xs font-bold uppercase tracking-wider">No analysis history</p>
                             </div>
                         ) : (
-                            [...(selectedTask.analysisHistory || [])].sort((a, b) => b.version - a.version).map((h, i) => (
-                                <div key={i} className="flex flex-col gap-0 group relative">
-                                    <div className="ml-[5px] pl-4 pb-4 border-l border-[#2A2A3A] flex flex-col gap-1.5">
-                                        <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-3 shadow-sm hover:border-[#A78BFA]/30 transition-all space-y-3 mt-1">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[9px] font-bold text-[#6B7280]">{new Date(h.timestamp).toLocaleString()}</span>
-                                                <Button size="icon" variant="ghost" className="h-6 w-6 text-[#6B7280] hover:text-[#EF4444]" onClick={() => onDeleteAnalysis(h)}>
-                                                    <Trash2 className="h-3 w-3" />
-                                                </Button>
-                                            </div>
-                                            <div className="text-[11px] text-[#E2E8F0] font-medium leading-relaxed">
-                                                <FormattedText content={h.summary} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
-                                            </div>
-                                            <Button variant="ghost" size="sm" className="h-6 px-0 text-[10px] font-bold text-[#A78BFA]" onClick={() => toggleHistoryExpand(i)}>
-                                                {expandedHistory.has(i) ? 'COLLAPSE' : 'VIEW FULL ANALYSIS'}
-                                            </Button>
-                                            {expandedHistory.has(i) && (
-                                                <div className="mt-3 p-4 bg-[#0F0F13] rounded-lg border border-[#2A2A3A] text-[11px] leading-relaxed">
-                                                    <FormattedText content={h.fullResult} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
-                                                </div>
-                                            )}
-                                        </div>
+                            [...selectedTask.analysisHistory].sort((left, right) => right.version - left.version).map((entry) => (
+                                <div key={entry.hash} className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4">
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <span className="text-[10px] font-bold text-[#6B7280]">{new Date(entry.timestamp).toLocaleString()}</span>
+                                        <Button size="icon" variant="ghost" className="h-6 w-6 text-[#6B7280] hover:text-[#EF4444]" onClick={() => onDeleteAnalysis(entry)}>
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                    <div className="text-[11px] text-[#E2E8F0]">
+                                        <FormattedText content={entry.summary} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
                                     </div>
                                 </div>
                             ))
                         )}
                     </TabsContent>
-                    
-                    <TabsContent value="history" className="m-0 space-y-4">
-                        {activity.length === 0 ? (
-                            <div className="text-center opacity-30 py-10">
+
+                    <TabsContent value="activity" className="m-0 space-y-4">
+                        {isLoadingTab ? (
+                            <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#A78BFA]" /></div>
+                        ) : activity.length === 0 ? (
+                            <div className="py-10 text-center opacity-40">
                                 <p className="text-xs font-bold uppercase tracking-wider">No activity recorded</p>
                             </div>
                         ) : (
-                            <div className="space-y-0.5 ml-1">
-                                {[...activity].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((w, i) => (
-                                    <div key={i} className="relative pl-6 pb-6 border-l border-[#2A2A3A] group">
-                                        <div className="absolute -left-[5.5px] top-1 w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
-                                        <div className="bg-[#1A1A24]/40 border border-[#2A2A3A] rounded-xl p-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-[10px] font-bold text-[#E2E8F0]">{w.author}</span>
-                                                <span className="text-[10px] text-[#6B7280]">{new Date(w.timestamp).toLocaleString()}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 flex-wrap text-[10px]">
-                                                {w.fromValue && <span className="line-through opacity-50">{w.fromValue}</span>}
-                                                <Send className="h-2 w-2 opacity-50" />
-                                                <span className="text-emerald-400 font-bold">{w.toValue}</span>
-                                            </div>
-                                        </div>
+                            activity.map((item, index) => (
+                                <div key={`${item.timestamp}-${index}`} className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4">
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <span className="text-[10px] font-bold text-[#E2E8F0]">{item.author}</span>
+                                        <span className="text-[10px] text-[#6B7280]">{new Date(item.timestamp).toLocaleString()}</span>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="text-[11px] text-[#9CA3AF]">
+                                        {item.fromValue ? `${item.fromValue} -> ` : ""}<span className="font-semibold text-[#38BDF8]">{item.toValue}</span>
+                                    </div>
+                                </div>
+                            ))
                         )}
                     </TabsContent>
                 </div>
             </Tabs>
 
-            <div className="flex-none p-5 border-t border-[#2A2A3A] bg-[#0F0F13] space-y-2">
-                <Button
-                    className="w-full h-10 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold gap-2"
-                    onClick={() => onAnalyze(selectedTask)}
-                    disabled={isAnalyzing}
-                >
+            <div className="space-y-2 border-t border-[#2A2A3A] bg-[#0F0F13] p-5">
+                <Button className="w-full gap-2 bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]" onClick={() => onAnalyze(selectedTask)} disabled={isAnalyzing}>
                     {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ActivityIcon className="h-4 w-4" />}
-                    {isAnalyzing ? 'ANALYZING...' : 'ANALYZE ISSUE'}
+                    {isAnalyzing ? "ANALYZING..." : "ANALYZE ISSUE"}
                 </Button>
-                <Button className="w-full h-10 bg-[#1E2A1E] text-[#10B981] border border-[#10B981]/20 font-bold text-[10px] gap-1.5" onClick={onGenerateBugReport}>
+                <Button className="w-full gap-1.5 border border-[#10B981]/20 bg-[#1E2A1E] text-[10px] font-bold text-[#10B981]" onClick={onGenerateBugReport}>
                     <Target className="h-3.5 w-3.5" /> GENERATE BUG REPORT
                 </Button>
-
-                {selectedTask.source !== 'manual' && (
-                    <Button
-                        className="w-full h-10 bg-[#1A1A24] text-[#A78BFA] border border-[#A78BFA]/20 font-bold text-[10px] gap-1.5"
-                        onClick={() => { if (selectedTask.ticketUrl) api.openUrl(selectedTask.ticketUrl) }}
-                    >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        {selectedTask.source === 'linear' ? 'OPEN IN LINEAR' : 'OPEN IN JIRA'}
+                {selectedTask.source !== "manual" && selectedTask.ticketUrl && (
+                    <Button className="w-full gap-1.5 border border-[#A78BFA]/20 bg-[#1A1A24] text-[10px] font-bold text-[#A78BFA]" onClick={() => api.openUrl(selectedTask.ticketUrl)}>
+                        <ExternalLink className="h-3.5 w-3.5" /> OPEN SOURCE TICKET
                     </Button>
                 )}
-                <Button
-                    className="w-full h-10 bg-[#1E1010] text-[#EF4444] border border-[#EF4444]/20 font-bold text-[10px] gap-1.5"
-                    onClick={onDelete}
-                >
+                <Button className="w-full gap-1.5 border border-[#EF4444]/20 bg-[#1E1010] text-[10px] font-bold text-[#EF4444]" onClick={onDelete}>
                     <Trash2 className="h-3.5 w-3.5" /> DELETE TASK
                 </Button>
             </div>

@@ -25,6 +25,11 @@ function cleanDescription(raw?: string | null): string {
     return s
 }
 
+function getJiraBaseUrl(domain: string): string {
+    const normalized = domain.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '')
+    return normalized.includes('.') ? `https://${normalized}` : `https://${normalized}.atlassian.net`
+}
+
 // ── Linear API ────────────────────────────────────────────────────────────────
 
 const API_TIMEOUT_MS = 30_000
@@ -371,7 +376,7 @@ function extractAdfText(node: any): string {
 
 export async function fetchJiraIssues(domain: string, email: string, apiKey: string, projectKey: string, connectionId?: string): Promise<any[]> {
     const auth = Buffer.from(`${email}:${apiKey}`).toString('base64')
-    const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
+    const base = getJiraBaseUrl(domain)
 
     const allIssues: any[] = []
     let startAt = 0
@@ -453,7 +458,7 @@ export async function fetchJiraIssues(domain: string, email: string, apiKey: str
 
 export async function getJiraComments(domain: string, email: string, apiKey: string, issueKey: string): Promise<any[]> {
     const auth = Buffer.from(`${email}:${apiKey}`).toString('base64')
-    const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
+    const base = getJiraBaseUrl(domain)
 
     const res = await fetch(`${base}/rest/api/3/issue/${issueKey}/comment`, {
         headers: { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' },
@@ -472,7 +477,7 @@ export async function getJiraComments(domain: string, email: string, apiKey: str
 
 export async function addJiraComment(domain: string, email: string, apiKey: string, issueKey: string, body: string): Promise<void> {
     const auth = Buffer.from(`${email}:${apiKey}`).toString('base64')
-    const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
+    const base = getJiraBaseUrl(domain)
 
     await fetch(`${base}/rest/api/3/issue/${issueKey}/comment`, {
         method: 'POST',
@@ -486,7 +491,7 @@ export async function addJiraComment(domain: string, email: string, apiKey: stri
 
 export async function transitionJiraIssue(domain: string, email: string, apiKey: string, issueKey: string, transitionName: string): Promise<void> {
     const creds = Buffer.from(`${email}:${apiKey}`).toString('base64')
-    const baseUrl = `https://${domain}.atlassian.net/rest/api/3`
+    const baseUrl = `${getJiraBaseUrl(domain)}/rest/api/3`
 
     const transResp = await fetch(`${baseUrl}/issue/${issueKey}/transitions`, {
         headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' },
@@ -513,7 +518,7 @@ export async function transitionJiraIssue(domain: string, email: string, apiKey:
 export async function getJiraIssueHistory(domain: string, email: string, apiKey: string, issueKey: string): Promise<any[]> {
     console.log(`[Jira] Fetching history for issue ${issueKey}`);
     const auth = Buffer.from(`${email}:${apiKey}`).toString('base64')
-    const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
+    const base = getJiraBaseUrl(domain)
     const url = `${base}/rest/api/3/issue/${issueKey}?expand=changelog&fields=summary`
 
     try {
@@ -562,7 +567,7 @@ export async function getJiraIssueHistory(domain: string, email: string, apiKey:
  */
 export async function getJiraProjects(domain: string, email: string, apiKey: string): Promise<any[]> {
     const creds = Buffer.from(`${email}:${apiKey}`).toString('base64')
-    const resp = await fetch(`https://${domain}.atlassian.net/rest/api/3/project`, {
+    const resp = await fetch(`${getJiraBaseUrl(domain)}/rest/api/3/project`, {
         headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' },
         signal: AbortSignal.timeout(API_TIMEOUT_MS),
     })
@@ -573,7 +578,7 @@ export async function getJiraProjects(domain: string, email: string, apiKey: str
 
 export async function getJiraStatuses(domain: string, email: string, apiKey: string, projectKey: string): Promise<any[]> {
     const creds = Buffer.from(`${email}:${apiKey}`).toString('base64')
-    const base = domain.includes('.') ? `https://${domain}` : `https://${domain}.atlassian.net`
+    const base = getJiraBaseUrl(domain)
     // We can fetch statuses for a project via the project statuses endpoint
     const resp = await fetch(`${base}/rest/api/3/project/${projectKey}/statuses`, {
         headers: { Authorization: `Basic ${creds}`, Accept: 'application/json' },
@@ -603,7 +608,7 @@ export async function getJiraStatuses(domain: string, email: string, apiKey: str
 
 export async function createJiraIssue(domain: string, email: string, apiKey: string, projectKey: string, title: string, description: string, issueTypeName: string = 'Bug'): Promise<string | null> {
     const creds = Buffer.from(`${email}:${apiKey}`).toString('base64')
-    const baseUrl = `https://${domain}.atlassian.net/rest/api/3`
+    const baseUrl = `${getJiraBaseUrl(domain)}/rest/api/3`
 
     // First, resolve the issue type ID. 
     // Jira requires the ID, so we fetch project metadata unless we just guess 'Bug' name works for /issue endpoints.

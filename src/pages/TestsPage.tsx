@@ -25,7 +25,7 @@ import {
     Search,
     RotateCcw
 } from "lucide-react"
-import { cn, isFlakyTest, getFlakinesScore } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -50,7 +50,7 @@ import { toast } from "sonner"
 type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { sanitizeProjectForAi } from '@/lib/aiUtils'
+import { sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTasksForQaAi, sanitizeTestCasesForAi, sanitizeTestPlansForAi } from '@/lib/aiUtils'
 
 export default function TestsPage() {
     const api = window.electronAPI as any;
@@ -220,7 +220,13 @@ export default function TestsPage() {
         
         setIsGenerating(true)
         try {
-            const ids = await api.aiSmokeSubset({ apiKey, candidates: allCases, doneTasks, project: sanitizeProjectForAi(activeProject), modelName: activeProject.geminiModel })
+            const ids = await api.aiSmokeSubset({
+                apiKey,
+                candidates: sanitizeTestCasesForAi(allCases),
+                doneTasks: sanitizeTasksForQaAi(doneTasks, activeProject.environments),
+                project: sanitizeProjectForQaAi(activeProject),
+                modelName: activeProject.geminiModel,
+            })
             setSmokeSubsetCaseIds(ids || [])
             if (!ids || ids.length === 0) {
                 toast.info('No specific smoke tests could be confidently identified.')
@@ -276,7 +282,14 @@ export default function TestsPage() {
                     sourceIssueId: '',
                     externalId: ''
                 }]
-                const cases = await api.aiGenerateCases({ apiKey, tasks: syntheticTask, sourceName: 'Manual', project: sanitizeProjectForAi(activeProject), designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
+                const cases = await api.aiGenerateCases({
+                    apiKey,
+                    tasks: sanitizeTasksForQaAi(syntheticTask as any, activeProject!.environments),
+                    sourceName: 'Manual',
+                    project: sanitizeProjectForQaAi(activeProject),
+                    designDoc: designDocContent || undefined,
+                    modelName: activeProject?.geminiModel,
+                })
                 if (!cases || cases.length === 0) { toast.warning('No test cases could be generated.'); return }
                 const timestamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 const planName = `Free Text · ${timestamp}`
@@ -325,7 +338,14 @@ export default function TestsPage() {
                 externalId: t.externalId
             }));
 
-            const cases = await api.aiGenerateCases({ apiKey, tasks: sanitizedTasks, sourceName: source, project: sanitizeProjectForAi(activeProject), designDoc: designDocContent || undefined, modelName: activeProject?.geminiModel })
+            const cases = await api.aiGenerateCases({
+                apiKey,
+                tasks: sanitizeTasksForQaAi(sanitizedTasks as any, activeProject!.environments),
+                sourceName: source,
+                project: sanitizeProjectForQaAi(activeProject),
+                designDoc: designDocContent || undefined,
+                modelName: activeProject?.geminiModel,
+            })
 
             if (cases.length === 0) {
                 toast.warning('No test cases could be generated.')
@@ -398,7 +418,14 @@ export default function TestsPage() {
         if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
-            const result = await api.aiCriticality({ apiKey, tasks: activeProject?.tasks || [], testPlans, executions: projectExecutions, project: sanitizeProjectForAi(activeProject), modelName: activeProject?.geminiModel })
+            const result = await api.aiCriticality({
+                apiKey,
+                tasks: sanitizeTasksForQaAi(activeProject?.tasks || [], activeProject.environments),
+                testPlans: sanitizeTestPlansForAi(testPlans),
+                executions: sanitizeExecutionsForAi(projectExecutions),
+                project: sanitizeProjectForQaAi(activeProject),
+                modelName: activeProject?.geminiModel,
+            })
             setAiAnalysisResult(result)
         } catch (e: any) {
             toast.error(`Criticality assessment failed: ${e.message}`)
@@ -413,7 +440,13 @@ export default function TestsPage() {
         if (!apiKey) { toast.error('Please set your Gemini API key in Settings.'); return }
         setIsGenerating(true)
         try {
-            const result = await api.aiTestRunSuggestions({ apiKey, testPlans, executions: projectExecutions, project: sanitizeProjectForAi(activeProject), modelName: activeProject?.geminiModel })
+            const result = await api.aiTestRunSuggestions({
+                apiKey,
+                testPlans: sanitizeTestPlansForAi(testPlans),
+                executions: sanitizeExecutionsForAi(projectExecutions),
+                project: sanitizeProjectForQaAi(activeProject),
+                modelName: activeProject?.geminiModel,
+            })
             setAiAnalysisResult(result)
         } catch (e: any) {
             toast.error(`Test run suggestions failed: ${e.message}`)

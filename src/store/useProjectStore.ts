@@ -1,29 +1,42 @@
 // cspell:ignore yxxx
 import { create } from 'zustand'
+import { toast } from 'sonner'
 import {
     Project, Task, TestCase, TestExecution, TestRunSession,
     Note, QaEnvironment, Attachment, TaskStatus,
     TestDataGroup, TestPlan, TestCasePriority,
     TestCaseStatus, Checklist, ApiRequest, Runbook, RunbookCategory, RunbookStep,
-    TestDataEntry, ChecklistItem
+    TestDataEntry, ChecklistItem, CollabState, HandoffPacket, ArtifactLink,
+    CollaborationEvent, HandoffExecutionRef, LinkedPrRef, CollaborationActorRole,
+    EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution
 } from '../types/project'
+import { demoProject } from '@/data/demoProject'
+import { enrichHandoffCompleteness, migrateLegacyExecutionsToSessions, PROJECT_SCHEMA_VERSION } from '@/lib/collaboration'
 
 export type {
     Project, Task, TestCase, TestExecution, TestRunSession,
     Note, QaEnvironment, Attachment, TaskStatus,
     TestDataGroup, TestPlan, TestCasePriority,
     TestCaseStatus, Checklist, ApiRequest, Runbook, RunbookCategory, RunbookStep,
-    TestDataEntry, ChecklistItem
+    TestDataEntry, ChecklistItem, CollabState, HandoffPacket, ArtifactLink,
+    CollaborationEvent, HandoffExecutionRef, LinkedPrRef, CollaborationActorRole,
+    EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution
 }
 
-function generateId() {
+function generateId(): string {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
     }
+    // Fallback for environments without crypto.randomUUID (should not occur in Electron).
+    // Uses Math.random which is NOT cryptographically secure - collision risk is low but non-zero.
+    console.warn('generateId: crypto.randomUUID unavailable, using Math.random fallback. IDs may collide under high load.')
+    let d = Date.now()
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
+        const r = (d + Math.random() * 16) % 16 | 0
+        d = Math.floor(d / 16)
+        const v = c === 'x' ? r : (r & 0x3 | 0x8)
+        return v.toString(16)
+    })
 }
 
 /**
@@ -44,6 +57,181 @@ const saveProjectsToDisk = (projects: Project[]) => {
     }, 1000);
 };
 
+export type TraceabilityResult = {
+    task: Task | undefined
+    activeHandoff: HandoffPacket | undefined
+    handoffs: HandoffPacket[]
+    links: ArtifactLink[]
+    linkedTestCases: TestCase[]
+    linkedNotes: Note[]
+    linkedFiles: Attachment[]
+}
+
+type WebhookConfig = {
+    id: string
+    name: string
+    url: string
+    type: 'Slack' | 'Teams' | 'Generic'
+    isEnabled: boolean
+    notifyOnTestPlanFail: boolean
+    notifyOnHighPriorityDone: boolean
+    notifyOnDueDate: boolean
+    notifyOnAiAnalysis: boolean
+    notifyOnHandoffSent?: boolean
+    notifyOnReadyForQa?: boolean
+    notifyOnVerificationFailed?: boolean
+    notifyOnPrLinkedToHandoff?: boolean
+}
+
+function normalizeTask(task: any): Task {
+    return {
+        ...task,
+        collabState: task.collabState || 'draft',
+        activeHandoffId: task.activeHandoffId || undefined,
+        lastCollabUpdatedAt: task.lastCollabUpdatedAt || undefined,
+        components: task.components || [],
+        linkedDefectIds: task.linkedDefectIds || [],
+        analysisHistory: task.analysisHistory || []
+    }
+}
+
+function normalizeProject(project: any): Project {
+    const normalizedProject: Project = {
+        ...project,
+        schemaVersion: project.schemaVersion || PROJECT_SCHEMA_VERSION,
+        tasks: (project.tasks || []).map(normalizeTask),
+        notes: (project.notes || []).map((n: any) => ({
+            ...n,
+            attachments: (n.attachments || []).map((a: any) => ({
+                id: a.id,
+                fileName: a.fileName || a.name,
+                filePath: a.filePath || a.path,
+                mimeType: a.mimeType,
+                fileSizeBytes: a.fileSizeBytes || a.sizeBytes
+            }))
+        })),
+        testPlans: (project.testPlans || []).map((plan: any) => ({
+            ...plan,
+            testCases: (plan.testCases || []).map((testCase: any) => ({
+                ...testCase,
+                components: testCase.components || [],
+            })),
+        })),
+        environments: project.environments || [],
+        testExecutions: project.testExecutions || [],
+        files: (project.files || []).map((f: any) => ({
+            id: f.id,
+            fileName: f.fileName || f.name,
+            filePath: f.filePath || f.path,
+            mimeType: f.mimeType,
+            fileSizeBytes: f.fileSizeBytes || f.sizeBytes
+        })),
+        testDataGroups: project.testDataGroups || [],
+        checklists: project.checklists || [],
+        apiRequests: project.apiRequests || [],
+        runbooks: project.runbooks || [],
+        linearConnections: project.linearConnections || [],
+        jiraConnections: project.jiraConnections || [],
+        testRunSessions: project.testRunSessions || [],
+        reportTemplates: project.reportTemplates || [],
+        reportSchedules: project.reportSchedules || [],
+        reportHistory: project.reportHistory || [],
+        customKpis: project.customKpis || [],
+        sourceColumns: project.sourceColumns || (project.columns ? { manual: project.columns } : undefined),
+        handoffPackets: (project.handoffPackets || []).map((packet: any) => enrichHandoffCompleteness(packet)),
+        artifactLinks: project.artifactLinks || [],
+        collaborationEvents: project.collaborationEvents || []
+    }
+    normalizedProject.testRunSessions = migrateLegacyExecutionsToSessions(normalizedProject)
+    return normalizedProject
+}
+
+async function triggerCollaborationWebhook(
+    event: 'handoff_sent' | 'ready_for_qa' | 'verification_failed' | 'pr_linked',
+    project: Project | undefined,
+    task: Task | undefined,
+    handoff: HandoffPacket | undefined
+) {
+    if (!window.electronAPI || !project || !task || !handoff) return
+
+    try {
+        const settings = await window.electronAPI.readSettingsFile()
+        const webhooks = ((settings?.webhooks || []) as WebhookConfig[]).filter((webhook) => {
+            if (!webhook.isEnabled) return false
+            if (event === 'handoff_sent') return !!webhook.notifyOnHandoffSent
+            if (event === 'ready_for_qa') return !!webhook.notifyOnReadyForQa
+            if (event === 'verification_failed') return !!webhook.notifyOnVerificationFailed
+            return !!webhook.notifyOnPrLinkedToHandoff
+        })
+
+        if (webhooks.length === 0) return
+
+        const titleMap = {
+            handoff_sent: 'QA Handoff Sent',
+            ready_for_qa: 'Fix Ready for QA',
+            verification_failed: 'QA Verification Failed',
+            pr_linked: 'PR Linked to Handoff'
+        }
+        const colorMap = {
+            handoff_sent: '#F59E0B',
+            ready_for_qa: '#10B981',
+            verification_failed: '#EF4444',
+            pr_linked: '#3B82F6'
+        }
+        const message = JSON.stringify({
+            projectName: project.name,
+            taskTitle: task.title,
+            handoffType: handoff.type,
+            handoffState: task.collabState || 'draft',
+            environment: handoff.environmentName || 'Unknown',
+            linkedPrCount: handoff.linkedPrs.length,
+            taskId: task.id,
+            handoffId: handoff.id
+        }, null, 2)
+
+        await Promise.all(webhooks.map(async (webhook) => {
+            let payload = ''
+            if (webhook.type === 'Teams') {
+                payload = JSON.stringify({
+                    type: 'message',
+                    attachments: [{
+                        contentType: 'application/vnd.microsoft.card.adaptive',
+                        content: {
+                            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+                            type: 'AdaptiveCard',
+                            version: '1.4',
+                            body: [
+                                { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: titleMap[event] },
+                                { type: 'TextBlock', text: message, wrap: true }
+                            ]
+                        }
+                    }]
+                })
+            } else if (webhook.type === 'Slack') {
+                payload = JSON.stringify({
+                    attachments: [{
+                        color: colorMap[event],
+                        title: titleMap[event],
+                        text: message,
+                        footer: 'QAssistant',
+                        ts: Math.floor(Date.now() / 1000)
+                    }]
+                })
+            } else {
+                payload = JSON.stringify({ title: titleMap[event], payload: JSON.parse(message) })
+            }
+
+            await fetch(webhook.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload
+            }).catch((error) => console.error('Webhook notification failed:', error))
+        }))
+    } catch (error) {
+        console.error('Failed to trigger collaboration webhook:', error)
+    }
+}
+
 interface ProjectState {
     projects: Project[]
     activeProjectId: string | null
@@ -55,6 +243,7 @@ interface ProjectState {
     updateProject: (id: string, updates: Partial<Omit<Project, 'id'>>) => Promise<void>
     deleteProject: (id: string) => Promise<void>
     importProject: (project: Project) => Promise<void>
+    seedDemoProject: () => Promise<void>
 
     // Note Actions
     addNote: (projectId: string, title: string) => Promise<Note>
@@ -70,6 +259,20 @@ interface ProjectState {
     deleteTask: (projectId: string, taskId: string) => Promise<void>
     moveTask: (projectId: string, taskId: string, status: TaskStatus, overId?: string) => Promise<void>
     generateTestCaseFromTask: (projectId: string, taskId: string, planId: string) => Promise<void>
+    createHandoffPacket: (projectId: string, taskId: string, data: Partial<HandoffPacket> & Pick<HandoffPacket, 'type' | 'createdByRole'>) => Promise<string>
+    updateHandoffPacket: (projectId: string, handoffId: string, updates: Partial<HandoffPacket>) => Promise<void>
+    setTaskCollabState: (projectId: string, taskId: string, collabState: CollabState) => Promise<void>
+    acknowledgeHandoff: (projectId: string, handoffId: string, actorRole?: CollaborationActorRole) => Promise<void>
+    linkArtifact: (projectId: string, link: Omit<ArtifactLink, 'id' | 'createdAt'>) => Promise<string>
+    unlinkArtifact: (projectId: string, linkId: string) => Promise<void>
+    linkPrToHandoff: (projectId: string, handoffId: string, prRef: LinkedPrRef) => Promise<void>
+    addCollaborationEvent: (projectId: string, event: Omit<CollaborationEvent, 'id' | 'timestamp'> & Partial<Pick<CollaborationEvent, 'timestamp'>>) => Promise<string>
+    createTaskFromFailedExecution: (
+        projectId: string,
+        executionRef: HandoffExecutionRef & { testCaseId: string; testPlanId?: string; title: string; actualResult?: string; expectedResult?: string; steps?: string },
+        seedData: Partial<Task> & { title: string }
+    ) => Promise<string>
+    getTaskTraceability: (projectId: string, taskId: string) => TraceabilityResult
 
     // Test Plan Actions
     addTestPlan: (projectId: string, name: string, description: string, isRegressionSuite?: boolean, source?: 'manual' | 'linear' | 'jira') => Promise<string>
@@ -159,42 +362,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         try {
             const rawProjects = await window.electronAPI.readProjectsFile()
-            // Ensure all projects have the required arrays initialized to prevent crashes with old data
-            const projects = (rawProjects || []).map((p: any) => ({
-                ...p,
-                tasks: p.tasks || [],
-                notes: (p.notes || []).map((n: any) => ({
-                    ...n,
-                    attachments: (n.attachments || []).map((a: any) => ({
-                        id: a.id,
-                        fileName: a.fileName || a.name,
-                        filePath: a.filePath || a.path,
-                        mimeType: a.mimeType,
-                        fileSizeBytes: a.fileSizeBytes || a.sizeBytes
-                    }))
-                })),
-                testPlans: p.testPlans || [],
-                environments: p.environments || [],
-                testExecutions: p.testExecutions || [],
-                files: (p.files || []).map((f: any) => ({
-                    id: f.id,
-                    fileName: f.fileName || f.name,
-                    filePath: f.filePath || f.path,
-                    mimeType: f.mimeType,
-                    fileSizeBytes: f.fileSizeBytes || f.sizeBytes
-                })),
-                testDataGroups: p.testDataGroups || [],
-                checklists: p.checklists || [],
-                apiRequests: p.apiRequests || [],
-                runbooks: p.runbooks || [],
-                linearConnections: p.linearConnections || [],
-                jiraConnections: p.jiraConnections || [],
-                testRunSessions: p.testRunSessions || [],
-                reportTemplates: p.reportTemplates || [],
-                reportSchedules: p.reportSchedules || [],
-                reportHistory: p.reportHistory || [],
-                customKpis: p.customKpis || [],
-            }))
+            const projects = (rawProjects || []).map((p: any) => normalizeProject(p))
 
             set({
                 projects,
@@ -202,8 +370,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 activeProjectId: get().activeProjectId || (projects.length > 0 ? projects[0].id : null)
             })
         } catch (e) {
-            console.error(e)
-            set({ projects: [], initialized: true })
+            console.error('Failed to load projects from disk:', e)
+            toast.error(
+                'Could not read your project data. Your data has NOT been deleted. Please check the file at your data path or contact support.',
+                { duration: 10000 }
+            )
+            set({ initialized: true })
         }
     },
 
@@ -228,14 +400,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             reportTemplates: [],
             reportSchedules: [],
             reportHistory: [],
-            customKpis: []
+            customKpis: [],
+            handoffPackets: [],
+            artifactLinks: [],
+            collaborationEvents: []
         }
 
-        const updatedProjects = [...get().projects, newProject]
+        const normalizedImportedProject = normalizeProject(newProject)
+        const updatedProjects = [...get().projects, normalizedImportedProject]
         if (window.electronAPI) {
             saveProjectsToDisk(updatedProjects)
         }
-        set({ projects: updatedProjects, activeProjectId: newProject.id })
+        set({ projects: updatedProjects, activeProjectId: normalizedImportedProject.id })
     },
 
     updateProject: async (id: string, updates: Partial<Omit<Project, 'id'>>) => {
@@ -264,7 +440,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const newProject: Project = {
             ...project,
             id: generateId(),
-            tasks: (project.tasks || []).map(t => ({ ...t, id: generateId() })),
+            tasks: (project.tasks || []).map(t => normalizeTask({ ...t, id: generateId() })),
             notes: (project.notes || []).map(n => ({ ...n, id: generateId() })),
             testPlans: (project.testPlans || []).map(tp => ({
                 ...tp,
@@ -286,6 +462,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             apiRequests: (project.apiRequests || []).map(ar => ({ ...ar, id: generateId() })),
             linearConnections: (project.linearConnections || []).map(lc => ({ ...lc, id: generateId() })),
             jiraConnections: (project.jiraConnections || []).map(jc => ({ ...jc, id: generateId() })),
+            handoffPackets: (project.handoffPackets || []).map((packet) => ({ ...packet, id: generateId() })),
+            artifactLinks: (project.artifactLinks || []).map((link) => ({ ...link, id: generateId() })),
+            collaborationEvents: (project.collaborationEvents || []).map((event) => ({ ...event, id: generateId() })),
         }
 
         const updatedProjects = [...get().projects, newProject]
@@ -293,6 +472,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             saveProjectsToDisk(updatedProjects)
         }
         set({ projects: updatedProjects, activeProjectId: newProject.id })
+    },
+
+    seedDemoProject: async () => {
+        const existingDemo = get().projects.find((project) => project.name === demoProject.name)
+        if (existingDemo) {
+            set({ activeProjectId: existingDemo.id })
+            toast.info('Demo workspace already exists.')
+            return
+        }
+
+        await get().importProject(demoProject)
+        toast.success('Demo workspace loaded.')
     },
 
 
@@ -400,7 +591,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
 
     addTask: async (projectId: string, data: Partial<Task> & { title: string }) => {
-        const task: Task = {
+        const task: Task = normalizeTask({
             id: generateId(),
             title: data.title,
             description: data.description || "",
@@ -415,9 +606,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             labels: data.labels,
             dueDate: data.dueDate,
             connectionId: data.connectionId,
+            collabState: data.collabState || 'draft',
+            activeHandoffId: data.activeHandoffId,
+            lastCollabUpdatedAt: data.lastCollabUpdatedAt,
             createdAt: Date.now(),
             updatedAt: Date.now()
-        }
+        })
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 return { ...p, tasks: [task, ...p.tasks] }
@@ -436,7 +630,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const tasks = p.tasks.map(t =>
-                    t.id === taskId ? { ...t, ...updates, updatedAt: Date.now() } : t
+                    t.id === taskId ? normalizeTask({ ...t, ...updates, updatedAt: Date.now() }) : t
                 )
                 return { ...p, tasks }
             }
@@ -446,6 +640,303 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             saveProjectsToDisk(updatedProjects)
         }
         set({ projects: updatedProjects })
+    },
+
+    createHandoffPacket: async (projectId: string, taskId: string, data: Partial<HandoffPacket> & Pick<HandoffPacket, 'type' | 'createdByRole'>) => {
+        const now = Date.now()
+        const handoffId = generateId()
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            const task = project.tasks.find((item) => item.id === taskId)
+            const environment = project.environments.find((item) => item.id === data.environmentId)
+            const completeness = enrichHandoffCompleteness({
+                summary: data.summary || task?.title || '',
+                reproSteps: data.reproSteps || task?.description || '',
+                expectedResult: data.expectedResult || '',
+                actualResult: data.actualResult || '',
+                environmentId: data.environmentId,
+                environmentName: data.environmentName || environment?.name,
+                severity: data.severity || task?.severity,
+                linkedExecutionRefs: data.linkedExecutionRefs || [],
+                linkedNoteIds: data.linkedNoteIds || [],
+                linkedFileIds: data.linkedFileIds || [],
+            })
+            const packet: HandoffPacket = {
+                id: handoffId,
+                taskId,
+                type: data.type,
+                createdByRole: data.createdByRole,
+                createdAt: now,
+                updatedAt: now,
+                summary: data.summary || task?.title || '',
+                reproSteps: data.reproSteps || task?.description || '',
+                expectedResult: data.expectedResult || '',
+                actualResult: data.actualResult || '',
+                environmentId: data.environmentId,
+                environmentName: data.environmentName || environment?.name,
+                severity: data.severity || task?.severity,
+                branchName: data.branchName,
+                releaseVersion: data.releaseVersion,
+                reproducibility: data.reproducibility || task?.reproducibility,
+                frequency: data.frequency || task?.frequency,
+                linkedTestCaseIds: data.linkedTestCaseIds || [],
+                linkedExecutionRefs: data.linkedExecutionRefs || [],
+                linkedNoteIds: data.linkedNoteIds || [],
+                linkedFileIds: data.linkedFileIds || [],
+                linkedPrs: data.linkedPrs || [],
+                developerResponse: data.developerResponse,
+                qaVerificationNotes: data.qaVerificationNotes,
+                resolutionSummary: data.resolutionSummary,
+                acknowledgedAt: data.acknowledgedAt,
+                completedAt: data.completedAt,
+                isComplete: completeness.isComplete,
+                missingFields: completeness.missingFields,
+            }
+            return {
+                ...project,
+                tasks: project.tasks.map((item) => item.id === taskId ? normalizeTask({
+                    ...item,
+                    activeHandoffId: handoffId,
+                    collabState: item.collabState === 'closed' ? 'draft' : item.collabState || 'draft',
+                    lastCollabUpdatedAt: now,
+                    updatedAt: now
+                }) : item),
+                handoffPackets: [packet, ...(project.handoffPackets || [])],
+                collaborationEvents: [{
+                    id: generateId(),
+                    taskId,
+                    handoffId,
+                    eventType: 'handoff_created' as const,
+                    actorRole: data.createdByRole,
+                    timestamp: now,
+                    title: `Created ${data.type.replace('_', ' ')}`,
+                    details: packet.summary
+                }, ...(project.collaborationEvents || [])]
+            }
+        })
+        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
+        set({ projects: updatedProjects })
+        return handoffId
+    },
+
+    updateHandoffPacket: async (projectId: string, handoffId: string, updates: Partial<HandoffPacket>) => {
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            const handoffPackets = (project.handoffPackets || []).map((packet) =>
+                packet.id === handoffId ? {
+                    ...packet,
+                    ...updates,
+                    ...enrichHandoffCompleteness({
+                        ...packet,
+                        ...updates,
+                    }),
+                    updatedAt: Date.now(),
+                } : packet
+            )
+            return { ...project, handoffPackets }
+        })
+        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
+        set({ projects: updatedProjects })
+    },
+
+    setTaskCollabState: async (projectId: string, taskId: string, collabState: CollabState) => {
+        await get().updateTask(projectId, taskId, { collabState, lastCollabUpdatedAt: Date.now() })
+    },
+
+    acknowledgeHandoff: async (projectId: string, handoffId: string, actorRole: CollaborationActorRole = 'dev') => {
+        const now = Date.now()
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            const handoff = (project.handoffPackets || []).find((packet) => packet.id === handoffId)
+            if (!handoff) return project
+            return {
+                ...project,
+                handoffPackets: (project.handoffPackets || []).map((packet) =>
+                    packet.id === handoffId ? { ...packet, acknowledgedAt: now, updatedAt: now } : packet
+                ),
+                tasks: project.tasks.map((task) => task.id === handoff.taskId ? normalizeTask({
+                    ...task,
+                    collabState: 'dev_acknowledged',
+                    lastCollabUpdatedAt: now,
+                    updatedAt: now
+                }) : task),
+                collaborationEvents: [{
+                    id: generateId(),
+                    taskId: handoff.taskId,
+                    handoffId,
+                    eventType: 'handoff_acknowledged' as const,
+                    actorRole,
+                    timestamp: now,
+                    title: 'Handoff acknowledged'
+                }, ...(project.collaborationEvents || [])]
+            }
+        })
+        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
+        set({ projects: updatedProjects })
+    },
+
+    linkArtifact: async (projectId: string, link: Omit<ArtifactLink, 'id' | 'createdAt'>) => {
+        const linkId = generateId()
+        const now = Date.now()
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            const exists = (project.artifactLinks || []).some((item) =>
+                item.sourceType === link.sourceType &&
+                item.sourceId === link.sourceId &&
+                item.targetType === link.targetType &&
+                item.targetId === link.targetId &&
+                item.label === link.label
+            )
+            if (exists) return project
+            return {
+                ...project,
+                artifactLinks: [{ id: linkId, createdAt: now, ...link }, ...(project.artifactLinks || [])]
+            }
+        })
+        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
+        set({ projects: updatedProjects })
+        return linkId
+    },
+
+    unlinkArtifact: async (projectId: string, linkId: string) => {
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            return {
+                ...project,
+                artifactLinks: (project.artifactLinks || []).filter((link) => link.id !== linkId)
+            }
+        })
+        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
+        set({ projects: updatedProjects })
+    },
+
+    linkPrToHandoff: async (projectId: string, handoffId: string, prRef: LinkedPrRef) => {
+        const now = Date.now()
+        let notificationProject: Project | undefined
+        let notificationTask: Task | undefined
+        let notificationHandoff: HandoffPacket | undefined
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            const handoff = (project.handoffPackets || []).find((packet) => packet.id === handoffId)
+            if (!handoff) return project
+            const linkedPrs = handoff.linkedPrs.some((item) => item.repoFullName === prRef.repoFullName && item.prNumber === prRef.prNumber)
+                ? handoff.linkedPrs
+                : [...handoff.linkedPrs, prRef]
+            notificationProject = project
+            notificationTask = project.tasks.find((task) => task.id === handoff.taskId)
+            notificationHandoff = { ...handoff, linkedPrs }
+            return {
+                ...project,
+                handoffPackets: (project.handoffPackets || []).map((packet) =>
+                    packet.id === handoffId ? { ...packet, linkedPrs, updatedAt: now } : packet
+                ),
+                collaborationEvents: [{
+                    id: generateId(),
+                    taskId: handoff.taskId,
+                    handoffId,
+                    eventType: 'pr_linked' as const,
+                    actorRole: 'dev' as const,
+                    timestamp: now,
+                    title: `Linked PR #${prRef.prNumber}`,
+                    details: prRef.repoFullName
+                }, ...(project.collaborationEvents || [])]
+            }
+        })
+        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
+        set({ projects: updatedProjects })
+        await triggerCollaborationWebhook('pr_linked', notificationProject, notificationTask, notificationHandoff)
+    },
+
+    addCollaborationEvent: async (projectId: string, event: Omit<CollaborationEvent, 'id' | 'timestamp'> & Partial<Pick<CollaborationEvent, 'timestamp'>>) => {
+        const eventId = generateId()
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            return {
+                ...project,
+                collaborationEvents: [{
+                    id: eventId,
+                    timestamp: event.timestamp || Date.now(),
+                    ...event
+                }, ...(project.collaborationEvents || [])]
+            }
+        })
+        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
+        set({ projects: updatedProjects })
+        return eventId
+    },
+
+    createTaskFromFailedExecution: async (projectId: string, executionRef, seedData) => {
+        const taskId = await get().addTask(projectId, {
+            ...seedData,
+            description: seedData.description || executionRef.steps || executionRef.actualResult || '',
+            source: seedData.source || 'manual'
+        })
+        const activeProject = get().projects.find((project) => project.id === projectId)
+        const task = activeProject?.tasks.find((item) => item.id === taskId)
+        const handoffId = await get().createHandoffPacket(projectId, taskId, {
+            type: 'bug_handoff',
+            createdByRole: 'qa',
+            summary: seedData.title,
+            reproSteps: executionRef.steps || '',
+            expectedResult: executionRef.expectedResult || '',
+            actualResult: executionRef.actualResult || '',
+            linkedExecutionRefs: [{
+                sessionId: executionRef.sessionId,
+                planExecutionId: executionRef.planExecutionId,
+                caseExecutionId: executionRef.caseExecutionId
+            }]
+        })
+        await get().setTaskCollabState(projectId, taskId, 'ready_for_dev')
+        if (task) {
+            await get().addCollaborationEvent(projectId, {
+                taskId,
+                handoffId,
+                eventType: 'execution_linked' as const,
+                actorRole: 'qa',
+                title: 'Created task from failed execution',
+                details: executionRef.title
+            })
+        }
+        return taskId
+    },
+
+    getTaskTraceability: (projectId: string, taskId: string) => {
+        const project = get().projects.find((item) => item.id === projectId)
+        const task = project?.tasks.find((item) => item.id === taskId)
+        const handoffs = (project?.handoffPackets || []).filter((packet) => packet.taskId === taskId)
+        const links = (project?.artifactLinks || []).filter((link) =>
+            (link.sourceType === 'task' && link.sourceId === taskId) ||
+            (link.targetType === 'task' && link.targetId === taskId) ||
+            handoffs.some((packet) => packet.id === link.sourceId || packet.id === link.targetId)
+        )
+        const linkedTestCaseIds = new Set<string>()
+        handoffs.forEach((packet) => packet.linkedTestCaseIds.forEach((id) => linkedTestCaseIds.add(id)))
+        links.forEach((link) => {
+            if (link.sourceType === 'test_case') linkedTestCaseIds.add(link.sourceId)
+            if (link.targetType === 'test_case') linkedTestCaseIds.add(link.targetId)
+        })
+        const linkedNoteIds = new Set<string>()
+        handoffs.forEach((packet) => packet.linkedNoteIds.forEach((id) => linkedNoteIds.add(id)))
+        links.forEach((link) => {
+            if (link.sourceType === 'note') linkedNoteIds.add(link.sourceId)
+            if (link.targetType === 'note') linkedNoteIds.add(link.targetId)
+        })
+        const linkedFileIds = new Set<string>()
+        handoffs.forEach((packet) => packet.linkedFileIds.forEach((id) => linkedFileIds.add(id)))
+        links.forEach((link) => {
+            if (link.sourceType === 'file') linkedFileIds.add(link.sourceId)
+            if (link.targetType === 'file') linkedFileIds.add(link.targetId)
+        })
+
+        return {
+            task,
+            activeHandoff: handoffs.find((packet) => packet.id === task?.activeHandoffId),
+            handoffs,
+            links,
+            linkedTestCases: (project?.testPlans || []).flatMap((plan) => plan.testCases || []).filter((testCase) => linkedTestCaseIds.has(testCase.id)),
+            linkedNotes: (project?.notes || []).filter((note) => linkedNoteIds.has(note.id)),
+            linkedFiles: (project?.files || []).filter((file) => linkedFileIds.has(file.id))
+        }
     },
 
     deleteTask: async (projectId: string, taskId: string) => {

@@ -1,4 +1,5 @@
 export type TaskStatus = string
+export type CollabState = 'draft' | 'ready_for_dev' | 'dev_acknowledged' | 'in_fix' | 'ready_for_qa' | 'qa_retesting' | 'verified' | 'closed'
 
 export type TestCaseStatus = 'passed' | 'failed' | 'blocked' | 'skipped' | 'not-run'
 
@@ -13,6 +14,23 @@ export type TestType = 'functional' | 'regression' | 'smoke' | 'integration' | '
 export type Reproducibility = 'always' | 'sometimes' | 'rarely' | 'once' | 'unable'
 
 export type Frequency = 'everytime' | 'often' | 'occasionally' | 'once'
+export type ArtifactType = 'task' | 'test_case' | 'test_execution' | 'note' | 'file' | 'handoff' | 'pr'
+export type ArtifactLinkLabel = 'evidence' | 'caused_by' | 'verifies' | 'documents' | 'fixes' | 'retest_for'
+export type CollaborationActorRole = 'qa' | 'dev'
+export type HandoffType = 'bug_handoff' | 'fix_handoff' | 'retest_request'
+export type CollaborationEventType =
+    | 'handoff_created'
+    | 'handoff_sent'
+    | 'handoff_acknowledged'
+    | 'fix_started'
+    | 'pr_linked'
+    | 'ready_for_qa'
+    | 'retest_started'
+    | 'verification_passed'
+    | 'verification_failed'
+    | 'evidence_added'
+    | 'note_linked'
+    | 'execution_linked'
 
 export type TestCase = {
     id: string
@@ -28,6 +46,7 @@ export type TestCase = {
     sapModule?: SapModule
     sourceIssueId?: string
     tags?: string[]           // e.g. ['smoke', 'regression', 'checkout']
+    components?: string[]
     assignedTo?: string       // tester name/handle
     estimatedMinutes?: number // estimated execution duration
     testType?: TestType       // Phase 1.3: functional, regression, smoke, etc.
@@ -56,6 +75,9 @@ export type TestExecution = {
     snapshotExpectedResult?: string
     snapshotPriority?: TestCasePriority
     durationSeconds?: number
+    blockedReason?: string
+    environmentId?: string
+    environmentName?: string
 }
 
 export type TestCaseExecution = {
@@ -133,6 +155,7 @@ export type Task = {
     rawDescription?: string  // Unprocessed description from the source
     assignee?: string
     labels?: string
+    components?: string[]
     dueDate?: number
     source?: 'manual' | 'linear' | 'jira'
     connectionId?: string
@@ -140,6 +163,9 @@ export type Task = {
     analysisHistory?: AnalysisEntry[]
     linkedTestCaseId?: string // Phase 1.7: back-reference to test case
     linkedDefectIds?: string[] // Phase 1.7: bug IDs linked from tests
+    collabState?: CollabState
+    activeHandoffId?: string
+    lastCollabUpdatedAt?: number
     reproducibility?: Reproducibility // Phase 2.1: bug reproducibility
     frequency?: Frequency     // Phase 2.1: bug frequency
     affectedEnvironments?: string[] // Phase 2.1: environment IDs affected by bug
@@ -151,6 +177,73 @@ export type Task = {
     }
     createdAt: number
     updatedAt: number
+}
+
+export type HandoffExecutionRef = {
+    sessionId: string
+    planExecutionId: string
+    caseExecutionId: string
+}
+
+export type LinkedPrRef = {
+    repoFullName: string
+    prNumber: number
+    prUrl: string
+    status?: string
+}
+
+export type HandoffPacket = {
+    id: string
+    taskId: string
+    type: HandoffType
+    createdByRole: CollaborationActorRole
+    createdAt: number
+    updatedAt: number
+    summary: string
+    reproSteps: string
+    expectedResult: string
+    actualResult: string
+    environmentId?: string
+    environmentName?: string
+    severity?: TaskSeverity
+    branchName?: string
+    releaseVersion?: string
+    reproducibility?: Reproducibility
+    frequency?: Frequency
+    linkedTestCaseIds: string[]
+    linkedExecutionRefs: HandoffExecutionRef[]
+    linkedNoteIds: string[]
+    linkedFileIds: string[]
+    linkedPrs: LinkedPrRef[]
+    developerResponse?: string
+    qaVerificationNotes?: string
+    resolutionSummary?: string
+    acknowledgedAt?: number
+    completedAt?: number
+    isComplete?: boolean
+    missingFields?: string[]
+}
+
+export type ArtifactLink = {
+    id: string
+    sourceType: ArtifactType
+    sourceId: string
+    targetType: ArtifactType
+    targetId: string
+    label: ArtifactLinkLabel
+    createdAt: number
+}
+
+export type CollaborationEvent = {
+    id: string
+    taskId: string
+    handoffId?: string
+    eventType: CollaborationEventType
+    actorRole: CollaborationActorRole
+    timestamp: number
+    title: string
+    details?: string
+    metadata?: Record<string, string | number | boolean | null | undefined>
 }
 
 export type Attachment = {
@@ -288,6 +381,7 @@ export type QualityGate = {
 
 export type Project = {
     id: string
+    schemaVersion?: number
     name: string
     color: string
     clientName?: string
@@ -313,6 +407,7 @@ export type Project = {
 
     geminiModel?: string
     columns?: { id: string, title: string, color?: string, textColor?: string, type?: string }[]
+    sourceColumns?: Partial<Record<'manual' | 'linear' | 'jira', { id: string, title: string, color?: string, textColor?: string, type?: string }[]>>
     qualityGates?: QualityGate[]
 
     // Phase 4: Report Builder & Collaboration
@@ -320,4 +415,7 @@ export type Project = {
     reportSchedules?: any[]
     reportHistory?: any[]
     customKpis?: any[]
+    handoffPackets?: HandoffPacket[]
+    artifactLinks?: ArtifactLink[]
+    collaborationEvents?: CollaborationEvent[]
 }

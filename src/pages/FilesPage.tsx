@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 export default function FilesPage() {
-    const { projects, activeProjectId, addProjectFile, deleteProjectFile } = useProjectStore()
+    const { projects, activeProjectId, addProjectFile, deleteProjectFile, linkArtifact } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const api = (window as any).electronAPI
     const [searchQuery, setSearchQuery] = useState("")
+    const [linkedTaskFilter, setLinkedTaskFilter] = useState("all")
     const [isDragging, setIsDragging] = useState(false)
 
     // Combine project files and note attachments
@@ -18,7 +19,16 @@ export default function FilesPage() {
     activeProject?.files.forEach(f => allFiles.push(f))
     activeProject?.notes.forEach(n => allFiles.push(...n.attachments))
 
-    const filtered = allFiles.filter(f => f.fileName.toLowerCase().includes(searchQuery.toLowerCase()))
+    const artifactLinks = activeProject?.artifactLinks || []
+    const filtered = allFiles.filter(f => {
+        const matchesSearch = f.fileName.toLowerCase().includes(searchQuery.toLowerCase())
+        if (!matchesSearch) return false
+        if (linkedTaskFilter === 'all') return true
+        return artifactLinks.some((link) =>
+            ((link.sourceType === 'task' && link.sourceId === linkedTaskFilter && link.targetType === 'file' && link.targetId === f.id) ||
+            (link.targetType === 'task' && link.targetId === linkedTaskFilter && link.sourceType === 'file' && link.sourceId === f.id))
+        )
+    })
 
     const handleBrowse = async () => {
         if (!window.electronAPI || !activeProjectId) return
@@ -92,6 +102,12 @@ export default function FilesPage() {
                             className="h-9 pl-9 bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0]"
                         />
                     </div>
+                    <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="h-9 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 text-xs text-[#E2E8F0]">
+                        <option value="all">All Tasks</option>
+                        {(activeProject?.tasks || []).map((task) => (
+                            <option key={task.id} value={task.id}>{task.title}</option>
+                        ))}
+                    </select>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button onClick={handlePaste} variant="outline" className="h-9 border-[#A78BFA]/20 text-[#A78BFA] font-black text-[10px] uppercase hover:bg-[#A78BFA]/5">
@@ -160,13 +176,43 @@ export default function FilesPage() {
                                     <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest">
                                         {file.fileSizeBytes ? `${(file.fileSizeBytes / 1024 / 1024).toFixed(1)} MB` : ''}
                                     </div>
+                                    <div className="flex flex-wrap gap-1 mt-2 justify-center">
+                                        {artifactLinks.filter((link) =>
+                                            (link.sourceType === 'file' && link.sourceId === file.id && link.targetType === 'task') ||
+                                            (link.targetType === 'file' && link.targetId === file.id && link.sourceType === 'task')
+                                        ).map((link) => {
+                                            const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
+                                            const task = activeProject?.tasks.find((item) => item.id === taskId)
+                                            return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-[#A78BFA] text-[9px]">{task.title}</span> : null
+                                        })}
+                                    </div>
                                 </div>
                                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+                                    <select
+                                        onChange={async (event) => {
+                                            const taskId = event.target.value
+                                            if (!activeProjectId || !taskId) return
+                                            await linkArtifact(activeProjectId, { sourceType: 'task', sourceId: taskId, targetType: 'file', targetId: file.id, label: 'documents' })
+                                            toast.success('File linked to task.')
+                                            event.currentTarget.value = ''
+                                        }}
+                                        className="h-8 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-[9px] text-[#E2E8F0]"
+                                    >
+                                        <option value="">Link</option>
+                                        {(activeProject?.tasks || []).map((task) => (
+                                            <option key={task.id} value={task.id}>{task.title}</option>
+                                        ))}
+                                    </select>
                                     <button onClick={() => api.openFile(file.filePath)} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#A78BFA] border border-[#2A2A3A] hover:border-[#A78BFA]/30">
                                         <ExternalLink className="h-3 w-3" />
                                     </button>
                                     <button onClick={async () => {
                                         if (!activeProjectId) return;
+                                        const linkedHandoffs = (activeProject?.handoffPackets || []).filter((packet) => packet.linkedFileIds.includes(file.id))
+                                        if (linkedHandoffs.length > 0) {
+                                            toast.error('This file is linked to an active handoff. Remove the handoff link first.')
+                                            return
+                                        }
                                         await deleteProjectFile(activeProjectId, file.id);
                                         api.deleteAttachment(file.filePath);
                                     }} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#EF4444] border border-[#2A2A3A] hover:border-[#EF4444]/30">

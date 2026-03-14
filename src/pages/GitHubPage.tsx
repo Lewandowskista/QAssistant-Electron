@@ -1,51 +1,47 @@
 import { useState, useEffect, useCallback } from 'react'
 import { GitHubScopeGuard } from '@/components/GitHubScopeGuard'
-import { GitHubRepo, GitHubPullRequest, GitHubCommit, GitHubPrDetail, GitHubReview } from '@/types/github'
+import { GitHubRepo, GitHubPullRequest, GitHubCommit, GitHubPrDetail, GitHubReview, GitHubComment, GitHubDeployment } from '@/types/github'
+import { useGitHubRepos } from '@/hooks/useGitHubRepos'
+import { useListKeyboardNav } from '@/hooks/useListKeyboardNav'
 import {
     GitBranch, GitPullRequest, RefreshCw, Loader2, ExternalLink,
-    ChevronDown, Check, X, Clock, CircleDot, Lock, Globe,
-    Plus, Minus, FileText
+    ChevronDown, X, Search,
+    Plus, Minus, FileText, Rocket
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatTimeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-
-function formatTimeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return 'just now'
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    const days = Math.floor(hrs / 24)
-    if (days < 30) return `${days}d ago`
-    return new Date(dateStr).toLocaleDateString()
-}
-
-function summarizeReviews(reviews: GitHubReview[]) {
-    // Only count the latest review per user (matches GitHub's own rule)
-    const latest: Record<string, GitHubReview> = {}
-    for (const r of reviews) {
-        if (!latest[r.user] || r.submittedAt > latest[r.user].submittedAt) {
-            latest[r.user] = r
-        }
-    }
-    const vals = Object.values(latest)
-    return {
-        approved: vals.filter(r => r.state === 'APPROVED').length,
-        changesRequested: vals.filter(r => r.state === 'CHANGES_REQUESTED').length,
-        commented: vals.filter(r => r.state === 'COMMENTED').length,
-    }
-}
+import { RepoSelector } from '@/components/github/RepoSelector'
+import { CheckStatusIcon, mergeableLabel, ReviewSummaryBadges } from '@/components/github/StatusBadges'
 
 type Tab = 'pulls' | 'commits'
 
+const DESCRIPTION_TRUNCATE_LENGTH = 800
+
+function PrDescription({ body }: { body: string }) {
+    const [expanded, setExpanded] = useState(false)
+    const isLong = body.length > DESCRIPTION_TRUNCATE_LENGTH
+
+    return (
+        <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-2">Description</p>
+            <p className="text-[11px] text-[#9CA3AF] whitespace-pre-wrap leading-relaxed break-words">
+                {isLong && !expanded ? body.slice(0, DESCRIPTION_TRUNCATE_LENGTH) + '…' : body}
+            </p>
+            {isLong && (
+                <button
+                    onClick={() => setExpanded(prev => !prev)}
+                    className="mt-1.5 text-[10px] font-semibold text-[#A78BFA] hover:text-[#C4B5FD] transition-colors"
+                >
+                    {expanded ? 'Show less' : 'Show more'}
+                </button>
+            )}
+        </div>
+    )
+}
+
 function GitHubContent() {
     const api = window.electronAPI
-
-    const [repos, setRepos] = useState<GitHubRepo[]>([])
-    const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null)
-    const [repoDropdownOpen, setRepoDropdownOpen] = useState(false)
-    const [loadingRepos, setLoadingRepos] = useState(true)
+    const { repos, selectedRepo, setSelectedRepo, loading: loadingRepos, error: repoError } = useGitHubRepos()
 
     const [prs, setPrs] = useState<GitHubPullRequest[]>([])
     const [commits, setCommits] = useState<GitHubCommit[]>([])
@@ -62,33 +58,19 @@ function GitHubContent() {
 
     // Secondary data: reviews + CI status per PR
     const [prReviews, setPrReviews] = useState<Record<number, GitHubReview[]>>({})
+    // Deployment status per PR head branch
+    const [branchDeployments, setBranchDeployments] = useState<Record<string, GitHubDeployment>>({})
     const [prCheckStatuses, setPrCheckStatuses] = useState<Record<number, string | null>>({})
+
+    // PR search
+    const [prSearch, setPrSearch] = useState('')
 
     // Detail panel
     const [selectedPr, setSelectedPr] = useState<GitHubPullRequest | null>(null)
     const [prDetail, setPrDetail] = useState<GitHubPrDetail | null>(null)
     const [loadingDetail, setLoadingDetail] = useState(false)
-
-    // Load repos
-    useEffect(() => {
-        (async () => {
-            try {
-                const result = await api.githubGetRepos()
-                if ('__isError' in result) {
-                    setError(result.message)
-                } else {
-                    setRepos(result)
-                    if (result.length > 0 && !selectedRepo) {
-                        setSelectedRepo(result[0])
-                    }
-                }
-            } catch (e: any) {
-                setError(e.message)
-            } finally {
-                setLoadingRepos(false)
-            }
-        })()
-    }, [])
+    const [prComments, setPrComments] = useState<GitHubComment[]>([])
+    const [loadingComments, setLoadingComments] = useState(false)
 
     // Load PRs + commits + secondary data when repo/filter changes
     const loadRepoData = useCallback(async (repo: GitHubRepo, force = false, branch?: string | null) => {
@@ -110,7 +92,7 @@ function GitHubContent() {
             // Fetch reviews + CI status for open PRs in parallel (best-effort, non-blocking)
             const openPrs = prResult.filter((p: GitHubPullRequest) => p.state === 'open')
             if (openPrs.length > 0) {
-                const [reviewResults, checkResults] = await Promise.all([
+                const [reviewResults, checkResults, deployResult] = await Promise.all([
                     Promise.allSettled(
                         openPrs.map((pr: GitHubPullRequest) =>
                             api.githubGetPrReviews({ owner: repo.owner.login, repo: repo.name, prNumber: pr.number })
@@ -121,6 +103,7 @@ function GitHubContent() {
                             api.githubGetPrCheckStatus({ owner: repo.owner.login, repo: repo.name, ref: pr.headBranch })
                         )
                     ),
+                    api.githubGetDeployments({ owner: repo.owner.login, repo: repo.name }),
                 ])
 
                 const reviewMap: Record<number, GitHubReview[]> = {}
@@ -140,6 +123,17 @@ function GitHubContent() {
                     }
                 })
                 setPrCheckStatuses(checkMap)
+
+                // Map most recent deployment per branch
+                if (!('__isError' in deployResult)) {
+                    const deployMap: Record<string, GitHubDeployment> = {}
+                    ;(deployResult as GitHubDeployment[]).forEach(d => {
+                        if (!deployMap[d.ref] || d.createdAt > deployMap[d.ref].createdAt) {
+                            deployMap[d.ref] = d
+                        }
+                    })
+                    setBranchDeployments(deployMap)
+                }
             }
         } catch (e: any) {
             setError(e.message)
@@ -166,7 +160,9 @@ function GitHubContent() {
         if (!selectedRepo) return
         setSelectedPr(pr)
         setPrDetail(null)
+        setPrComments([])
         setLoadingDetail(true)
+        setLoadingComments(true)
         try {
             const detailResult = await api.githubGetPrDetail({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: pr.number })
             if (!('__isError' in detailResult)) setPrDetail(detailResult as GitHubPrDetail)
@@ -180,22 +176,43 @@ function GitHubContent() {
         } finally {
             setLoadingDetail(false)
         }
+        // Fetch comments (non-blocking)
+        try {
+            const commentsResult = await api.githubGetPrComments({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: pr.number })
+            if (!('__isError' in commentsResult)) setPrComments(commentsResult as GitHubComment[])
+        } finally {
+            setLoadingComments(false)
+        }
     }
 
-    const checkStatusIcon = (status: string | null | undefined) => {
-        if (status === 'success') return <Check className="h-3.5 w-3.5 text-emerald-400" />
-        if (status === 'failure') return <X className="h-3.5 w-3.5 text-red-400" />
-        if (status === 'pending') return <Clock className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-        return <CircleDot className="h-3.5 w-3.5 text-[#6B7280] opacity-40" />
-    }
+    const filteredPrs = prSearch.trim()
+        ? prs.filter(pr => {
+            const q = prSearch.toLowerCase()
+            return pr.title.toLowerCase().includes(q) ||
+                `#${pr.number}`.includes(q) ||
+                pr.author.toLowerCase().includes(q) ||
+                pr.headBranch.toLowerCase().includes(q) ||
+                pr.labels.some(l => l.name.toLowerCase().includes(q))
+        })
+        : prs
 
-    const mergeableLabel = (state: string) => {
-        if (state === 'clean') return { text: 'Ready to merge', cls: 'bg-emerald-500/15 text-emerald-400' }
-        if (state === 'blocked') return { text: 'Merge blocked', cls: 'bg-red-500/15 text-red-400' }
-        if (state === 'behind') return { text: 'Behind base branch', cls: 'bg-amber-500/15 text-amber-400' }
-        if (state === 'dirty') return { text: 'Has conflicts', cls: 'bg-red-500/15 text-red-400' }
-        return { text: state, cls: 'bg-[#2A2A3A] text-[#6B7280]' }
-    }
+    const keyboardItems: Array<GitHubPullRequest | GitHubCommit> = activeTab === 'pulls' ? filteredPrs : commits
+
+    const { activeIndex: kbIndex } = useListKeyboardNav<GitHubPullRequest | GitHubCommit>({
+        items: keyboardItems,
+        enabled: !loadingData,
+        onSelect: (item) => {
+            if (activeTab === 'pulls') openPrDetail(item as GitHubPullRequest)
+        },
+        onOpen: (item) => {
+            if (activeTab === 'pulls') {
+                api.openUrl((item as GitHubPullRequest).htmlUrl)
+            } else {
+                api.openUrl((item as GitHubCommit).htmlUrl)
+            }
+        },
+        onEscape: () => { setSelectedPr(null); setPrDetail(null) },
+    })
 
     return (
         <div className="h-full flex flex-col bg-[#0F0F13]">
@@ -205,52 +222,12 @@ function GitHubContent() {
                 <h1 className="text-sm font-bold text-[#E2E8F0]">GitHub</h1>
                 <div className="flex-1" />
 
-                {/* Repo selector */}
-                <div className="relative">
-                    <button
-                        onClick={() => setRepoDropdownOpen(prev => !prev)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-[#2A2A3A] bg-[#1A1A24] hover:bg-[#252535] transition-colors text-xs font-semibold text-[#E2E8F0] min-w-[200px]"
-                    >
-                        {selectedRepo ? (
-                            <>
-                                {selectedRepo.private ? <Lock className="h-3 w-3 text-[#6B7280]" /> : <Globe className="h-3 w-3 text-[#6B7280]" />}
-                                <span className="truncate flex-1 text-left">{selectedRepo.fullName}</span>
-                            </>
-                        ) : (
-                            <span className="text-[#6B7280]">Select repository...</span>
-                        )}
-                        <ChevronDown className="h-3 w-3 text-[#6B7280] shrink-0" />
-                    </button>
-                    {repoDropdownOpen && (
-                        <>
-                            <div className="fixed inset-0 z-40" onClick={() => setRepoDropdownOpen(false)} />
-                            <div className="absolute right-0 top-full mt-1 z-50 w-80 max-h-80 overflow-y-auto bg-[#1A1A24] border border-[#2A2A3A] rounded-lg shadow-xl custom-scrollbar">
-                                {loadingRepos ? (
-                                    <div className="p-4 flex items-center justify-center">
-                                        <Loader2 className="h-4 w-4 text-[#A78BFA] animate-spin" />
-                                    </div>
-                                ) : repos.length === 0 ? (
-                                    <div className="p-4 text-xs text-[#6B7280] text-center">No repositories found</div>
-                                ) : repos.map(repo => (
-                                    <button
-                                        key={repo.id}
-                                        onClick={() => { setSelectedRepo(repo); setRepoDropdownOpen(false) }}
-                                        className={cn(
-                                            "w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[#252535] transition-colors text-left",
-                                            selectedRepo?.id === repo.id && "bg-[#2D2D3F]"
-                                        )}
-                                    >
-                                        {repo.private ? <Lock className="h-3 w-3 text-[#6B7280] shrink-0" /> : <Globe className="h-3 w-3 text-[#6B7280] shrink-0" />}
-                                        <div className="flex flex-col min-w-0 flex-1">
-                                            <span className="font-semibold text-[#E2E8F0] truncate">{repo.fullName}</span>
-                                            <span className="text-[10px] text-[#6B7280]">{repo.defaultBranch} · {formatTimeAgo(repo.updatedAt)}</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
+                <RepoSelector
+                    repos={repos}
+                    selectedRepo={selectedRepo}
+                    onSelect={setSelectedRepo}
+                    loading={loadingRepos}
+                />
 
                 <Button
                     variant="ghost" size="sm"
@@ -292,8 +269,8 @@ function GitHubContent() {
             <div className="flex-1 flex overflow-hidden">
                 {/* Main scrollable area */}
                 <div className={cn("overflow-y-auto custom-scrollbar transition-all duration-200", selectedPr ? "flex-1 min-w-0" : "w-full")}>
-                    {error && (
-                        <div className="m-4 p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300">{error}</div>
+                    {(error || repoError) && (
+                        <div className="m-4 p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300">{error || repoError}</div>
                     )}
 
                     {!selectedRepo && !loadingRepos && (
@@ -311,31 +288,45 @@ function GitHubContent() {
 
                     {!loadingData && selectedRepo && activeTab === 'pulls' && (
                         <div className="p-4 space-y-2">
-                            {/* PR filter */}
-                            <div className="flex items-center gap-1 mb-3">
-                                {(['open', 'closed', 'all'] as const).map(f => (
-                                    <button
-                                        key={f}
-                                        onClick={() => setPrFilter(f)}
-                                        className={cn(
-                                            "px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider transition-colors",
-                                            prFilter === f
-                                                ? "bg-[#A78BFA]/20 text-[#A78BFA]"
-                                                : "text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#252535]"
-                                        )}
-                                    >
-                                        {f}
-                                    </button>
-                                ))}
+                            {/* PR filter + search */}
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="flex items-center gap-1">
+                                    {(['open', 'closed', 'all'] as const).map(f => (
+                                        <button
+                                            key={f}
+                                            onClick={() => setPrFilter(f)}
+                                            className={cn(
+                                                "px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider transition-colors",
+                                                prFilter === f
+                                                    ? "bg-[#A78BFA]/20 text-[#A78BFA]"
+                                                    : "text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#252535]"
+                                            )}
+                                        >
+                                            {f}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[#6B7280] pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        placeholder="Filter by title, author, branch, label..."
+                                        value={prSearch}
+                                        onChange={e => setPrSearch(e.target.value)}
+                                        className="w-full pl-8 pr-3 py-1.5 rounded-md bg-[#13131A] border border-[#2A2A3A] text-xs text-[#E2E8F0] placeholder-[#6B7280] focus:outline-none focus:border-[#A78BFA]/60 transition-colors"
+                                    />
+                                </div>
                             </div>
 
-                            {prs.length === 0 ? (
-                                <div className="text-center py-12 text-[#6B7280] text-xs">No pull requests found</div>
-                            ) : prs.map(pr => {
+                            {filteredPrs.length === 0 ? (
+                                <div className="text-center py-12 text-[#6B7280] text-xs">
+                                    {prSearch ? 'No matching pull requests' : 'No pull requests found'}
+                                </div>
+                            ) : filteredPrs.map((pr, idx) => {
                                 const reviews = prReviews[pr.number]
-                                const summary = reviews ? summarizeReviews(reviews) : null
                                 const ciStatus = prCheckStatuses[pr.number] ?? pr.checkStatus
                                 const isSelected = selectedPr?.number === pr.number
+                                const isKbActive = activeTab === 'pulls' && kbIndex === idx
 
                                 return (
                                     <button
@@ -345,6 +336,8 @@ function GitHubContent() {
                                             "w-full flex items-start gap-3 p-3 rounded-lg border transition-colors text-left group",
                                             isSelected
                                                 ? "bg-[#1E1E2E] border-[#A78BFA]/40"
+                                                : isKbActive
+                                                ? "bg-[#1A1A2A] border-[#3D3D5F]"
                                                 : "bg-[#13131A] border-[#2A2A3A] hover:border-[#3D3D5F]"
                                         )}
                                     >
@@ -364,6 +357,18 @@ function GitHubContent() {
                                                 {pr.draft && (
                                                     <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#2A2A3A] text-[#6B7280]">Draft</span>
                                                 )}
+                                                {pr.labels?.map(label => (
+                                                    <span
+                                                        key={label.name}
+                                                        className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold"
+                                                        style={{
+                                                            backgroundColor: `#${label.color}20`,
+                                                            color: `#${label.color}`,
+                                                        }}
+                                                    >
+                                                        {label.name}
+                                                    </span>
+                                                ))}
                                             </div>
                                             <div className="flex items-center gap-2 mt-1 text-[11px] text-[#6B7280]">
                                                 <span>#{pr.number}</span>
@@ -387,29 +392,27 @@ function GitHubContent() {
                                                     </div>
                                                 )}
                                                 {/* Review summary badges */}
-                                                {summary && (
-                                                    <div className="flex items-center gap-1">
-                                                        {summary.approved > 0 && (
-                                                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400">
-                                                                <Check className="h-2.5 w-2.5" />{summary.approved}
-                                                            </span>
-                                                        )}
-                                                        {summary.changesRequested > 0 && (
-                                                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">
-                                                                <X className="h-2.5 w-2.5" />{summary.changesRequested}
-                                                            </span>
-                                                        )}
-                                                        {summary.commented > 0 && (
-                                                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#2A2A3A] text-[#6B7280]">
-                                                                <CircleDot className="h-2.5 w-2.5" />{summary.commented}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                {reviews && reviews.length > 0 && (
+                                                    <ReviewSummaryBadges reviews={reviews} />
                                                 )}
+                                                {/* Deployment badge */}
+                                                {branchDeployments[pr.headBranch] && (() => {
+                                                    const dep = branchDeployments[pr.headBranch]
+                                                    const depState = dep.latestStatus?.state
+                                                    const depColor = depState === 'success' ? 'text-emerald-400' :
+                                                        depState === 'failure' || depState === 'error' ? 'text-red-400' :
+                                                        depState === 'in_progress' ? 'text-amber-400' : 'text-[#6B7280]'
+                                                    return (
+                                                        <div className={cn("flex items-center gap-1 text-[10px]", depColor)}>
+                                                            <Rocket className="h-2.5 w-2.5 shrink-0" />
+                                                            <span>{dep.environment}</span>
+                                                        </div>
+                                                    )
+                                                })()}
                                             </div>
                                         </div>
                                         <div className="shrink-0 mt-0.5 flex items-center gap-1.5">
-                                            {checkStatusIcon(ciStatus)}
+                                            <CheckStatusIcon status={ciStatus} />
                                         </div>
                                     </button>
                                 )
@@ -541,7 +544,7 @@ function GitHubContent() {
                                     {/* CI status */}
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">CI</span>
-                                        {checkStatusIcon(prCheckStatuses[selectedPr.number] ?? selectedPr.checkStatus)}
+                                        <CheckStatusIcon status={prCheckStatuses[selectedPr.number] ?? selectedPr.checkStatus} />
                                         <span className="text-[11px] text-[#9CA3AF] capitalize">
                                             {prCheckStatuses[selectedPr.number] ?? selectedPr.checkStatus ?? 'No checks'}
                                         </span>
@@ -600,13 +603,38 @@ function GitHubContent() {
 
                                     {/* PR body */}
                                     {prDetail.body && (
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-2">Description</p>
-                                            <p className="text-[11px] text-[#9CA3AF] whitespace-pre-wrap leading-relaxed break-words">
-                                                {prDetail.body.length > 800 ? prDetail.body.slice(0, 800) + '…' : prDetail.body}
-                                            </p>
-                                        </div>
+                                        <PrDescription body={prDetail.body} />
                                     )}
+
+                                    {/* Comments */}
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-2">
+                                            Comments {prComments.length > 0 && `(${prComments.length})`}
+                                        </p>
+                                        {loadingComments ? (
+                                            <div className="flex items-center gap-2 py-2">
+                                                <Loader2 className="h-3 w-3 text-[#A78BFA] animate-spin" />
+                                                <span className="text-[11px] text-[#6B7280]">Loading comments…</span>
+                                            </div>
+                                        ) : prComments.length === 0 ? (
+                                            <p className="text-[11px] text-[#6B7280]">No comments</p>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {prComments.map(comment => (
+                                                    <div key={comment.id} className="p-2.5 rounded-lg bg-[#13131A] border border-[#2A2A3A]">
+                                                        <div className="flex items-center gap-2 mb-1.5">
+                                                            <img src={comment.userAvatar} className="w-4 h-4 rounded-full" alt={comment.user} />
+                                                            <span className="text-[11px] font-semibold text-[#E2E8F0]">{comment.user}</span>
+                                                            <span className="text-[10px] text-[#6B7280]">{formatTimeAgo(comment.createdAt)}</span>
+                                                        </div>
+                                                        <p className="text-[11px] text-[#9CA3AF] whitespace-pre-wrap break-words leading-relaxed">
+                                                            {comment.body.length > 500 ? comment.body.slice(0, 500) + '…' : comment.body}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </>
                             ) : (
                                 <div className="text-center py-8 text-[#6B7280] text-xs">Failed to load details</div>

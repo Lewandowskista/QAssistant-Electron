@@ -1,57 +1,81 @@
 // cspell:ignore youtu
-import { useState, useMemo, useEffect, useCallback } from "react"
-import { useProjectStore, Project, Task, TaskStatus } from "@/store/useProjectStore"
-import type { AnalysisEntry } from "@/types/project"
-import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
-import { useLinearAutoSync } from "@/hooks/useLinearAutoSync"
-import {
-    Plus,
-    Search,
-    RefreshCw,
-    Loader2,
-    HelpCircle,
-} from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
     DndContext,
+    DragEndEvent,
     DragOverlay,
-    closestCorners,
+    DragOverEvent,
+    DragStartEvent,
     KeyboardSensor,
     PointerSensor,
+    closestCorners,
     useSensor,
-    useSensors,
-    DragStartEvent,
-    DragOverEvent,
-    DragEndEvent,
+    useSensors
 } from "@dnd-kit/core"
-import {
-    sortableKeyboardCoordinates,
-} from "@dnd-kit/sortable"
-
-import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
+import { HelpCircle, Loader2, Plus, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
-
-// Extracted Components
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
+import { sanitizeProjectForQaAi, sanitizeTaskForQaAi } from "@/lib/aiUtils"
+import {
+    DEFAULT_TASK_FILTERS,
+    TaskBoardFilters,
+    TaskBoardColumn,
+    TaskSortMode,
+    applySummaryPreset,
+    buildTriageSections,
+    deriveTaskViewModels,
+    filterTaskViewModels,
+    getTaskBoardColumns,
+    getTaskFilterOptions,
+    getBoardMetrics,
+    getSummaryRail,
+    sortTaskViewModels
+} from "@/lib/tasks"
+import { useLinearAutoSync } from "@/hooks/useLinearAutoSync"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { TaskBoardSummary } from "@/components/tasks/TaskBoardSummary"
+import { TaskFilterBar } from "@/components/tasks/TaskFilterBar"
 import { TaskCard } from "@/components/tasks/TaskCard"
 import { TaskColumn } from "@/components/tasks/TaskColumn"
 import { TaskDetailsSidebar } from "@/components/tasks/TaskDetailsSidebar"
 import { NewTaskModal } from "@/components/tasks/NewTaskModal"
+import { TaskTriageView } from "@/components/tasks/TaskTriageView"
 import AnalysisResultDialog from "@/components/tasks/AnalysisResultDialog"
-import { sanitizeProjectForAi } from "@/lib/aiUtils"
+import { Project, Task, useProjectStore } from "@/store/useProjectStore"
+import type { AnalysisEntry } from "@/types/project"
 
-type Column = { id: string; title: string; color: string; textColor: string; type?: string }
+const FILTER_STORAGE_PREFIX = "qassistant:taskFilters:"
+const BOARD_STORAGE_PREFIX = "qassistant:taskBoardMode:"
+const SORT_STORAGE_PREFIX = "qassistant:taskSortMode:"
+const FILTER_PANEL_STORAGE_PREFIX = "qassistant:taskFilterPanel:"
 
-const DEFAULT_COLUMNS: Column[] = [
-    { id: 'backlog', title: 'BACKLOG', color: 'bg-[#9CA3AF]', textColor: 'text-[#9CA3AF]' },
-    { id: 'todo', title: 'TODO', color: 'bg-[#6B7280]', textColor: 'text-[#6B7280]' },
-    { id: 'in-progress', title: 'IN PROGRESS', color: 'bg-[#3B82F6]', textColor: 'text-[#3B82F6]' },
-    { id: 'in-review', title: 'IN REVIEW', color: 'bg-[#A78BFA]', textColor: 'text-[#A78BFA]' },
-    { id: 'done', title: 'DONE', color: 'bg-[#10B981]', textColor: 'text-[#10B981]' },
-    { id: 'canceled', title: 'CANCELED', color: 'bg-[#EF4444]', textColor: 'text-[#EF4444]' },
-    { id: 'duplicate', title: 'DUPLICATE', color: 'bg-[#F59E0B]', textColor: 'text-[#F59E0B]' },
-]
+function toLinearColumn(state: { name: string; type?: string }) : TaskBoardColumn {
+    const type = String(state.type || "").toLowerCase()
+    if (type === "completed") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#10B981]", color: "bg-[#10B981]", type: state.type }
+    if (type === "canceled") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#EF4444]", color: "bg-[#EF4444]", type: state.type }
+    if (type === "started") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#3B82F6]", color: "bg-[#3B82F6]", type: state.type }
+    if (type === "unstarted") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#6B7280]", color: "bg-[#6B7280]", type: state.type }
+    return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#A78BFA]", color: "bg-[#A78BFA]", type: state.type }
+}
+
+function toJiraColumn(status: { name: string; category?: string }) : TaskBoardColumn {
+    const category = String(status.category || "").toLowerCase()
+    if (category.includes("done")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#10B981]", color: "bg-[#10B981]", type: "done" }
+    if (category.includes("progress") || category.includes("indeterminate")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#3B82F6]", color: "bg-[#3B82F6]", type: "started" }
+    return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#6B7280]", color: "bg-[#6B7280]", type: "unstarted" }
+}
+
+function loadJson<T>(key: string, fallback: T): T {
+    try {
+        const raw = window.localStorage.getItem(key)
+        return raw ? { ...fallback, ...JSON.parse(raw) } : fallback
+    } catch {
+        return fallback
+    }
+}
 
 export default function TasksPage() {
     const api = window.electronAPI
@@ -61,9 +85,8 @@ export default function TasksPage() {
     const deleteTask = useProjectStore((state) => state.deleteTask)
     const moveTask = useProjectStore((state) => state.moveTask)
     const updateProject = useProjectStore((state) => state.updateProject)
-    const loadProjects = useProjectStore((state) => state.loadProjects)
 
-    const activeProject = useMemo(() => projects.find((p: Project) => p.id === activeProjectId), [projects, activeProjectId])
+    const activeProject = useMemo(() => projects.find((project: Project) => project.id === activeProjectId), [projects, activeProjectId])
     const tasks = useMemo(() => activeProject?.tasks || [], [activeProject?.tasks])
 
     const [activeTask, setActiveTask] = useState<Task | null>(null)
@@ -71,90 +94,95 @@ export default function TasksPage() {
     const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false)
     const [currentAnalysisResult, setCurrentAnalysisResult] = useState<string | null>(null)
     const [taskBeingAnalyzed, setTaskBeingAnalyzed] = useState<Task | null>(null)
-    const [searchQuery, setSearchQuery] = useState("")
-    const [sourceMode, setSourceMode] = useState<'manual' | 'linear' | 'jira'>('manual')
-    const [versionFilter, setVersionFilter] = useState<string | null>(null)
+    const [sourceMode, setSourceMode] = useState<"manual" | "linear" | "jira">("manual")
+    const [sortMode, setSortMode] = useState<TaskSortMode>("manual")
+    const [boardMode, setBoardMode] = useState<"board" | "triage">("board")
+    const [filters, setFiltersState] = useState<TaskBoardFilters>(DEFAULT_TASK_FILTERS)
+    const [isFilterPanelCollapsed, setIsFilterPanelCollapsed] = useState(true)
     const [isSyncing, setIsSyncing] = useState(false)
-    const [isLoading, setIsLoading] = useState(false) // Renamed from isAnalyzing
+    const [isLoading, setIsLoading] = useState(false)
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false)
     const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false)
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
     const [syncTimestamp, setSyncTimestamp] = useState<number | null>(null)
+    const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null)
 
-    const selectedTask = useMemo(() => tasks.find((t: Task) => t.id === detailsId) || null, [tasks, detailsId])
+    useEffect(() => {
+        if (!activeProjectId) return
+        setFiltersState(loadJson(`${FILTER_STORAGE_PREFIX}${activeProjectId}`, DEFAULT_TASK_FILTERS))
+        setBoardMode(loadJson(`${BOARD_STORAGE_PREFIX}${activeProjectId}`, { value: "board" }).value as "board" | "triage")
+        setSortMode(loadJson(`${SORT_STORAGE_PREFIX}${activeProjectId}`, { value: "manual" }).value as TaskSortMode)
+        setIsFilterPanelCollapsed(loadJson(`${FILTER_PANEL_STORAGE_PREFIX}${activeProjectId}`, { value: true }).value as boolean)
+    }, [activeProjectId])
+
+    const setFilters = useCallback((updater: (current: TaskBoardFilters) => TaskBoardFilters) => {
+        setFiltersState((current) => {
+            const next = updater(current)
+            if (activeProjectId) window.localStorage.setItem(`${FILTER_STORAGE_PREFIX}${activeProjectId}`, JSON.stringify(next))
+            return next
+        })
+    }, [activeProjectId])
+
+    const persistBoardMode = (mode: "board" | "triage") => {
+        setBoardMode(mode)
+        if (activeProjectId) window.localStorage.setItem(`${BOARD_STORAGE_PREFIX}${activeProjectId}`, JSON.stringify({ value: mode }))
+    }
+
+    const persistSortMode = (mode: TaskSortMode) => {
+        setSortMode(mode)
+        if (activeProjectId) window.localStorage.setItem(`${SORT_STORAGE_PREFIX}${activeProjectId}`, JSON.stringify({ value: mode }))
+    }
+
+    const persistFilterPanelCollapsed = (collapsed: boolean) => {
+        setIsFilterPanelCollapsed(collapsed)
+        if (activeProjectId) window.localStorage.setItem(`${FILTER_PANEL_STORAGE_PREFIX}${activeProjectId}`, JSON.stringify({ value: collapsed }))
+    }
+
+    const selectedTask = useMemo(() => tasks.find((task: Task) => task.id === detailsId) || null, [tasks, detailsId])
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     )
 
-    const filteredTasks = useMemo(() => {
-        return tasks.filter((t: Task) => {
-            const q = searchQuery.toLowerCase()
-            const matchesSearch = t.title.toLowerCase().includes(q) ||
-                t.sourceIssueId?.toLowerCase().includes(q) ||
-                t.description?.toLowerCase().includes(q)
-
-            if (!matchesSearch) return false
-
-            if (sourceMode === 'manual') {
-                if (t.source !== 'manual' && t.source) return false
-            } else {
-                if (t.source !== sourceMode) return false
-            }
-
-            if (versionFilter && t.version !== versionFilter) return false
-
-            return true
-        })
-    }, [tasks, searchQuery, sourceMode, versionFilter])
-
-    const currentColumns = useMemo((): Column[] => {
-        if (activeProject?.columns && activeProject.columns.length > 0) {
-            return activeProject.columns as Column[]
-        }
-        return DEFAULT_COLUMNS
-    }, [activeProject?.columns])
-
-    const tasksByColumn = useMemo(() => {
-        return currentColumns.reduce((acc: Record<string, Task[]>, col: Column) => {
-            acc[col.id] = filteredTasks.filter((t: Task) => t.status === col.id)
-            return acc
-        }, {} as Record<string, Task[]>)
-    }, [filteredTasks, currentColumns])
-
-    const uniqueVersions = useMemo(() => {
-        const versions = new Set(tasks.filter(t => t.version).map(t => t.version))
-        return Array.from(versions).sort()
-    }, [tasks])
-
-    // Keyboard Shortcuts
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-                e.preventDefault()
-                setIsShortcutModalOpen(prev => !prev)
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === "/") {
+                event.preventDefault()
+                setIsShortcutModalOpen((value) => !value)
             }
-            if (e.key === 'Escape') {
+            if (event.key === "Escape") {
                 if (isShortcutModalOpen) setIsShortcutModalOpen(false)
                 else setDetailsId(null)
             }
         }
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
     }, [isShortcutModalOpen])
 
-    const getLinearApiKey = useCallback(async (connId?: string) => {
-        return getConnectionApiKey(api, 'linear_api_key', connId, activeProject?.id)
-    }, [activeProject, api])
+    const effectiveSource = filters.source === "all" ? sourceMode : filters.source
+    const taskViewModels = useMemo(() => activeProject ? deriveTaskViewModels(activeProject) : [], [activeProject])
+    const sourceTaskViewModels = useMemo(() => taskViewModels.filter((task) => (task.task.source || "manual") === effectiveSource), [taskViewModels, effectiveSource])
+    const currentColumns = useMemo(() => activeProject ? getTaskBoardColumns(activeProject, effectiveSource) : [], [activeProject, effectiveSource])
+    const filterOptions = useMemo(() => getTaskFilterOptions(sourceTaskViewModels), [sourceTaskViewModels])
+    const filteredTaskViews = useMemo(() => filterTaskViewModels(taskViewModels, { ...filters, source: effectiveSource }, null), [filters, effectiveSource, taskViewModels])
+    const sortedTaskViews = useMemo(() => sortTaskViewModels(filteredTaskViews, sortMode), [filteredTaskViews, sortMode])
+    const tasksByColumn = useMemo(() => currentColumns.reduce((acc, col) => {
+        acc[col.id] = sortedTaskViews.filter((task) => task.task.status === col.id)
+        return acc
+    }, {} as Record<string, typeof sortedTaskViews>), [sortedTaskViews, currentColumns])
+    const boardMetrics = useMemo(() => getBoardMetrics(filteredTaskViews, filters.assignee !== "all" ? filters.assignee : null), [filteredTaskViews, filters.assignee])
+    const summaryRail = useMemo(() => getSummaryRail(filteredTaskViews), [filteredTaskViews])
+    const triageSections = useMemo(() => buildTriageSections(sortedTaskViews), [sortedTaskViews])
 
-    const getJiraCredentials = useCallback(async (connId?: string) => {
-        const keyPrefix = activeProject ? `project:${activeProject.id}:` : ''
-        if (connId) {
-            const conn = activeProject?.jiraConnections?.find((c) => c.id === connId)
-            if (conn) {
-                const key = await api.secureStoreGet(`${keyPrefix}jira_api_token_${connId}`) || await api.secureStoreGet(`jira_api_token_${connId}`)
-                if (key) return { domain: conn.domain, email: conn.email, apiKey: key }
+    const getLinearApiKey = useCallback(async (connectionId?: string) => getConnectionApiKey(api, "linear_api_key", connectionId, activeProject?.id), [activeProject, api])
+
+    const getJiraCredentials = useCallback(async (connectionId?: string) => {
+        if (connectionId) {
+            const connection = activeProject?.jiraConnections?.find((item) => item.id === connectionId)
+            if (connection) {
+                const apiKey = await api.secureStoreGet(`project:${activeProject?.id}:jira_api_token_${connectionId}`) || await api.secureStoreGet(`jira_api_token_${connectionId}`)
+                if (apiKey) return { domain: connection.domain, email: connection.email, apiKey }
             }
         }
         return null
@@ -162,56 +190,37 @@ export default function TasksPage() {
 
     const syncLinearTasks = useCallback(async (allSyncedTasks: Task[]) => {
         if (!activeProjectId || !activeProject) return
-
-        const allColumns: Column[] = []
-        const conns = activeProject.linearConnections || []
-
-        for (const conn of conns) {
-            const apiKey = await getConnectionApiKey(api, 'linear_api_key', conn.id, activeProject?.id)
-            if (apiKey) {
-                const states = await api.getLinearWorkflowStates({ apiKey, teamId: conn.teamId })
-                states.forEach((s: { name: string; color?: string; type?: string }) => {
-                    if (!allColumns.find(c => c.id === s.name)) {
-                        allColumns.push({
-                            id: s.name,
-                            title: s.name.toUpperCase(),
-                            color: s.color ? `bg-[${s.color}]` : 'bg-[#3B82F6]',
-                            textColor: s.color ? `text-[${s.color}]` : 'text-[#3B82F6]',
-                            type: s.type
-                        })
-                    }
-                })
-            }
+        const allColumns: TaskBoardColumn[] = []
+        for (const connection of activeProject.linearConnections || []) {
+            const apiKey = await getConnectionApiKey(api, "linear_api_key", connection.id, activeProject.id)
+            if (!apiKey) continue
+            const states = await api.getLinearWorkflowStates({ apiKey, teamId: connection.teamId })
+            states.forEach((state: { name: string; type?: string }) => {
+                if (allColumns.find((column) => column.id === state.name)) return
+                allColumns.push(toLinearColumn(state))
+            })
         }
-
-        const existing = activeProject.tasks || []
-        const otherSourceTasks = existing.filter((t: Task) => t.source !== 'linear')
-        await updateProject(activeProjectId, { tasks: [...otherSourceTasks, ...allSyncedTasks], columns: allColumns })
-        await loadProjects()
+        const otherSourceTasks = (activeProject.tasks || []).filter((task) => task.source !== "linear")
+        await updateProject(activeProjectId, {
+            tasks: [...otherSourceTasks, ...allSyncedTasks],
+            sourceColumns: { ...(activeProject.sourceColumns || {}), linear: allColumns }
+        })
         setSyncTimestamp(Date.now())
-    }, [activeProjectId, activeProject, api, updateProject, loadProjects])
+    }, [activeProjectId, activeProject, api, updateProject])
 
-    // Format relative time for display
-    const formatRelativeTime = (timestamp: number): string => {
-        const now = Date.now()
-        const diffMs = now - timestamp
-        const diffS = Math.floor(diffMs / 1000)
-        const diffM = Math.floor(diffS / 60)
-        const diffH = Math.floor(diffM / 60)
-
-        if (diffS < 60) return 'just now'
-        if (diffM < 60) return `${diffM}m ago`
-        if (diffH < 24) return `${diffH}h ago`
-        return `${Math.floor(diffH / 24)}d ago`
+    const formatRelativeTime = (timestamp: number) => {
+        const diffSeconds = Math.floor((Date.now() - timestamp) / 1000)
+        if (diffSeconds < 60) return "just now"
+        if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`
+        if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`
+        return `${Math.floor(diffSeconds / 86400)}d ago`
     }
 
-    // Update sync timestamp display every 30 seconds
     useEffect(() => {
-        const interval = setInterval(() => setSyncTimestamp(prev => prev ? prev : null), 30000)
+        const interval = setInterval(() => setSyncTimestamp((value) => value), 30000)
         return () => clearInterval(interval)
     }, [])
 
-    // Auto-sync hook for Linear
     const { lastSyncedAt } = useLinearAutoSync({
         activeProject: activeProject || null,
         sourceMode,
@@ -220,46 +229,50 @@ export default function TasksPage() {
         intervalMs: 45_000
     })
 
-    // Use auto-sync timestamp when available, fall back to manual timestamp
     const displaySyncTime = lastSyncedAt || syncTimestamp
 
-    const handleSync = async (specificSource?: 'linear' | 'jira') => {
+    const handleSync = async (specificSource?: "linear" | "jira") => {
         if (!activeProjectId || !activeProject) return
         const mode = specificSource || sourceMode
-        if (mode === 'manual') return
-
+        if (mode === "manual") return
         setIsSyncing(true)
         try {
-            if (mode === 'linear') {
-                const conns = activeProject.linearConnections || []
+            if (mode === "linear") {
                 let allSyncedTasks: Task[] = []
-
-                for (const conn of conns) {
-                    const apiKey = await getConnectionApiKey(api, 'linear_api_key', conn.id, activeProject?.id)
-                    if (apiKey) {
-                        const syncedTasks = await api.syncLinear({ apiKey, teamKey: conn.teamId, connectionId: conn.id })
-                        allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
-                    }
+                for (const connection of activeProject.linearConnections || []) {
+                    const apiKey = await getConnectionApiKey(api, "linear_api_key", connection.id, activeProject.id)
+                    if (!apiKey) continue
+                    const syncedTasks = await api.syncLinear({ apiKey, teamKey: connection.teamId, connectionId: connection.id })
+                    allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
                 }
-
                 await syncLinearTasks(allSyncedTasks)
-            } else if (mode === 'jira') {
-                const conns = activeProject.jiraConnections || []
+            } else {
                 let allSyncedTasks: Task[] = []
-                for (const conn of conns) {
-                    const apiKey = await getConnectionApiKey(api, 'jira_api_token', conn.id, activeProject?.id)
-                    if (apiKey) {
-                        const syncedTasks = await api.syncJira({ domain: conn.domain, email: conn.email, apiKey, projectKey: conn.projectKey, connectionId: conn.id })
-                        allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
-                    }
+                for (const connection of activeProject.jiraConnections || []) {
+                    const apiKey = await getConnectionApiKey(api, "jira_api_token", connection.id, activeProject.id)
+                    if (!apiKey) continue
+                    const syncedTasks = await api.syncJira({ domain: connection.domain, email: connection.email, apiKey, projectKey: connection.projectKey, connectionId: connection.id })
+                    allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
                 }
-                const existing = activeProject.tasks || []
-                const otherSourceTasks = existing.filter((t: Task) => t.source !== 'jira')
-                await updateProject(activeProjectId, { tasks: [...otherSourceTasks, ...allSyncedTasks] })
-                await loadProjects()
+                const otherSourceTasks = (activeProject.tasks || []).filter((task) => task.source !== "jira")
+                const jiraColumns: TaskBoardColumn[] = []
+                for (const connection of activeProject.jiraConnections || []) {
+                    const apiKey = await getConnectionApiKey(api, "jira_api_token", connection.id, activeProject.id)
+                    if (!apiKey) continue
+                    const statuses = await api.getJiraStatuses({ domain: connection.domain, email: connection.email, apiKey, projectKey: connection.projectKey })
+                    statuses.forEach((status: { name: string; category?: string }) => {
+                        if (jiraColumns.find((column) => column.id === status.name)) return
+                        jiraColumns.push(toJiraColumn(status))
+                    })
+                }
+                await updateProject(activeProjectId, {
+                    tasks: [...otherSourceTasks, ...allSyncedTasks],
+                    sourceColumns: { ...(activeProject.sourceColumns || {}), jira: jiraColumns }
+                })
+                setSyncTimestamp(Date.now())
             }
-        } catch (e) {
-            toast.error(`Sync failed: ${e instanceof Error ? e.message : String(e)}`)
+        } catch (error) {
+            toast.error(`Sync failed: ${error instanceof Error ? error.message : String(error)}`)
         } finally {
             setIsSyncing(false)
         }
@@ -268,76 +281,65 @@ export default function TasksPage() {
     const handleConfirmAddTask = async (taskData: Partial<Task> & { title: string; source?: string; connectionId?: string; priority?: string }) => {
         if (!activeProjectId || !taskData.title.trim()) return
         try {
-            if (taskData.source === 'manual') {
+            if (taskData.source === "manual") {
                 await addTask(activeProjectId, taskData)
                 setIsNewTaskModalOpen(false)
-            } else if (taskData.source === 'linear') {
+            } else if (taskData.source === "linear") {
                 const apiKey = await getLinearApiKey(taskData.connectionId)
-                const conn = activeProject?.linearConnections?.find((c) => c.id === taskData.connectionId)
-                if (!apiKey || !conn) throw new Error("Linear credentials missing.")
+                const connection = activeProject?.linearConnections?.find((item) => item.id === taskData.connectionId)
+                if (!apiKey || !connection) throw new Error("Linear credentials missing.")
                 const url = await api.createLinearIssue({
                     apiKey,
-                    teamId: conn.teamId,
+                    teamId: connection.teamId,
                     title: taskData.title,
                     description: taskData.description,
-                    priority: taskData.priority === 'critical' ? 1 : taskData.priority === 'high' ? 2 : taskData.priority === 'medium' ? 3 : 4
+                    priority: taskData.priority === "critical" ? 1 : taskData.priority === "high" ? 2 : taskData.priority === "medium" ? 3 : 4
                 })
                 if (url) {
-                    toast.success("Linear issue created!")
+                    toast.success("Linear issue created.")
                     setIsNewTaskModalOpen(false)
-                    handleSync('linear')
+                    handleSync("linear")
                 }
-            } else if (taskData.source === 'jira') {
-                const creds = await getJiraCredentials(taskData.connectionId)
-                const conn = activeProject?.jiraConnections?.find((c) => c.id === taskData.connectionId)
-                if (!creds || !conn) throw new Error("Jira credentials missing.")
-                const key = await api.createJiraIssue({ ...creds, projectKey: conn.projectKey, title: taskData.title, description: taskData.description })
+            } else if (taskData.source === "jira") {
+                const credentials = await getJiraCredentials(taskData.connectionId)
+                const connection = activeProject?.jiraConnections?.find((item) => item.id === taskData.connectionId)
+                if (!credentials || !connection) throw new Error("Jira credentials missing.")
+                const key = await api.createJiraIssue({ ...credentials, projectKey: connection.projectKey, title: taskData.title, description: taskData.description })
                 if (key) {
-                    toast.success(`Jira issue ${key} created!`)
+                    toast.success(`Jira issue ${key} created.`)
                     setIsNewTaskModalOpen(false)
-                    handleSync('jira')
+                    handleSync("jira")
                 }
             }
-        } catch (e) {
-            toast.error(`Failed: ${e instanceof Error ? e.message : String(e)}`)
+        } catch (error) {
+            toast.error(`Failed: ${error instanceof Error ? error.message : String(error)}`)
         }
     }
 
     const handleAnalyzeIssue = async (task: Task) => {
-        if (!api) return
-
-        const apiKey = await getApiKey(api, 'gemini_api_key', activeProjectId)
+        const apiKey = await getApiKey(api, "gemini_api_key", activeProjectId)
         if (!apiKey) {
-            toast.error('Please set your Gemini API key in Settings.')
+            toast.error("Please set your Gemini API key in Settings.")
             return
         }
 
         setIsLoading(true)
         setTaskBeingAnalyzed(task)
         try {
-            // Fetch comments if applicable to enrich analysis
             let comments: unknown[] = []
-            if (task.source === 'linear' && task.sourceIssueId) {
-                try {
-                    const linearKey = await getLinearApiKey(task.connectionId)
-                    if (linearKey) comments = await api.getLinearComments({ apiKey: linearKey, issueId: task.sourceIssueId })
-                } catch (e) {
-                    console.error('Failed to fetch Linear comments:', e)
-                }
-            } else if (task.source === 'jira' && task.externalId) {
-                try {
-                    const creds = await getJiraCredentials(task.connectionId)
-                    if (creds) comments = await api.getJiraComments({ ...creds, issueKey: task.externalId })
-                } catch (e) {
-                    console.error('Failed to fetch Jira comments:', e)
-                }
+            if (task.source === "linear" && task.sourceIssueId) {
+                const linearKey = await getLinearApiKey(task.connectionId)
+                if (linearKey) comments = await api.getLinearComments({ apiKey: linearKey, issueId: task.sourceIssueId })
+            } else if (task.source === "jira" && task.externalId) {
+                const credentials = await getJiraCredentials(task.connectionId)
+                if (credentials) comments = await api.getJiraComments({ ...credentials, issueKey: task.externalId })
             }
 
             const result = await api.aiAnalyzeIssue({
                 apiKey,
-                task,
-                comments: comments || [],
-                project: sanitizeProjectForAi(activeProject),
+                task: sanitizeTaskForQaAi(task, activeProject?.environments || []),
+                comments,
+                project: sanitizeProjectForQaAi(activeProject),
                 modelName: activeProject?.geminiModel
             })
 
@@ -345,25 +347,19 @@ export default function TasksPage() {
                 version: (task.analysisHistory?.length || 0) + 1,
                 hash: crypto.randomUUID(),
                 timestamp: Date.now(),
-                summary: result.split('\n')[0].substring(0, 100),
+                summary: result.split("\n")[0].slice(0, 100),
                 fullResult: result,
                 taskStatus: task.status,
                 taskPriority: task.priority
             }
 
-            const updatedTasks = activeProject!.tasks.map((t: Task) =>
-                t.id === task.id
-                    ? { ...t, analysisHistory: [historyEntry, ...(t.analysisHistory || [])] }
-                    : t
-            )
+            await updateProject(activeProjectId!, {
+                tasks: activeProject!.tasks.map((entry: Task) => entry.id === task.id ? { ...entry, analysisHistory: [historyEntry, ...(entry.analysisHistory || [])] } : entry)
+            })
 
-            await updateProject(activeProjectId!, { tasks: updatedTasks })
-
-            // Show the emergent window
             setCurrentAnalysisResult(result)
             setIsAnalysisDialogOpen(true)
-
-            toast.success('Analysis complete')
+            toast.success("Analysis complete")
         } catch (error) {
             toast.error(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`)
         } finally {
@@ -372,131 +368,259 @@ export default function TasksPage() {
     }
 
     const onDragStart = (event: DragStartEvent) => {
-        const task = tasks.find((t: Task) => t.id === event.active.id)
+        if (sortMode !== "manual") return
+        const task = tasks.find((entry: Task) => entry.id === event.active.id)
         if (task) setActiveTask(task)
     }
 
     const onDragOver = (event: DragOverEvent) => {
+        if (sortMode !== "manual") return
         const { active, over } = event
         if (!over || !activeProjectId) return
         const activeId = active.id.toString()
         const overId = over.id.toString()
 
-        const overColumn = currentColumns.find((c: Column) => c.id === overId)
+        const overColumn = currentColumns.find((column) => column.id === overId)
         if (overColumn) {
-            if (activeTask && activeTask.status !== overColumn.id) {
-                moveTask(activeProjectId, activeId, overColumn.id)
-            }
-        } else {
-            const overTask = tasks.find((t: Task) => t.id === overId)
-            if (overTask) moveTask(activeProjectId, activeId, overTask.status as TaskStatus, overId)
+            if (activeTask && activeTask.status !== overColumn.id) moveTask(activeProjectId, activeId, overColumn.id)
+            return
         }
+
+        const overTask = tasks.find((entry: Task) => entry.id === overId)
+        if (overTask?.status) moveTask(activeProjectId, activeId, overTask.status, overId)
     }
 
     const onDragEnd = async (event: DragEndEvent) => {
+        if (sortMode !== "manual") {
+            setActiveTask(null)
+            return
+        }
         const { over } = event
         if (over && activeTask) {
-            // Sync status change back to source if external task
             try {
-                const overColumnId = over.id?.toString()
-                const overColumn = currentColumns.find((c: Column) => c.id === overColumnId)
-                // If dropped on a task card (not a column), resolve the target column from that task
-                const overTask = !overColumn ? tasks.find((t: Task) => t.id === overColumnId) : null
+                const overColumnId = over.id.toString()
+                const overColumn = currentColumns.find((column) => column.id === overColumnId)
+                const overTask = !overColumn ? tasks.find((entry: Task) => entry.id === overColumnId) : null
                 const newStatus = overColumn?.id ?? overTask?.status
 
                 if (newStatus && activeTask.status !== newStatus) {
-                    if (activeTask.source === 'linear' && activeTask.externalId) {
+                    if (activeTask.source === "linear" && activeTask.externalId) {
                         const apiKey = await getLinearApiKey(activeTask.connectionId)
                         if (apiKey) {
-                            const conn = activeProject?.linearConnections?.find((c) => c.id === activeTask.connectionId)
-                            const states: Array<{id: string; name: string; type?: string; color?: string}> = await api.getLinearWorkflowStates({ apiKey, teamId: conn?.teamId })
-                            const targetState = states.find((s) => s.name === newStatus)
-                            if (targetState?.id) {
-                                await api.updateLinearStatus({ apiKey, issueId: activeTask.externalId, stateId: targetState.id })
-                            } else {
-                                toast.error(`Could not find Linear state: ${newStatus}`)
-                            }
+                            const connection = activeProject?.linearConnections?.find((item) => item.id === activeTask.connectionId)
+                            if (!connection?.teamId) throw new Error("Linear connection configuration is missing.")
+                            const states = await api.getLinearWorkflowStates({ apiKey, teamId: connection.teamId })
+                            const targetState = states.find((state: { id: string; name: string }) => state.name === newStatus)
+                            if (!targetState?.id) throw new Error(`Could not find Linear state: ${newStatus}`)
+                            await api.updateLinearStatus({ apiKey, issueId: activeTask.externalId, stateId: targetState.id })
                         }
-                    } else if (activeTask.source === 'jira' && activeTask.externalId) {
-                        const creds = await getJiraCredentials(activeTask.connectionId)
-                        if (creds) {
-                            await api.transitionJiraIssue({ ...creds, issueKey: activeTask.externalId, transitionName: newStatus })
-                        }
+                    } else if (activeTask.source === "jira" && activeTask.externalId) {
+                        const credentials = await getJiraCredentials(activeTask.connectionId)
+                        if (credentials) await api.transitionJiraIssue({ ...credentials, issueKey: activeTask.externalId, transitionName: newStatus })
                     }
                 }
-            } catch (e) {
-                toast.error(`Failed to sync status: ${e instanceof Error ? e.message : String(e)}`)
-                console.error('Failed to sync drag status change:', e)
+            } catch (error) {
+                toast.error(`Failed to sync status: ${error instanceof Error ? error.message : String(error)}`)
             }
         }
         setActiveTask(null)
     }
 
+    const handleUpdateTask = async (updates: Partial<Task>) => {
+        if (!activeProjectId || !selectedTask) return
+        if (updates.status && selectedTask.status !== updates.status) {
+            try {
+                if (selectedTask.source === "linear" && selectedTask.externalId) {
+                    const apiKey = await getLinearApiKey(selectedTask.connectionId)
+                    const connection = activeProject?.linearConnections?.find((item) => item.id === selectedTask.connectionId)
+                    if (apiKey) {
+                        const states = await api.getLinearWorkflowStates({ apiKey, teamId: connection?.teamId })
+                        const targetState = states.find((state: { id: string; name: string }) => state.name === updates.status)
+                        if (targetState?.id) await api.updateLinearStatus({ apiKey, issueId: selectedTask.externalId, stateId: targetState.id })
+                    }
+                } else if (selectedTask.source === "jira" && selectedTask.externalId) {
+                    const credentials = await getJiraCredentials(selectedTask.connectionId)
+                    if (credentials) await api.transitionJiraIssue({ ...credentials, issueKey: selectedTask.externalId, transitionName: updates.status })
+                }
+            } catch {
+                toast.error(`Failed to update status on ${selectedTask.source === "linear" ? "Linear" : "Jira"}`)
+            }
+        }
+
+        await updateProject(activeProjectId, {
+            tasks: tasks.map((task: Task) => task.id === selectedTask.id ? { ...task, ...updates, updatedAt: Date.now() } : task)
+        })
+        toast.success("Updated")
+    }
+
+    const handleCopyReference = async (taskId: string) => {
+        const task = tasks.find((entry) => entry.id === taskId)
+        if (!task) return
+        await navigator.clipboard.writeText(task.sourceIssueId || task.externalId || task.title)
+        toast.success("Task reference copied")
+    }
+
+    const openExternalTask = (taskId: string) => {
+        const task = tasks.find((entry) => entry.id === taskId)
+        if (task?.ticketUrl) api.openUrl(task.ticketUrl)
+    }
+
+    const clearFilters = () => setFilters(() => ({ ...DEFAULT_TASK_FILTERS, source: sourceMode }))
+
+    const filterChipClass = "rounded-lg border border-[#2A2A3A] bg-[#13131A] px-3 py-2 text-left transition-colors hover:border-[#A78BFA]/40"
+    const noExternalConnections = sourceMode === "linear"
+        ? (activeProject?.linearConnections?.length ?? 0) === 0
+        : sourceMode === "jira"
+            ? (activeProject?.jiraConnections?.length ?? 0) === 0
+            : false
+
     return (
-        <div className="h-full flex flex-col animate-in fade-in duration-500 overflow-hidden text-[#E2E8F0]">
-            <header className="flex-none bg-[#0F0F13] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex bg-[#1A1A24] p-1 rounded-lg border border-[#2A2A3A]">
-                        {(['manual', 'linear', 'jira'] as const).map(mode => (
-                            <Button
-                                key={mode}
-                                variant="ghost" size="sm"
-                                onClick={() => setSourceMode(mode)}
-                                className={cn("h-8 px-3 text-[11px] font-bold transition-all", sourceMode === mode ? "bg-[#2A2A3A]/80 text-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}
-                            >
-                                {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                            </Button>
-                        ))}
-                    </div>
-                    {sourceMode !== 'manual' && (
-                        <div className="flex items-center gap-2">
-                            <Button onClick={() => handleSync()} disabled={isSyncing} className="h-8 px-3 text-[11px] font-bold bg-[#A78BFA]/10 text-[#A78BFA] gap-1.5 border border-[#A78BFA]/20" variant="ghost">
-                                {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                                Sync {sourceMode.charAt(0).toUpperCase() + sourceMode.slice(1)}
-                            </Button>
-                            {displaySyncTime && (
-                                <span className="text-[10px] text-[#6B7280]">
-                                    Last synced: {formatRelativeTime(displaySyncTime)}
-                                </span>
-                            )}
+        <div className="flex h-full flex-col overflow-hidden text-[#E2E8F0] animate-in fade-in duration-500">
+            <header className="flex-none space-y-3 border-b border-[#2A2A3A] bg-[#0F0F13] px-6 py-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-3">
+                        <div className="flex rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-1">
+                            {(["manual", "linear", "jira"] as const).map((mode) => (
+                                <Button
+                                    key={mode}
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        setSourceMode(mode)
+                                        setFilters((current) => ({ ...current, source: mode }))
+                                    }}
+                                    className={cn("h-8 px-3 text-[11px] font-bold transition-all", sourceMode === mode ? "bg-[#2A2A3A]/80 text-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}
+                                >
+                                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                </Button>
+                            ))}
                         </div>
-                    )}
+                        {sourceMode !== "manual" && (
+                            <div className="flex items-center gap-2">
+                                <Button onClick={() => handleSync()} disabled={isSyncing} variant="ghost" className="h-8 gap-1.5 border border-[#A78BFA]/20 bg-[#A78BFA]/10 px-3 text-[11px] font-bold text-[#A78BFA]">
+                                    {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                    Sync {sourceMode.charAt(0).toUpperCase() + sourceMode.slice(1)}
+                                </Button>
+                                {displaySyncTime && <span className="text-[10px] text-[#6B7280]">Last synced: {formatRelativeTime(displaySyncTime)}</span>}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={() => setIsShortcutModalOpen(true)}>
+                            <HelpCircle className="h-4 w-4" />
+                        </Button>
+                        <Button onClick={() => { setNewTaskStatus(currentColumns[0]?.id || "todo"); setIsNewTaskModalOpen(true) }} disabled={!activeProjectId} className="h-9 gap-2 border border-[#A78BFA]/30 bg-[#1A1A24] px-4 text-xs font-bold text-[#A78BFA]">
+                            <Plus className="h-3.5 w-3.5" /> NEW TASK
+                        </Button>
+                    </div>
+                </div>
+                <div className="grid grid-cols-6 gap-2">
+                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, status: "all", onlyActive: false }))}>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Open</div>
+                        <div className="mt-1 text-lg font-black text-[#E2E8F0]">{boardMetrics.open}</div>
+                    </button>
+                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, dueState: "overdue" }))}>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Overdue</div>
+                        <div className="mt-1 text-lg font-black text-[#FCA5A5]">{boardMetrics.overdue}</div>
+                    </button>
+                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, collabState: "ready_for_qa" }))}>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Ready for QA</div>
+                        <div className="mt-1 text-lg font-black text-[#7DD3FC]">{boardMetrics.readyForQa}</div>
+                    </button>
+                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, handoffState: "incomplete" }))}>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Needs Evidence</div>
+                        <div className="mt-1 text-lg font-black text-[#FDBA74]">{boardMetrics.needsEvidence}</div>
+                    </button>
+                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, coverageState: "uncovered" }))}>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Uncovered</div>
+                        <div className="mt-1 text-lg font-black text-[#FCA5A5]">{boardMetrics.uncovered}</div>
+                    </button>
+                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, onlyMine: !current.onlyMine }))}>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">My Items</div>
+                        <div className="mt-1 text-lg font-black text-[#C4B5FD]">{boardMetrics.myItems}</div>
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-3 flex-wrap min-w-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 shrink-0" onClick={() => setIsShortcutModalOpen(true)}><HelpCircle className="h-4 w-4" /></Button>
-                    {uniqueVersions.length > 0 && (
-                        <select
-                            value={versionFilter || ''}
-                            onChange={(e) => setVersionFilter(e.target.value || null)}
-                            className="h-9 px-3 text-xs rounded-md bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] outline-none hover:border-[#A78BFA]/30 shrink-0"
-                        >
-                            <option value="">All Versions</option>
-                            {uniqueVersions.map(v => (
-                                <option key={v} value={v}>{v}</option>
-                            ))}
-                        </select>
-                    )}
-                    <div className="relative group min-w-0">
-                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280] opacity-40" />
-                        <Input placeholder="Search board..." className="h-9 pl-9 w-48 xl:w-64 bg-[#13131A] border-[#2A2A3A] text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                    </div>
-                    {sourceMode === 'manual' && (
-                        <Button onClick={() => setIsNewTaskModalOpen(true)} disabled={!activeProjectId} className="h-9 px-4 font-bold text-xs gap-2 bg-[#1A1A24] text-[#A78BFA] border border-[#A78BFA]/30 shrink-0 whitespace-nowrap"><Plus className="h-3.5 w-3.5" /> NEW TASK</Button>
-                    )}
-                </div>
+                <TaskFilterBar
+                    filters={{ ...filters, source: filters.source === "all" ? sourceMode : filters.source }}
+                    setFilters={setFilters}
+                    versions={filterOptions.versions}
+                    assignees={filterOptions.assignees}
+                    components={filterOptions.components}
+                    statuses={filterOptions.statuses}
+                    labels={filterOptions.labels}
+                    sprints={filterOptions.sprints}
+                    boardMode={boardMode}
+                    onBoardModeChange={persistBoardMode}
+                    sortMode={sortMode}
+                    onSortModeChange={persistSortMode}
+                    onClear={clearFilters}
+                    collapsed={isFilterPanelCollapsed}
+                    onCollapsedChange={persistFilterPanelCollapsed}
+                />
             </header>
 
-            <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar bg-[#0F0F13]">
-                    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
-                        <div className="flex h-full min-w-max p-4 gap-4">
-                            {currentColumns.map((col: Column) => (
-                                <TaskColumn key={col.id} col={col} tasksInColumn={tasksByColumn[col.id] || []} selectedTaskId={detailsId} setSelectedTaskId={setDetailsId} sourceMode={sourceMode} onAddTask={() => setIsNewTaskModalOpen(true)} />
-                            ))}
+            <div className="flex min-h-0 flex-1">
+                <div className="flex-1 overflow-hidden bg-[#0F0F13]">
+                    <div className="flex h-full min-h-0 flex-col p-4">
+                        <div className="flex-none">
+                            <TaskBoardSummary items={summaryRail} onSelect={(id) => setFilters((current) => applySummaryPreset(id, current))} />
                         </div>
-                        <DragOverlay>{activeTask ? <TaskCard task={activeTask} isOverlay /> : null}</DragOverlay>
-                    </DndContext>
+
+                        <div className="min-h-0 flex-1 pt-4">
+                            {noExternalConnections ? (
+                            <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-8 text-center">
+                                <h3 className="text-lg font-semibold text-[#E2E8F0]">No {sourceMode} connection configured</h3>
+                                <p className="mt-2 text-sm text-[#9CA3AF]">Connect {sourceMode} in Settings to sync upstream tasks. Local enrichment stays in QAssistant after sync.</p>
+                            </div>
+                        ) : sortedTaskViews.length === 0 ? (
+                            <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-8 text-center">
+                                <h3 className="text-lg font-semibold text-[#E2E8F0]">No tasks match the current view</h3>
+                                <p className="mt-2 text-sm text-[#9CA3AF]">Try clearing filters, changing source, or creating a new task.</p>
+                            </div>
+                        ) : boardMode === "triage" ? (
+                            <div className="h-full overflow-y-auto custom-scrollbar">
+                                <TaskTriageView
+                                    sections={triageSections}
+                                    selectedTaskId={detailsId}
+                                    onSelectTask={setDetailsId}
+                                    onAnalyzeTask={handleAnalyzeIssue}
+                                />
+                            </div>
+                        ) : (
+                            <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
+                                <div className="flex h-full min-h-0">
+                                    <div className="flex min-h-0 min-w-max flex-1 gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                                        {currentColumns.map((col) => (
+                                            <TaskColumn
+                                                key={col.id}
+                                                col={col}
+                                                tasksInColumn={tasksByColumn[col.id] || []}
+                                                selectedTaskId={detailsId}
+                                                setSelectedTaskId={setDetailsId}
+                                                sourceMode={effectiveSource}
+                                                onAddTask={(status) => { setNewTaskStatus(status || "todo"); setIsNewTaskModalOpen(true) }}
+                                                onAnalyzeTask={(taskId) => {
+                                                    const task = tasks.find((entry) => entry.id === taskId)
+                                                    if (task) handleAnalyzeIssue(task)
+                                                }}
+                                                onOpenExternal={openExternalTask}
+                                                onCopyReference={handleCopyReference}
+                                                onFilterColumn={(status) => setFilters((current) => ({ ...current, status }))}
+                                                dragDisabled={sortMode !== "manual"}
+                                                sortMode={sortMode}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                                <DragOverlay>
+                                    {activeTask ? <TaskCard task={activeTask} taskView={taskViewModels.find((task) => task.task.id === activeTask.id)} isOverlay /> : null}
+                                </DragOverlay>
+                            </DndContext>
+                        )}
+                        </div>
+                    </div>
                 </div>
 
                 <TaskDetailsSidebar
@@ -504,78 +628,34 @@ export default function TasksPage() {
                     activeProject={activeProject}
                     currentColumns={currentColumns}
                     onClose={() => setDetailsId(null)}
-                    onUpdateTask={async (updates) => {
-                        if (activeProjectId && selectedTask) {
-                            // Sync status changes back to the source (Linear/Jira)
-                            if (updates.status && selectedTask.status !== updates.status) {
-                                try {
-                                    if (selectedTask.source === 'linear' && selectedTask.externalId) {
-                                        const apiKey = await getLinearApiKey(selectedTask.connectionId)
-                                        if (apiKey) {
-                                            // Get workflow states and find the ID for the new status
-                                            const conn = activeProject?.linearConnections?.find((c) => c.id === selectedTask.connectionId)
-                                            const states: Array<{id: string; name: string; type?: string; color?: string}> = await api.getLinearWorkflowStates({ apiKey, teamId: conn?.teamId })
-                                            const targetState = states.find((s) => s.name === updates.status)
-                                            if (targetState?.id) {
-                                                await api.updateLinearStatus({ apiKey, issueId: selectedTask.externalId, stateId: targetState.id })
-                                            }
-                                        }
-                                    } else if (selectedTask.source === 'jira' && selectedTask.externalId) {
-                                        const creds = await getJiraCredentials(selectedTask.connectionId)
-                                        if (creds) {
-                                            await api.transitionJiraIssue({ ...creds, issueKey: selectedTask.externalId, transitionName: updates.status })
-                                        }
-                                    }
-                                } catch (e) {
-                                    console.error('Failed to sync status to source:', e)
-                                    toast.error(`Failed to update status on ${selectedTask.source === 'linear' ? 'Linear' : 'Jira'}`)
-                                }
-                            }
-
-                            await updateProject(activeProjectId, {
-                                tasks: tasks.map((t: Task) => t.id === selectedTask.id ? { ...t, ...updates, updatedAt: Date.now() } : t)
-                            })
-                            toast.success("Updated!")
-                        }
-                    }}
+                    onUpdateTask={handleUpdateTask}
                     onAnalyze={handleAnalyzeIssue}
                     isAnalyzing={isLoading}
                     onGenerateBugReport={async () => {
-                        if (activeProject && selectedTask) {
-                            try {
-                                const env = activeProject.environments.find((e) => e.isDefault) || activeProject.environments[0]
-                                const res = await api.generateBugReportTask({
-                                    task: selectedTask,
-                                    environment: env,
-                                    reporter: "QA Assistant",
-                                    aiAnalysis: selectedTask.analysisHistory?.[0]?.fullResult
-                                })
-                                if (res.success) {
-                                    toast.success("Bug report generated and saved to attachments!")
-                                    if (res.attachment?.filePath) {
-                                        await api.openFile({ filePath: res.attachment.filePath })
-                                    }
-                                } else {
-                                    toast.error(`Report generation failed: ${res.error}`)
-                                }
-                            } catch (e) {
-                                toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`)
-                            }
+                        if (!activeProject || !selectedTask) return
+                        try {
+                            const environment = activeProject.environments.find((entry) => entry.isDefault) || activeProject.environments[0]
+                            const result = await api.generateBugReportTask({
+                                task: selectedTask,
+                                environment,
+                                reporter: "QA Assistant",
+                                aiAnalysis: selectedTask.analysisHistory?.[0]?.fullResult
+                            })
+                            if (!result.success) throw new Error(result.error)
+                            toast.success("Bug report generated and saved to attachments.")
+                            if (result.attachment?.filePath) await api.openFile({ filePath: result.attachment.filePath })
+                        } catch (error) {
+                            toast.error(error instanceof Error ? error.message : String(error))
                         }
                     }}
                     onDelete={() => setTaskToDelete(selectedTask)}
                     onDeleteAnalysis={async (entry) => {
-                        if (activeProjectId && selectedTask) {
-                            const updatedHistory = (selectedTask.analysisHistory || []).filter(
-                                (h: AnalysisEntry) => h.timestamp !== entry.timestamp
-                            )
-                            await updateProject(activeProjectId, {
-                                tasks: tasks.map((t: Task) =>
-                                    t.id === selectedTask.id ? { ...t, analysisHistory: updatedHistory } : t
-                                )
-                            })
-                            toast.success("Analysis deleted!")
-                        }
+                        if (!activeProjectId || !selectedTask) return
+                        const updatedHistory = (selectedTask.analysisHistory || []).filter((history: AnalysisEntry) => history.timestamp !== entry.timestamp)
+                        await updateProject(activeProjectId, {
+                            tasks: tasks.map((task: Task) => task.id === selectedTask.id ? { ...task, analysisHistory: updatedHistory } : task)
+                        })
+                        toast.success("Analysis deleted")
                     }}
                     api={api}
                 />
@@ -587,12 +667,16 @@ export default function TasksPage() {
                 activeProject={activeProject}
                 currentColumns={currentColumns}
                 onConfirm={handleConfirmAddTask}
+                initialStatus={newTaskStatus}
             />
 
             <ConfirmDialog
                 open={!!taskToDelete}
                 onCancel={() => setTaskToDelete(null)}
-                title="Delete Task" description="Permanent action." confirmLabel="Delete" destructive
+                title="Delete Task"
+                description="Permanent action."
+                confirmLabel="Delete"
+                destructive
                 onConfirm={() => { if (activeProjectId && taskToDelete) deleteTask(activeProjectId, taskToDelete.id) }}
             />
 
@@ -604,31 +688,22 @@ export default function TasksPage() {
                 projectId={activeProjectId || undefined}
             />
 
-            {/* Keyboard Shortcut Modal */}
             <>
-                <div
-                    className={cn("fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity duration-200", isShortcutModalOpen ? "opacity-100" : "opacity-0 pointer-events-none")}
-                    onClick={() => setIsShortcutModalOpen(false)}
-                />
-                <div className={cn("fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 transition-all duration-200", isShortcutModalOpen ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none")}>
-                    <div className="bg-[#13131A] border border-[#2A2A3A] rounded-2xl shadow-2xl w-[380px] p-6">
-                        <div className="flex items-center justify-between mb-5">
-                            <h3 className="text-sm font-bold text-[#E2E8F0] uppercase tracking-widest">Keyboard Shortcuts</h3>
-                            <button onClick={() => setIsShortcutModalOpen(false)} className="p-1 rounded-md text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#252535] transition-colors">
+                <div className={cn("fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity duration-200", isShortcutModalOpen ? "opacity-100" : "pointer-events-none opacity-0")} onClick={() => setIsShortcutModalOpen(false)} />
+                <div className={cn("fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 transition-all duration-200", isShortcutModalOpen ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0")}>
+                    <div className="w-[380px] rounded-2xl border border-[#2A2A3A] bg-[#13131A] p-6 shadow-2xl">
+                        <div className="mb-5 flex items-center justify-between">
+                            <h3 className="text-sm font-bold uppercase tracking-widest text-[#E2E8F0]">Keyboard Shortcuts</h3>
+                            <button onClick={() => setIsShortcutModalOpen(false)} className="rounded-md p-1 text-[#6B7280] transition-colors hover:bg-[#252535] hover:text-[#E2E8F0]">
                                 <HelpCircle className="h-4 w-4" />
                             </button>
                         </div>
                         <div className="space-y-3">
-                            {[
-                                { keys: ['Ctrl', '/'], description: 'Toggle shortcut help' },
-                                { keys: ['Esc'], description: 'Close task details / close modal' },
-                            ].map(({ keys, description }) => (
-                                <div key={description} className="flex items-center justify-between py-2 border-b border-[#2A2A3A]/60 last:border-0">
+                            {[{ keys: ["Ctrl", "/"], description: "Toggle shortcut help" }, { keys: ["Esc"], description: "Close task details / close modal" }].map(({ keys, description }) => (
+                                <div key={description} className="flex items-center justify-between border-b border-[#2A2A3A]/60 py-2 last:border-0">
                                     <span className="text-xs text-[#9CA3AF]">{description}</span>
                                     <div className="flex items-center gap-1">
-                                        {keys.map((k) => (
-                                            <kbd key={k} className="px-2 py-0.5 rounded bg-[#1A1A24] border border-[#2A2A3A] text-[10px] font-bold text-[#A78BFA] font-mono">{k}</kbd>
-                                        ))}
+                                        {keys.map((key) => <kbd key={key} className="rounded border border-[#2A2A3A] bg-[#1A1A24] px-2 py-0.5 font-mono text-[10px] font-bold text-[#A78BFA]">{key}</kbd>)}
                                     </div>
                                 </div>
                             ))}

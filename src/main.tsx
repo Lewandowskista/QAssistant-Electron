@@ -26,13 +26,8 @@ const GitHubPage = lazy(() => import('@/pages/GitHubPage'))
 const CodeReviewsPage = lazy(() => import('@/pages/CodeReviewsPage'))
 const DeploymentsPage = lazy(() => import('@/pages/DeploymentsPage'))
 const ReportBuilderPage = lazy(() => import('@/pages/ReportBuilderPage'))
+const ReleaseQueuePage = lazy(() => import('@/pages/ReleaseQueuePage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
-
-const PageLoader = () => (
-    <div className="flex items-center justify-center h-full w-full bg-surface-overlay">
-        <Loader2 className="h-8 w-8 text-qa-purple animate-spin" />
-    </div>
-)
 
 window.onerror = (msg, url, line, col, error) => {
   const root = document.getElementById('root')
@@ -55,7 +50,11 @@ if (!rootElement) throw new Error("Root element not found")
 createRoot(rootElement).render(
   <StrictMode>
     <HashRouter>
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={
+        <div className="flex items-center justify-center h-full w-full bg-background">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        </div>
+      }>
         <Routes>
           <Route path="/" element={<MainLayout />}>
             <Route index element={<ErrorBoundary name="Dashboard"><DashboardPage /></ErrorBoundary>} />
@@ -70,8 +69,9 @@ createRoot(rootElement).render(
             <Route path="files" element={<ErrorBoundary name="Files"><RequireProject><FilesPage /></RequireProject></ErrorBoundary>} />
             <Route path="environments" element={<ErrorBoundary name="Environments"><RequireProject><EnvironmentsPage /></RequireProject></ErrorBoundary>} />
             <Route path="github" element={<ErrorBoundary name="GitHub"><RequireProject><RequireRole role="dev"><GitHubPage /></RequireRole></RequireProject></ErrorBoundary>} />
-            <Route path="code-reviews" element={<ErrorBoundary name="Code Reviews"><RequireProject><RequireRole role="dev"><CodeReviewsPage /></RequireRole></RequireProject></ErrorBoundary>} />
+            <Route path="code-reviews" element={<ErrorBoundary name="Code Reviews"><RequireRole role="dev"><CodeReviewsPage /></RequireRole></ErrorBoundary>} />
             <Route path="deployments" element={<ErrorBoundary name="Deployments"><RequireProject><RequireRole role="dev"><DeploymentsPage /></RequireRole></RequireProject></ErrorBoundary>} />
+            <Route path="release-queue" element={<ErrorBoundary name="Release Queue"><RequireProject><ReleaseQueuePage /></RequireProject></ErrorBoundary>} />
             <Route path="reports" element={<ErrorBoundary name="Reports"><RequireProject><ReportBuilderPage /></RequireProject></ErrorBoundary>} />
             <Route path="settings" element={<ErrorBoundary name="Settings"><SettingsPage /></ErrorBoundary>} />
             <Route path="*" element={<NotFoundPage />} />

@@ -9,6 +9,7 @@ import {
     Target,
     Activity,
     Globe,
+    ClipboardCheck,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -33,6 +34,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
             { id: 'dash', title: 'Go to Dashboard', icon: LayoutDashboard, action: () => navigate('/') },
             { id: 'tasks', title: 'Open Operational Board', icon: Target, action: () => navigate('/tasks') },
             { id: 'tests', title: 'Open Quality Core', icon: FlaskConical, action: () => navigate('/tests') },
+            { id: 'release-queue', title: 'Open Release Queue', icon: ClipboardCheck, action: () => navigate('/release-queue') },
             { id: 'envs', title: 'Infrastructure Monitor', icon: Activity, action: () => navigate('/environments') },
             { id: 'settings', title: 'Control Center Settings', icon: Settings, action: () => navigate('/settings') },
             { id: 'add-task', title: 'Create New Task', icon: Plus, action: () => navigate('/tasks') },
@@ -67,7 +69,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (!open) return
+            if (!open || commands.length === 0) return
 
             if (e.key === 'ArrowDown') {
                 e.preventDefault()
@@ -156,7 +158,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                             <span>Select</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">{isMac ? '⌘+1–5' : 'Ctrl+1–5'}</div>
+                            <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">{isMac ? '⌘+1-5' : 'Ctrl+1-5'}</div>
                             <span>Quick Nav</span>
                         </div>
                     </div>

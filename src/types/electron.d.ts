@@ -1,6 +1,10 @@
-import { Project, TestCase, Task, Attachment } from './project';
+import { Project, TestCase, Attachment } from './project';
 import { UserProfile } from './user';
-import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem } from './github';
+import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem, GitHubComment, GitHubWorkflowJob, GitHubWorkflow } from './github';
+import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
+import { CronJobEntry, FlexibleSearchResult, ImpExResult } from '@/lib/sapHac';
+
+type ApiResponse<T> = { success: boolean; data?: T; error?: string };
 
 export interface ElectronAPI {
     // Window controls
@@ -39,13 +43,14 @@ export interface ElectronAPI {
     saveFileDialog: (args: { defaultName: string; content: string } | string) => Promise<{ success: boolean; path?: string; error?: string }>;
 
     // AI / Gemini
-    aiGenerateCases: (args: any) => Promise<TestCase[]>;
+    aiGenerateCases: (args: AiGenerateCasesRequest) => Promise<TestCase[]>;
     aiListModels: (args: { apiKey: string }) => Promise<any>;
-    aiAnalyzeIssue: (args: any) => Promise<string>;
-    aiAnalyze: (args: any) => Promise<string>;
-    aiCriticality: (args: any) => Promise<string>;
-    aiTestRunSuggestions: (args: any) => Promise<string>;
-    aiSmokeSubset: (args: any) => Promise<string[]>;
+    aiAnalyzeIssue: (args: AiAnalyzeIssueRequest) => Promise<string>;
+    aiAnalyze: (args: AiAnalyzeProjectRequest) => Promise<string>;
+    aiCriticality: (args: AiCriticalityRequest) => Promise<string>;
+    aiTestRunSuggestions: (args: AiTestRunSuggestionsRequest) => Promise<string>;
+    aiSmokeSubset: (args: AiSmokeSubsetRequest) => Promise<string[]>;
+    aiChat: (args: AiChatRequest) => Promise<string>;
 
     // Integrations (Linear)
     syncLinear: (args: any) => Promise<any>;
@@ -68,14 +73,14 @@ export interface ElectronAPI {
     testJiraConnection: (args: any) => Promise<{ success: boolean; error?: string }>;
 
     // SAP
-    ccv2GetEnvironments: (args: any) => Promise<any>;
-    ccv2GetDeployments: (args: any) => Promise<any>;
-    ccv2GetBuild: (args: any) => Promise<any>;
+    ccv2GetEnvironments: (args: any) => Promise<any[]>;
+    ccv2GetDeployments: (args: any) => Promise<any[]>;
+    ccv2GetBuild: (args: any) => Promise<any | null>;
     sapHacLogin: (baseUrl: string, user: string, pass: string, ignoreSsl?: boolean) => Promise<{ success: boolean; error?: string }>;
-    sapHacGetCronJobs: (baseUrl: string) => Promise<{ success: boolean; data?: any; error?: string }>;
-    sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) => Promise<{ success: boolean; result?: any; error?: string }>;
-    sapHacImportImpEx: (baseUrl: string, script: string, enableCode?: boolean) => Promise<{ success: boolean; result?: any; error?: string }>;
-    sapHacGetCatalogVersions: (baseUrl: string) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+    sapHacGetCronJobs: (baseUrl: string) => Promise<ApiResponse<CronJobEntry[]>>;
+    sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) => Promise<ApiResponse<FlexibleSearchResult>>;
+    sapHacImportImpEx: (baseUrl: string, script: string, enableCode?: boolean) => Promise<ApiResponse<ImpExResult>>;
+    sapHacGetCatalogVersions: (baseUrl: string) => Promise<ApiResponse<any[]>>;
     sapHacGetCatalogIds: (baseUrl: string) => Promise<{ success: boolean; data?: string[]; error?: string }>;
     sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) => Promise<{ success: boolean; data?: any; error?: string }>;
     sapHacRequest: (opts: any) => Promise<{ success: boolean; status?: number; body?: string; error?: string }>;
@@ -119,6 +124,10 @@ export interface ElectronAPI {
     githubGetWorkflowRuns: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<GitHubWorkflowRun[] | { __isError: boolean; message: string }>;
     githubGetDeployments: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<GitHubDeployment[] | { __isError: boolean; message: string }>;
     githubRerunWorkflow: (args: { owner: string; repo: string; runId: number }) => Promise<{ success: boolean } | { __isError: boolean; message: string }>;
+    githubGetPrComments: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubComment[] | { __isError: boolean; message: string }>;
+    githubGetWorkflowJobs: (args: { owner: string; repo: string; runId: number }) => Promise<GitHubWorkflowJob[] | { __isError: boolean; message: string }>;
+    githubGetWorkflowsList: (args: { owner: string; repo: string }) => Promise<GitHubWorkflow[] | { __isError: boolean; message: string }>;
+    githubDispatchWorkflow: (args: { owner: string; repo: string; workflowId: number; ref: string }) => Promise<{ success: boolean } | { __isError: boolean; message: string }>;
 
     // Report Builder (M1)
     generateCustomReport: (args: { project: any; template: any }) => Promise<{ success: boolean; html?: string; error?: string }>;

@@ -25,6 +25,7 @@ export interface GitHubPullRequest {
     additions: number
     deletions: number
     changedFiles: number
+    labels: { name: string; color: string }[]
     checkStatus: 'success' | 'failure' | 'pending' | null
 }
 
@@ -79,6 +80,31 @@ export interface GitHubDeployment {
         createdAt: string
         targetUrl: string | null
     } | null
+}
+
+export interface GitHubComment {
+    id: number
+    user: string
+    userAvatar: string
+    body: string
+    createdAt: string
+}
+
+export interface GitHubWorkflowJob {
+    id: number
+    name: string
+    status: string
+    conclusion: string | null
+    startedAt: string
+    completedAt: string | null
+    steps: { name: string; status: string; conclusion: string | null }[]
+}
+
+export interface GitHubWorkflow {
+    id: number
+    name: string
+    state: string
+    path: string
 }
 
 export interface GitHubSearchItem {

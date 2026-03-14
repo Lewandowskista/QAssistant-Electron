@@ -10,17 +10,26 @@ import { toast } from "sonner"
 import { useConfirm } from "@/components/ConfirmDialog"
 
 export default function NotesPage() {
-    const { projects, activeProjectId, addNote, updateNote, deleteNote, removeAttachmentFromNote, attachFileToNote } = useProjectStore()
+    const { projects, activeProjectId, addNote, updateNote, deleteNote, removeAttachmentFromNote, attachFileToNote, linkArtifact } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const notes = activeProject?.notes || []
     const api = (window as any).electronAPI
     const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
 
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+    const [linkedTaskFilter, setLinkedTaskFilter] = useState<string>("all")
     const [sourceMode, setSourceMode] = useState(false)
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
 
     const selectedNote = notes.find(n => n.id === selectedItemId)
+    const artifactLinks = activeProject?.artifactLinks || []
+    const filteredNotes = notes.filter((note) => {
+        if (linkedTaskFilter === 'all') return true
+        return artifactLinks.some((link) =>
+            ((link.sourceType === 'task' && link.sourceId === linkedTaskFilter && link.targetType === 'note' && link.targetId === note.id) ||
+            (link.targetType === 'task' && link.targetId === linkedTaskFilter && link.sourceType === 'note' && link.sourceId === note.id))
+        )
+    })
 
     // Local editor state to avoid persisting on every keystroke.
     const [titleState, setTitleState] = useState<string>(selectedNote?.title || '')
@@ -95,7 +104,15 @@ export default function NotesPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    {notes.map(note => (
+                    <div className="px-2 mb-2">
+                        <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="w-full h-8 rounded-md bg-[#0F0F13] border border-[#2A2A3A] px-2 text-[11px] text-[#E2E8F0]">
+                            <option value="all">All Notes</option>
+                            {(activeProject?.tasks || []).map((task) => (
+                                <option key={task.id} value={task.id}>{task.title}</option>
+                            ))}
+                        </select>
+                    </div>
+                    {filteredNotes.map(note => (
                         <div
                             key={note.id}
                             onClick={() => setSelectedItemId(note.id)}
@@ -106,6 +123,16 @@ export default function NotesPage() {
                         >
                             <div className="text-xs font-bold text-[#E2E8F0] mb-1 truncate">{note.title || "Untitled Note"}</div>
                             <div className="text-[10px] text-[#6B7280] font-medium">{format(note.updatedAt, "MMM d, HH:mm")}</div>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                                {artifactLinks.filter((link) =>
+                                    (link.sourceType === 'note' && link.sourceId === note.id && link.targetType === 'task') ||
+                                    (link.targetType === 'note' && link.targetId === note.id && link.sourceType === 'task')
+                                ).map((link) => {
+                                    const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
+                                    const task = activeProject?.tasks.find((item) => item.id === taskId)
+                                    return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-[#A78BFA] text-[9px]">{task.title}</span> : null
+                                })}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -138,6 +165,21 @@ export default function NotesPage() {
                                         className="bg-transparent border-none text-2xl font-black text-[#E2E8F0] focus-visible:ring-0 px-0 h-auto min-w-0 flex-1"
                                     />
                             <div className="flex gap-2 shrink-0">
+                                <select
+                                    onChange={async (event) => {
+                                        const taskId = event.target.value
+                                        if (!activeProjectId || !selectedNote || !taskId) return
+                                        await linkArtifact(activeProjectId, { sourceType: 'task', sourceId: taskId, targetType: 'note', targetId: selectedNote.id, label: 'documents' })
+                                        toast.success('Note linked to task.')
+                                        event.currentTarget.value = ''
+                                    }}
+                                    className="h-9 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-[10px] text-[#E2E8F0]"
+                                >
+                                    <option value="">Link to task...</option>
+                                    {(activeProject?.tasks || []).map((task) => (
+                                        <option key={task.id} value={task.id}>{task.title}</option>
+                                    ))}
+                                </select>
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -206,6 +248,11 @@ export default function NotesPage() {
                                                     <Trash2 className="h-3 w-3 text-[#EF4444] opacity-0 group-hover:opacity-100 transition-opacity" onClick={async (e) => {
                                                         e.stopPropagation();
                                                         if (!activeProjectId || !selectedNote) return;
+                                                        const linkedHandoffs = (activeProject?.handoffPackets || []).filter((packet) => packet.linkedNoteIds.includes(selectedNote.id))
+                                                        if (linkedHandoffs.length > 0) {
+                                                            toast.error('This attachment is linked to an active handoff. Remove the handoff link first.')
+                                                            return
+                                                        }
                                                         await removeAttachmentFromNote(activeProjectId, selectedNote.id, at.id);
                                                         api.deleteAttachment(at.filePath);
                                                     }} />

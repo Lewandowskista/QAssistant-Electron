@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, type ReactNode } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import {
     LayoutDashboard,
@@ -10,7 +10,11 @@ import {
     XCircle,
     PlayCircle,
     FileText,
-    ListChecks
+    ListChecks,
+    Handshake,
+    GitPullRequest,
+    CircleHelp,
+    type LucideIcon
 } from "lucide-react"
 import { cn, evaluateQualityGate } from "@/lib/utils"
 import FormattedText from "@/components/FormattedText"
@@ -31,9 +35,87 @@ import {
     TestBurndownChart
 } from "@/components/DashboardCharts"
 import { Project, Task, TestPlan, Note, Checklist } from "@/types/project"
+import { getCollaborationMetrics, getReleaseQueue } from "@/lib/collaboration"
+
+type MetricCardProps = {
+    icon: LucideIcon
+    label: string
+    value: string | number
+    description: string
+    accentClassName: string
+    stateClassName?: string
+    meta?: ReactNode
+}
+
+type MetricSectionProps = {
+    eyebrow: string
+    title: string
+    description: string
+    children: ReactNode
+}
+
+function MetricHelpButton({ label, description }: { label: string; description: string }) {
+    return (
+        <div className="group/help relative inline-flex">
+            <button
+                type="button"
+                aria-label={`What ${label} means`}
+                className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#2A2A3A] bg-[#1A1A24]/70 text-[#6B7280] transition-colors hover:border-[#A78BFA]/40 hover:text-[#E2E8F0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+                <CircleHelp className="h-3 w-3" strokeWidth={2.3} />
+            </button>
+            <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-56 -translate-x-1/2 rounded-lg border border-[#2A2A3A] bg-[#0F0F13]/95 p-3 text-left text-[11px] leading-relaxed text-[#E2E8F0] opacity-0 shadow-xl transition-all duration-150 group-hover/help:translate-y-1 group-hover/help:opacity-100 group-focus-within/help:translate-y-1 group-focus-within/help:opacity-100">
+                {description}
+            </div>
+        </div>
+    )
+}
+
+function DashboardMetricCard({
+    icon: Icon,
+    label,
+    value,
+    description,
+    accentClassName,
+    stateClassName,
+    meta
+}: MetricCardProps) {
+    return (
+        <div className={cn("app-metric-card min-h-[148px]", stateClassName)}>
+            <div className="flex items-start justify-between gap-3">
+                <div className={cn("rounded-xl border border-current/10 bg-current/10 p-2", accentClassName)}>
+                    <Icon className="h-4 w-4" strokeWidth={2.4} />
+                </div>
+                <MetricHelpButton label={label} description={description} />
+            </div>
+            <div className="space-y-1">
+                <p className="app-metric-value">{value}</p>
+                <div className="flex items-center gap-2">
+                    <p className="app-metric-label">{label}</p>
+                </div>
+            </div>
+            {meta ? <div className="pt-1 text-[11px] text-[#6B7280]">{meta}</div> : null}
+        </div>
+    )
+}
+
+function MetricsSection({ eyebrow, title, description, children }: MetricSectionProps) {
+    return (
+        <section className="app-panel p-5 md:p-6">
+            <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div className="space-y-1">
+                    <p className="app-section-label">{eyebrow}</p>
+                    <h2 className="text-lg font-semibold text-[#E2E8F0]">{title}</h2>
+                </div>
+                <p className="max-w-2xl text-sm text-[#6B7280]">{description}</p>
+            </div>
+            {children}
+        </section>
+    )
+}
 
 export default function DashboardPage() {
-    const { projects, activeProjectId } = useProjectStore()
+    const { projects, activeProjectId, seedDemoProject } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId) as Project | undefined
     const [selectedSprint, setSelectedSprint] = useState<string>('all')
 
@@ -90,6 +172,10 @@ export default function DashboardPage() {
 
     const notes = (activeProject?.notes || []).slice(0, 5)
     const checklists = (activeProject?.checklists || []).slice(0, 5)
+    const handoffs = activeProject?.handoffPackets || []
+    const collaborationEvents = activeProject?.collaborationEvents || []
+    const releaseQueue = activeProject ? getReleaseQueue(activeProject) : null
+    const collaborationMetrics = activeProject ? getCollaborationMetrics(activeProject) : null
 
     const closedTypes = ['completed', 'canceled']
     const isClosed = (status: string) => {
@@ -115,6 +201,18 @@ export default function DashboardPage() {
         .slice(0, 7)
 
     const overdueCount = openTasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < now).length
+    const awaitingDevAckCount = tasks.filter((t: Task) => t.collabState === 'ready_for_dev').length
+    const readyForQaCount = tasks.filter((t: Task) => t.collabState === 'ready_for_qa').length
+    const verifiedTodayCount = collaborationEvents.filter((event) => event.eventType === 'verification_passed' && new Date(event.timestamp).toDateString() === now.toDateString()).length
+    const missingEvidenceCount = handoffs.filter((handoff) =>
+        !handoff.linkedExecutionRefs.length && !handoff.linkedFileIds.length && !handoff.linkedNoteIds.length
+    ).length
+    const prsWaitingForQaCount = handoffs.filter((handoff) => handoff.linkedPrs.length > 0).filter((handoff) => {
+        const task = tasks.find((item) => item.id === handoff.taskId)
+        return task?.collabState !== 'verified' && task?.collabState !== 'closed'
+    }).length
+    const activeHandoffs = handoffs.slice(0, 5)
+    const recentCollabEvents = collaborationEvents.slice(0, 6)
 
     // Coverage gap analysis
     const coveredTasks = filteredTasks.filter((t: Task) =>
@@ -164,22 +262,28 @@ export default function DashboardPage() {
 
     if (!activeProject) {
         return (
-            <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-4">
-                <div className="p-8 bg-[#13131A] border border-[#2A2A3A] rounded-2xl">
-                    <LayoutDashboard className="h-16 w-16 text-[#6B7280]/30" strokeWidth={1} />
+            <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-5">
+                <div className="app-panel p-8">
+                    <LayoutDashboard className="h-16 w-16 text-muted-ui opacity-40" strokeWidth={1} />
                 </div>
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-[#E2E8F0]">No Project Selected</h2>
-                    <p className="text-[#6B7280] mt-2 max-w-sm font-medium">
+                    <h2 className="app-heading">No Project Selected</h2>
+                    <p className="text-muted-ui mt-2 max-w-sm font-medium">
                         Select a project from the sidebar to access the dashboard.
                     </p>
                 </div>
                 <Button
                     variant="outline"
-                    className="h-11 px-8 font-black rounded-xl border-[#A78BFA] text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                    className="h-11 px-8"
                     onClick={() => window.dispatchEvent(new Event('open-project-dialog'))}
                 >
                     CREATE PROJECT
+                </Button>
+                <Button
+                    className="h-11 px-8 bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+                    onClick={() => seedDemoProject()}
+                >
+                    LOAD DEMO WORKSPACE
                 </Button>
             </div>
         )
@@ -188,21 +292,21 @@ export default function DashboardPage() {
     return (
         <div className="space-y-6 max-w-[1600px] animate-in fade-in duration-500 pb-10">
             {/* Header */}
-            <header className="flex items-center justify-between border-b border-[#2A2A3A] pb-4 mb-2">
+            <header className="flex items-center justify-between border-b app-divider pb-4 mb-2">
                 <div className="space-y-1">
-                    <p className="text-[9px] font-bold text-[#6B7280] tracking-[0.2em] uppercase">PROJECT OVERVIEW</p>
-                    <h1 className="text-2xl font-semibold text-[#E2E8F0] tracking-tight">{activeProject.name}</h1>
-                    <p className="text-xs text-[#6B7280] font-medium">Project Dashboard</p>
+                    <p className="app-section-label">Project Overview</p>
+                    <h1 className="app-heading">{activeProject.name}</h1>
+                    <p className="app-subheading">Project dashboard</p>
                 </div>
                 
                 {availableSprints.length > 0 && (
                     <div className="flex items-center gap-3">
-                        <Label className="text-[10px] uppercase font-bold text-[#6B7280] tracking-wider">Sprint Context</Label>
+                        <Label className="app-field-label mb-0">Sprint Context</Label>
                         <Select value={selectedSprint} onValueChange={setSelectedSprint}>
-                            <SelectTrigger className="w-[200px] h-9 bg-[#13131A] border-[#2A2A3A] text-xs font-semibold rounded-lg focus:ring-[#A78BFA]/20">
+                            <SelectTrigger className="w-[220px]">
                                 <SelectValue placeholder="Select Sprint" />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#13131A] border-[#2A2A3A] text-[#E2E8F0] z-50">
+                            <SelectContent className="z-50">
                                 <SelectItem value="all" className="text-xs">All Issues</SelectItem>
                                 {availableSprints.map((name: string) => {
                                     const sprint = tasks.find((t: Task) => t.sprint?.name === name)?.sprint
@@ -218,68 +322,154 @@ export default function DashboardPage() {
                 )}
             </header>
 
-            {/* Metrics List (MetricCardsRow) */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-                {/* Tasks Open */}
-                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm space-y-1">
-                    <CheckSquare className="h-5 w-5 text-[#3B82F6]" strokeWidth={2.5} />
-                    <p className="text-2xl font-bold text-[#E2E8F0] pt-1">{openTasksCount}</p>
-                    <p className="text-[11px] font-medium text-[#6B7280]">Open Tasks</p>
-                </div>
+            <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_1fr] gap-4">
+                <MetricsSection
+                    eyebrow="Execution Snapshot"
+                    title="Workload And Quality"
+                    description="Core delivery and testing metrics are grouped together so the current sprint state is readable at a glance."
+                >
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        <DashboardMetricCard
+                            icon={CheckSquare}
+                            label="Open Tasks"
+                            value={openTasksCount}
+                            description="Tasks in the selected sprint scope that are not in a completed or canceled column."
+                            accentClassName="text-[#3B82F6]"
+                            meta={`${filteredTasks.length} tasks in current scope`}
+                        />
+                        <DashboardMetricCard
+                            icon={AlertOctagon}
+                            label="Critical / Blockers"
+                            value={criticalBlockersCount}
+                            description="Open tasks marked with critical priority that likely block release or verification work."
+                            accentClassName="text-[#EF4444]"
+                            stateClassName={criticalBlockersCount > 0 ? "app-status-danger" : undefined}
+                            meta={criticalBlockersCount > 0 ? "Needs immediate attention" : "No active blockers"}
+                        />
+                        <DashboardMetricCard
+                            icon={Clock}
+                            label="Overdue Tasks"
+                            value={overdueCount}
+                            description="Open tasks with a due date earlier than today."
+                            accentClassName="text-[#F59E0B]"
+                            stateClassName={overdueCount > 0 ? "app-status-warning" : undefined}
+                            meta={upcomingTasks.length > 0 ? `${upcomingTasks.length} upcoming due next` : "No upcoming due dates"}
+                        />
+                        <DashboardMetricCard
+                            icon={Target}
+                            label="Test Pass Rate"
+                            value={`${passRate}%`}
+                            description="Percentage of all test cases in the project that currently have a passed result."
+                            accentClassName="text-[#10B981]"
+                            meta={`${passedTests} passed out of ${testCasesCount}`}
+                        />
+                        <DashboardMetricCard
+                            icon={XCircle}
+                            label="Failed Tests"
+                            value={failedTests}
+                            description="Test cases whose latest recorded status is failed."
+                            accentClassName="text-[#EF4444]"
+                            stateClassName={failedTests > 0 ? "app-status-danger" : undefined}
+                            meta={failedTests > 0 ? "Failures are present in the latest results" : "No failed test results"}
+                        />
+                        <DashboardMetricCard
+                            icon={PlayCircle}
+                            label="Not Run"
+                            value={notRunTests}
+                            description="Test cases that exist in the project but have not been executed yet."
+                            accentClassName="text-[#9CA3AF]"
+                            meta="Potential execution backlog"
+                        />
+                        <DashboardMetricCard
+                            icon={Target}
+                            label="Test Coverage"
+                            value={`${coveragePercent}%`}
+                            description="Share of scoped tasks linked to at least one test case by source issue reference."
+                            accentClassName="text-primary"
+                            stateClassName={coverageGapCount > 0 ? "border-primary/20 bg-primary/5" : undefined}
+                            meta={coverageGapCount > 0 ? `${coverageGapCount} tasks still uncovered` : "All scoped tasks have coverage"}
+                        />
+                    </div>
+                </MetricsSection>
 
-                {/* Blockers */}
-                <div className={cn(
-                    "bg-[#13131A] border rounded-xl p-5 shadow-sm space-y-1",
-                    criticalBlockersCount > 0 ? "border-[#EF4444]/30 bg-[#EF4444]/5" : "border-[#2A2A3A]"
-                )}>
-                    <AlertOctagon className="h-5 w-5 text-[#EF4444]" strokeWidth={2.5} />
-                    <p className="text-2xl font-bold text-[#E2E8F0] pt-1">{criticalBlockersCount}</p>
-                    <p className="text-[11px] font-medium text-[#6B7280]">Critical / Blockers</p>
-                </div>
-
-                {/* Pass Rate */}
-                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm space-y-1">
-                    <Target className="h-5 w-5 text-[#10B981]" strokeWidth={2.5} />
-                    <p className="text-2xl font-bold text-[#E2E8F0] pt-1">{passRate}%</p>
-                    <p className="text-[11px] font-medium text-[#6B7280]">Test Pass Rate</p>
-                </div>
-
-                {/* Failed Tests */}
-                <div className={cn(
-                    "bg-[#13131A] border rounded-xl p-5 shadow-sm space-y-1",
-                    failedTests > 0 ? "border-[#EF4444]/30 bg-[#EF4444]/5" : "border-[#2A2A3A]"
-                )}>
-                    <XCircle className="h-5 w-5 text-[#EF4444]" strokeWidth={2.5} />
-                    <p className="text-2xl font-bold text-[#E2E8F0] pt-1">{failedTests}</p>
-                    <p className="text-[11px] font-medium text-[#6B7280]">Failed Tests</p>
-                </div>
-
-                {/* Not Run */}
-                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm space-y-1">
-                    <PlayCircle className="h-5 w-5 text-[#9CA3AF]" strokeWidth={2.5} />
-                    <p className="text-2xl font-bold text-[#E2E8F0] pt-1">{notRunTests}</p>
-                    <p className="text-[11px] font-medium text-[#6B7280]">Not Run</p>
-                </div>
-
-                {/* Overdue */}
-                <div className={cn(
-                    "bg-[#13131A] border rounded-xl p-5 shadow-sm space-y-1",
-                    overdueCount > 0 ? "border-[#F59E0B]/30 bg-[#F59E0B]/5" : "border-[#2A2A3A]"
-                )}>
-                    <Clock className="h-5 w-5 text-[#F59E0B]" strokeWidth={2.5} />
-                    <p className="text-2xl font-bold text-[#E2E8F0] pt-1">{overdueCount}</p>
-                    <p className="text-[11px] font-medium text-[#6B7280]">Overdue Tasks</p>
-                </div>
-
-                {/* Coverage Gaps */}
-                <div className={cn(
-                    "bg-[#13131A] border rounded-xl p-5 shadow-sm space-y-1",
-                    coverageGapCount > 0 ? "border-[#A78BFA]/30 bg-[#A78BFA]/5" : "border-[#2A2A3A]"
-                )}>
-                    <Target className="h-5 w-5 text-[#A78BFA]" strokeWidth={2.5} />
-                    <p className="text-2xl font-bold text-[#E2E8F0] pt-1">{coveragePercent}%</p>
-                    <p className="text-[11px] font-medium text-[#6B7280]">Test Coverage</p>
-                </div>
+                <MetricsSection
+                    eyebrow="Collaboration Flow"
+                    title="QA Handoff And Release"
+                    description="Operational handoff indicators are separated here so the team can see queue health without scanning the whole page."
+                >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <DashboardMetricCard
+                            icon={Handshake}
+                            label="Awaiting Dev Ack"
+                            value={awaitingDevAckCount}
+                            description="Tasks handed to development that have not yet been acknowledged by the dev side."
+                            accentClassName="text-[#F59E0B]"
+                            meta="Waiting for developer pickup"
+                        />
+                        <DashboardMetricCard
+                            icon={Handshake}
+                            label="Ready for QA"
+                            value={readyForQaCount}
+                            description="Tasks marked as ready for QA verification but not yet fully verified."
+                            accentClassName="text-[#38BDF8]"
+                            meta="Available for retest"
+                        />
+                        <DashboardMetricCard
+                            icon={Target}
+                            label="Verified Today"
+                            value={verifiedTodayCount}
+                            description="Verification-passed collaboration events recorded on the current calendar day."
+                            accentClassName="text-[#10B981]"
+                            meta="Daily verification throughput"
+                        />
+                        <DashboardMetricCard
+                            icon={AlertOctagon}
+                            label="Missing Evidence"
+                            value={missingEvidenceCount}
+                            description="Handoffs that do not include linked execution evidence, files, or notes."
+                            accentClassName="text-[#EF4444]"
+                            stateClassName={missingEvidenceCount > 0 ? "app-status-danger" : undefined}
+                            meta={missingEvidenceCount > 0 ? "Evidence gap in active handoffs" : "Handoffs include evidence"}
+                        />
+                        <DashboardMetricCard
+                            icon={GitPullRequest}
+                            label="PRs Waiting QA"
+                            value={prsWaitingForQaCount}
+                            description="Handoffs with linked pull requests that still need QA retest or verification."
+                            accentClassName="text-[#A78BFA]"
+                            meta="Retest queue linked to PRs"
+                        />
+                        {releaseQueue && collaborationMetrics ? (
+                            <DashboardMetricCard
+                                icon={Clock}
+                                label="Avg Dev Ack"
+                                value={collaborationMetrics.avgDevAcknowledgementHours === null ? 'n/a' : `${collaborationMetrics.avgDevAcknowledgementHours}h`}
+                                description="Average time from a QA-to-dev handoff until the developer acknowledges the work."
+                                accentClassName="text-[#F59E0B]"
+                                meta={`Reopen rate ${collaborationMetrics.reopenRate}%`}
+                            />
+                        ) : null}
+                    </div>
+                    {releaseQueue && collaborationMetrics ? (
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24]/40 p-4">
+                                <p className="app-section-label">Release Queue</p>
+                                <p className="mt-2 text-2xl font-semibold text-[#38BDF8]">{releaseQueue.tasksReadyForQa.length}</p>
+                                <p className="mt-1 text-xs text-[#6B7280]">Tasks ready for QA verification.</p>
+                            </div>
+                            <div className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24]/40 p-4">
+                                <p className="app-section-label">Evidence Health</p>
+                                <p className="mt-2 text-2xl font-semibold text-[#EF4444]">{releaseQueue.handoffsMissingEvidence.length}</p>
+                                <p className="mt-1 text-xs text-[#6B7280]">Active handoffs missing evidence artifacts.</p>
+                            </div>
+                            <div className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24]/40 p-4">
+                                <p className="app-section-label">Verification Reopen Rate</p>
+                                <p className="mt-2 text-2xl font-semibold text-[#A78BFA]">{collaborationMetrics.reopenRate}%</p>
+                                <p className="mt-1 text-xs text-[#6B7280]">Share of verifications that were reopened after review.</p>
+                            </div>
+                        </div>
+                    ) : null}
+                </MetricsSection>
             </div>
 
             {/* Layout Row 1: Key Charts */}
@@ -435,6 +625,38 @@ export default function DashboardPage() {
                                 <p className="text-[11px] text-[#6B7280] italic">No active runbooks detected.</p>
                             )}
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm">
+                    <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">ACTIVE HANDOFFS</p>
+                    <div className="space-y-3">
+                        {activeHandoffs.length === 0 ? (
+                            <p className="text-[11px] text-[#6B7280] italic">No active handoffs.</p>
+                        ) : activeHandoffs.map((handoff) => {
+                            const task = tasks.find((item) => item.id === handoff.taskId)
+                            return (
+                                <div key={handoff.id} className="bg-[#1A1A24]/50 p-3 rounded-lg border border-[#2A2A3A]/50">
+                                    <div className="text-xs font-bold text-[#E2E8F0]">{task?.title || handoff.summary}</div>
+                                    <div className="text-[10px] text-[#6B7280] mt-1">{handoff.type} · {handoff.environmentName || 'No environment'}</div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm">
+                    <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">RECENT COLLAB ACTIVITY</p>
+                    <div className="space-y-3">
+                        {recentCollabEvents.length === 0 ? (
+                            <p className="text-[11px] text-[#6B7280] italic">No collaboration activity.</p>
+                        ) : recentCollabEvents.map((event) => (
+                            <div key={event.id} className="bg-[#1A1A24]/50 p-3 rounded-lg border border-[#2A2A3A]/50">
+                                <div className="text-xs font-bold text-[#E2E8F0]">{event.title}</div>
+                                <div className="text-[10px] text-[#6B7280] mt-1">{new Date(event.timestamp).toLocaleString()}</div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>

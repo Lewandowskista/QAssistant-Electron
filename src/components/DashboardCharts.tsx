@@ -17,22 +17,55 @@ const COLORS = {
     passed: "#10B981",
     failed: "#EF4444",
     blocked: "#F59E0B",
-    skipped: "#6B7280",
-    "not-run": "#3B82F6",
-    grid: "#2A2A3A",
-    text: "#9CA3AF",
-    purple: "#A78BFA",
+    skipped: "#94A3B8",
+    "not-run": "#38BDF8",
+    grid: "rgba(148, 163, 184, 0.12)",
+    gridStrong: "rgba(148, 163, 184, 0.22)",
+    text: "#94A3B8",
+    textStrong: "#CBD5E1",
+    brand: "#7DD3FC",
+    brandStrong: "#38BDF8",
+    brandSoft: "rgba(56, 189, 248, 0.16)",
+    violet: "#A78BFA",
+    violetSoft: "rgba(167, 139, 250, 0.18)",
+    panel: "rgba(15, 23, 42, 0.94)",
 }
 
 const TooltipStyle = {
     contentStyle: {
-        background: "#1A1A24",
-        border: "1px solid #2A2A3A",
-        borderRadius: "8px",
+        background: COLORS.panel,
+        border: `1px solid ${COLORS.gridStrong}`,
+        borderRadius: "14px",
         fontSize: "11px",
         color: "#E2E8F0",
+        boxShadow: "0 18px 48px -24px rgba(2, 6, 23, 0.95)",
+        backdropFilter: "blur(10px)",
     },
-    labelStyle: { color: "#9CA3AF", fontWeight: 700 },
+    labelStyle: { color: COLORS.textStrong, fontWeight: 700 },
+    itemStyle: { color: "#E2E8F0" },
+    cursor: { fill: "transparent" },
+}
+
+const axisTick = { fill: COLORS.text, fontSize: 10, fontWeight: 600 }
+const gridProps = { stroke: COLORS.grid, strokeDasharray: "3 6" }
+
+function ChartFrame({ id }: { id: string }) {
+    return (
+        <defs>
+            <linearGradient id={`${id}-line`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={COLORS.brandStrong} />
+                <stop offset="100%" stopColor={COLORS.violet} />
+            </linearGradient>
+            <linearGradient id={`${id}-area`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(125, 211, 252, 0.28)" />
+                <stop offset="100%" stopColor="rgba(125, 211, 252, 0)" />
+            </linearGradient>
+            <linearGradient id={`${id}-bar`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={COLORS.brandStrong} />
+                <stop offset="100%" stopColor={COLORS.violet} />
+            </linearGradient>
+        </defs>
+    )
 }
 
 export function PassRateTrendChart() {
@@ -72,9 +105,10 @@ export function PassRateTrendChart() {
     return (
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                <XAxis dataKey="date" tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} />
-                <YAxis domain={[0, 100]} tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
+                <ChartFrame id="pass-rate" />
+                <CartesianGrid {...gridProps} vertical={false} />
+                <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} />
+                <YAxis domain={[0, 100]} tick={axisTick} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
                 <Tooltip
                     {...TooltipStyle}
                     formatter={(val: any) => [`${val}%`, "Pass Rate"]}
@@ -82,10 +116,10 @@ export function PassRateTrendChart() {
                 <Line
                     type="monotone"
                     dataKey="passRate"
-                    stroke={COLORS.purple}
-                    strokeWidth={2}
-                    dot={{ fill: COLORS.purple, strokeWidth: 0, r: 4 }}
-                    activeDot={{ r: 6, fill: COLORS.purple }}
+                    stroke="url(#pass-rate-line)"
+                    strokeWidth={3}
+                    dot={{ fill: COLORS.brandStrong, stroke: "#0F172A", strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, fill: COLORS.brandStrong, stroke: "#E2E8F0", strokeWidth: 2 }}
                 />
             </LineChart>
         </ResponsiveContainer>
@@ -133,23 +167,31 @@ export function DefectDensityChart() {
     return (
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+                <ChartFrame id="defect-density" />
+                <CartesianGrid {...gridProps} vertical={false} />
                 <XAxis
                     dataKey="module"
-                    tick={{ fill: COLORS.text, fontSize: 9 }}
+                    tick={{ ...axisTick, fontSize: 9 }}
                     tickLine={false}
                     axisLine={false}
                     angle={-35}
                     textAnchor="end"
                     interval={0}
                 />
-                <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis tick={axisTick} tickLine={false} axisLine={false} />
                 <Tooltip
                     {...TooltipStyle}
                     formatter={(val: any, name: any) => [val, name === 'failed' ? 'Failed' : 'Passed']}
                 />
-                <Bar dataKey="passed" stackId="a" fill={COLORS.passed} radius={[0, 0, 0, 0]} />
-                <Bar dataKey="failed" stackId="a" fill={COLORS.failed} radius={[4, 4, 0, 0]} />
+                <Legend
+                    verticalAlign="top"
+                    align="right"
+                    iconType="circle"
+                    iconSize={8}
+                    formatter={(value) => <span style={{ color: COLORS.text, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>{value}</span>}
+                />
+                <Bar dataKey="passed" stackId="a" fill="rgba(16, 185, 129, 0.78)" radius={[0, 0, 10, 10]} />
+                <Bar dataKey="failed" stackId="a" fill="rgba(239, 68, 68, 0.92)" radius={[10, 10, 0, 0]} />
             </BarChart>
         </ResponsiveContainer>
     )
@@ -207,10 +249,12 @@ export function TestStatusDonut() {
                     data={data}
                     cx="50%"
                     cy="50%"
-                    innerRadius="55%"
-                    outerRadius="75%"
-                    paddingAngle={3}
+                    innerRadius="58%"
+                    outerRadius="78%"
+                    paddingAngle={4}
                     dataKey="value"
+                    stroke="rgba(15, 23, 42, 0.85)"
+                    strokeWidth={3}
                 >
                     {data.map((entry, index) => (
                         <Cell key={index} fill={DONUT_COLORS[entry.name] || '#6B7280'} />
@@ -218,9 +262,10 @@ export function TestStatusDonut() {
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
                 <Legend
+                    verticalAlign="bottom"
                     iconType="circle"
                     iconSize={8}
-                    formatter={(value) => <span style={{ color: '#9CA3AF', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>{value}</span>}
+                    formatter={(value) => <span style={{ color: COLORS.text, fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>{value}</span>}
                 />
             </PieChart>
         </ResponsiveContainer>
@@ -261,15 +306,16 @@ export function ExecutionVelocityChart() {
     return (
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                <XAxis dataKey="date" tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} label={{ value: 'Executions', angle: -90, position: 'insideLeft' }} />
+                <ChartFrame id="execution-velocity" />
+                <CartesianGrid {...gridProps} vertical={false} />
+                <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} />
+                <YAxis tick={axisTick} tickLine={false} axisLine={false} label={{ value: 'Executions', angle: -90, position: 'insideLeft', fill: COLORS.text, fontSize: 10 }} />
                 <Tooltip
                     {...TooltipStyle}
                     formatter={(val: any) => [val, "Test Cases Executed"]}
                     labelFormatter={(label) => `${label}`}
                 />
-                <Bar dataKey="executions" fill={COLORS.purple} radius={[8, 8, 0, 0]} />
+                <Bar dataKey="executions" fill="url(#execution-velocity-bar)" radius={[12, 12, 4, 4]} />
             </BarChart>
         </ResponsiveContainer>
     )
@@ -324,9 +370,10 @@ export function TestBurndownChart() {
     return (
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                <XAxis dataKey="date" tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fill: COLORS.text, fontSize: 10 }} tickLine={false} axisLine={false} label={{ value: 'Not Run', angle: -90, position: 'insideLeft' }} />
+                <ChartFrame id="burndown" />
+                <CartesianGrid {...gridProps} vertical={false} />
+                <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} />
+                <YAxis tick={axisTick} tickLine={false} axisLine={false} label={{ value: 'Not Run', angle: -90, position: 'insideLeft', fill: COLORS.text, fontSize: 10 }} />
                 <Tooltip
                     {...TooltipStyle}
                     formatter={(val: any) => [val, "Test Cases Remaining"]}
@@ -335,10 +382,10 @@ export function TestBurndownChart() {
                 <Line
                     type="monotone"
                     dataKey="remaining"
-                    stroke={COLORS.purple}
-                    strokeWidth={2}
-                    dot={{ fill: COLORS.purple, r: 3 }}
-                    activeDot={{ r: 5 }}
+                    stroke="url(#burndown-line)"
+                    strokeWidth={3}
+                    dot={{ fill: COLORS.violet, stroke: "#0F172A", strokeWidth: 2, r: 3.5 }}
+                    activeDot={{ r: 6, fill: COLORS.violet, stroke: "#E2E8F0", strokeWidth: 2 }}
                 />
             </LineChart>
         </ResponsiveContainer>
