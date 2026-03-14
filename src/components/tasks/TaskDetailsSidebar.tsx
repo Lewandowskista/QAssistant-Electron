@@ -207,15 +207,15 @@ export function TaskDetailsSidebar({
                 </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={loadTabContent} className="flex min-h-0 flex-1 flex-col">
+            <Tabs value={activeTab} onValueChange={loadTabContent} variant="underline" className="flex min-h-0 flex-1 flex-col">
                 <div className="overflow-x-auto border-b border-[#2A2A3A] custom-scrollbar">
-                    <TabsList className="h-10 w-max min-w-full justify-start gap-4 rounded-none bg-transparent px-2">
-                        <TabsTrigger value="overview" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Overview</TabsTrigger>
-                        <TabsTrigger value="collaboration" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Collaboration</TabsTrigger>
-                        <TabsTrigger value="traceability" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Traceability</TabsTrigger>
-                        <TabsTrigger value="comments" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Comments</TabsTrigger>
-                        <TabsTrigger value="history" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">History</TabsTrigger>
-                        <TabsTrigger value="activity" className="rounded-none px-2 text-xs font-bold data-[state=active]:border-b-2 data-[state=active]:border-[#A78BFA] data-[state=active]:bg-transparent data-[state=active]:text-[#A78BFA] data-[state=active]:shadow-none">Activity</TabsTrigger>
+                    <TabsList>
+                        <TabsTrigger value="overview">Overview</TabsTrigger>
+                        <TabsTrigger value="collaboration">Collaboration</TabsTrigger>
+                        <TabsTrigger value="traceability">Traceability</TabsTrigger>
+                        <TabsTrigger value="comments">Comments</TabsTrigger>
+                        <TabsTrigger value="history">History</TabsTrigger>
+                        <TabsTrigger value="activity">Activity</TabsTrigger>
                     </TabsList>
                 </div>
 

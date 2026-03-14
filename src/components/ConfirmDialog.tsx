@@ -2,6 +2,7 @@ import { useState, useCallback } from "react"
 import { X, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { StatusBadge } from "@/components/ui/status-badge"
 
 interface ConfirmDialogProps {
     open: boolean
@@ -41,18 +42,21 @@ export function ConfirmDialog({
                     open ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
                 )}
             >
-                <div className="bg-[#13131A] border border-[#2A2A3A] rounded-2xl shadow-2xl w-[400px] p-6">
+                <div className="app-panel w-[400px] p-6">
                     <div className="flex items-start gap-4 mb-6">
                         <div className={cn(
                             "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                            destructive ? "bg-red-500/10" : "bg-[#A78BFA]/10"
+                            destructive ? "app-status-danger" : "app-status-info"
                         )}>
                             <AlertTriangle className={cn(
                                 "h-5 w-5",
-                                destructive ? "text-red-400" : "text-[#A78BFA]"
+                                destructive ? "text-red-400" : "text-primary"
                             )} />
                         </div>
                         <div>
+                            <div className="mb-2">
+                                <StatusBadge tone={destructive ? "danger" : "info"}>{destructive ? "Destructive" : "Confirmation"}</StatusBadge>
+                            </div>
                             <p className="text-sm font-bold text-[#E2E8F0]">{title}</p>
                             {description && (
                                 <p className="text-xs text-[#6B7280] mt-1 leading-relaxed">{description}</p>

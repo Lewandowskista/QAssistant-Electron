@@ -19,6 +19,7 @@ import {
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Toaster } from "sonner"
+import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
 
 export default function MainLayout() {
     const location = useLocation()
@@ -210,9 +211,9 @@ export default function MainLayout() {
                             <button
                                 onClick={() => setActiveProject(project.id)}
                                 className={cn(
-                                    "w-full flex items-center gap-3 rounded-xl border px-3 py-3 text-sm font-medium transition-all text-left",
+                                    "w-full flex items-center gap-3 rounded-2xl border px-3 py-3 text-sm font-medium transition-all text-left",
                                     activeProjectId === project.id
-                                        ? "bg-panel-muted border-ui-strong text-foreground shadow-sm"
+                                        ? "bg-[linear-gradient(180deg,hsl(var(--surface-selected)/0.75),hsl(var(--surface-card)/0.95))] border-ui-strong text-foreground shadow-sm"
                                         : "border-transparent text-soft hover:bg-panel-muted hover:text-foreground"
                                 )}
                             >
@@ -358,7 +359,7 @@ export default function MainLayout() {
                             </button>
                         )}
                         <div className="flex items-center gap-3 shrink-0">
-                            <div className="w-8 h-8 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-2xl bg-primary/12 border border-primary/20 flex items-center justify-center">
                                 <FlaskConical className="h-4 w-4 text-primary stroke-[2.4]" />
                             </div>
                             <span className="text-sm font-semibold tracking-tight text-foreground">QAssistant</span>
@@ -476,12 +477,15 @@ export default function MainLayout() {
                 >
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSettingsOpen(false)} />
                     <div className={cn(
-                        "absolute top-0 right-0 h-full w-full max-w-[680px] bg-background border-l border-ui shadow-2xl transition-transform duration-300 ease-out flex flex-col",
+                        "absolute top-0 right-0 h-full w-full max-w-[680px] bg-[hsl(var(--surface-overlay))] border-l border-ui shadow-2xl transition-transform duration-300 ease-out flex flex-col",
                         settingsOpen ? "translate-x-0" : "translate-x-full"
                     )}>
-                        <button onClick={() => setSettingsOpen(false)} className="absolute top-3 right-3 z-10 p-2 hover:bg-panel-muted rounded-xl transition-colors">
-                            <X className="h-4 w-4 text-muted-ui" />
-                        </button>
+                        <SideDrawerHeader
+                            icon={Settings}
+                            title="Settings"
+                            subtitle="Application preferences, integrations, and diagnostics"
+                            onClose={() => setSettingsOpen(false)}
+                        />
                         <div className="flex-1 overflow-hidden">
                             {settingsOpen && (
                                 <Suspense fallback={<div className="p-6 text-muted-ui">Loading...</div>}>

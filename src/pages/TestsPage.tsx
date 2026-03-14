@@ -46,6 +46,8 @@ import { CsvImportDialog } from "@/components/CsvImportDialog"
 import TestRunSessionCard from "@/components/TestRunSessionCard"
 import CoverageMatrix from "@/components/CoverageMatrix"
 import { toast } from "sonner"
+import { SubtabBar } from "@/components/ui/subtab-bar"
+import { SegmentedControl } from "@/components/ui/segmented-control"
 
 type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder'
 
@@ -502,31 +504,18 @@ export default function TestsPage() {
         <>
             <div className="h-full flex flex-col animate-in fade-in duration-500 overflow-hidden bg-[#0F0F13]">
                 {/* Primary Sub-Navigation (Reference: toolbar style) */}
-                <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-1.5 flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                        {[
-                            { id: 'TestCaseGeneration', label: 'Test Case Generation' },
-                            { id: 'TestRuns', label: 'Test Runs' },
-                            { id: 'Reports', label: 'Exports' },
-                            { id: 'CoverageMatrix', label: 'Coverage Matrix' },
-                            { id: 'RegressionBuilder', label: 'Regression Builder' }
-                        ].map(tab => (
-                            <Button
-                                key={tab.id}
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setActiveSubTab(tab.id as SubTab)}
-                                className={cn(
-                                    "h-8 px-4 text-[11px] font-bold tracking-tight transition-all rounded-md",
-                                    activeSubTab === tab.id
-                                        ? "bg-[#2A2A3A] text-[#A78BFA] border border-[#A78BFA]/20"
-                                        : "text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#1A1A24]"
-                                )}
-                            >
-                                {tab.label}
-                            </Button>
-                        ))}
-                    </div>
+                <div className="flex-none border-b app-divider bg-[hsl(var(--surface-header)/0.78)] px-6 py-3">
+                    <SubtabBar
+                        value={activeSubTab}
+                        onChange={(value) => setActiveSubTab(value as SubTab)}
+                        items={[
+                            { id: 'TestCaseGeneration', label: 'Case Generation', icon: FlaskConical },
+                            { id: 'TestRuns', label: 'Test Runs', icon: History, count: totalRuns },
+                            { id: 'Reports', label: 'Exports', icon: BarChart3 },
+                            { id: 'CoverageMatrix', label: 'Coverage Matrix', icon: Layers },
+                            { id: 'RegressionBuilder', label: 'Regression Builder', icon: Zap }
+                        ]}
+                    />
                 </div>
 
                 {/* Sub-tab Content Area */}
@@ -534,15 +523,15 @@ export default function TestsPage() {
                     {activeSubTab === 'TestCaseGeneration' && (
                         <div className="flex-1 flex flex-col min-h-0">
                             {/* Primary Toolbar (Reference: Row 0) */}
-                            <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center justify-between">
+                            <div className="flex-none border-b app-divider bg-[hsl(var(--surface-header)/0.72)] px-6 py-3 flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-4">
                                     <div className="flex items-center gap-3">
-                                        <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Source</span>
+                                        <span className="app-section-label">Source</span>
                                         <Select value={source} onValueChange={setSource}>
-                                            <SelectTrigger className="h-8 w-36 bg-[#1A1A24] border-[#2A2A3A] text-[11px] font-bold text-[#E2E8F0]">
+                                            <SelectTrigger className="h-9 w-40 text-[11px] font-semibold">
                                                 <SelectValue />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
+                                            <SelectContent>
                                                 <SelectItem value="Linear">Linear</SelectItem>
                                                 <SelectItem value="Jira">Jira</SelectItem>
                                                 <SelectItem value="Manual">Manual</SelectItem>
@@ -572,30 +561,21 @@ export default function TestsPage() {
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                    <div className="font-mono text-[11px] font-bold text-[#6B7280] bg-[#1A1A24] px-3 py-1 rounded border border-[#2A2A3A] tracking-tighter">
-                                        {testPlans.length} PLAN(S) · {testPlans.reduce((acc, p) => acc + (p.testCases || []).length, 0)} CASE(S)
+                                    <div className="app-chip normal-case tracking-normal font-mono-ui">
+                                        {testPlans.length} plans · {testPlans.reduce((acc, p) => acc + (p.testCases || []).length, 0)} cases
                                     </div>
                                 </div>
                             </div>
 
                             {/* Secondary Toolbar (Reference: Row 1) */}
-                            <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-2 flex items-center justify-between">
+                            <div className="flex-none border-b app-divider bg-[hsl(var(--surface-header)/0.58)] px-6 py-2 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest mr-2">Filters</span>
-                                    {['All', 'Jira', 'Linear', 'Manual'].map(f => (
-                                        <Button
-                                            key={f}
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => setSourceFilter(f)}
-                                            className={cn(
-                                                "h-7 px-3 text-[10px] font-bold rounded-md transition-all",
-                                                sourceFilter === f ? "text-[#A78BFA] bg-[#A78BFA]/10 border border-[#A78BFA]/20" : "text-[#6B7280] hover:text-[#E2E8F0]"
-                                            )}
-                                        >
-                                            {f}
-                                        </Button>
-                                    ))}
+                                    <span className="app-section-label mr-2">Filters</span>
+                                    <SegmentedControl
+                                        value={sourceFilter}
+                                        onChange={setSourceFilter}
+                                        options={['All', 'Jira', 'Linear', 'Manual'].map((item) => ({ value: item, label: item }))}
+                                    />
                                     <div className="w-[1px] h-4 bg-[#2A2A3A] mx-2" />
                                     <Button onClick={() => setCtxDialogOpen(true)} variant="ghost" size="sm" className="h-7 px-3 text-[10px] font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-2">
                                         <FileText className="h-3.5 w-3.5" />

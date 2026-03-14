@@ -96,9 +96,9 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
         <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4 animate-in fade-in duration-200">
             <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md" onClick={() => onOpenChange(false)} />
 
-            <div className="relative w-full max-w-2xl bg-card border-none shadow-[0_32px_96px_-12px_rgba(0,0,0,0.5)] rounded-[2.5rem] overflow-hidden flex flex-col focus-visible:outline-none ring-1 ring-white/10 ring-inset">
-                <div className="flex items-center px-8 border-b border-border/50 h-20">
-                    <Search className="h-6 w-6 text-[#A78BFA] mr-4 shrink-0" />
+            <div className="relative w-full max-w-2xl overflow-hidden rounded-[2.25rem] border bg-[hsl(var(--surface-overlay))] shadow-[0_32px_96px_-12px_rgba(0,0,0,0.5)] flex flex-col focus-visible:outline-none ring-1 ring-white/10 ring-inset">
+                <div className="flex items-center px-8 border-b border-border/50 h-20 bg-[hsl(var(--surface-header)/0.72)]">
+                    <Search className="h-6 w-6 text-primary mr-4 shrink-0" />
                     <input
                         autoFocus
                         placeholder="Search mission protocols, tests, or environments..."
@@ -126,11 +126,11 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                                     className={cn(
                                         "flex items-center gap-4 px-6 py-4 rounded-2xl cursor-pointer transition-all duration-150 select-none",
                                         idx === selectedIndex
-                                            ? "bg-[#A78BFA] text-[#0F0F13] shadow-xl shadow-[#A78BFA]/20 translate-x-2"
+                                            ? "bg-primary text-[hsl(var(--text-inverse))] shadow-xl shadow-[hsl(var(--accent-primary)/0.2)] translate-x-2"
                                             : "hover:bg-muted/50 text-muted-foreground"
                                     )}
                                 >
-                                    <cmd.icon className={cn("h-5 w-5", idx === selectedIndex ? "text-[#0F0F13]" : "text-[#A78BFA]")} />
+                                    <cmd.icon className={cn("h-5 w-5", idx === selectedIndex ? "text-[hsl(var(--text-inverse))]" : "text-primary")} />
                                     <span className="font-bold tracking-tight">{cmd.title}</span>
                                     {idx === selectedIndex && (
                                         <div className="ml-auto text-[10px] font-black uppercase tracking-widest opacity-60 animate-in slide-in-from-right-2">

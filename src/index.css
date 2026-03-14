@@ -12,52 +12,95 @@
 
 @layer base {
   :root {
-    --background: 222 30% 8%;
-    --foreground: 210 33% 96%;
+    --background: 218 31% 8%;
+    --foreground: 210 28% 96%;
 
-    --card: 222 25% 12%;
-    --card-foreground: 210 33% 96%;
+    --card: 220 24% 12%;
+    --card-foreground: 210 28% 96%;
 
-    --popover: 222 25% 12%;
-    --popover-foreground: 210 33% 96%;
+    --popover: 220 22% 11%;
+    --popover-foreground: 210 28% 96%;
 
-    --primary: 218 85% 63%;
+    --primary: 195 72% 60%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 222 18% 18%;
-    --secondary-foreground: 210 33% 96%;
+    --secondary: 220 17% 18%;
+    --secondary-foreground: 210 28% 96%;
 
-    --muted: 222 18% 18%;
-    --muted-foreground: 215 16% 68%;
+    --muted: 220 17% 18%;
+    --muted-foreground: 216 13% 66%;
 
-    --accent: 217 33% 20%;
-    --accent-foreground: 210 33% 96%;
+    --accent: 216 25% 21%;
+    --accent-foreground: 210 28% 96%;
 
-    --destructive: 0 76% 58%;
+    --destructive: 0 72% 58%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 218 24% 22%;
-    --input: 218 24% 22%;
-    --ring: 218 85% 63%;
+    --border: 217 19% 24%;
+    --input: 217 19% 24%;
+    --ring: 195 72% 60%;
 
     --radius: 1rem;
+    --radius-sm: 0.65rem;
+    --radius-md: 0.9rem;
+    --radius-lg: 1.15rem;
+    --radius-xl: 1.4rem;
+    --shadow-sm: 0 10px 24px -18px rgba(3, 7, 18, 0.42);
+    --shadow-md: 0 18px 44px -28px rgba(3, 7, 18, 0.56);
+    --shadow-lg: 0 28px 72px -34px rgba(2, 6, 23, 0.72);
 
-    --app-bg: 222 33% 7%;
-    --app-sidebar: 222 30% 10%;
-    --app-panel: 222 24% 12%;
-    --app-panel-strong: 221 28% 15%;
-    --app-panel-muted: 222 20% 16%;
-    --app-panel-hover: 219 24% 19%;
-    --app-line: 218 22% 22%;
-    --app-line-strong: 217 28% 29%;
-    --app-text-soft: 216 14% 72%;
-    --app-text-muted: 217 12% 55%;
-    --app-brand: 218 85% 63%;
-    --app-brand-soft: 218 85% 63% / 0.16;
-    --app-brand-strong: 190 87% 58%;
-    --app-success: 156 68% 45%;
-    --app-warning: 37 92% 58%;
-    --app-danger: 0 78% 61%;
+    --surface-app: 220 31% 7%;
+    --surface-sidebar: 220 24% 10%;
+    --surface-header: 220 22% 11%;
+    --surface-card: 220 22% 12%;
+    --surface-card-alt: 218 19% 16%;
+    --surface-overlay: 222 32% 6%;
+    --surface-elevated: 218 21% 18%;
+    --surface-selected: 219 26% 20%;
+
+    --border-subtle: 218 18% 18%;
+    --border-default: 217 19% 24%;
+    --border-strong: 214 23% 31%;
+    --border-focus: 195 72% 60%;
+
+    --text-primary: 210 28% 96%;
+    --text-secondary: 214 18% 77%;
+    --text-muted: 216 12% 58%;
+    --text-inverse: 222 47% 11%;
+
+    --accent-primary: 195 72% 60%;
+    --accent-primary-soft: 195 72% 60% / 0.14;
+    --accent-primary-strong: 188 80% 52%;
+
+    --state-info: 202 89% 62%;
+    --state-info-soft: 202 89% 62% / 0.14;
+    --state-info-border: 202 89% 62% / 0.26;
+    --state-success: 156 62% 48%;
+    --state-success-soft: 156 62% 48% / 0.14;
+    --state-success-border: 156 62% 48% / 0.26;
+    --state-warning: 38 91% 60%;
+    --state-warning-soft: 38 91% 60% / 0.16;
+    --state-warning-border: 38 91% 60% / 0.28;
+    --state-danger: 0 79% 63%;
+    --state-danger-soft: 0 79% 63% / 0.14;
+    --state-danger-border: 0 79% 63% / 0.26;
+
+    --app-bg: var(--surface-app);
+    --app-sidebar: var(--surface-sidebar);
+    --app-panel: var(--surface-card);
+    --app-panel-strong: var(--surface-card-alt);
+    --app-panel-muted: var(--surface-card-alt);
+    --app-panel-hover: var(--surface-elevated);
+    --app-line: var(--border-default);
+    --app-line-strong: var(--border-strong);
+    --app-text-soft: var(--text-secondary);
+    --app-text-muted: var(--text-muted);
+    --app-brand: var(--accent-primary);
+    --app-brand-soft: var(--accent-primary-soft);
+    --app-brand-strong: var(--accent-primary-strong);
+    --app-success: var(--state-success);
+    --app-warning: var(--state-warning);
+    --app-danger: var(--state-danger);
   }
 
   .dark {
@@ -67,49 +110,85 @@
   .light {
     color-scheme: light;
     --background: 210 33% 98%;
-    --foreground: 222 47% 11%;
+    --foreground: 222 40% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 222 40% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 222 40% 12%;
 
-    --primary: 218 78% 54%;
+    --primary: 198 76% 44%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 22% 94%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 210 22% 95%;
+    --secondary-foreground: 222 40% 12%;
 
-    --muted: 210 22% 94%;
-    --muted-foreground: 215 16% 40%;
+    --muted: 210 22% 95%;
+    --muted-foreground: 217 13% 42%;
 
-    --accent: 210 25% 92%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 205 28% 92%;
+    --accent-foreground: 222 40% 12%;
 
     --destructive: 0 72% 55%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214 22% 86%;
     --input: 214 22% 86%;
-    --ring: 218 78% 54%;
+    --ring: 198 76% 44%;
 
-    --app-bg: 210 33% 97%;
-    --app-sidebar: 0 0% 100%;
-    --app-panel: 0 0% 100%;
-    --app-panel-strong: 210 20% 98%;
-    --app-panel-muted: 210 22% 95%;
-    --app-panel-hover: 210 22% 92%;
-    --app-line: 214 22% 86%;
-    --app-line-strong: 214 24% 78%;
-    --app-text-soft: 222 28% 20%;
-    --app-text-muted: 217 13% 43%;
-    --app-brand: 218 78% 54%;
-    --app-brand-soft: 218 78% 54% / 0.1;
-    --app-brand-strong: 190 78% 40%;
-    --app-success: 156 65% 35%;
-    --app-warning: 35 92% 45%;
-    --app-danger: 0 70% 48%;
+    --surface-app: 210 33% 97%;
+    --surface-sidebar: 0 0% 100%;
+    --surface-header: 210 25% 98%;
+    --surface-card: 0 0% 100%;
+    --surface-card-alt: 210 25% 96%;
+    --surface-overlay: 210 33% 96%;
+    --surface-elevated: 210 25% 94%;
+    --surface-selected: 203 100% 96%;
+
+    --border-subtle: 214 22% 91%;
+    --border-default: 214 22% 86%;
+    --border-strong: 214 23% 77%;
+    --border-focus: 198 76% 44%;
+
+    --text-primary: 222 40% 12%;
+    --text-secondary: 222 26% 22%;
+    --text-muted: 217 13% 43%;
+    --text-inverse: 210 40% 98%;
+
+    --accent-primary: 198 76% 44%;
+    --accent-primary-soft: 198 76% 44% / 0.1;
+    --accent-primary-strong: 189 84% 34%;
+
+    --state-info: 202 82% 45%;
+    --state-info-soft: 202 82% 45% / 0.12;
+    --state-info-border: 202 82% 45% / 0.2;
+    --state-success: 156 65% 35%;
+    --state-success-soft: 156 65% 35% / 0.12;
+    --state-success-border: 156 65% 35% / 0.22;
+    --state-warning: 35 92% 45%;
+    --state-warning-soft: 35 92% 45% / 0.12;
+    --state-warning-border: 35 92% 45% / 0.22;
+    --state-danger: 0 70% 48%;
+    --state-danger-soft: 0 70% 48% / 0.12;
+    --state-danger-border: 0 70% 48% / 0.22;
+
+    --app-bg: var(--surface-app);
+    --app-sidebar: var(--surface-sidebar);
+    --app-panel: var(--surface-card);
+    --app-panel-strong: var(--surface-card-alt);
+    --app-panel-muted: var(--surface-card-alt);
+    --app-panel-hover: var(--surface-elevated);
+    --app-line: var(--border-default);
+    --app-line-strong: var(--border-strong);
+    --app-text-soft: var(--text-secondary);
+    --app-text-muted: var(--text-muted);
+    --app-brand: var(--accent-primary);
+    --app-brand-soft: var(--accent-primary-soft);
+    --app-brand-strong: var(--accent-primary-strong);
+    --app-success: var(--state-success);
+    --app-warning: var(--state-warning);
+    --app-danger: var(--state-danger);
   }
 
   * {
@@ -126,9 +205,9 @@
     @apply bg-background text-foreground antialiased;
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background-image:
-      radial-gradient(circle at top left, hsl(var(--app-brand) / 0.16), transparent 28%),
-      radial-gradient(circle at top right, hsl(var(--app-brand-strong) / 0.08), transparent 24%),
-      linear-gradient(180deg, hsl(var(--app-bg) / 0.98), hsl(var(--background)));
+      radial-gradient(circle at top left, hsl(var(--accent-primary-soft)), transparent 30%),
+      radial-gradient(circle at top right, hsl(var(--accent-primary-strong) / 0.08), transparent 22%),
+      linear-gradient(180deg, hsl(var(--surface-app) / 0.99), hsl(var(--background)));
   }
 
   h1,
@@ -145,26 +224,29 @@
 @layer components {
   .app-shell {
     @apply h-screen overflow-hidden text-foreground;
-    background-color: hsl(var(--app-bg));
+    background:
+      linear-gradient(180deg, hsl(var(--surface-app) / 0.98), hsl(var(--background)));
   }
 
   .app-sidebar {
     @apply flex flex-col border-r;
-    background-color: hsl(var(--app-sidebar) / 0.92);
-    border-color: hsl(var(--app-line));
+    background:
+      linear-gradient(180deg, hsl(var(--surface-sidebar) / 0.97), hsl(var(--surface-header) / 0.97));
+    border-color: hsl(var(--border-default));
   }
 
   .app-panel {
     @apply rounded-2xl border shadow-sm;
-    background: linear-gradient(180deg, hsl(var(--app-panel-strong) / 0.98), hsl(var(--app-panel) / 0.98));
-    border-color: hsl(var(--app-line));
-    box-shadow: 0 14px 36px -28px rgba(15, 23, 42, 0.8);
+    background:
+      linear-gradient(180deg, hsl(var(--surface-card-alt) / 0.98), hsl(var(--surface-card) / 0.98));
+    border-color: hsl(var(--border-default));
+    box-shadow: var(--shadow-md);
   }
 
   .app-panel-muted {
     @apply rounded-xl border;
-    background-color: hsl(var(--app-panel-muted) / 0.72);
-    border-color: hsl(var(--app-line) / 0.72);
+    background-color: hsl(var(--surface-card-alt) / 0.78);
+    border-color: hsl(var(--border-default) / 0.85);
   }
 
   .app-panel-hover {
@@ -172,29 +254,125 @@
   }
 
   .app-panel-hover:hover {
-    background-color: hsl(var(--app-panel-hover) / 0.85);
-    border-color: hsl(var(--app-line-strong));
+    background-color: hsl(var(--surface-elevated) / 0.92);
+    border-color: hsl(var(--border-strong));
   }
 
   .app-titlebar {
     @apply border-b backdrop-blur-xl;
-    background-color: hsl(var(--app-sidebar) / 0.82);
-    border-color: hsl(var(--app-line));
+    background-color: hsl(var(--surface-header) / 0.82);
+    border-color: hsl(var(--border-default));
   }
 
   .app-section-label {
     @apply text-[10px] font-semibold uppercase tracking-[0.24em];
-    color: hsl(var(--app-text-muted));
+    color: hsl(var(--text-muted));
   }
 
   .app-heading {
     @apply text-2xl font-semibold tracking-tight;
-    color: hsl(var(--foreground));
+    color: hsl(var(--text-primary));
   }
 
   .app-subheading {
     @apply text-sm;
-    color: hsl(var(--app-text-muted));
+    color: hsl(var(--text-muted));
+  }
+
+  .app-page-header {
+    @apply flex flex-col gap-4 border-b pb-5;
+    border-color: hsl(var(--border-default));
+  }
+
+  .app-page-title {
+    @apply text-3xl font-semibold tracking-tight;
+    color: hsl(var(--text-primary));
+  }
+
+  .app-page-description {
+    @apply text-sm leading-6;
+    color: hsl(var(--text-muted));
+  }
+
+  .app-section-title {
+    @apply text-base font-semibold tracking-tight;
+    color: hsl(var(--text-primary));
+  }
+
+  .app-panel-title {
+    @apply text-sm font-semibold tracking-tight;
+    color: hsl(var(--text-primary));
+  }
+
+  .app-helper-text {
+    @apply text-xs leading-5;
+    color: hsl(var(--text-muted));
+  }
+
+  .app-mono-meta {
+    @apply font-mono text-[11px];
+    color: hsl(var(--text-secondary));
+  }
+
+  .app-subtab-bar {
+    @apply inline-flex items-center gap-1 rounded-2xl border p-1;
+    background-color: hsl(var(--surface-card-alt) / 0.9);
+    border-color: hsl(var(--border-default));
+  }
+
+  .app-subtab-trigger {
+    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-all;
+    color: hsl(var(--text-muted));
+  }
+
+  .app-subtab-trigger:hover {
+    background-color: hsl(var(--surface-elevated));
+    color: hsl(var(--text-primary));
+  }
+
+  .app-subtab-trigger[data-state="active"] {
+    background:
+      linear-gradient(180deg, hsl(var(--surface-selected) / 0.9), hsl(var(--surface-card) / 0.95));
+    color: hsl(var(--accent-primary));
+    border: 1px solid hsl(var(--border-strong));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .app-toolbar {
+    @apply flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3;
+    background-color: hsl(var(--surface-card-alt) / 0.75);
+    border-color: hsl(var(--border-default));
+  }
+
+  .app-empty-state {
+    @apply app-panel flex flex-col items-center justify-center text-center gap-4 p-10;
+    min-height: 280px;
+  }
+
+  .app-table {
+    @apply w-full border-separate border-spacing-0 overflow-hidden rounded-2xl border;
+    border-color: hsl(var(--border-default));
+    background-color: hsl(var(--surface-card));
+  }
+
+  .app-table thead {
+    background-color: hsl(var(--surface-card-alt));
+  }
+
+  .app-table th {
+    @apply px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em];
+    color: hsl(var(--text-muted));
+    border-bottom: 1px solid hsl(var(--border-default));
+  }
+
+  .app-table td {
+    @apply px-4 py-3 text-sm align-middle;
+    color: hsl(var(--text-secondary));
+    border-bottom: 1px solid hsl(var(--border-subtle));
+  }
+
+  .app-table tbody tr:hover {
+    background-color: hsl(var(--surface-elevated) / 0.5);
   }
 
   .app-nav-group {
@@ -203,26 +381,26 @@
 
   .app-nav-item {
     @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all;
-    color: hsl(var(--app-text-soft));
+    color: hsl(var(--text-secondary));
   }
 
   .app-nav-item:hover {
-    background-color: hsl(var(--app-panel-hover));
-    color: hsl(var(--foreground));
+    background-color: hsl(var(--surface-elevated));
+    color: hsl(var(--text-primary));
   }
 
   .app-nav-item[data-active="true"] {
-    background: linear-gradient(135deg, hsl(var(--app-brand-soft)), transparent 70%);
-    border: 1px solid hsl(var(--app-line-strong));
-    color: hsl(var(--foreground));
+    background: linear-gradient(135deg, hsl(var(--accent-primary-soft)), transparent 70%);
+    border: 1px solid hsl(var(--border-strong));
+    color: hsl(var(--text-primary));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .app-chip {
     @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em];
-    background-color: hsl(var(--app-panel-muted) / 0.72);
-    border-color: hsl(var(--app-line));
-    color: hsl(var(--app-text-soft));
+    background-color: hsl(var(--surface-card-alt) / 0.72);
+    border-color: hsl(var(--border-default));
+    color: hsl(var(--text-secondary));
   }
 
   .app-metric-card {
@@ -231,45 +409,51 @@
 
   .app-metric-value {
     @apply text-3xl font-semibold tracking-tight;
-    color: hsl(var(--foreground));
+    color: hsl(var(--text-primary));
   }
 
   .app-metric-label {
     @apply text-xs font-medium;
-    color: hsl(var(--app-text-muted));
+    color: hsl(var(--text-muted));
   }
 
   .app-field-label {
     @apply mb-1.5 block text-[11px] font-medium uppercase tracking-[0.16em];
-    color: hsl(var(--app-text-muted));
+    color: hsl(var(--text-muted));
   }
 
   .app-divider {
-    border-color: hsl(var(--app-line));
+    border-color: hsl(var(--border-default));
   }
 
   .app-status-success {
-    background-color: hsl(var(--app-success) / 0.12);
-    border-color: hsl(var(--app-success) / 0.25);
-    color: hsl(var(--app-success));
+    background-color: hsl(var(--state-success-soft));
+    border-color: hsl(var(--state-success-border));
+    color: hsl(var(--state-success));
   }
 
   .app-status-warning {
-    background-color: hsl(var(--app-warning) / 0.12);
-    border-color: hsl(var(--app-warning) / 0.25);
-    color: hsl(var(--app-warning));
+    background-color: hsl(var(--state-warning-soft));
+    border-color: hsl(var(--state-warning-border));
+    color: hsl(var(--state-warning));
   }
 
   .app-status-danger {
-    background-color: hsl(var(--app-danger) / 0.12);
-    border-color: hsl(var(--app-danger) / 0.25);
-    color: hsl(var(--app-danger));
+    background-color: hsl(var(--state-danger-soft));
+    border-color: hsl(var(--state-danger-border));
+    color: hsl(var(--state-danger));
+  }
+
+  .app-status-info {
+    background-color: hsl(var(--state-info-soft));
+    border-color: hsl(var(--state-info-border));
+    color: hsl(var(--state-info));
   }
 }
 
 @layer utilities {
   .bg-\[\#0F0F13\] {
-    background-color: hsl(var(--app-bg));
+    background-color: hsl(var(--surface-app));
   }
 
   .bg-\[\#0F0F13\]\/80 {
@@ -281,7 +465,7 @@
   }
 
   .bg-\[\#13131A\] {
-    background-color: hsl(var(--app-panel));
+    background-color: hsl(var(--surface-card));
   }
 
   .bg-\[\#13131A\]\/50 {
@@ -289,7 +473,7 @@
   }
 
   .bg-\[\#1A1A24\] {
-    background-color: hsl(var(--app-panel-strong));
+    background-color: hsl(var(--surface-card-alt));
   }
 
   .bg-\[\#1A1A24\]\/30 {
@@ -305,11 +489,11 @@
   }
 
   .bg-\[\#252535\] {
-    background-color: hsl(var(--app-panel-hover));
+    background-color: hsl(var(--surface-elevated));
   }
 
   .bg-\[\#2A2A3A\] {
-    background-color: hsl(var(--app-panel-muted));
+    background-color: hsl(var(--surface-card-alt));
   }
 
   .bg-\[\#2D2D3F\] {
@@ -317,11 +501,11 @@
   }
 
   .bg-\[\#3D3D5F\] {
-    background-color: hsl(var(--app-line-strong));
+    background-color: hsl(var(--border-strong));
   }
 
   .border-\[\#2A2A3A\] {
-    border-color: hsl(var(--app-line));
+    border-color: hsl(var(--border-default));
   }
 
   .border-\[\#2A2A3A\]\/50 {
@@ -329,23 +513,83 @@
   }
 
   .border-\[\#A78BFA\]\/20 {
-    border-color: hsl(var(--primary) / 0.2);
+    border-color: hsl(var(--accent-primary) / 0.2);
   }
 
   .border-\[\#A78BFA\]\/30 {
-    border-color: hsl(var(--primary) / 0.3);
+    border-color: hsl(var(--accent-primary) / 0.3);
   }
 
   .text-\[\#E2E8F0\] {
-    color: hsl(var(--foreground));
+    color: hsl(var(--text-primary));
   }
 
   .text-\[\#9CA3AF\] {
-    color: hsl(var(--app-text-soft));
+    color: hsl(var(--text-secondary));
   }
 
   .text-\[\#6B7280\] {
-    color: hsl(var(--app-text-muted));
+    color: hsl(var(--text-muted));
+  }
+
+  .text-\[\#A78BFA\] {
+    color: hsl(var(--accent-primary));
+  }
+
+  .bg-\[\#A78BFA\] {
+    background-color: hsl(var(--accent-primary));
+  }
+
+  .bg-\[\#A78BFA\]\/10 {
+    background-color: hsl(var(--accent-primary-soft));
+  }
+
+  .text-\[\#10B981\] {
+    color: hsl(var(--state-success));
+  }
+
+  .bg-\[\#10B981\]\/10 {
+    background-color: hsl(var(--state-success-soft));
+  }
+
+  .border-\[\#10B981\]\/20 {
+    border-color: hsl(var(--state-success-border));
+  }
+
+  .text-\[\#EF4444\] {
+    color: hsl(var(--state-danger));
+  }
+
+  .bg-\[\#EF4444\]\/10 {
+    background-color: hsl(var(--state-danger-soft));
+  }
+
+  .border-\[\#EF4444\]\/20 {
+    border-color: hsl(var(--state-danger-border));
+  }
+
+  .text-\[\#F59E0B\] {
+    color: hsl(var(--state-warning));
+  }
+
+  .bg-\[\#F59E0B\]\/10 {
+    background-color: hsl(var(--state-warning-soft));
+  }
+
+  .border-\[\#F59E0B\]\/20 {
+    border-color: hsl(var(--state-warning-border));
+  }
+
+  .text-\[\#3B82F6\] {
+    color: hsl(var(--state-info));
+  }
+
+  .bg-\[\#3B82F6\]\/10 {
+    background-color: hsl(var(--state-info-soft));
+  }
+
+  .border-\[\#3B82F6\]\/20 {
+    border-color: hsl(var(--state-info-border));
   }
 
   .font-mono-ui {

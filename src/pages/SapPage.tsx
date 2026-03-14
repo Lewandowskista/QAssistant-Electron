@@ -14,6 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { SubtabBar } from "@/components/ui/subtab-bar"
 
 type SapTab = "Cronjobs" | "Catalog" | "FlexSearch" | "Impex" | "Ccv2"
 
@@ -428,22 +429,17 @@ export default function SapPage() {
     return (
         <div className="h-full flex flex-col animate-in fade-in duration-500 bg-[#0F0F13] overflow-hidden">
             <header className="bg-[#13131A] border-b border-[#2A2A3A] p-4 space-y-4 flex-none">
-                <div className="flex items-center gap-2">
-                    {(["Cronjobs", "Catalog", "FlexSearch", "Impex", "Ccv2"] as SapTab[]).map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={cn(
-                                "h-9 px-4 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all border",
-                                activeTab === tab
-                                    ? "bg-[#A78BFA]/10 border-[#A78BFA]/30 text-[#A78BFA]"
-                                    : "bg-transparent border-transparent text-[#6B7280] hover:bg-[#1A1A24]"
-                            )}
-                        >
-                            {tab === "Ccv2" ? "CCV2 Deployments" : tab}
-                        </button>
-                    ))}
-                </div>
+                <SubtabBar
+                    value={activeTab}
+                    onChange={(value) => setActiveTab(value as SapTab)}
+                    items={[
+                        { id: "Cronjobs", label: "Cronjobs", icon: Activity },
+                        { id: "Catalog", label: "Catalog", icon: Layers },
+                        { id: "FlexSearch", label: "FlexSearch", icon: TerminalSquare },
+                        { id: "Impex", label: "ImpEx", icon: Zap },
+                        { id: "Ccv2", label: "CCV2 Deployments", icon: Globe },
+                    ]}
+                />
 
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-4">

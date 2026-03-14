@@ -12,6 +12,8 @@ import { cn, formatTimeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { RepoSelector } from '@/components/github/RepoSelector'
 import { CheckStatusIcon, mergeableLabel, ReviewSummaryBadges } from '@/components/github/StatusBadges'
+import { SubtabBar } from '@/components/ui/subtab-bar'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 
 type Tab = 'pulls' | 'commits'
 
@@ -244,25 +246,15 @@ function GitHubContent() {
             </div>
 
             {/* Tabs */}
-            <div className="shrink-0 border-b border-[#2A2A3A] bg-[#13131A]/40 px-5 flex items-center gap-1">
-                {([['pulls', 'Pull Requests', GitPullRequest], ['commits', 'Commits', GitBranch]] as const).map(([id, label, Icon]) => (
-                    <button
-                        key={id}
-                        onClick={() => setActiveTab(id as Tab)}
-                        className={cn(
-                            "flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors",
-                            activeTab === id
-                                ? "border-[#A78BFA] text-[#A78BFA]"
-                                : "border-transparent text-[#6B7280] hover:text-[#E2E8F0]"
-                        )}
-                    >
-                        <Icon className="h-3.5 w-3.5" />
-                        {label}
-                        {id === 'pulls' && prs.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-[#2A2A3A] text-[10px] font-bold">{prs.length}</span>
-                        )}
-                    </button>
-                ))}
+            <div className="shrink-0 border-b app-divider bg-[hsl(var(--surface-header)/0.62)] px-5 py-3">
+                <SubtabBar
+                    value={activeTab}
+                    onChange={(value) => setActiveTab(value as Tab)}
+                    items={[
+                        { id: 'pulls', label: 'Pull Requests', icon: GitPullRequest, count: prs.length || undefined },
+                        { id: 'commits', label: 'Commits', icon: GitBranch },
+                    ]}
+                />
             </div>
 
             {/* Content area — splits when detail panel is open */}
@@ -290,22 +282,11 @@ function GitHubContent() {
                         <div className="p-4 space-y-2">
                             {/* PR filter + search */}
                             <div className="flex items-center gap-2 mb-3">
-                                <div className="flex items-center gap-1">
-                                    {(['open', 'closed', 'all'] as const).map(f => (
-                                        <button
-                                            key={f}
-                                            onClick={() => setPrFilter(f)}
-                                            className={cn(
-                                                "px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider transition-colors",
-                                                prFilter === f
-                                                    ? "bg-[#A78BFA]/20 text-[#A78BFA]"
-                                                    : "text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#252535]"
-                                            )}
-                                        >
-                                            {f}
-                                        </button>
-                                    ))}
-                                </div>
+                                <SegmentedControl
+                                    value={prFilter}
+                                    onChange={(value) => setPrFilter(value as 'open' | 'closed' | 'all')}
+                                    options={(['open', 'closed', 'all'] as const).map((item) => ({ value: item, label: item }))}
+                                />
                                 <div className="relative flex-1">
                                     <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[#6B7280] pointer-events-none" />
                                     <input

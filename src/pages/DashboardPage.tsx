@@ -27,6 +27,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { EmptyState } from "@/components/ui/empty-state"
+import { PageHeader } from "@/components/ui/page-header"
 import {
     PassRateTrendChart,
     DefectDensityChart,
@@ -262,44 +264,39 @@ export default function DashboardPage() {
 
     if (!activeProject) {
         return (
-            <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-5">
-                <div className="app-panel p-8">
-                    <LayoutDashboard className="h-16 w-16 text-muted-ui opacity-40" strokeWidth={1} />
-                </div>
-                <div>
-                    <h2 className="app-heading">No Project Selected</h2>
-                    <p className="text-muted-ui mt-2 max-w-sm font-medium">
-                        Select a project from the sidebar to access the dashboard.
-                    </p>
-                </div>
-                <Button
-                    variant="outline"
-                    className="h-11 px-8"
-                    onClick={() => window.dispatchEvent(new Event('open-project-dialog'))}
-                >
-                    CREATE PROJECT
-                </Button>
-                <Button
-                    className="h-11 px-8 bg-cyan-500 text-slate-950 hover:bg-cyan-400"
-                    onClick={() => seedDemoProject()}
-                >
-                    LOAD DEMO WORKSPACE
-                </Button>
-            </div>
+            <EmptyState
+                icon={LayoutDashboard}
+                title="No project selected"
+                description="Select a project from the sidebar to access the delivery dashboard and standardized workspace metrics."
+                actions={
+                    <>
+                        <Button
+                            variant="outline"
+                            className="h-11 px-8"
+                            onClick={() => window.dispatchEvent(new Event('open-project-dialog'))}
+                        >
+                            Create Project
+                        </Button>
+                        <Button
+                            className="h-11 px-8"
+                            onClick={() => seedDemoProject()}
+                        >
+                            Load Demo Workspace
+                        </Button>
+                    </>
+                }
+            />
         )
     }
 
     return (
         <div className="space-y-6 max-w-[1600px] animate-in fade-in duration-500 pb-10">
             {/* Header */}
-            <header className="flex items-center justify-between border-b app-divider pb-4 mb-2">
-                <div className="space-y-1">
-                    <p className="app-section-label">Project Overview</p>
-                    <h1 className="app-heading">{activeProject.name}</h1>
-                    <p className="app-subheading">Project dashboard</p>
-                </div>
-                
-                {availableSprints.length > 0 && (
+            <PageHeader
+                eyebrow="Project Overview"
+                title={activeProject.name}
+                description="Project dashboard"
+                actions={availableSprints.length > 0 ? (
                     <div className="flex items-center gap-3">
                         <Label className="app-field-label mb-0">Sprint Context</Label>
                         <Select value={selectedSprint} onValueChange={setSelectedSprint}>
@@ -319,8 +316,8 @@ export default function DashboardPage() {
                             </SelectContent>
                         </Select>
                     </div>
-                )}
-            </header>
+                ) : undefined}
+            />
 
             <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_1fr] gap-4">
                 <MetricsSection

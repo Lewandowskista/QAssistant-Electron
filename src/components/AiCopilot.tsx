@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils"
 import { getApiKey } from "@/lib/credentials"
 import {
     Sparkles,
-    X,
     Send,
     Loader2,
     Bot,
@@ -21,6 +20,7 @@ import {
 import FormattedText from "@/components/FormattedText"
 import { buildProjectAiContext } from "@/lib/aiUtils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
 import type { AiContextSelection, AiRole } from "@/types/ai"
 import type { Checklist, HandoffPacket, Project, QaEnvironment, Task, TestDataGroup, TestPlan } from "@/types/project"
 
@@ -369,24 +369,19 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             <div
                 className={cn(
                     "fixed top-0 right-0 h-full z-[120] flex flex-col app-region-no-drag",
-                    "w-[480px] bg-[#0F0F13] border-l border-[#2A2A3A] transition-all duration-300 ease-in-out",
+                    "w-[480px] border-l transition-all duration-300 ease-in-out",
                     open
                         ? "translate-x-0 opacity-100 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]"
                         : "translate-x-full opacity-0 invisible pointer-events-none"
                 )}
+                style={{ background: "hsl(var(--surface-overlay))", borderColor: "hsl(var(--border-default))" }}
             >
-                <div className="h-14 flex items-center justify-between px-4 border-b border-[#2A2A3A] shrink-0 bg-[#13131A]">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shadow-lg shadow-[#A78BFA]/20">
-                            <Sparkles className="h-3.5 w-3.5 text-white" />
-                        </div>
-                        <div>
-                            <p className="text-xs font-bold text-[#E2E8F0]">{roleContent.title}</p>
-                            <p className="text-[10px] text-[#6B7280]">
-                                {activeProject ? activeProject.name : "No project selected"}
-                            </p>
-                        </div>
-                    </div>
+                <SideDrawerHeader
+                    icon={Sparkles}
+                    title={roleContent.title}
+                    subtitle={activeProject ? activeProject.name : "No project selected"}
+                    onClose={onClose}
+                    actions={
                     <div className="flex items-center gap-1">
                         {activeProject && (
                             <button
@@ -411,37 +406,32 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                 <Trash2 className="h-3.5 w-3.5" />
                             </button>
                         )}
-                        <button
-                            onClick={onClose}
-                            className="p-2 rounded-md hover:bg-[#252535] text-[#6B7280] hover:text-[#E2E8F0] transition-colors"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
                     </div>
-                </div>
+                    }
+                />
 
                 {activeProject && (
-                    <div className="px-4 py-2 border-b border-[#2A2A3A]/50 bg-[#13131A]/50 flex items-center gap-2 shrink-0">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />
-                        <span className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider">
+                    <div className="px-4 py-2 border-b border-[#2A2A3A]/50 bg-[hsl(var(--surface-header)/0.5)] flex items-center gap-2 shrink-0">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                        <span className="text-[10px] font-semibold text-muted-ui uppercase tracking-wider">
                             Context selected:
                         </span>
-                        <span className="text-[10px] text-[#A78BFA] font-mono">
+                        <span className="text-[10px] text-primary font-mono">
                             {contextSummary}
                         </span>
                     </div>
                 )}
 
                 {activeProject && contextOpen && (
-                    <div className="border-b border-[#2A2A3A]/50 bg-[#101018] px-4 py-3 space-y-3 shrink-0">
+                    <div className="border-b border-[#2A2A3A]/50 bg-[hsl(var(--surface-header)/0.62)] px-4 py-3 space-y-3 shrink-0">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#A78BFA]">Manual Context</p>
-                                <p className="text-[10px] text-[#6B7280]">Choose exactly what the copilot can use for this chat.</p>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Manual Context</p>
+                                <p className="text-[10px] text-muted-ui">Choose exactly what the copilot can use for this chat.</p>
                             </div>
                             <button
                                 onClick={resetContextSelection}
-                                className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] transition-colors hover:text-[#E2E8F0]"
+                                className="text-[10px] font-semibold uppercase tracking-wider text-muted-ui transition-colors hover:text-foreground"
                             >
                                 Reset
                             </button>
@@ -455,7 +445,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                 const allSelected = itemIds.length > 0 && itemIds.every((id) => selectedIds.includes(id))
 
                                 return (
-                                    <div key={key} className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-3">
+                                    <div key={key} className="rounded-xl border border-[#2A2A3A] bg-[hsl(var(--surface-card))] p-3">
                                         <div className="mb-2 flex items-center justify-between gap-2">
                                             <div>
                                                 <p className="text-[11px] font-semibold text-[#E2E8F0]">{label}</p>
@@ -463,7 +453,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                             </div>
                                             <button
                                                 onClick={() => toggleAllContextItems(selectionKey, itemIds)}
-                                                className="text-[10px] font-semibold uppercase tracking-wider text-[#6B7280] transition-colors hover:text-[#A78BFA]"
+                                                className="text-[10px] font-semibold uppercase tracking-wider text-muted-ui transition-colors hover:text-primary"
                                             >
                                                 {allSelected ? "Clear" : "All"}
                                             </button>
@@ -480,7 +470,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                                     return (
                                                         <label
                                                             key={item.id}
-                                                            className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-[#1A1A24]"
+                                                        className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-[hsl(var(--surface-elevated))]"
                                                         >
                                                             <Checkbox
                                                                 checked={isChecked}
@@ -524,8 +514,8 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 min-h-0">
                     {messages.length === 0 && (
                         <div className="flex flex-col items-center justify-center h-full text-center gap-6 py-8">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#A78BFA]/20 to-[#7C3AED]/20 border border-[#A78BFA]/20 flex items-center justify-center">
-                                <Sparkles className="h-7 w-7 text-[#A78BFA]" />
+                            <div className="w-16 h-16 rounded-2xl bg-[hsl(var(--accent-primary-soft))] border border-[hsl(var(--accent-primary)/0.18)] flex items-center justify-center">
+                                <Sparkles className="h-7 w-7 text-primary" />
                             </div>
                             <div className="space-y-1">
                                 <p className="text-sm font-bold text-[#E2E8F0]">{roleContent.introTitle}</p>
@@ -545,7 +535,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                         key={prompt}
                                         onClick={() => sendMessage(prompt)}
                                         disabled={apiKeyMissing}
-                                        className="w-full text-left text-xs px-3 py-2.5 rounded-lg border border-[#2A2A3A] bg-[#13131A] text-[#6B7280] hover:border-[#A78BFA]/40 hover:text-[#E2E8F0] hover:bg-[#1A1A24] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#2A2A3A] disabled:hover:text-[#6B7280] disabled:hover:bg-[#13131A]"
+                                        className="w-full text-left text-xs px-3 py-2.5 rounded-xl border border-[#2A2A3A] bg-[hsl(var(--surface-card))] text-muted-ui hover:border-[hsl(var(--accent-primary)/0.32)] hover:text-foreground hover:bg-[hsl(var(--surface-elevated))] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#2A2A3A] disabled:hover:text-muted-ui disabled:hover:bg-[hsl(var(--surface-card))]"
                                     >
                                         {prompt}
                                     </button>
@@ -565,8 +555,8 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             <div className={cn(
                                 "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5",
                                 msg.role === "user"
-                                    ? "bg-[#2D2D3F] border border-[#3D3D5F]"
-                                    : "bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] shadow-md shadow-[#A78BFA]/20"
+                                    ? "bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border-strong))]"
+                                    : "bg-[linear-gradient(135deg,hsl(var(--accent-primary)),hsl(var(--accent-primary-strong)))] shadow-md shadow-[hsl(var(--accent-primary)/0.18)]"
                             )}>
                                 {msg.role === "user"
                                     ? <User className="h-3.5 w-3.5 text-[#A78BFA]" />
@@ -577,10 +567,10 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             <div className={cn(
                                 "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed relative",
                                 msg.role === "user"
-                                    ? "bg-[#A78BFA]/15 border border-[#A78BFA]/20 text-[#E2E8F0] rounded-tr-md"
+                                    ? "bg-[hsl(var(--accent-primary-soft))] border border-[hsl(var(--accent-primary)/0.18)] text-[#E2E8F0] rounded-tr-md"
                                     : msg.isError
                                         ? "bg-red-900/10 border border-red-500/20 text-red-300 rounded-tl-md"
-                                        : "bg-[#13131A] border border-[#2A2A3A] text-[#E2E8F0] rounded-tl-md"
+                                        : "bg-[hsl(var(--surface-card))] border border-[#2A2A3A] text-[#E2E8F0] rounded-tl-md"
                             )}>
                                 {msg.role === "assistant" && !msg.isError ? (
                                     <FormattedText content={msg.content} projectId={activeProjectId || undefined} />
@@ -613,10 +603,10 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
 
                     {isLoading && (
                         <div className="flex gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shrink-0 shadow-md shadow-[#A78BFA]/20">
+                            <div className="w-7 h-7 rounded-full bg-[linear-gradient(135deg,hsl(var(--accent-primary)),hsl(var(--accent-primary-strong)))] flex items-center justify-center shrink-0 shadow-md shadow-[hsl(var(--accent-primary)/0.18)]">
                                 <Bot className="h-3.5 w-3.5 text-white" />
                             </div>
-                            <div className="bg-[#13131A] border border-[#2A2A3A] rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-2">
+                            <div className="bg-[hsl(var(--surface-card))] border border-[#2A2A3A] rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-2">
                                 <div className="flex gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-bounce" style={{ animationDelay: "0ms" }} />
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -642,8 +632,8 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     </div>
                 )}
 
-                <div className="p-3 border-t border-[#2A2A3A] bg-[#13131A] shrink-0">
-                    <div className="relative flex items-end gap-2 rounded-xl border border-[#2A2A3A] bg-[#0F0F13] focus-within:border-[#A78BFA]/40 transition-colors p-2 app-region-no-drag">
+                    <div className="p-3 border-t border-[#2A2A3A] bg-[hsl(var(--surface-header)/0.8)] shrink-0">
+                    <div className="relative flex items-end gap-2 rounded-2xl border border-[#2A2A3A] bg-[hsl(var(--surface-app))] focus-within:border-[hsl(var(--accent-primary)/0.4)] transition-colors p-2 app-region-no-drag">
                         <textarea
                             ref={inputRef}
                             value={input}
@@ -664,8 +654,8 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             className={cn(
                                 "h-7 w-7 rounded-lg flex items-center justify-center shrink-0 transition-all",
                                 input.trim() && !isLoading
-                                    ? "bg-[#A78BFA] text-white hover:bg-[#9271e0] shadow-md shadow-[#A78BFA]/20"
-                                    : "bg-[#1A1A24] text-[#6B7280] cursor-not-allowed"
+                                    ? "bg-primary text-white hover:bg-primary/90 shadow-md shadow-[hsl(var(--accent-primary)/0.18)]"
+                                    : "bg-[hsl(var(--surface-card-alt))] text-muted-ui cursor-not-allowed"
                             )}
                         >
                             {isLoading ? (
