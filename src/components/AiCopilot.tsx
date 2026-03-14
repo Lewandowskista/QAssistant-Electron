@@ -448,8 +448,8 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                     <div key={key} className="rounded-xl border border-[#2A2A3A] bg-[hsl(var(--surface-card))] p-3">
                                         <div className="mb-2 flex items-center justify-between gap-2">
                                             <div>
-                                                <p className="text-[11px] font-semibold text-[#E2E8F0]">{label}</p>
-                                                <p className="text-[10px] text-[#6B7280]">{selectedIds.length}/{items.length} selected</p>
+                                                <p className="text-[11px] font-semibold text-[hsl(var(--text-primary))]">{label}</p>
+                                                <p className="text-[10px] text-[hsl(var(--text-muted))]">{selectedIds.length}/{items.length} selected</p>
                                             </div>
                                             <button
                                                 onClick={() => toggleAllContextItems(selectionKey, itemIds)}
@@ -460,7 +460,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                         </div>
 
                                         {items.length === 0 ? (
-                                            <p className="text-[10px] text-[#6B7280]">No {label.toLowerCase()} available.</p>
+                                            <p className="text-[10px] text-[hsl(var(--text-muted))]">No {label.toLowerCase()} available.</p>
                                         ) : (
                                             <div className="space-y-1.5">
                                                 {items.map((item) => {
@@ -478,9 +478,9 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                                                 className="mt-0.5 border-[#3A3A52] data-[state=checked]:bg-[#A78BFA] data-[state=checked]:text-[#0F0F13]"
                                                             />
                                                             <span className="min-w-0 flex-1">
-                                                                <span className="block truncate text-[11px] text-[#E2E8F0]">{getContextItemLabel(item)}</span>
+                                                                <span className="block truncate text-[11px] text-[hsl(var(--text-primary))]">{getContextItemLabel(item)}</span>
                                                                 {secondaryText ? (
-                                                                    <span className="block truncate text-[10px] text-[#6B7280]">{secondaryText}</span>
+                                                                    <span className="block truncate text-[10px] text-[hsl(var(--text-muted))]">{secondaryText}</span>
                                                                 ) : null}
                                                             </span>
                                                         </label>
@@ -493,7 +493,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             })}
 
                             {activeRole === "qa" && (
-                                <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-3">
+                                <div className="rounded-xl border border-[#2A2A3A] bg-[hsl(var(--surface-card))] p-3">
                                     <label className="flex cursor-pointer items-start gap-2">
                                         <Checkbox
                                             checked={contextSelection.includeSapCommerce !== false}
@@ -501,8 +501,8 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                             className="mt-0.5 border-[#3A3A52] data-[state=checked]:bg-[#A78BFA] data-[state=checked]:text-[#0F0F13]"
                                         />
                                         <span>
-                                            <span className="block text-[11px] font-semibold text-[#E2E8F0]">SAP Commerce context</span>
-                                            <span className="block text-[10px] text-[#6B7280]">Include the SAP guidance block and selected SAP-capable environments.</span>
+                                            <span className="block text-[11px] font-semibold text-[hsl(var(--text-primary))]">SAP Commerce context</span>
+                                            <span className="block text-[10px] text-[hsl(var(--text-muted))]">Include the SAP guidance block and selected SAP-capable environments.</span>
                                         </span>
                                     </label>
                                 </div>
@@ -518,15 +518,15 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                 <Sparkles className="h-7 w-7 text-primary" />
                             </div>
                             <div className="space-y-1">
-                                <p className="text-sm font-bold text-[#E2E8F0]">{roleContent.introTitle}</p>
-                                <p className="text-xs text-[#6B7280]">
+                                <p className="text-sm font-bold text-[hsl(var(--text-primary))]">{roleContent.introTitle}</p>
+                                <p className="text-xs text-[hsl(var(--text-muted))]">
                                     {roleContent.introBody}
                                 </p>
                             </div>
                             <div className="w-full space-y-2">
                                 <div className="flex items-center gap-2 mb-3">
-                                    <Lightbulb className="h-3 w-3 text-[#6B7280]" />
-                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">
+                                    <Lightbulb className="h-3 w-3 text-[hsl(var(--text-muted))]" />
+                                    <span className="text-[10px] font-bold text-[hsl(var(--text-muted))] uppercase tracking-widest">
                                         Suggestions
                                     </span>
                                 </div>
@@ -567,10 +567,10 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             <div className={cn(
                                 "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed relative",
                                 msg.role === "user"
-                                    ? "bg-[hsl(var(--accent-primary-soft))] border border-[hsl(var(--accent-primary)/0.18)] text-[#E2E8F0] rounded-tr-md"
+                                    ? "bg-[hsl(var(--accent-primary-soft))] border border-[hsl(var(--accent-primary)/0.18)] text-[hsl(var(--text-primary))] rounded-tr-md"
                                     : msg.isError
                                         ? "bg-red-900/10 border border-red-500/20 text-red-300 rounded-tl-md"
-                                        : "bg-[hsl(var(--surface-card))] border border-[#2A2A3A] text-[#E2E8F0] rounded-tl-md"
+                                        : "bg-[hsl(var(--surface-card))] border border-[#2A2A3A] text-[hsl(var(--text-primary))] rounded-tl-md"
                             )}>
                                 {msg.role === "assistant" && !msg.isError ? (
                                     <FormattedText content={msg.content} projectId={activeProjectId || undefined} />
@@ -581,14 +581,14 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                     "flex items-center gap-1 mt-1.5",
                                     msg.role === "user" ? "justify-start" : "justify-between"
                                 )}>
-                                    <span className="text-[9px] text-[#6B7280]">{formatTime(msg.timestamp)}</span>
+                                    <span className="text-[9px] text-[hsl(var(--text-muted))]">{formatTime(msg.timestamp)}</span>
                                     {msg.role === "assistant" && (
                                         <div className="flex items-center gap-0.5">
                                             <CopyButton text={msg.content} />
                                             {i === messages.length - 1 && msg.isError && (
                                                 <button
                                                     onClick={retryLast}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10 text-[#6B7280] hover:text-[#A78BFA]"
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10 text-[hsl(var(--text-muted))] hover:text-primary"
                                                     title="Retry"
                                                 >
                                                     <RotateCcw className="h-3 w-3" />
@@ -606,7 +606,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             <div className="w-7 h-7 rounded-full bg-[linear-gradient(135deg,hsl(var(--accent-primary)),hsl(var(--accent-primary-strong)))] flex items-center justify-center shrink-0 shadow-md shadow-[hsl(var(--accent-primary)/0.18)]">
                                 <Bot className="h-3.5 w-3.5 text-white" />
                             </div>
-                            <div className="bg-[hsl(var(--surface-card))] border border-[#2A2A3A] rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-2">
+                            <div className="bg-[hsl(var(--surface-card))] border border-[#2A2A3A] rounded-2xl rounded-tl-md px-4 py-3 flex items-center gap-2 text-[hsl(var(--text-primary))]">
                                 <div className="flex gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-bounce" style={{ animationDelay: "0ms" }} />
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -614,7 +614,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                 </div>
                                 <button
                                     onClick={handleCancel}
-                                    className="text-[9px] text-[#6B7280] hover:text-red-400 transition-colors ml-2"
+                                    className="ml-2 text-[9px] text-[hsl(var(--text-muted))] transition-colors hover:text-red-400"
                                 >
                                     Cancel
                                 </button>
@@ -646,7 +646,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             placeholder={roleContent.placeholder}
                             disabled={isLoading || apiKeyMissing}
                             rows={1}
-                            className="flex-1 bg-transparent border-none text-xs text-[#E2E8F0] placeholder:text-[#6B7280]/60 focus:outline-none resize-none leading-relaxed min-h-[20px] max-h-[120px] py-0.5 px-1 custom-scrollbar app-region-no-drag"
+                            className="flex-1 bg-transparent border-none px-1 py-0.5 text-xs leading-relaxed text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-muted))] focus:outline-none resize-none min-h-[20px] max-h-[120px] custom-scrollbar app-region-no-drag"
                         />
                         <button
                             onClick={() => sendMessage(input)}
@@ -665,7 +665,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             )}
                         </button>
                     </div>
-                    <p className="text-[9px] text-[#6B7280]/50 mt-1.5 text-center">
+                    <p className="mt-1.5 text-center text-[9px] text-[hsl(var(--text-muted))]">
                         {roleContent.footer}
                     </p>
                 </div>

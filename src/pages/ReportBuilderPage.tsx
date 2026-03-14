@@ -216,9 +216,9 @@ export default function ReportBuilderPage() {
   }
 
   return (
-    <div className="flex h-full gap-4 bg-surface-overlay p-6">
+    <div className="flex h-full gap-4 bg-[hsl(var(--surface-overlay))] p-6 text-[hsl(var(--text-primary))]">
       {/* Left: Template List */}
-      <div className="w-72 flex flex-col gap-4 border-r border-surface-border pr-4">
+      <div className="w-72 flex flex-col gap-4 border-r border-[hsl(var(--border-default))] pr-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Templates</h2>
           <div className="flex gap-1">
@@ -241,14 +241,14 @@ export default function ReportBuilderPage() {
         </div>
 
         {isCreating && (
-          <div className="p-3 bg-surface-secondary rounded-lg space-y-2 border border-surface-border">
+          <div className="space-y-2 rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-3">
             <input
               type="text"
               placeholder="Template name..."
               value={newTemplateName}
               onChange={(e) => setNewTemplateName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreateTemplate()}
-              className="w-full px-3 py-2 bg-surface-overlay border border-surface-border rounded text-sm text-text-primary"
+              className="w-full rounded border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] px-3 py-2 text-sm text-[hsl(var(--text-primary))]"
               autoFocus
             />
             <div className="flex gap-2">
@@ -260,17 +260,17 @@ export default function ReportBuilderPage() {
 
         {/* Show default templates when no saved templates or when toggled */}
         {showDefaults && (
-          <div className="space-y-2 pb-4 border-b border-surface-border">
-            <p className="text-xs font-semibold text-text-secondary px-1">DEFAULT TEMPLATES</p>
+          <div className="space-y-2 border-b border-[hsl(var(--border-default))] pb-4">
+            <p className="px-1 text-xs font-semibold text-[hsl(var(--text-secondary))]">DEFAULT TEMPLATES</p>
             {DEFAULT_TEMPLATES.map((template, idx) => (
               <div
                 key={idx}
-                className="p-3 bg-surface-secondary rounded border border-dashed border-surface-border hover:bg-surface-secondary/80 transition-colors"
+                className="rounded border border-dashed border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-3 transition-colors hover:bg-[hsl(var(--surface-elevated))]"
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm">{template.name}</div>
-                    <div className="text-xs text-text-secondary">{template.description}</div>
+                    <div className="text-xs text-[hsl(var(--text-secondary))]">{template.description}</div>
                   </div>
                 </div>
                 <Button
@@ -290,7 +290,7 @@ export default function ReportBuilderPage() {
         {/* Saved templates */}
         {templates.length > 0 && (
           <div className="flex-1 overflow-y-auto space-y-2">
-            <p className="text-xs font-semibold text-text-secondary px-1">SAVED TEMPLATES</p>
+            <p className="px-1 text-xs font-semibold text-[hsl(var(--text-secondary))]">SAVED TEMPLATES</p>
             {templates.map((template) => (
               <div
                 key={template.id}
@@ -298,8 +298,8 @@ export default function ReportBuilderPage() {
                 className={cn(
                   'p-3 rounded cursor-pointer transition-colors',
                   selectedTemplate?.id === template.id
-                    ? 'bg-primary/20 border border-primary'
-                    : 'bg-surface-secondary hover:bg-surface-secondary/80'
+                    ? 'border border-primary bg-primary/10'
+                    : 'bg-[hsl(var(--surface-card-alt))] hover:bg-[hsl(var(--surface-elevated))]'
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -315,7 +315,7 @@ export default function ReportBuilderPage() {
                       handleDeleteTemplate(template.id)
                     }}
                   >
-                    <Trash2 className="h-3 w-3 text-text-error" />
+                    <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
               </div>
@@ -328,11 +328,11 @@ export default function ReportBuilderPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {selectedTemplate ? (
           <div className="space-y-4 overflow-y-auto flex-1">
-            <div className="sticky top-0 bg-surface-overlay pt-0 pb-4 border-b border-surface-border">
+            <div className="sticky top-0 border-b border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] pb-4 pt-0">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <h1 className="text-2xl font-bold">{selectedTemplate.name}</h1>
-                  <p className="text-text-secondary text-sm mt-1">{selectedTemplate.description || 'Custom report template'}</p>
+                  <p className="mt-1 text-sm text-[hsl(var(--text-secondary))]">{selectedTemplate.description || 'Custom report template'}</p>
                 </div>
                 <Button onClick={handleExportReport} className="gap-2 whitespace-nowrap">
                   <Download className="h-4 w-4" />
@@ -342,7 +342,7 @@ export default function ReportBuilderPage() {
             </div>
 
             {/* Format Selection */}
-            <div className="bg-surface-secondary rounded-lg p-4 border border-surface-border">
+            <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
               <h3 className="font-semibold mb-3 text-sm">Export Format</h3>
               <div className="flex flex-wrap gap-2">
                 {REPORT_FORMATS.map((format) => (
@@ -359,31 +359,31 @@ export default function ReportBuilderPage() {
             </div>
 
             {/* Sections Configuration */}
-            <div className="bg-surface-secondary rounded-lg p-4 border border-surface-border">
+            <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
               <h3 className="font-semibold mb-3 text-sm">Sections ({selectedTemplate.sections?.filter((s: any) => s.enabled).length}/{selectedTemplate.sections?.length})</h3>
               <div className="space-y-2">
                 {selectedTemplate.sections?.map((section: any) => (
-                  <div key={section.id} className="flex items-center gap-3 p-3 bg-surface-overlay rounded border border-surface-border hover:border-surface-border/80 transition-colors">
+                  <div key={section.id} className="flex items-center gap-3 rounded border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] p-3 transition-colors hover:border-[hsl(var(--border-strong))]">
                     <input
                       type="checkbox"
                       checked={section.enabled}
                       onChange={(e) => handleToggleSection(section.id, e.target.checked)}
-                      className="w-4 h-4 rounded border-surface-border cursor-pointer"
+                      className="h-4 w-4 cursor-pointer rounded border-[hsl(var(--border-default))]"
                     />
                     <div className="flex-1">
                       <div className="text-sm font-medium">{section.label}</div>
-                      <div className="text-xs text-text-secondary">{section.type}</div>
+                      <div className="text-xs text-[hsl(var(--text-secondary))]">{section.type}</div>
                     </div>
                   </div>
                 ))}
               </div>
               {(!selectedTemplate.sections || selectedTemplate.sections.length === 0) && (
-                <div className="text-sm text-text-secondary py-4 text-center">No sections added</div>
+                <div className="py-4 text-center text-sm text-[hsl(var(--text-secondary))]">No sections added</div>
               )}
             </div>
 
             {/* Add More Sections */}
-            <div className="bg-surface-secondary rounded-lg p-4 border border-surface-border">
+            <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
               <h3 className="font-semibold mb-3 text-sm">Add Sections</h3>
               <div className="grid grid-cols-2 gap-2">
                 {AVAILABLE_SECTIONS.map((section) => {
@@ -405,7 +405,7 @@ export default function ReportBuilderPage() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-text-secondary">
+          <div className="flex h-full items-center justify-center text-[hsl(var(--text-secondary))]">
             <div className="text-center">
               <Eye className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <div className="text-lg font-semibold mb-2">No template selected</div>

@@ -25,9 +25,16 @@ module.exports = {
   			// ── App semantic tokens ──────────────────────────────────────────
   			// Use these instead of arbitrary hex values like bg-[#0F0F13]
   			surface: {
-  				DEFAULT: '#13131A',      // Cards, dialogs, sidebars
-  				elevated: '#1A1A24',     // Hover states, nested surfaces
-  				overlay: '#0F0F13',      // Page backgrounds
+  				DEFAULT: 'hsl(var(--surface-card))',
+  				secondary: 'hsl(var(--surface-card-alt))',
+  				elevated: 'hsl(var(--surface-elevated))',
+  				overlay: 'hsl(var(--surface-overlay))',
+  				border: 'hsl(var(--border-default))',
+  			},
+  			text: {
+  				primary: 'hsl(var(--text-primary))',
+  				secondary: 'hsl(var(--text-secondary))',
+  				error: 'hsl(var(--destructive))',
   			},
   			qa: {
   				border: '#2A2A3A',           // Standard borders
