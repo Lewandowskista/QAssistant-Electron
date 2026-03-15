@@ -39,6 +39,7 @@ export interface ElectronAPI {
     copyToAttachments: (sourcePath: string) => Promise<{ success: boolean; attachment?: Attachment; error?: string }>;
     saveBytesAttachment: (bytes: Uint8Array, fileName: string) => Promise<{ success: boolean; attachment?: Attachment; error?: string }>;
     deleteAttachment: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+    readAttachmentPreview: (args: { filePath: string } | string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
     readCsvFile: (args: { filePath: string }) => Promise<any>;
     saveFileDialog: (args: { defaultName: string; content: string } | string) => Promise<{ success: boolean; path?: string; error?: string }>;
 

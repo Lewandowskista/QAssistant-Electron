@@ -83,6 +83,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   copyToAttachments: (sourcePath: string) => ipcRenderer.invoke('copy-to-attachments', sourcePath),
   saveBytesAttachment: (bytes: Uint8Array, fileName: string) => ipcRenderer.invoke('save-bytes-attachment', { bytes, fileName }),
   deleteAttachment: (args: any) => ipcRenderer.invoke('delete-attachment', typeof args === 'string' ? { filePath: args } : args),
+  readAttachmentPreview: (args: any) => ipcRenderer.invoke('read-attachment-preview', typeof args === 'string' ? { filePath: args } : args),
   generateBugReportTask: (args: { task: any, environment?: string, reporter?: string, aiAnalysis?: string }) => ipcRenderer.invoke('generate-bug-report-task', args),
   generateBugReportTestcase: (args: { tc: any, testPlanName?: string, environment?: string, reporter?: string, executions?: any[], aiAnalysis?: string }) => ipcRenderer.invoke('generate-bug-report-testcase', args),
   readJsonFile: (args: any) => ipcRenderer.invoke('read-json-file', typeof args === 'string' ? { filePath: args } : args),

@@ -362,6 +362,40 @@ if (app) {
             console.warn('Blocked attempt to delete file outside attachments:', filePath);
             return { success: false, error: 'Access denied' };
         });
+        ipcMain.handle('read-attachment-preview', async (_e: any, payload: any) => {
+            const filePath = typeof payload === 'string' ? payload : payload?.filePath;
+            if (typeof filePath !== 'string') return { success: false, error: 'Invalid file path' };
+            if (!isPathWithin(filePath, ATTACHMENTS_DIR)) {
+                console.warn('Blocked attempt to read attachment preview outside attachments:', filePath);
+                return { success: false, error: 'Access denied' };
+            }
+
+            try {
+                if (!fs.existsSync(filePath)) {
+                    return { success: false, error: 'File not found' };
+                }
+
+                const buffer = await fsp.readFile(filePath);
+                const ext = path.extname(filePath).toLowerCase();
+                let mimeType = 'application/octet-stream';
+                switch (ext) {
+                    case '.png': mimeType = 'image/png'; break;
+                    case '.jpg':
+                    case '.jpeg': mimeType = 'image/jpeg'; break;
+                    case '.gif': mimeType = 'image/gif'; break;
+                    case '.bmp': mimeType = 'image/bmp'; break;
+                    case '.webp': mimeType = 'image/webp'; break;
+                    case '.svg': mimeType = 'image/svg+xml'; break;
+                }
+
+                return {
+                    success: true,
+                    dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`
+                };
+            } catch (e: any) {
+                return { success: false, error: e.message };
+            }
+        });
 
         // Bug Reporting
         ipcMain.handle('generate-bug-report-task', async (_e: any, { task, environment, reporter, aiAnalysis }: any) => {
@@ -391,8 +425,7 @@ if (app) {
                     console.warn('Blocked attempt to open file outside app data:', filePath);
                     return;
                 }
-                if (fs.statSync(filePath).isDirectory()) { shell.openPath(filePath); }
-                else { shell.showItemInFolder(filePath); }
+                shell.openPath(filePath);
             }
         });
         ipcMain.handle('ai-list-models', async (_e: any, { apiKey }: any) => {

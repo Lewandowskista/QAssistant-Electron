@@ -1,10 +1,16 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useProjectStore, Attachment } from "@/store/useProjectStore"
-import { Trash2, Upload, FileIcon, Search, File, LucideImage, ExternalLink } from "lucide-react"
+import { Trash2, Upload, FileIcon, Search, File, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+
+const IMAGE_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i
+
+function isImageAttachment(file: Attachment) {
+    return file.mimeType?.startsWith("image/") || IMAGE_EXTENSIONS.test(file.fileName)
+}
 
 export default function FilesPage() {
     const { projects, activeProjectId, addProjectFile, deleteProjectFile, linkArtifact } = useProjectStore()
@@ -13,6 +19,8 @@ export default function FilesPage() {
     const [searchQuery, setSearchQuery] = useState("")
     const [linkedTaskFilter, setLinkedTaskFilter] = useState("all")
     const [isDragging, setIsDragging] = useState(false)
+    const [contextMenu, setContextMenu] = useState<{ fileId: string; x: number; y: number } | null>(null)
+    const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
 
     // Combine project files and note attachments
     const allFiles: Attachment[] = []
@@ -29,6 +37,54 @@ export default function FilesPage() {
             (link.targetType === 'task' && link.targetId === linkedTaskFilter && link.sourceType === 'file' && link.sourceId === f.id))
         )
     })
+
+    const openContextMenu = (event: { clientX: number; clientY: number; preventDefault: () => void; stopPropagation: () => void }, fileId: string) => {
+        event.preventDefault()
+        event.stopPropagation()
+        setContextMenu({
+            fileId,
+            x: event.clientX,
+            y: event.clientY
+        })
+    }
+
+    useEffect(() => {
+        let cancelled = false
+
+        const loadPreviews = async () => {
+            if (!api) return
+
+            const imageFiles = filtered.filter(isImageAttachment)
+            const missingFiles = imageFiles.filter((file) => !previewUrls[file.id])
+            if (missingFiles.length === 0) return
+
+            const entries = await Promise.all(
+                missingFiles.map(async (file) => {
+                    const result = await api.readAttachmentPreview(file.filePath)
+                    return result.success && result.dataUrl ? [file.id, result.dataUrl] as const : null
+                })
+            )
+
+            if (cancelled) return
+
+            const nextEntries = entries.filter((entry): entry is readonly [string, string] => entry !== null)
+            if (nextEntries.length === 0) return
+
+            setPreviewUrls((current) => {
+                const next = { ...current }
+                for (const [fileId, dataUrl] of nextEntries) {
+                    next[fileId] = dataUrl
+                }
+                return next
+            })
+        }
+
+        void loadPreviews()
+
+        return () => {
+            cancelled = true
+        }
+    }, [api, filtered, previewUrls])
 
     const handleBrowse = async () => {
         if (!window.electronAPI || !activeProjectId) return
@@ -166,11 +222,37 @@ export default function FilesPage() {
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {filtered.map((file) => (
-                            <div key={file.id} className="group bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-4 hover:border-[#A78BFA]/50 transition-all cursor-pointer relative overflow-hidden shadow-sm">
+                            <div
+                                key={file.id}
+                                className="group bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-4 hover:border-[#A78BFA]/50 transition-all cursor-pointer relative overflow-hidden shadow-sm"
+                                onContextMenu={(event) => openContextMenu(event, file.id)}
+                                onMouseDown={(event) => {
+                                    if (event.button !== 2) return
+                                    openContextMenu(event, file.id)
+                                }}
+                                title="Right-click for file actions"
+                            >
                                 <div className="absolute top-0 left-0 w-full h-1 bg-[#A78BFA]/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <div className="flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 rounded-xl bg-[#1A1A24] flex items-center justify-center mb-3 text-[#A78BFA]">
-                                        {file.fileName.match(/\.(jpg|jpeg|png|gif)$/i) ? <LucideImage className="h-6 w-6" /> : <File className="h-6 w-6" />}
+                                    <div
+                                        className="w-12 h-12 rounded-xl bg-[#1A1A24] flex items-center justify-center mb-3 text-[#A78BFA] overflow-hidden"
+                                    >
+                                        {isImageAttachment(file) ? (
+                                            previewUrls[file.id] ? (
+                                                <img
+                                                    src={previewUrls[file.id]}
+                                                    alt={file.fileName}
+                                                    className="h-full w-full rounded-xl object-cover"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="flex h-full w-full items-center justify-center text-[#6B7280]">
+                                                    <File className="h-6 w-6" />
+                                                </div>
+                                            )
+                                        ) : (
+                                            <File className="h-6 w-6" />
+                                        )}
                                     </div>
                                     <div className="text-xs font-bold text-[#E2E8F0] truncate w-full mb-1" onClick={() => api.openFile(file.filePath)}>{file.fileName}</div>
                                     <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest">
@@ -187,43 +269,75 @@ export default function FilesPage() {
                                         })}
                                     </div>
                                 </div>
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
-                                    <select
-                                        onChange={async (event) => {
-                                            const taskId = event.target.value
-                                            if (!activeProjectId || !taskId) return
-                                            await linkArtifact(activeProjectId, { sourceType: 'task', sourceId: taskId, targetType: 'file', targetId: file.id, label: 'documents' })
-                                            toast.success('File linked to task.')
-                                            event.currentTarget.value = ''
-                                        }}
-                                        className="h-8 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-[9px] text-[#E2E8F0]"
-                                    >
-                                        <option value="">Link</option>
-                                        {(activeProject?.tasks || []).map((task) => (
-                                            <option key={task.id} value={task.id}>{task.title}</option>
-                                        ))}
-                                    </select>
-                                    <button onClick={() => api.openFile(file.filePath)} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#A78BFA] border border-[#2A2A3A] hover:border-[#A78BFA]/30">
-                                        <ExternalLink className="h-3 w-3" />
-                                    </button>
-                                    <button onClick={async () => {
-                                        if (!activeProjectId) return;
-                                        const linkedHandoffs = (activeProject?.handoffPackets || []).filter((packet) => packet.linkedFileIds.includes(file.id))
-                                        if (linkedHandoffs.length > 0) {
-                                            toast.error('This file is linked to an active handoff. Remove the handoff link first.')
-                                            return
-                                        }
-                                        await deleteProjectFile(activeProjectId, file.id);
-                                        api.deleteAttachment(file.filePath);
-                                    }} className="p-1.5 rounded-lg bg-[#1A1A24] text-[#6B7280] hover:text-[#EF4444] border border-[#2A2A3A] hover:border-[#EF4444]/30">
-                                        <Trash2 className="h-3 w-3" />
-                                    </button>
-                                </div>
                             </div>
                         ))}
                     </div>
                 )}
             </main>
+
+            {contextMenu && (
+                <div className="fixed inset-0 z-50" onMouseDown={() => setContextMenu(null)}>
+                    <div
+                        className="absolute min-w-48 rounded-xl border border-[#2A2A3A] bg-[#13131A] p-2 shadow-2xl"
+                        style={{ left: contextMenu.x, top: contextMenu.y }}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onContextMenu={(event) => event.preventDefault()}
+                    >
+                        {(() => {
+                            const file = filtered.find((item) => item.id === contextMenu.fileId)
+                            if (!file) return null
+
+                            return (
+                                <div className="flex flex-col gap-2">
+                                    <select
+                                        defaultValue=""
+                                        onChange={async (event) => {
+                                            const taskId = event.target.value
+                                            if (!activeProjectId || !taskId) return
+                                            await linkArtifact(activeProjectId, { sourceType: 'task', sourceId: taskId, targetType: 'file', targetId: file.id, label: 'documents' })
+                                            toast.success('File linked to task.')
+                                            setContextMenu(null)
+                                        }}
+                                        className="h-9 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-xs text-[#E2E8F0]"
+                                    >
+                                        <option value="">Link to task</option>
+                                        {(activeProject?.tasks || []).map((task) => (
+                                            <option key={task.id} value={task.id}>{task.title}</option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        onClick={() => {
+                                            api.openFile(file.filePath)
+                                            setContextMenu(null)
+                                        }}
+                                        className="flex items-center gap-2 rounded-md border border-[#2A2A3A] bg-[#1A1A24] px-3 py-2 text-xs text-[#E2E8F0] hover:border-[#A78BFA]/30 hover:text-[#A78BFA]"
+                                    >
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                        Open file
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (!activeProjectId) return
+                                            const linkedHandoffs = (activeProject?.handoffPackets || []).filter((packet) => packet.linkedFileIds.includes(file.id))
+                                            if (linkedHandoffs.length > 0) {
+                                                toast.error('This file is linked to an active handoff. Remove the handoff link first.')
+                                                return
+                                            }
+                                            await deleteProjectFile(activeProjectId, file.id)
+                                            api.deleteAttachment(file.filePath)
+                                            setContextMenu(null)
+                                        }}
+                                        className="flex items-center gap-2 rounded-md border border-[#2A2A3A] bg-[#1A1A24] px-3 py-2 text-xs text-[#E2E8F0] hover:border-[#EF4444]/30 hover:text-[#EF4444]"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        Delete file
+                                    </button>
+                                </div>
+                            )
+                        })()}
+                    </div>
+                </div>
+            )}
 
             {/* Upload Overlay */}
             {isDragging && (
