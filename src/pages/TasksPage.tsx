@@ -165,13 +165,13 @@ export default function TasksPage() {
     const sourceTaskViewModels = useMemo(() => taskViewModels.filter((task) => (task.task.source || "manual") === effectiveSource), [taskViewModels, effectiveSource])
     const currentColumns = useMemo(() => activeProject ? getTaskBoardColumns(activeProject, effectiveSource) : [], [activeProject, effectiveSource])
     const filterOptions = useMemo(() => getTaskFilterOptions(sourceTaskViewModels), [sourceTaskViewModels])
-    const filteredTaskViews = useMemo(() => filterTaskViewModels(taskViewModels, { ...filters, source: effectiveSource }, null), [filters, effectiveSource, taskViewModels])
+    const filteredTaskViews = useMemo(() => filterTaskViewModels(taskViewModels, { ...filters, source: effectiveSource }, null, currentColumns), [filters, effectiveSource, taskViewModels, currentColumns])
     const sortedTaskViews = useMemo(() => sortTaskViewModels(filteredTaskViews, sortMode), [filteredTaskViews, sortMode])
     const tasksByColumn = useMemo(() => currentColumns.reduce((acc, col) => {
         acc[col.id] = sortedTaskViews.filter((task) => task.task.status === col.id)
         return acc
     }, {} as Record<string, typeof sortedTaskViews>), [sortedTaskViews, currentColumns])
-    const boardMetrics = useMemo(() => getBoardMetrics(filteredTaskViews, filters.assignee !== "all" ? filters.assignee : null), [filteredTaskViews, filters.assignee])
+    const boardMetrics = useMemo(() => getBoardMetrics(filteredTaskViews, filters.assignee !== "all" ? filters.assignee : null, currentColumns), [filteredTaskViews, filters.assignee, currentColumns])
     const summaryRail = useMemo(() => getSummaryRail(filteredTaskViews), [filteredTaskViews])
     const triageSections = useMemo(() => buildTriageSections(sortedTaskViews), [sortedTaskViews])
 
@@ -590,8 +590,9 @@ export default function TasksPage() {
                             </div>
                         ) : (
                             <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
-                                <div className="flex h-full min-h-0">
-                                    <div className="flex min-h-0 min-w-max flex-1 gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                                <div className="flex h-full min-h-0 min-w-0">
+                                    <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto pb-2 custom-scrollbar">
+                                        <div className="flex min-h-0 w-max min-w-max gap-4 pr-4">
                                         {currentColumns.map((col) => (
                                             <TaskColumn
                                                 key={col.id}
@@ -612,6 +613,7 @@ export default function TasksPage() {
                                                 sortMode={sortMode}
                                             />
                                         ))}
+                                        </div>
                                     </div>
                                 </div>
                                 <DragOverlay>

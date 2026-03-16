@@ -126,6 +126,25 @@ function formatBoardTitle(value: string) {
     return value.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().toUpperCase()
 }
 
+function normalizeColumnId(value: string) {
+    return String(value || "").trim().toLowerCase()
+}
+
+function isDoneColumn(column: TaskBoardColumn) {
+    const id = normalizeColumnId(column.id)
+    const type = normalizeColumnId(column.type || "")
+    return ["completed", "done", "canceled", "cancelled"].includes(type) || DONE_COLUMN_IDS.has(id)
+}
+
+function isActiveColumn(column: TaskBoardColumn) {
+    return !isDoneColumn(column)
+}
+
+function findColumnForStatus(columns: TaskBoardColumn[], status: string) {
+    const normalizedStatus = normalizeColumnId(status)
+    return columns.find((column) => normalizeColumnId(column.id) === normalizedStatus) || null
+}
+
 export function getTaskSource(task: Task): TaskSource {
     return task.source || "manual"
 }
@@ -169,6 +188,10 @@ export function getTaskBoardColumns(project: Project, source: TaskSource): TaskB
 
     if (columns.size === 0 && source === "manual") {
         DEFAULT_TASK_COLUMNS.forEach(addColumn)
+    }
+
+    if (source !== "manual" && sourceColumns.length > 0) {
+        return Array.from(columns.values())
     }
 
     return Array.from(columns.values()).sort((left, right) => {
@@ -257,7 +280,7 @@ export function deriveTaskViewModels(project: Project, now = Date.now()): TaskVi
     })
 }
 
-export function filterTaskViewModels(taskViewModels: TaskViewModel[], filters: TaskBoardFilters, currentUser?: string | null): TaskViewModel[] {
+export function filterTaskViewModels(taskViewModels: TaskViewModel[], filters: TaskBoardFilters, currentUser?: string | null, boardColumns: TaskBoardColumn[] = []): TaskViewModel[] {
     const query = filters.search.trim().toLowerCase()
     return taskViewModels.filter(({ task, dueState, coverageState, handoffState }) => {
         if (filters.source !== "all" && (task.source || "manual") !== filters.source) return false
@@ -274,7 +297,10 @@ export function filterTaskViewModels(taskViewModels: TaskViewModel[], filters: T
         if (filters.version && (task.version || "") !== filters.version) return false
         if (filters.status !== "all" && task.status !== filters.status) return false
         if (filters.onlyMine && currentUser && task.assignee !== currentUser) return false
-        if (filters.onlyActive && !ACTIVE_COLUMN_IDS.has(task.status.toLowerCase())) return false
+        if (filters.onlyActive) {
+            const matchingColumn = findColumnForStatus(boardColumns, task.status)
+            if (matchingColumn ? !isActiveColumn(matchingColumn) : !ACTIVE_COLUMN_IDS.has(task.status.toLowerCase())) return false
+        }
         if (!query) return true
 
         const haystack = [
@@ -353,9 +379,12 @@ export function buildTriageSections(taskViewModels: TaskViewModel[]): TriageSect
     ].filter((section) => section.tasks.length > 0)
 }
 
-export function getBoardMetrics(taskViewModels: TaskViewModel[], currentUser?: string | null) {
+export function getBoardMetrics(taskViewModels: TaskViewModel[], currentUser?: string | null, boardColumns: TaskBoardColumn[] = []) {
     return {
-        open: taskViewModels.filter((task) => !DONE_COLUMN_IDS.has(task.task.status.toLowerCase())).length,
+        open: taskViewModels.filter((task) => {
+            const matchingColumn = findColumnForStatus(boardColumns, task.task.status)
+            return matchingColumn ? !isDoneColumn(matchingColumn) : !DONE_COLUMN_IDS.has(task.task.status.toLowerCase())
+        }).length,
         overdue: taskViewModels.filter((task) => task.dueState === "overdue").length,
         readyForQa: taskViewModels.filter((task) => task.isReadyForQa).length,
         needsEvidence: taskViewModels.filter((task) => task.handoffState === "incomplete").length,
