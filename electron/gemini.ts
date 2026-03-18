@@ -57,7 +57,7 @@ export class GeminiService {
                     m.supportedGenerationMethods.includes('generateContent')
                 )
                 .map((m: any) => (m.name as string).replace('models/', ''));
-        } catch (err) {
+        } catch {
             console.error('Failed to list Gemini models');
             return [];
         }
@@ -985,7 +985,7 @@ export class GeminiService {
         let s = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
 
         // First try parsing as-is
-        try { return JSON.parse(s) } catch (_) { /* fall through to repair */ }
+        try { return JSON.parse(s) } catch { /* fall through to repair */ }
 
         // Extract the outermost JSON structure if there's surrounding text
         const match = s.match(/(\[[\s\S]*|\{[\s\S]*)/)

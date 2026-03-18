@@ -1,7 +1,8 @@
-const fs = require('node:fs');
+import * as fs from 'node:fs';
 const fsp = fs.promises;
-const path = require('node:path');
-const os = require('node:os');
+import * as path from 'node:path';
+import * as os from 'node:os';
+import * as crypto from 'node:crypto';
 
 // Load .env file from project root (dev mode — production builds have vars baked in via electron.vite.config.ts)
 ;(function loadDotEnv() {
@@ -22,7 +23,7 @@ const os = require('node:os');
     } catch { /* ignore */ }
 })()
 
-import { setCredential, getCredential, deleteCredential, listCredentials, initCredentials } from './credentialService';
+import { setCredential, getCredential, deleteCredential, listCredentials, initCredentials, isKeychainAvailable } from './credentialService';
 import * as oauth from './oauth';
 import * as github from './github';
 import { assertString, assertArray, assertObject } from './ipc-validation';
@@ -42,16 +43,17 @@ import { SapHacService } from './sapHac';
 import * as accuracy from './accuracy';
 // trayIconBase64 removed to use file-based icon
 // BOOTSTRAP: This self-executing function finds the REAL Electron API even if shadowed.
+/* eslint-disable @typescript-eslint/no-require-imports */
 const electron = (function() {
     try {
         const e = require('electron');
         if (typeof e === 'object' && e.app) return e;
-    } catch {}
+    } catch {} // eslint-disable-line no-empty
 
     try {
         const e = require('node:electron');
         if (typeof e === 'object' && e.app) return e;
-    } catch {}
+    } catch {} // eslint-disable-line no-empty
 
     // CACHE SEARCH: The ultimate fallback for shadowing.
     for (const key in require.cache) {
@@ -64,12 +66,13 @@ const electron = (function() {
         const rescuePath = path.join(os.tmpdir(), `rescue-${Date.now()}.js`);
         fs.writeFileSync(rescuePath, 'module.exports = require("electron");');
         const e = require(rescuePath);
-        try { fs.unlinkSync(rescuePath); } catch {}
+        try { fs.unlinkSync(rescuePath); } catch {} // eslint-disable-line no-empty
         if (typeof e === 'object' && e.app) return e;
-    } catch {}
+    } catch {} // eslint-disable-line no-empty
 
-    return require('electron'); 
+    return require('electron');
 })();
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, protocol } = electron || {};
 
@@ -237,6 +240,12 @@ if (app) {
         ipcMain.on('set-always-on-top', (_e: any, flag: any) => mainWindow?.setAlwaysOnTop(flag));
     }
 
+    /** Returns the most informative string from an unknown catch value, preserving stack traces. */
+    function errMsg(err: unknown): string {
+        if (err instanceof Error) return err.stack || err.message;
+        return String(err);
+    }
+
     function setupIpc() {
         ipcMain.handle('get-app-data-path', () => APP_DATA_DIR);
         ipcMain.handle('read-projects-file', async () => {
@@ -292,6 +301,12 @@ if (app) {
                 console.error('Error writing settings file:', e);
                 return false;
             }
+        });
+        ipcMain.handle('get-credential-storage-status', () => {
+            const { safeStorage } = electron;
+            if (isKeychainAvailable()) return { mode: 'keychain', encrypted: true };
+            if (safeStorage.isEncryptionAvailable()) return { mode: 'safeStorage', encrypted: true };
+            return { mode: 'plaintext', encrypted: false };
         });
         ipcMain.handle('secure-store-set', async (_e: any, key: any, value: any) => {
             assertString(key, 'key', 500);
@@ -360,7 +375,7 @@ if (app) {
                 return await getGeminiService(apiKey).generateTestCases(tasks, sourceName, project, designDoc, modelName, comments);
             } catch (err: any) {
                 // Return a flat wrapper to the IPC boundary to safely cross context bridges without native cloning recursion
-                return { __isError: true, message: String(err) };
+                return { __isError: true, message: errMsg(err) };
             }
         });
         ipcMain.handle('automation-api-start', async (_e: any, { apiKey, port }: any) => startServer(apiKey, port));
@@ -427,6 +442,38 @@ if (app) {
             }
         });
 
+        // Attachment cleanup
+        ipcMain.handle('scan-orphaned-attachments', async (_e: any, { referencedPaths }: { referencedPaths: string[] }) => {
+            try {
+                if (!fs.existsSync(ATTACHMENTS_DIR)) return { orphaned: [], totalSize: 0 };
+                const referenced = new Set(referencedPaths.map(p => path.normalize(p)));
+                const files = await fsp.readdir(ATTACHMENTS_DIR);
+                const orphaned: { filePath: string; fileName: string; fileSizeBytes: number }[] = [];
+                let totalSize = 0;
+                for (const file of files) {
+                    const filePath = path.join(ATTACHMENTS_DIR, file);
+                    const stat = await fsp.stat(filePath).catch(() => null);
+                    if (!stat || !stat.isFile()) continue;
+                    if (!referenced.has(path.normalize(filePath))) {
+                        orphaned.push({ filePath, fileName: file, fileSizeBytes: stat.size });
+                        totalSize += stat.size;
+                    }
+                }
+                return { orphaned, totalSize };
+            } catch (e: unknown) {
+                return { __isError: true, message: errMsg(e) };
+            }
+        });
+        ipcMain.handle('delete-orphaned-attachments', async (_e: any, { filePaths }: { filePaths: string[] }) => {
+            let deleted = 0;
+            for (const filePath of filePaths) {
+                if (!isPathWithin(filePath, ATTACHMENTS_DIR)) continue;
+                const success = await deleteFile(filePath);
+                if (success) deleted++;
+            }
+            return { deleted };
+        });
+
         // Bug Reporting
         ipcMain.handle('generate-bug-report-task', async (_e: any, { task, environment, reporter, aiAnalysis }: any) => {
             const md = bugReport.generateBugReportFromTask(task, environment, reporter, aiAnalysis);
@@ -463,7 +510,7 @@ if (app) {
                 assertString(apiKey, 'apiKey');
                 return await new GeminiService(apiKey).listAvailableModels();
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
         ipcMain.handle('ai-analyze-issue', async (_e: any, { apiKey, task, comments, project, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-analyze-issue'); if (rateErr) return rateErr;
@@ -471,7 +518,7 @@ if (app) {
                 assertString(apiKey, 'apiKey');
                 return await getGeminiService(apiKey).analyzeIssue(task, comments, project, 0, modelName);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
         ipcMain.handle('ai-analyze', async (_e: any, { apiKey, context, project, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-analyze'); if (rateErr) return rateErr;
@@ -479,7 +526,7 @@ if (app) {
                 assertString(apiKey, 'apiKey');
                 return await getGeminiService(apiKey).analyzeProject(context, project, modelName);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
         ipcMain.handle('ai-criticality', async (_e: any, { apiKey, tasks, testPlans, executions, project, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-criticality'); if (rateErr) return rateErr;
@@ -487,7 +534,7 @@ if (app) {
                 assertString(apiKey, 'apiKey');
                 return await getGeminiService(apiKey).assessCriticality(tasks, testPlans, executions, project, modelName);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
         ipcMain.handle('ai-test-run-suggestions', async (_e: any, { apiKey, testPlans, executions, project, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-test-run-suggestions'); if (rateErr) return rateErr;
@@ -495,7 +542,7 @@ if (app) {
                 assertString(apiKey, 'apiKey');
                 return await getGeminiService(apiKey).getTestRunSuggestions(testPlans, executions, project, modelName);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
         ipcMain.handle('ai-smoke-subset', async (_e: any, { apiKey, candidates, doneTasks, project, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-smoke-subset'); if (rateErr) return rateErr;
@@ -503,7 +550,7 @@ if (app) {
                 assertString(apiKey, 'apiKey');
                 return await getGeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
         ipcMain.handle('ai-chat', async (_e: any, { apiKey, userMessage, history, role, project, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-chat'); if (rateErr) return rateErr;
@@ -512,7 +559,7 @@ if (app) {
                 assertString(userMessage, 'userMessage', 50_000);
                 return await getGeminiService(apiKey).chat(userMessage, history || [], role === 'dev' ? 'dev' : 'qa', project, modelName);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
 
         // AI Accuracy Testing Handlers
@@ -523,7 +570,7 @@ if (app) {
                 const chunks = accuracy.chunkDocument(text, 'preview');
                 return { success: true, text, chunkCount: chunks.length };
             }
-            catch (err: any) { return { success: false, error: String(err) }; }
+            catch (err: any) { return { success: false, error: errMsg(err) }; }
         });
         ipcMain.handle('ai-accuracy-extract-claims', async (_e: any, { apiKey, agentResponse, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-accuracy-extract-claims'); if (rateErr) return rateErr;
@@ -532,7 +579,7 @@ if (app) {
                 assertString(agentResponse, 'agentResponse', 50_000);
                 return await getGeminiService(apiKey).extractClaims(agentResponse, modelName);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
         ipcMain.handle('ai-accuracy-verify-claims', async (_e: any, { apiKey, claims, refChunks, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-accuracy-verify-claims'); if (rateErr) return rateErr;
@@ -540,9 +587,9 @@ if (app) {
                 assertString(apiKey, 'apiKey');
                 assertArray(claims, 'claims', 200);
                 assertArray(refChunks, 'refChunks', 100);
-                return await getGeminiService(apiKey).verifyClaims(claims, refChunks, modelName);
+                return await getGeminiService(apiKey).verifyClaims(claims as any[], refChunks as any[], modelName);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
         ipcMain.handle('ai-accuracy-score-dimensions', async (_e: any, { apiKey, question, agentResponse, expectedAnswer, claimVerdicts, refChunks, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-accuracy-score-dimensions'); if (rateErr) return rateErr;
@@ -552,9 +599,9 @@ if (app) {
                 assertString(agentResponse, 'agentResponse', 50_000);
                 assertArray(claimVerdicts, 'claimVerdicts', 200);
                 assertArray(refChunks, 'refChunks', 100);
-                return await getGeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts, refChunks, modelName, expectedAnswer);
+                return await getGeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts as any[], refChunks as any[], modelName, expectedAnswer);
             }
-            catch (err: any) { return { __isError: true, message: String(err) }; }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
 
         // Report Handlers
@@ -577,19 +624,27 @@ if (app) {
         // Report Builder Handlers (M1: Custom Report Templates)
         ipcMain.handle('generate-custom-report', async (_e: any, { project: p, template }: any) => {
             try {
-                const html = reportBuilder.generateCustomReport(p, template);
+                assertObject(p, 'project');
+                assertObject(template, 'template');
+                assertString(template.name as string, 'template.name', 500);
+                assertArray(template.sections, 'template.sections', 100);
+                const html = reportBuilder.generateCustomReport(p as any, template as any);
                 return { success: true, html };
             } catch (err: any) {
-                return { success: false, error: String(err) };
+                return { success: false, error: errMsg(err) };
             }
         });
 
         ipcMain.handle('export-custom-report-pdf', async (_e: any, { project: p, template }: any) => {
             try {
                 if (!mainWindow) return { success: false, error: 'No main window' };
-                const html = reportBuilder.generateCustomReport(p, template);
+                assertObject(p, 'project');
+                assertObject(template, 'template');
+                assertString(template.name as string, 'template.name', 500);
+                assertArray(template.sections, 'template.sections', 100);
+                const html = reportBuilder.generateCustomReport(p as any, template as any);
                 const res = await dialog.showSaveDialog(mainWindow, {
-                    defaultPath: `${p.name.replace(/\s+/g, '-')}-${template.name.replace(/\s+/g, '-')}.pdf`,
+                    defaultPath: `${(p.name as string).replace(/\s+/g, '-')}-${(template.name as string).replace(/\s+/g, '-')}.pdf`,
                     filters: [{ name: 'PDF', extensions: ['pdf'] }]
                 });
                 if (res.canceled) return { success: false };
@@ -600,7 +655,7 @@ if (app) {
                 printWindow.close();
                 return { success: true, path: res.filePath };
             } catch (err: any) {
-                return { success: false, error: String(err) };
+                return { success: false, error: errMsg(err) };
             }
         });
 
@@ -1032,7 +1087,6 @@ if (app) {
             mainWindow?.webContents.send('oauth-complete', { provider, userInfo });
         });
         // Auto-start the server so the OAuth /auth/callback endpoint is always available
-        const crypto = require('node:crypto');
         startServer(crypto.randomBytes(32).toString('hex'), 5248);
         createWindow();
         createTray();

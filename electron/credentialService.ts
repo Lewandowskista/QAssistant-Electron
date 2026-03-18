@@ -5,10 +5,10 @@ let keytar: any = null
 let KEYTAR_AVAILABLE = false
 try {
     // Use require so missing optional dependency won't crash build-time imports
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     keytar = require('keytar')
     KEYTAR_AVAILABLE = true
-} catch (e) {
+} catch {
     KEYTAR_AVAILABLE = false
 }
 
@@ -82,6 +82,10 @@ export async function deleteCredential(account: string): Promise<boolean> {
         return true
     }
     return false
+}
+
+export function isKeychainAvailable(): boolean {
+    return KEYTAR_AVAILABLE
 }
 
 export async function listCredentials(): Promise<Array<{ account: string; password: string }>> {

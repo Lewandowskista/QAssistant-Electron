@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-expect-error — electron default import may not match type declarations
 import electron from 'electron'
 const { app } = electron as any
 import path from 'path'

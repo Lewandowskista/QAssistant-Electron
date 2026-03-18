@@ -24,7 +24,7 @@ export async function readDocumentText(filePath: string): Promise<string> {
     }
 
     if (ext === '.pdf') {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { PDFParse } = require('pdf-parse')
         const buffer = await fs.promises.readFile(filePath)
         const parser = new PDFParse({ data: buffer })
@@ -33,7 +33,7 @@ export async function readDocumentText(filePath: string): Promise<string> {
     }
 
     if (ext === '.docx') {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const mammoth = require('mammoth')
         const result = await mammoth.extractRawText({ path: filePath })
         return result.value as string

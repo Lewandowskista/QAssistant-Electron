@@ -183,7 +183,7 @@ export function buildImpactAssessment(plans: TestPlan[], tasks: Task[]): ImpactR
 
     for (const t of openTasks) {
         const keys = [t.sourceIssueId, t.externalId, t.id].filter(Boolean) as string[];
-        let coverage = keys.map(k => coverageMap.get(k)).find(c => c != null);
+        const coverage = keys.map(k => coverageMap.get(k)).find(c => c != null);
         if (coverage) {
             if (coveredIssues.length < 50) {
                 coveredIssues.push({ task: t, coveringPlanNames: [...coverage.planNames], caseCount: coverage.caseCount });

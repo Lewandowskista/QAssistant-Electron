@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-expect-error — electron default import may not match type declarations
 import electron from 'electron'
 const { Notification, BrowserWindow } = electron as any
 import fs from 'fs'

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ReactNode } from "react"
+import { useState, useMemo, useCallback, useEffect, type ReactNode } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import {
     LayoutDashboard,
@@ -179,52 +179,90 @@ export default function DashboardPage() {
     const releaseQueue = activeProject ? getReleaseQueue(activeProject) : null
     const collaborationMetrics = activeProject ? getCollaborationMetrics(activeProject) : null
 
-    const closedTypes = ['completed', 'canceled']
-    const isClosed = (status: string) => {
-        const col = currentColumns.find(c => c.id === status)
-        return col ? closedTypes.includes(col.type || '') : status.toLowerCase() === 'done' || status.toLowerCase() === 'canceled'
-    }
+    const closedColumnIds = useMemo(() => {
+        const closedTypes = new Set(['completed', 'canceled'])
+        const ids = new Set<string>()
+        currentColumns.forEach(c => { if (closedTypes.has(c.type || '')) ids.add(c.id) })
+        return ids
+    }, [currentColumns])
+
+    const isClosed = useCallback((status: string) => {
+        if (closedColumnIds.has(status)) return true
+        if (closedColumnIds.size === 0) {
+            const s = status.toLowerCase()
+            return s === 'done' || s === 'canceled'
+        }
+        return false
+    }, [closedColumnIds])
 
     // Metrics calculations (using filteredTasks)
-    const openTasks = filteredTasks.filter((t: Task) => !isClosed(t.status || 'todo'))
+    const openTasks = useMemo(
+        () => filteredTasks.filter((t: Task) => !isClosed(t.status || 'todo')),
+        [filteredTasks, isClosed]
+    )
     const openTasksCount = openTasks.length
-    const criticalBlockersCount = openTasks.filter((t: Task) => t.priority === 'critical').length
+    const criticalBlockersCount = useMemo(
+        () => openTasks.filter((t: Task) => t.priority === 'critical').length,
+        [openTasks]
+    )
 
-    const passedTests = allTestCases.filter((c: any) => c.status === 'passed').length
-    const failedTests = allTestCases.filter((c: any) => c.status === 'failed').length
-    const notRunTests = allTestCases.filter((c: any) => c.status === 'not-run').length
-    const testCasesCount = allTestCases.length
-    const passRate = testCasesCount > 0 ? Math.round((passedTests / testCasesCount) * 100) : 0
+    const { passedTests, failedTests, notRunTests, testCasesCount, passRate } = useMemo(() => {
+        const passed = allTestCases.filter((c: any) => c.status === 'passed').length
+        const failed = allTestCases.filter((c: any) => c.status === 'failed').length
+        const notRun = allTestCases.filter((c: any) => c.status === 'not-run').length
+        const total = allTestCases.length
+        return { passedTests: passed, failedTests: failed, notRunTests: notRun, testCasesCount: total, passRate: total > 0 ? Math.round((passed / total) * 100) : 0 }
+    }, [allTestCases])
 
     const now = new Date()
-    const upcomingTasks = openTasks
-        .filter((t: Task) => t.dueDate && new Date(t.dueDate) >= now)
-        .sort((a: Task, b: Task) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
-        .slice(0, 7)
+    const { upcomingTasks, overdueCount } = useMemo(() => {
+        const upcoming = openTasks
+            .filter((t: Task) => t.dueDate && new Date(t.dueDate) >= now)
+            .sort((a: Task, b: Task) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+            .slice(0, 7)
+        const overdue = openTasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < now).length
+        return { upcomingTasks: upcoming, overdueCount: overdue }
+    }, [openTasks])
 
-    const overdueCount = openTasks.filter((t: Task) => t.dueDate && new Date(t.dueDate) < now).length
-    const awaitingDevAckCount = tasks.filter((t: Task) => t.collabState === 'ready_for_dev').length
-    const readyForQaCount = tasks.filter((t: Task) => t.collabState === 'ready_for_qa').length
-    const verifiedTodayCount = collaborationEvents.filter((event) => event.eventType === 'verification_passed' && new Date(event.timestamp).toDateString() === now.toDateString()).length
-    const missingEvidenceCount = handoffs.filter((handoff) =>
-        !handoff.linkedExecutionRefs.length && !handoff.linkedFileIds.length && !handoff.linkedNoteIds.length
-    ).length
-    const prsWaitingForQaCount = handoffs.filter((handoff) => handoff.linkedPrs.length > 0).filter((handoff) => {
-        const task = tasks.find((item) => item.id === handoff.taskId)
-        return task?.collabState !== 'verified' && task?.collabState !== 'closed'
-    }).length
+    const awaitingDevAckCount = useMemo(
+        () => tasks.filter((t: Task) => t.collabState === 'ready_for_dev').length,
+        [tasks]
+    )
+    const readyForQaCount = useMemo(
+        () => tasks.filter((t: Task) => t.collabState === 'ready_for_qa').length,
+        [tasks]
+    )
+    const verifiedTodayCount = useMemo(
+        () => collaborationEvents.filter((event) => event.eventType === 'verification_passed' && new Date(event.timestamp).toDateString() === now.toDateString()).length,
+        [collaborationEvents]
+    )
+    const missingEvidenceCount = useMemo(
+        () => handoffs.filter((handoff) => !handoff.linkedExecutionRefs.length && !handoff.linkedFileIds.length && !handoff.linkedNoteIds.length).length,
+        [handoffs]
+    )
+    const prsWaitingForQaCount = useMemo(() => {
+        const taskById = new Map(tasks.map((t: Task) => [t.id, t]))
+        return handoffs.filter((handoff) => {
+            if (!handoff.linkedPrs.length) return false
+            const task = taskById.get(handoff.taskId)
+            return task?.collabState !== 'verified' && task?.collabState !== 'closed'
+        }).length
+    }, [handoffs, tasks])
     const activeHandoffs = handoffs.slice(0, 5)
     const recentCollabEvents = collaborationEvents.slice(0, 6)
 
     // Coverage gap analysis
-    const coveredTasks = filteredTasks.filter((t: Task) =>
-        allTestCases.some(tc => tc.sourceIssueId === t.sourceIssueId)
-    )
-    const uncoveredTasks = filteredTasks.filter((t: Task) =>
-        !allTestCases.some(tc => tc.sourceIssueId === t.sourceIssueId)
-    )
-    const coverageGapCount = uncoveredTasks.length
-    const coveragePercent = filteredTasks.length > 0 ? Math.round((coveredTasks.length / filteredTasks.length) * 100) : 0
+    const { coveredTasks: _coveredTasks, uncoveredTasks, coverageGapCount, coveragePercent } = useMemo(() => {
+        const issueIds = new Set(allTestCases.map(tc => tc.sourceIssueId).filter(Boolean))
+        const covered = filteredTasks.filter((t: Task) => t.sourceIssueId && issueIds.has(t.sourceIssueId))
+        const uncovered = filteredTasks.filter((t: Task) => !t.sourceIssueId || !issueIds.has(t.sourceIssueId))
+        return {
+            coveredTasks: covered,
+            uncoveredTasks: uncovered,
+            coverageGapCount: uncovered.length,
+            coveragePercent: filteredTasks.length > 0 ? Math.round((covered.length / filteredTasks.length) * 100) : 0,
+        }
+    }, [filteredTasks, allTestCases])
 
     // Quality gates evaluation
     const enabledGates = (activeProject?.qualityGates || []).filter(g => g.isEnabled)
@@ -239,11 +277,12 @@ export default function DashboardPage() {
                     case 'critical_bugs':
                         actualValue = criticalBlockersCount
                         break
-                    case 'smoke_tests':
+                    case 'smoke_tests': {
                         const smokeCases = allTestCases.filter(tc => tc.testType === 'smoke' || tc.tags?.includes('smoke'))
                         const smokePassed = smokeCases.filter(tc => tc.status === 'passed').length
                         actualValue = smokeCases.length > 0 ? Math.round((smokePassed / smokeCases.length) * 100) : 0
                         break
+                    }
                     case 'coverage':
                         actualValue = coveragePercent
                         break

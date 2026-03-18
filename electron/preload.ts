@@ -1,12 +1,28 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { contextBridge, ipcRenderer } = (function() {
     try {
         const e = require('electron');
         if (typeof e === 'object') return e;
-    } catch {}
-    
+    } catch {} // eslint-disable-line no-empty
+
     // In preload, shadowing is rarer but possible if someone messed with the the sandbox
     return require('electron');
 })();
+/* eslint-enable @typescript-eslint/no-require-imports */
+
+/**
+ * Wrapper around ipcRenderer.invoke that normalises the two main-process error
+ * patterns into a thrown Error so callers only need a single try/catch:
+ *   • { __isError: true, message }  – used by AI handlers
+ *   • { success: false, error }     – used by file/report handlers
+ */
+async function invoke(channel: string, ...args: any[]): Promise<any> {
+    const res = await ipcRenderer.invoke(channel, ...args);
+    if (res && typeof res === 'object') {
+        if (res.__isError) throw new Error(res.message ?? channel);
+    }
+    return res;
+}
 
 contextBridge.exposeInMainWorld('electronAPI', {
   minimize: () => ipcRenderer.send('window-minimize'),
@@ -37,20 +53,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeProjectsFile: (data: any) => ipcRenderer.invoke('write-projects-file', data),
   readSettingsFile: () => ipcRenderer.invoke('read-settings-file'),
   writeSettingsFile: (data: any) => ipcRenderer.invoke('write-settings-file', data),
+  getCredentialStorageStatus: () => ipcRenderer.invoke('get-credential-storage-status'),
+  scanOrphanedAttachments: (referencedPaths: string[]) => ipcRenderer.invoke('scan-orphaned-attachments', { referencedPaths }),
+  deleteOrphanedAttachments: (filePaths: string[]) => ipcRenderer.invoke('delete-orphaned-attachments', { filePaths }),
   secureStoreSet: (key: string, value: string) => ipcRenderer.invoke('secure-store-set', key, value),
   secureStoreGet: (key: string) => ipcRenderer.invoke('secure-store-get', key),
   secureStoreDelete: (key: string) => ipcRenderer.invoke('secure-store-delete', key),
   secureStoreList: () => ipcRenderer.invoke('secure-store-list'),
   selectFile: (filters?: { name: string; extensions: string[] }[]) => ipcRenderer.invoke('select-file', filters),
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
-  aiGenerateCases: async (args: any) => { const res = await ipcRenderer.invoke('ai-generate-cases', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiListModels: async (args: any) => { const res = await ipcRenderer.invoke('ai-list-models', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiAnalyzeIssue: async (args: any) => { const res = await ipcRenderer.invoke('ai-analyze-issue', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiAnalyze: async (args: any) => { const res = await ipcRenderer.invoke('ai-analyze', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiCriticality: async (args: any) => { const res = await ipcRenderer.invoke('ai-criticality', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiTestRunSuggestions: async (args: any) => { const res = await ipcRenderer.invoke('ai-test-run-suggestions', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiSmokeSubset: async (args: any) => { const res = await ipcRenderer.invoke('ai-smoke-subset', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiChat: async (args: any) => { const res = await ipcRenderer.invoke('ai-chat', args); if (res?.__isError) throw new Error(res.message); return res; },
+  aiGenerateCases: (args: any) => invoke('ai-generate-cases', args),
+  aiListModels: (args: any) => invoke('ai-list-models', args),
+  aiAnalyzeIssue: (args: any) => invoke('ai-analyze-issue', args),
+  aiAnalyze: (args: any) => invoke('ai-analyze', args),
+  aiCriticality: (args: any) => invoke('ai-criticality', args),
+  aiTestRunSuggestions: (args: any) => invoke('ai-test-run-suggestions', args),
+  aiSmokeSubset: (args: any) => invoke('ai-smoke-subset', args),
+  aiChat: (args: any) => invoke('ai-chat', args),
   readCsvFile: (args: any) => ipcRenderer.invoke('read-csv-file', typeof args === 'string' ? { filePath: args } : args),
   saveFileDialog: (args: any, content?: string) => ipcRenderer.invoke('save-file-dialog', typeof args === 'string' ? { defaultName: args, content } : args),
   generateTestSummaryMarkdown: (project: any, filterPlanIds?: string[], aiResult?: string) => ipcRenderer.invoke('generate-test-summary-markdown', { project, filterPlanIds, aiResult }),
@@ -144,7 +163,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // AI Accuracy Testing
   readDocumentText: (args: any) => ipcRenderer.invoke('read-document-text', typeof args === 'string' ? { filePath: args } : args),
-  aiAccuracyExtractClaims: async (args: any) => { const res = await ipcRenderer.invoke('ai-accuracy-extract-claims', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiAccuracyVerifyClaims: async (args: any) => { const res = await ipcRenderer.invoke('ai-accuracy-verify-claims', args); if (res?.__isError) throw new Error(res.message); return res; },
-  aiAccuracyScoreDimensions: async (args: any) => { const res = await ipcRenderer.invoke('ai-accuracy-score-dimensions', args); if (res?.__isError) throw new Error(res.message); return res; },
+  aiAccuracyExtractClaims: (args: any) => invoke('ai-accuracy-extract-claims', args),
+  aiAccuracyVerifyClaims: (args: any) => invoke('ai-accuracy-verify-claims', args),
+  aiAccuracyScoreDimensions: (args: any) => invoke('ai-accuracy-score-dimensions', args),
 });

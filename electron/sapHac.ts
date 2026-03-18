@@ -1,8 +1,5 @@
 // Uses native fetch (available in Electron/Node 18+) with a per-instance cookie jar
-
-// Serializes all SSL-bypass fetches so the global NODE_TLS_REJECT_UNAUTHORIZED flag
-// is never set by two concurrent requests at the same time.
-let _sslBypassQueue: Promise<unknown> = Promise.resolve()
+import https from 'node:https'
 
 /**
  * Minimal cookie jar that injects cookies into requests and captures Set-Cookie responses.
@@ -35,37 +32,40 @@ class CookieJar {
         const headers: Record<string, string> = { ...(init?.headers as Record<string, string> || {}) }
         if (cookieHeader) headers['Cookie'] = cookieHeader
 
-        const doFetch = async (): Promise<Response> => {
-            const signal = (init?.signal as AbortSignal | undefined) ?? AbortSignal.timeout(30_000)
-            const resp = await globalThis.fetch(url, { ...init, headers, redirect: 'manual', signal })
+        const signal = (init?.signal as AbortSignal | undefined) ?? AbortSignal.timeout(30_000)
 
-            const setCookie = resp.headers.get('set-cookie')
-            if (setCookie) this.parseSetCookie(setCookie)
-
-            // Follow 302 redirects manually so we keep our cookies
-            if ((resp.status === 301 || resp.status === 302 || resp.status === 303) && resp.headers.get('location')) {
-                const location = resp.headers.get('location')!
-                const redirectUrl = location.startsWith('http') ? location : new URL(location, url).toString()
-                return this.fetch(redirectUrl, { method: 'GET' }, ignoreSsl)
+        // When SSL verification should be skipped, use a scoped https.Agent so the
+        // global NODE_TLS_REJECT_UNAUTHORIZED env var is never mutated.
+        const fetchOptions: RequestInit & { dispatcher?: unknown } = { ...init, headers, redirect: 'manual', signal }
+        if (ignoreSsl) {
+            // Node 18+ fetch uses undici internally; pass the agent via the non-standard
+            // but widely supported 'dispatcher' option, falling back gracefully if not available.
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const { Agent } = require('undici')
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+                fetchOptions.dispatcher = new Agent({ connect: { rejectUnauthorized: false } })
+            } catch {
+                // undici not available — use a custom node https agent via monkey-patching is not
+                // safe, so we fall back to the agent on the request itself via a Node-native path.
+                const agent = new https.Agent({ rejectUnauthorized: false })
+                ;(fetchOptions as Record<string, unknown>).agent = agent
             }
-
-            return resp
         }
 
-        if (!ignoreSsl) return doFetch()
+        const resp = await globalThis.fetch(url, fetchOptions as RequestInit)
 
-        // Serialize SSL-bypass requests so NODE_TLS_REJECT_UNAUTHORIZED is never
-        // mutated by two concurrent requests simultaneously.
-        const result = _sslBypassQueue.then(async () => {
-            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-            try {
-                return await doFetch()
-            } finally {
-                delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
-            }
-        })
-        _sslBypassQueue = result.then(() => { /* chain */ }, () => { /* chain */ })
-        return result
+        const setCookie = resp.headers.get('set-cookie')
+        if (setCookie) this.parseSetCookie(setCookie)
+
+        // Follow 302 redirects manually so we keep our cookies
+        if ((resp.status === 301 || resp.status === 302 || resp.status === 303) && resp.headers.get('location')) {
+            const location = resp.headers.get('location')!
+            const redirectUrl = location.startsWith('http') ? location : new URL(location, url).toString()
+            return this.fetch(redirectUrl, { method: 'GET' }, ignoreSsl)
+        }
+
+        return resp
     }
 }
 

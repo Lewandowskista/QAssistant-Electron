@@ -105,7 +105,7 @@ export default function ApiPage() {
         const startTime = performance.now()
         try {
             let parsedHeaders = {}
-            try { parsedHeaders = JSON.parse(headers) } catch (e) { }
+            try { parsedHeaders = JSON.parse(headers) } catch { /* ignore invalid JSON */ }
 
             const res = await fetch(url, {
                 method,
@@ -167,7 +167,7 @@ export default function ApiPage() {
 
     const handleAutoAuth = async () => {
         if (!activeProject) return
-        const api = (window as any).electronAPI
+        const api = window.electronAPI
         
         // Find default or first environment
         const env = activeProject.environments.find(e => e.isDefault) || activeProject.environments[0]

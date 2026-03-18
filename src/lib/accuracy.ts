@@ -169,15 +169,12 @@ async function evaluatePair(
         agentResponse: pair.agentResponse,
         modelName
     })
-    if (rawClaims?.__isError) throw new Error(rawClaims.message ?? 'Claim extraction failed')
-
     const claimsArray = Array.isArray(rawClaims) ? rawClaims : []
 
     // LLM Call 2: Verify claims
     const rawVerification = claimsArray.length > 0
         ? await api.aiAccuracyVerifyClaims({ apiKey, claims: claimsArray, refChunks: refChunksForApi, modelName })
         : []
-    if (rawVerification?.__isError) throw new Error(rawVerification.message ?? 'Claim verification failed')
     const verificationResults = Array.isArray(rawVerification) ? rawVerification : []
 
     // Build AccuracyClaim objects
@@ -186,7 +183,7 @@ async function evaluatePair(
         return {
             id: `${runId}-${pair.id}-claim-${idx}`,
             claimText: c.claimText,
-            verdict: verification?.verdict ?? 'unverifiable',
+            verdict: (verification?.verdict ?? 'unverifiable') as import('@/types/project').ClaimVerdict,
             confidence: verification?.confidence ?? 0,
             sourceChunkIds: verification?.sourceChunkIds ?? [],
             reasoning: verification?.reasoning ?? ''
@@ -209,8 +206,6 @@ async function evaluatePair(
         refChunks: refChunksForApi,
         modelName
     })
-    if (dimensionScoresRaw?.__isError) throw new Error(dimensionScoresRaw.message ?? 'Dimension scoring failed')
-
     const dimensionScores: AccuracyDimensionScore[] = (
         ['factualAccuracy', 'completeness', 'faithfulness', 'relevance'] as AccuracyScoreDimension[]
     ).map(dim => ({
@@ -290,7 +285,9 @@ export async function runAccuracyEvaluation(
             await Promise.race(inFlight)
         }
 
-        let taskRef!: Promise<void>
+        // eslint-disable-next-line prefer-const
+        let taskRef: Promise<void>
+        // eslint-disable-next-line prefer-const
         taskRef = runOne(pair, index).finally(() => inFlight.delete(taskRef))
         inFlight.add(taskRef)
     }

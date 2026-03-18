@@ -648,7 +648,7 @@ export async function createJiraIssue(domain: string, email: string, apiKey: str
  * Fetch media content with appropriate authentication based on source
  */
 export async function fetchAuthenticatedMedia(url: string, source: string, connectionId?: string, projectId?: string): Promise<{ data: Buffer, mimeType: string }> {
-    let headers: Record<string, string> = {};
+    const headers: Record<string, string> = {};
     const projectPrefix = projectId ? `project:${projectId}:` : '';
 
     if (source === 'jira') {
