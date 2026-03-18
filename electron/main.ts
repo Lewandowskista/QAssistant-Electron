@@ -91,6 +91,7 @@ if (app) {
     }
 
     let mainWindow: any = null;
+    let wasFullscreenBeforeHide = false;
     let APP_DATA_DIR = '';
     let PROJECTS_FILE = '';
     let CREDENTIALS_FILE = '';
@@ -175,7 +176,20 @@ if (app) {
         mainWindow.on('close', (event: any) => {
             if (process.platform === 'darwin' && !app.isQuiting) {
                 event.preventDefault();
-                mainWindow?.hide();
+                // If the window is currently fullscreen, exit fullscreen first before
+                // hiding. Hiding a fullscreen window on macOS causes a black screen when
+                // it is later shown again via the Dock. We remember the state so we can
+                // re-enter fullscreen on restore.
+                if (mainWindow?.isFullScreen()) {
+                    wasFullscreenBeforeHide = true;
+                    mainWindow.once('leave-full-screen', () => {
+                        mainWindow?.hide();
+                    });
+                    mainWindow.setFullScreen(false);
+                } else {
+                    wasFullscreenBeforeHide = false;
+                    mainWindow?.hide();
+                }
             }
         });
 
@@ -1068,6 +1082,12 @@ if (app) {
             mainWindow.focus();
             // Force repaint to avoid black screen after un-hiding on macOS
             mainWindow.webContents.invalidate();
+            // If the window was fullscreen before it was hidden via the red button,
+            // re-enter fullscreen now that it is visible again.
+            if (wasFullscreenBeforeHide) {
+                wasFullscreenBeforeHide = false;
+                mainWindow.setFullScreen(true);
+            }
         }
     });
 } else {
