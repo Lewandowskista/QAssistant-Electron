@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
 
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
-const MODEL_2_0_FLASH = 'gemini-2.0-flash';
+const MODEL_3_FLASH = 'gemini-3-flash';
 const MODEL_3_FLASH_PREVIEW = 'gemini-3-flash-preview';
 
 // Per-feature output token limits — prevents rambling and reduces cost
@@ -26,7 +26,7 @@ const MAX_TOKENS: Record<string, number> = {
 export class GeminiService {
     private genAI: GoogleGenerativeAI
     private apiKey: string
-    private preferredModel: string = MODEL_2_0_FLASH
+    private preferredModel: string = MODEL_3_FLASH
 
     constructor(apiKey: string) {
         this.apiKey = apiKey
@@ -78,7 +78,7 @@ export class GeminiService {
         const models = Array.from(new Set([
             modelOverride,
             this.preferredModel,
-            MODEL_2_0_FLASH,
+            MODEL_3_FLASH,
             MODEL_2_5_FLASH,
             MODEL_3_FLASH_PREVIEW,
         ].filter(Boolean) as string[]));
