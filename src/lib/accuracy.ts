@@ -141,9 +141,100 @@ export type DocChunkData = {
 
 export type EvalProgressCallback = (completedPairs: number, totalPairs: number, currentQuestion?: string) => void
 
+// Maximum number of QA pairs evaluated concurrently.
+// 3 is safe given the 3s per-channel rate limit and keeps API pressure low.
+const EVAL_CONCURRENCY = 3
+
+/**
+ * Evaluates a single QA pair through the 3-step pipeline.
+ * Returns an AccuracyQaPairResult or throws on unrecoverable error.
+ */
+async function evaluatePair(
+    pair: AccuracyTestSuite['qaPairs'][number],
+    allChunks: DocChunkData[],
+    preTokenizedChunks: Map<string, Set<string>>,
+    runId: string,
+    apiKey: string,
+    modelName: string | undefined
+): Promise<AccuracyQaPairResult> {
+    const api = window.electronAPI
+
+    // Retrieve relevant chunks using pre-tokenized cache (Fix 4)
+    const relevantChunks = findRelevantChunksClient(pair.question, pair.agentResponse, allChunks, 20000, 20, preTokenizedChunks)
+    const refChunksForApi = relevantChunks.map(c => ({ id: c.id, content: c.content }))
+
+    // LLM Call 1: Extract claims
+    const rawClaims = await api.aiAccuracyExtractClaims({
+        apiKey,
+        agentResponse: pair.agentResponse,
+        modelName
+    })
+    if (rawClaims?.__isError) throw new Error(rawClaims.message ?? 'Claim extraction failed')
+
+    const claimsArray = Array.isArray(rawClaims) ? rawClaims : []
+
+    // LLM Call 2: Verify claims
+    const rawVerification = claimsArray.length > 0
+        ? await api.aiAccuracyVerifyClaims({ apiKey, claims: claimsArray, refChunks: refChunksForApi, modelName })
+        : []
+    if (rawVerification?.__isError) throw new Error(rawVerification.message ?? 'Claim verification failed')
+    const verificationResults = Array.isArray(rawVerification) ? rawVerification : []
+
+    // Build AccuracyClaim objects
+    const extractedClaims: AccuracyClaim[] = claimsArray.map((c: any, idx: number) => {
+        const verification = verificationResults.find((v: any) => v.claimIndex === idx)
+        return {
+            id: `${runId}-${pair.id}-claim-${idx}`,
+            claimText: c.claimText,
+            verdict: verification?.verdict ?? 'unverifiable',
+            confidence: verification?.confidence ?? 0,
+            sourceChunkIds: verification?.sourceChunkIds ?? [],
+            reasoning: verification?.reasoning ?? ''
+        }
+    })
+
+    // LLM Call 3: Score dimensions
+    const claimVerdictsForScoring = extractedClaims.map(c => ({
+        claimText: c.claimText,
+        verdict: c.verdict,
+        reasoning: c.reasoning
+    }))
+
+    const dimensionScoresRaw = await api.aiAccuracyScoreDimensions({
+        apiKey,
+        question: pair.question,
+        agentResponse: pair.agentResponse,
+        expectedAnswer: pair.expectedAnswer,
+        claimVerdicts: claimVerdictsForScoring,
+        refChunks: refChunksForApi,
+        modelName
+    })
+    if (dimensionScoresRaw?.__isError) throw new Error(dimensionScoresRaw.message ?? 'Dimension scoring failed')
+
+    const dimensionScores: AccuracyDimensionScore[] = (
+        ['factualAccuracy', 'completeness', 'faithfulness', 'relevance'] as AccuracyScoreDimension[]
+    ).map(dim => ({
+        dimension: dim,
+        score: dimensionScoresRaw[dim]?.score ?? 0,
+        confidence: dimensionScoresRaw[dim]?.confidence ?? 0,
+        reasoning: dimensionScoresRaw[dim]?.reasoning ?? ''
+    }))
+
+    return {
+        id: `${runId}-${pair.id}`,
+        question: pair.question,
+        agentResponse: pair.agentResponse,
+        overallScore: computeOverallScore(dimensionScores),
+        dimensionScores,
+        extractedClaims,
+        evaluatedAt: Date.now()
+    }
+}
+
 /**
  * Orchestrates the full accuracy evaluation pipeline for a suite.
- * Calls the Electron IPC handlers sequentially per QA pair.
+ * Evaluates QA pairs with bounded concurrency (EVAL_CONCURRENCY at a time)
+ * to reduce wall-clock time while respecting per-channel rate limits.
  */
 export async function runAccuracyEvaluation(
     suite: AccuracyTestSuite,
@@ -152,126 +243,74 @@ export async function runAccuracyEvaluation(
     onProgress: EvalProgressCallback,
     signal?: AbortSignal
 ): Promise<AccuracyEvalRun> {
-    const api = window.electronAPI
-
     const runId = crypto.randomUUID()
     const totalPairs = suite.qaPairs.length
+    const startedAt = Date.now()
 
     // Step 1: Read and chunk all reference documents
     const allChunks: DocChunkData[] = []
     for (const doc of suite.referenceDocuments) {
         if (signal?.aborted) throw new Error('Evaluation cancelled')
-        const result = await api.readDocumentText({ filePath: doc.filePath })
+        const result = await window.electronAPI.readDocumentText({ filePath: doc.filePath })
         if (!result.success || !result.text) {
             throw new Error(`Failed to read document "${doc.fileName}": ${result.error || 'Unknown error'}`)
         }
-        // Chunk the text (client-side, mirroring electron/accuracy.ts logic)
         const chunks = clientChunkDocument(result.text, doc.id)
         allChunks.push(...chunks)
     }
 
-    const pairResults: AccuracyQaPairResult[] = []
-
-    // Step 2: Evaluate each QA pair sequentially
-    for (let i = 0; i < suite.qaPairs.length; i++) {
-        if (signal?.aborted) throw new Error('Evaluation cancelled')
-
-        const pair = suite.qaPairs[i]
-        onProgress(i, totalPairs, pair.question)
-
-        // Find relevant chunks for this pair.
-        // verifyClaims needs enough context to look up every claim citation.
-        // scoreDimensions needs a representative sample — a smaller window keeps
-        // the prompt within the model's safe output-generation range.
-        // Both calls receive the same chunk set (top-20 by relevance, ≤20k tokens)
-        // so the model never sees a prompt so large that it truncates its output.
-        const relevantChunks = findRelevantChunksClient(pair.question, pair.agentResponse, allChunks, 20000, 20)
-        const refChunksForApi = relevantChunks.map(c => ({ id: c.id, content: c.content }))
-
-        // LLM Call 1: Extract claims
-        const rawClaims = await api.aiAccuracyExtractClaims({
-            apiKey,
-            agentResponse: pair.agentResponse,
-            modelName
-        })
-        if (rawClaims?.__isError) throw new Error(rawClaims.message ?? 'Claim extraction failed')
-
-        const claimsArray = Array.isArray(rawClaims) ? rawClaims : []
-
-        // LLM Call 2: Verify claims
-        const rawVerification = claimsArray.length > 0
-            ? await api.aiAccuracyVerifyClaims({ apiKey, claims: claimsArray, refChunks: refChunksForApi, modelName })
-            : []
-        if (rawVerification?.__isError) throw new Error(rawVerification.message ?? 'Claim verification failed')
-        const verificationResults = Array.isArray(rawVerification) ? rawVerification : []
-
-        // Build AccuracyClaim objects
-        const extractedClaims: AccuracyClaim[] = claimsArray.map((c, idx) => {
-            const verification = verificationResults.find((v: any) => v.claimIndex === idx)
-            return {
-                id: `${runId}-${pair.id}-claim-${idx}`,
-                claimText: c.claimText,
-                verdict: verification?.verdict ?? 'unverifiable',
-                confidence: verification?.confidence ?? 0,
-                sourceChunkIds: verification?.sourceChunkIds ?? [],
-                reasoning: verification?.reasoning ?? ''
-            }
-        })
-
-        // LLM Call 3: Score dimensions
-        const claimVerdictsForScoring = extractedClaims.map(c => ({
-            claimText: c.claimText,
-            verdict: c.verdict,
-            reasoning: c.reasoning
-        }))
-
-        const dimensionScoresRaw = await api.aiAccuracyScoreDimensions({
-            apiKey,
-            question: pair.question,
-            agentResponse: pair.agentResponse,
-            expectedAnswer: pair.expectedAnswer,
-            claimVerdicts: claimVerdictsForScoring,
-            refChunks: refChunksForApi,
-            modelName
-        })
-        if (dimensionScoresRaw?.__isError) throw new Error(dimensionScoresRaw.message ?? 'Dimension scoring failed')
-
-        const dimensionScores: AccuracyDimensionScore[] = (
-            ['factualAccuracy', 'completeness', 'faithfulness', 'relevance'] as AccuracyScoreDimension[]
-        ).map(dim => ({
-            dimension: dim,
-            score: dimensionScoresRaw[dim]?.score ?? 0,
-            confidence: dimensionScoresRaw[dim]?.confidence ?? 0,
-            reasoning: dimensionScoresRaw[dim]?.reasoning ?? ''
-        }))
-
-        const overallScore = computeOverallScore(dimensionScores)
-
-        pairResults.push({
-            id: `${runId}-${pair.id}`,
-            question: pair.question,
-            agentResponse: pair.agentResponse,
-            overallScore,
-            dimensionScores,
-            extractedClaims,
-            evaluatedAt: Date.now()
-        })
-
-        onProgress(i + 1, totalPairs)
+    // Fix 4: Pre-tokenize all chunks once, reused by every pair's retrieval call
+    const preTokenizedChunks = new Map<string, Set<string>>()
+    for (const chunk of allChunks) {
+        preTokenizedChunks.set(chunk.id, tokenizeText(chunk.content))
     }
 
-    const { aggregateScore, aggregateDimensions } = computeAggregateScores(pairResults)
+    // Step 2: Evaluate pairs with bounded concurrency
+    const pairResults: AccuracyQaPairResult[] = new Array(totalPairs)
+    let completedCount = 0
+
+    // Semaphore-style pool: keep at most EVAL_CONCURRENCY in-flight
+    const queue = suite.qaPairs.map((pair, index) => ({ pair, index }))
+    const inFlight = new Set<Promise<void>>()
+
+    async function runOne(pair: typeof queue[number]['pair'], index: number): Promise<void> {
+        if (signal?.aborted) throw new Error('Evaluation cancelled')
+        onProgress(completedCount, totalPairs, pair.question)
+        const result = await evaluatePair(pair, allChunks, preTokenizedChunks, runId, apiKey, modelName)
+        pairResults[index] = result
+        completedCount++
+        onProgress(completedCount, totalPairs)
+    }
+
+    for (const { pair, index } of queue) {
+        if (signal?.aborted) throw new Error('Evaluation cancelled')
+
+        // Wait until a slot is free
+        while (inFlight.size >= EVAL_CONCURRENCY) {
+            await Promise.race(inFlight)
+        }
+
+        let taskRef!: Promise<void>
+        taskRef = runOne(pair, index).finally(() => inFlight.delete(taskRef))
+        inFlight.add(taskRef)
+    }
+
+    // Wait for remaining in-flight tasks
+    await Promise.all(inFlight)
+
+    const completedPairs = pairResults.filter(Boolean)
+    const { aggregateScore, aggregateDimensions } = computeAggregateScores(completedPairs)
 
     return {
         id: runId,
         name: `Eval Run ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
         status: 'completed',
-        qaPairResults: pairResults,
+        qaPairResults: completedPairs,
         aggregateScore,
         aggregateDimensions,
         totalPairs,
-        completedPairs: pairResults.length,
-        startedAt: Date.now(),
+        completedPairs: completedPairs.length,
+        startedAt,
         completedAt: Date.now()
     }
 }
@@ -330,7 +369,8 @@ const STOPWORDS = new Set([
     'not', 'no', 'can', 'so', 'as', 'than', 'then', 'just', 'also'
 ])
 
-function tokenize(text: string): Set<string> {
+// Exported so callers can pre-compute tokens once and pass the cache in (Fix 4)
+export function tokenizeText(text: string): Set<string> {
     return new Set(
         text.toLowerCase()
             .replace(/[^a-z0-9\s]/g, ' ')
@@ -339,17 +379,23 @@ function tokenize(text: string): Set<string> {
     )
 }
 
+/**
+ * Selects the most relevant chunks for a QA pair using keyword overlap scoring.
+ * Accepts an optional pre-tokenized chunk cache to avoid re-tokenizing on every call (Fix 4).
+ */
 function findRelevantChunksClient(
     question: string,
     agentResponse: string,
     allChunks: DocChunkData[],
     maxTokens: number,
-    maxChunks = 20
+    maxChunks = 20,
+    preTokenized?: Map<string, Set<string>>
 ): DocChunkData[] {
-    const queryTerms = new Set([...tokenize(question), ...tokenize(agentResponse)])
+    const queryTerms = new Set([...tokenizeText(question), ...tokenizeText(agentResponse)])
 
     const scored = allChunks.map(chunk => {
-        const chunkTerms = tokenize(chunk.content)
+        // Use pre-tokenized terms if available, otherwise tokenize on the fly
+        const chunkTerms = preTokenized?.get(chunk.id) ?? tokenizeText(chunk.content)
         let matches = 0
         for (const term of queryTerms) {
             if (chunkTerms.has(term)) matches++

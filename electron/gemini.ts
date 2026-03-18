@@ -66,84 +66,43 @@ export class GeminiService {
         })
     }
 
-    private async executeWithFallback(
-        prompt: string | any,
-        modelOverride?: string,
-        temperature = 0.7,
-        maxOutputTokens = 8192,
-        systemInstruction?: string,
-        jsonMode = false
-    ): Promise<string> {
-        // Build unique sequence of models starting with override, then preferred, then available ones
-        const models = Array.from(new Set([
+    private buildModelSequence(modelOverride?: string): string[] {
+        return Array.from(new Set([
             modelOverride,
             this.preferredModel,
             MODEL_3_FLASH,
             MODEL_2_5_FLASH,
             MODEL_3_FLASH_PREVIEW,
         ].filter(Boolean) as string[]));
+    }
 
-        let lastError: any;
-        for (const modelName of models) {
-            try {
-                const model = this.getModel(modelName, temperature, maxOutputTokens, systemInstruction, jsonMode);
-                const result = await model.generateContent(prompt);
-
-                // If successful and we were using a non-preferred model, update it
-                if (modelName !== this.preferredModel) {
-                    console.log(`Gemini switching preferred model to ${modelName} after successful response`);
-                    this.preferredModel = modelName;
-                }
-
-                // Log token usage for cost/quota visibility
-                const usage = result.response.usageMetadata;
-                if (usage) {
-                    console.log(`[Gemini] ${modelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`);
-                }
-
-                return result.response.text();
-            } catch (err: any) {
-                lastError = err;
-
-                let errorMsg = "";
-                let errorStatus = "";
-
-                try {
-                    if (err && typeof err === 'object') {
-                        errorMsg = typeof err.message === 'string' ? err.message : "";
-                        errorStatus = err.status !== undefined ? String(err.status) : "";
-                    } else {
-                        errorMsg = String(err);
-                    }
-                } catch(e) {
-                    errorMsg = "Unparseable error object thrown by Gemini SDK";
-                }
-
-                const errorStr = `${errorStatus} ${errorMsg}`.toLowerCase();
-
-                // Prefer HTTP status code checks over string matching to avoid false positives
-                const isRateLimit = errorStatus === '429' || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted') || errorStr.includes('too many requests');
-                const isUnavailable = errorStatus === '404' || errorStatus === '400' || errorStr.includes('model not found') || errorStr.includes('model_not_found');
-
-                if (isRateLimit || isUnavailable) {
-                    console.warn(`Gemini model ${modelName} ${isRateLimit ? 'rate limited' : 'unavailable/invalid'}. Trying next fallback...`);
-                    // Switch preferred model for future calls to avoid this one if it failed consistently
-                    if (modelName === this.preferredModel) {
-                        const nextIndex = (models.indexOf(modelName) + 1) % models.length;
-                        this.preferredModel = models[nextIndex];
-                    }
-                    continue;
-                }
-
-                console.error(`Gemini model ${modelName} failed with unexpected error:`, errorStr);
-                continue;
+    private extractErrorInfo(err: any): { errorMsg: string; errorStatus: string } {
+        let errorMsg = "";
+        let errorStatus = "";
+        try {
+            if (err && typeof err === 'object') {
+                errorMsg = typeof err.message === 'string' ? err.message : "";
+                errorStatus = err.status !== undefined ? String(err.status) : "";
+            } else {
+                errorMsg = String(err);
             }
+        } catch {
+            errorMsg = "Unparseable error object thrown by Gemini SDK";
         }
-        
-        // Safely extract final error message — strip URLs and stack traces to avoid leaking sensitive info
+        return { errorMsg, errorStatus };
+    }
+
+    private classifyError(errorStatus: string, errorMsg: string): { isRateLimit: boolean; isUnavailable: boolean } {
+        const errorStr = `${errorStatus} ${errorMsg}`.toLowerCase();
+        return {
+            isRateLimit: errorStatus === '429' || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted') || errorStr.includes('too many requests'),
+            isUnavailable: errorStatus === '404' || errorStatus === '400' || errorStr.includes('model not found') || errorStr.includes('model_not_found'),
+        };
+    }
+
+    private buildFinalErrorMessage(lastError: any): string {
         let finalMsg = "Unknown API Error";
         let finalStatus = "";
-
         try {
             if (lastError && typeof lastError === 'object') {
                 finalMsg = typeof lastError.message === 'string' ? lastError.message : "API Call Failed";
@@ -153,11 +112,59 @@ export class GeminiService {
             }
             // Remove URLs (may contain API key query params) and stack traces
             finalMsg = finalMsg.replace(/https?:\/\/[^\s]*/gi, '[url]').replace(/\n\s+at\s+.*/g, '');
-        } catch (e) {
+        } catch {
             finalMsg = "Crash parsing error object";
         }
+        return `${finalStatus}${finalMsg}`;
+    }
 
-        throw `Gemini API Error: ${finalStatus}${finalMsg}`;
+    private async executeWithFallback(
+        prompt: string | any,
+        modelOverride?: string,
+        temperature = 0.7,
+        maxOutputTokens = 8192,
+        systemInstruction?: string,
+        jsonMode = false
+    ): Promise<string> {
+        const models = this.buildModelSequence(modelOverride);
+
+        let lastError: any;
+        for (const modelName of models) {
+            try {
+                const model = this.getModel(modelName, temperature, maxOutputTokens, systemInstruction, jsonMode);
+                const result = await model.generateContent(prompt);
+
+                if (modelName !== this.preferredModel) {
+                    console.log(`Gemini switching preferred model to ${modelName} after successful response`);
+                    this.preferredModel = modelName;
+                }
+
+                const usage = result.response.usageMetadata;
+                if (usage) {
+                    console.log(`[Gemini] ${modelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`);
+                }
+
+                return result.response.text();
+            } catch (err: any) {
+                lastError = err;
+                const { errorMsg, errorStatus } = this.extractErrorInfo(err);
+                const { isRateLimit, isUnavailable } = this.classifyError(errorStatus, errorMsg);
+
+                if (isRateLimit || isUnavailable) {
+                    console.warn(`Gemini model ${modelName} ${isRateLimit ? 'rate limited' : 'unavailable/invalid'}. Trying next fallback...`);
+                    if (modelName === this.preferredModel) {
+                        const nextIndex = (models.indexOf(modelName) + 1) % models.length;
+                        this.preferredModel = models[nextIndex];
+                    }
+                    continue;
+                }
+
+                console.error(`Gemini model ${modelName} failed with unexpected error:`, `${errorStatus} ${errorMsg}`.toLowerCase());
+                continue;
+            }
+        }
+
+        throw `Gemini API Error: ${this.buildFinalErrorMessage(lastError)}`;
     }
 
     // ── TOON Sanitizers ──────────────────────────────────────────────────────
@@ -890,29 +897,37 @@ export class GeminiService {
         const systemInstruction = sysLines.join('\n')
         const requestPayload = userLines.join('\n')
 
-        const models = Array.from(new Set([
-            modelName,
-            this.preferredModel,
-            MODEL_3_FLASH_PREVIEW,
-            MODEL_2_5_FLASH
-        ].filter(Boolean) as string[]))
+        // Budget 12k tokens across history turns, keeping the most recent turns in full.
+        // Older turns are dropped first to preserve coherence of the recent conversation.
+        const HISTORY_TOKEN_BUDGET = 12000
+        const CHARS_PER_TOKEN = 4
+        const historyCharBudget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN
 
+        const recentTurns = history
+            .filter(turn => ['user', 'assistant'].includes(turn.role))
+            .slice(-12) // candidate window — will be trimmed by budget below
+        let budgetRemaining = historyCharBudget
+        const budgetedTurns: typeof recentTurns = []
+        for (let i = recentTurns.length - 1; i >= 0; i--) {
+            const len = recentTurns[i].content.length
+            if (budgetRemaining <= 0) break
+            budgetedTurns.unshift(recentTurns[i])
+            budgetRemaining -= len
+        }
+
+        const geminiHistory = budgetedTurns.map(turn => ({
+            role: turn.role === 'user' ? 'user' : 'model' as 'user' | 'model',
+            parts: [{ text: turn.content }]
+        }))
+
+        const models = this.buildModelSequence(modelName)
         let lastError: any
+
         for (const currentModelName of models) {
             try {
                 const model = this.getModel(currentModelName, 0.7, MAX_TOKENS.chat, systemInstruction)
-
-                // Convert history to Gemini multi-turn format (last 6 turns to control tokens)
-                // Older turns lose relevance and the system instruction carries the project context
-                const geminiHistory = history.slice(-6)
-                    .filter(turn => ['user', 'assistant'].includes(turn.role))
-                    .map(turn => ({
-                        role: turn.role === 'user' ? 'user' : 'model' as 'user' | 'model',
-                        parts: [{ text: turn.content.substring(0, 2000) }]
-                    }))
-
-                const chat = model.startChat({ history: geminiHistory })
-                const result = await chat.sendMessage(requestPayload)
+                const chatSession = model.startChat({ history: geminiHistory })
+                const result = await chatSession.sendMessage(requestPayload)
 
                 if (currentModelName !== this.preferredModel) {
                     console.log(`Gemini switching preferred model to ${currentModelName} after successful response`)
@@ -927,20 +942,8 @@ export class GeminiService {
                 return result.response.text()
             } catch (err: any) {
                 lastError = err
-                let errorMsg = ''
-                let errorStatus = ''
-                try {
-                    if (err && typeof err === 'object') {
-                        errorMsg = typeof err.message === 'string' ? err.message : ''
-                        errorStatus = err.status !== undefined ? String(err.status) : ''
-                    } else {
-                        errorMsg = String(err)
-                    }
-                } catch { errorMsg = 'Unparseable error' }
-
-                const errorStr = `${errorStatus} ${errorMsg}`.toLowerCase()
-                const isRateLimit = errorStatus === '429' || errorStr.includes('rate_limit') || errorStr.includes('resource_exhausted')
-                const isUnavailable = errorStatus === '404' || errorStatus === '400' || errorStr.includes('model not found')
+                const { errorMsg, errorStatus } = this.extractErrorInfo(err)
+                const { isRateLimit, isUnavailable } = this.classifyError(errorStatus, errorMsg)
 
                 if (isRateLimit || isUnavailable) {
                     console.warn(`Gemini chat model ${currentModelName} ${isRateLimit ? 'rate limited' : 'unavailable'}. Trying next fallback...`)
@@ -950,22 +953,12 @@ export class GeminiService {
                     }
                     continue
                 }
-                console.error(`Gemini chat model ${currentModelName} failed:`, errorStr)
+                console.error(`Gemini chat model ${currentModelName} failed:`, `${errorStatus} ${errorMsg}`.toLowerCase())
                 continue
             }
         }
 
-        let finalMsg = 'Unknown API Error'
-        try {
-            if (lastError && typeof lastError === 'object') {
-                finalMsg = typeof lastError.message === 'string' ? lastError.message : 'Chat API Call Failed'
-            } else {
-                finalMsg = String(lastError)
-            }
-            finalMsg = finalMsg.replace(/https?:\/\/[^\s]*/gi, '[url]').replace(/\n\s+at\s+.*/g, '')
-        } catch { finalMsg = 'Crash parsing error object' }
-
-        throw `Gemini Chat API Error: ${finalMsg}`
+        throw `Gemini Chat API Error: ${this.buildFinalErrorMessage(lastError)}`
     }
 
     // ── AI Accuracy Testing ──────────────────────────────────────────────────
@@ -1045,7 +1038,8 @@ export class GeminiService {
 
         const userLines: string[] = []
         userLines.push('agent_response{')
-        userLines.push(` text:${GeminiService.sanitizeToonValue(agentResponse, 8000)}`)
+        // Use sanitizeDocContent to preserve colons/pipes in technical content (URLs, code, timestamps)
+        userLines.push(` text:${GeminiService.sanitizeDocContent(agentResponse, 8000)}`)
         userLines.push('}')
 
         const raw = await this.executeWithFallback(
@@ -1098,7 +1092,17 @@ export class GeminiService {
             true
         )
         const parsed = GeminiService.parseJsonResponse(raw)
-        return Array.isArray(parsed) ? parsed : []
+        if (!Array.isArray(parsed)) return []
+
+        // Filter sourceChunkIds to only IDs that actually exist in the provided chunks,
+        // preventing hallucinated citations from appearing in the UI.
+        const validChunkIds = new Set(refChunks.map(c => c.id))
+        return parsed.map((item: any) => ({
+            ...item,
+            sourceChunkIds: Array.isArray(item.sourceChunkIds)
+                ? item.sourceChunkIds.filter((id: any) => typeof id === 'string' && validChunkIds.has(id))
+                : []
+        }))
     }
 
     /**
@@ -1128,7 +1132,8 @@ export class GeminiService {
         const userLines: string[] = []
         userLines.push('eval_context{')
         userLines.push(` question:${GeminiService.sanitizeToonValue(question, 1000)}`)
-        userLines.push(` agent_response:${GeminiService.sanitizeToonValue(agentResponse, 6000)}`)
+        // Use sanitizeDocContent to preserve colons/pipes in technical content and align limit with extractClaims
+        userLines.push(` agent_response:${GeminiService.sanitizeDocContent(agentResponse, 8000)}`)
         if (expectedAnswer?.trim()) {
             userLines.push(` expected_answer:${GeminiService.sanitizeDocContent(expectedAnswer, 3000)}`)
         }

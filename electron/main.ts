@@ -340,12 +340,24 @@ if (app) {
             return null;
         }
 
+        // Singleton GeminiService cache keyed by API key.
+        // Preserves preferredModel state across calls so the fallback learning persists
+        // within the session instead of resetting on every IPC invocation.
+        let geminiServiceInstance: GeminiService | null = null;
+        let geminiServiceKey: string | null = null;
+        function getGeminiService(apiKey: string): GeminiService {
+            if (geminiServiceInstance === null || geminiServiceKey !== apiKey) {
+                geminiServiceInstance = new GeminiService(apiKey);
+                geminiServiceKey = apiKey;
+            }
+            return geminiServiceInstance;
+        }
+
         ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName, comments }: any) => {
             const rateErr = checkAiRateLimit('ai-generate-cases'); if (rateErr) return rateErr;
             assertString(apiKey, 'apiKey');
-            const s = new GeminiService(apiKey);
             try {
-                return await s.generateTestCases(tasks, sourceName, project, designDoc, modelName, comments);
+                return await getGeminiService(apiKey).generateTestCases(tasks, sourceName, project, designDoc, modelName, comments);
             } catch (err: any) {
                 // Return a flat wrapper to the IPC boundary to safely cross context bridges without native cloning recursion
                 return { __isError: true, message: String(err) };
@@ -457,7 +469,7 @@ if (app) {
             const rateErr = checkAiRateLimit('ai-analyze-issue'); if (rateErr) return rateErr;
             try {
                 assertString(apiKey, 'apiKey');
-                return await new GeminiService(apiKey).analyzeIssue(task, comments, project, 0, modelName);
+                return await getGeminiService(apiKey).analyzeIssue(task, comments, project, 0, modelName);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
@@ -465,7 +477,7 @@ if (app) {
             const rateErr = checkAiRateLimit('ai-analyze'); if (rateErr) return rateErr;
             try {
                 assertString(apiKey, 'apiKey');
-                return await new GeminiService(apiKey).analyzeProject(context, project, modelName);
+                return await getGeminiService(apiKey).analyzeProject(context, project, modelName);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
@@ -473,7 +485,7 @@ if (app) {
             const rateErr = checkAiRateLimit('ai-criticality'); if (rateErr) return rateErr;
             try {
                 assertString(apiKey, 'apiKey');
-                return await new GeminiService(apiKey).assessCriticality(tasks, testPlans, executions, project, modelName);
+                return await getGeminiService(apiKey).assessCriticality(tasks, testPlans, executions, project, modelName);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
@@ -481,7 +493,7 @@ if (app) {
             const rateErr = checkAiRateLimit('ai-test-run-suggestions'); if (rateErr) return rateErr;
             try {
                 assertString(apiKey, 'apiKey');
-                return await new GeminiService(apiKey).getTestRunSuggestions(testPlans, executions, project, modelName);
+                return await getGeminiService(apiKey).getTestRunSuggestions(testPlans, executions, project, modelName);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
@@ -489,7 +501,7 @@ if (app) {
             const rateErr = checkAiRateLimit('ai-smoke-subset'); if (rateErr) return rateErr;
             try {
                 assertString(apiKey, 'apiKey');
-                return await new GeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName);
+                return await getGeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
@@ -498,7 +510,7 @@ if (app) {
             try {
                 assertString(apiKey, 'apiKey');
                 assertString(userMessage, 'userMessage', 50_000);
-                return await new GeminiService(apiKey).chat(userMessage, history || [], role === 'dev' ? 'dev' : 'qa', project, modelName);
+                return await getGeminiService(apiKey).chat(userMessage, history || [], role === 'dev' ? 'dev' : 'qa', project, modelName);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
@@ -518,7 +530,7 @@ if (app) {
             try {
                 assertString(apiKey, 'apiKey');
                 assertString(agentResponse, 'agentResponse', 50_000);
-                return await new GeminiService(apiKey).extractClaims(agentResponse, modelName);
+                return await getGeminiService(apiKey).extractClaims(agentResponse, modelName);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
@@ -528,7 +540,7 @@ if (app) {
                 assertString(apiKey, 'apiKey');
                 assertArray(claims, 'claims', 200);
                 assertArray(refChunks, 'refChunks', 100);
-                return await new GeminiService(apiKey).verifyClaims(claims, refChunks, modelName);
+                return await getGeminiService(apiKey).verifyClaims(claims, refChunks, modelName);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
@@ -540,7 +552,7 @@ if (app) {
                 assertString(agentResponse, 'agentResponse', 50_000);
                 assertArray(claimVerdicts, 'claimVerdicts', 200);
                 assertArray(refChunks, 'refChunks', 100);
-                return await new GeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts, refChunks, modelName, expectedAnswer);
+                return await getGeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts, refChunks, modelName, expectedAnswer);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
