@@ -75,8 +75,9 @@ export default function AIAccuracyPanel() {
 
     const handleRunEvaluation = async () => {
         if (!activeSuite) return
-        const settings = await window.electronAPI.readSettingsFile()
-        const apiKey = settings?.geminiApiKey
+        const api = window.electronAPI
+        const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`)
+            || await api.secureStoreGet('gemini_api_key')
         if (!apiKey) {
             toast.error('Gemini API key not configured. Go to Settings to add it.')
             return

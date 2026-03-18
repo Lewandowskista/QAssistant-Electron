@@ -41,7 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   secureStoreGet: (key: string) => ipcRenderer.invoke('secure-store-get', key),
   secureStoreDelete: (key: string) => ipcRenderer.invoke('secure-store-delete', key),
   secureStoreList: () => ipcRenderer.invoke('secure-store-list'),
-  selectFile: () => ipcRenderer.invoke('select-file'),
+  selectFile: (filters?: { name: string; extensions: string[] }[]) => ipcRenderer.invoke('select-file', filters),
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
   aiGenerateCases: async (args: any) => { const res = await ipcRenderer.invoke('ai-generate-cases', args); if (res?.__isError) throw new Error(res.message); return res; },
   aiListModels: async (args: any) => { const res = await ipcRenderer.invoke('ai-list-models', args); if (res?.__isError) throw new Error(res.message); return res; },

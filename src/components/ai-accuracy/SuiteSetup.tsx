@@ -129,7 +129,11 @@ export function SuiteSetup({
         setDocError(null)
         setIsUploadingDoc(true)
         try {
-            const result: any = await window.electronAPI.selectFile()
+            const result: any = await window.electronAPI.selectFile([
+                { name: 'Documents', extensions: ['pdf', 'txt', 'md', 'docx'] },
+                { name: 'PDF Files', extensions: ['pdf'] },
+                { name: 'All Files', extensions: ['*'] }
+            ])
             if (!result) { setIsUploadingDoc(false); return }
             // result is a file path string from Electron dialog
             const filePath = typeof result === 'string' ? result : result.filePath

@@ -294,9 +294,12 @@ if (app) {
             return await deleteCredential(key);
         });
         ipcMain.handle('secure-store-list', async () => await listCredentials());
-        ipcMain.handle('select-file', async () => {
+        ipcMain.handle('select-file', async (_e: any, filters?: Electron.FileFilter[]) => {
             if (!mainWindow) return null;
-            const res = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'] });
+            const res = await dialog.showOpenDialog(mainWindow, {
+                properties: ['openFile'],
+                ...(filters && filters.length > 0 ? { filters } : {})
+            });
             return res.canceled ? null : res.filePaths[0];
         });
         ipcMain.handle('open-url', async (_e: any, url: any) => { 
