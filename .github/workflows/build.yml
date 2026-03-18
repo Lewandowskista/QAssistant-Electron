@@ -7,19 +7,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [macos-latest, windows-latest]
-
+  build-mac:
+    runs-on: macos-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
@@ -27,42 +22,45 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Install x64 native modules for cross-compile (macOS only)
-        if: matrix.os == 'macos-latest'
+      - name: Install canvas-darwin-x64 for cross-compile
         run: |
           npm pack @napi-rs/canvas-darwin-x64@0.1.80
           mkdir -p node_modules/@napi-rs/canvas-darwin-x64
           tar -xzf napi-rs-canvas-darwin-x64-0.1.80.tgz -C node_modules/@napi-rs/canvas-darwin-x64 --strip-components=1
 
-      - name: Build and Package
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEBUG: electron-builder
-        run: |
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            npm run build:mac
-          else
-            npm run build:win
-          fi
-        shell: bash
+      - name: Build Mac (Intel x64)
+        run: npx electron-vite build && npx electron-builder --mac --x64 --publish never
 
-      - name: Upload Logs on Failure
-        if: failure()
-        uses: actions/upload-artifact@v7
+      - name: Upload Mac Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: build-logs-${{ matrix.os }}
-          path: build_log.txt
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: QAssistant-${{ matrix.os }}
+          name: QAssistant-mac-x64
           path: |
             dist/*.dmg
             dist/**/*.dmg
-            dist/*.zip
-            dist/**/*.zip
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Windows (x64)
+        run: npm run build:win
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QAssistant-windows-x64
+          path: |
             dist/*.exe
             dist/**/*.exe
-            dist/*.blockmap
-            dist/**/*.blockmap
