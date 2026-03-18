@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
 
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
+const MODEL_2_0_FLASH = 'gemini-2.0-flash';
 const MODEL_3_FLASH_PREVIEW = 'gemini-3-flash-preview';
 
 // Per-feature output token limits — prevents rambling and reduces cost
@@ -25,7 +26,7 @@ const MAX_TOKENS: Record<string, number> = {
 export class GeminiService {
     private genAI: GoogleGenerativeAI
     private apiKey: string
-    private preferredModel: string = MODEL_3_FLASH_PREVIEW
+    private preferredModel: string = MODEL_2_0_FLASH
 
     constructor(apiKey: string) {
         this.apiKey = apiKey
@@ -77,8 +78,9 @@ export class GeminiService {
         const models = Array.from(new Set([
             modelOverride,
             this.preferredModel,
+            MODEL_2_0_FLASH,
+            MODEL_2_5_FLASH,
             MODEL_3_FLASH_PREVIEW,
-            MODEL_2_5_FLASH
         ].filter(Boolean) as string[]));
 
         let lastError: any;
@@ -949,6 +951,24 @@ export class GeminiService {
     // ── AI Accuracy Testing ──────────────────────────────────────────────────
 
     /**
+     * Strips markdown code fences and parses JSON. Throws with a clear message on failure.
+     */
+    private static parseJsonResponse(raw: string): any {
+        // Strip markdown fences (```json ... ``` or ``` ... ```)
+        const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+        try {
+            return JSON.parse(stripped)
+        } catch (e: any) {
+            // Try extracting the first JSON object/array from the string
+            const match = stripped.match(/(\[[\s\S]*\]|\{[\s\S]*\})/)
+            if (match) {
+                return JSON.parse(match[1])
+            }
+            throw new Error(`Failed to parse Gemini JSON response: ${e.message}`)
+        }
+    }
+
+    /**
      * Extracts atomic, independently verifiable claims from an AI agent's response.
      */
     async extractClaims(agentResponse: string, modelOverride?: string): Promise<Array<{ claimText: string; claimType: string }>> {
@@ -973,7 +993,8 @@ export class GeminiService {
             systemInstruction,
             true
         )
-        return JSON.parse(raw)
+        const parsed = GeminiService.parseJsonResponse(raw)
+        return Array.isArray(parsed) ? parsed : []
     }
 
     /**
@@ -1011,7 +1032,8 @@ export class GeminiService {
             systemInstruction,
             true
         )
-        return JSON.parse(raw)
+        const parsed = GeminiService.parseJsonResponse(raw)
+        return Array.isArray(parsed) ? parsed : []
     }
 
     /**
@@ -1065,6 +1087,14 @@ export class GeminiService {
             systemInstruction,
             true
         )
-        return JSON.parse(raw)
+        const parsed = GeminiService.parseJsonResponse(raw)
+        // Ensure all four dimensions are present with defaults
+        const defaultDim = { score: 0, confidence: 0, reasoning: '' }
+        return {
+            factualAccuracy: parsed.factualAccuracy ?? defaultDim,
+            completeness: parsed.completeness ?? defaultDim,
+            faithfulness: parsed.faithfulness ?? defaultDim,
+            relevance: parsed.relevance ?? defaultDim,
+        }
     }
 }

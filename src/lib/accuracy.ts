@@ -188,13 +188,16 @@ export async function runAccuracyEvaluation(
             agentResponse: pair.agentResponse,
             modelName
         })
+        if (rawClaims?.__isError) throw new Error(rawClaims.message ?? 'Claim extraction failed')
 
         const claimsArray = Array.isArray(rawClaims) ? rawClaims : []
 
         // LLM Call 2: Verify claims
-        const verificationResults = claimsArray.length > 0
+        const rawVerification = claimsArray.length > 0
             ? await api.aiAccuracyVerifyClaims({ apiKey, claims: claimsArray, refChunks: refChunksForApi, modelName })
             : []
+        if (rawVerification?.__isError) throw new Error(rawVerification.message ?? 'Claim verification failed')
+        const verificationResults = Array.isArray(rawVerification) ? rawVerification : []
 
         // Build AccuracyClaim objects
         const extractedClaims: AccuracyClaim[] = claimsArray.map((c, idx) => {
@@ -224,6 +227,7 @@ export async function runAccuracyEvaluation(
             refChunks: refChunksForApi,
             modelName
         })
+        if (dimensionScoresRaw?.__isError) throw new Error(dimensionScoresRaw.message ?? 'Dimension scoring failed')
 
         const dimensionScores: AccuracyDimensionScore[] = (
             ['factualAccuracy', 'completeness', 'faithfulness', 'relevance'] as AccuracyScoreDimension[]
