@@ -493,7 +493,7 @@ export default function SettingsPage() {
         setModelsLoading(true)
         flash(setGeminiStatus, 'Fetching available models...', true)
         try {
-            const models = await api.aiListModels(geminiKey.trim())
+            const models = await api.aiListModels({ apiKey: geminiKey.trim() })
             if (models && models.length > 0) {
                 // Filter to generative models only (exclude embedding, AQA, etc.)
                 const generative = (models as string[]).filter((m: string) =>
