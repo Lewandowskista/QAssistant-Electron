@@ -12,13 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        include:
-          - os: macos-latest
-            arch: arm64
-            label: mac-arm64
-          - os: windows-latest
-            arch: x64
-            label: windows-x64
+        os: [macos-latest, windows-latest]
 
     steps:
       - name: Checkout Code
@@ -38,10 +32,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEBUG: electron-builder
         run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            npm run build:win
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            npm run build:mac
           else
-            npx electron-vite build && npx electron-builder --mac --${{ matrix.arch }} --publish never
+            npm run build:win
           fi
         shell: bash
 
@@ -49,13 +43,13 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: build-logs-${{ matrix.label }}
+          name: build-logs-${{ matrix.os }}
           path: build_log.txt
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: QAssistant-${{ matrix.label }}
+          name: QAssistant-${{ matrix.os }}
           path: |
             dist/*.dmg
             dist/**/*.dmg
