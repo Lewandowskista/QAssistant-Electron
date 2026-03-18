@@ -1063,7 +1063,11 @@ if (app) {
         if (!mainWindow || mainWindow.isDestroyed()) {
             createWindow();
         } else {
+            if (mainWindow.isMinimized()) mainWindow.restore();
             mainWindow.show();
+            mainWindow.focus();
+            // Force repaint to avoid black screen after un-hiding on macOS
+            mainWindow.webContents.invalidate();
         }
     });
 } else {

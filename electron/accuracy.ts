@@ -27,7 +27,7 @@ export async function readDocumentText(filePath: string): Promise<string> {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { PDFParse } = require('pdf-parse')
         const buffer = await fs.promises.readFile(filePath)
-        const parser = new PDFParse({ buffer })
+        const parser = new PDFParse({ data: buffer })
         const data = await parser.getText()
         return data.text as string
     }
