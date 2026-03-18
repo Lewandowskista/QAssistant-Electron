@@ -14,9 +14,9 @@ const MAX_TOKENS: Record<string, number> = {
     suggestions: 2048,
     smoke_subset: 1024,
     project_analysis: 4096,
-    claim_extraction: 2048,
-    claim_verification: 4096,
-    dimension_scoring: 2048,
+    claim_extraction: 8192,
+    claim_verification: 8192,
+    dimension_scoring: 4096,
 }
 
 /**
@@ -951,21 +951,66 @@ export class GeminiService {
     // ── AI Accuracy Testing ──────────────────────────────────────────────────
 
     /**
-     * Strips markdown code fences and parses JSON. Throws with a clear message on failure.
+     * Strips markdown code fences and parses JSON.
+     * If the JSON is truncated (model hit token limit), attempts to repair it
+     * by closing any open arrays/objects before parsing.
      */
     private static parseJsonResponse(raw: string): any {
         // Strip markdown fences (```json ... ``` or ``` ... ```)
-        const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+        let s = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+
+        // First try parsing as-is
+        try { return JSON.parse(s) } catch (_) { /* fall through to repair */ }
+
+        // Extract the outermost JSON structure if there's surrounding text
+        const match = s.match(/(\[[\s\S]*|\{[\s\S]*)/)
+        if (match) s = match[1]
+
+        // Repair truncated JSON: track open brackets/braces and close them
+        s = GeminiService.repairTruncatedJson(s)
+
         try {
-            return JSON.parse(stripped)
+            return JSON.parse(s)
         } catch (e: any) {
-            // Try extracting the first JSON object/array from the string
-            const match = stripped.match(/(\[[\s\S]*\]|\{[\s\S]*\})/)
-            if (match) {
-                return JSON.parse(match[1])
-            }
             throw new Error(`Failed to parse Gemini JSON response: ${e.message}`)
         }
+    }
+
+    /**
+     * Closes unclosed JSON arrays and objects to handle token-limit truncation.
+     */
+    private static repairTruncatedJson(s: string): string {
+        // Remove any trailing incomplete token (partial string, number, key)
+        // Find the last complete value by trimming trailing incomplete content
+        s = s.replace(/,\s*$/, '')  // trailing comma
+        s = s.replace(/:\s*$/, ': null')  // key with no value
+
+        // Close any unterminated string — find last unescaped quote
+        const quoteCount = (s.match(/(?<!\\)"/g) || []).length
+        if (quoteCount % 2 !== 0) {
+            s = s + '"'
+        }
+
+        // Track open structures and close them in reverse order
+        const stack: string[] = []
+        let inString = false
+        for (let i = 0; i < s.length; i++) {
+            const ch = s[i]
+            const prev = i > 0 ? s[i - 1] : ''
+            if (ch === '"' && prev !== '\\') {
+                inString = !inString
+            } else if (!inString) {
+                if (ch === '[' || ch === '{') stack.push(ch)
+                else if (ch === ']' || ch === '}') stack.pop()
+            }
+        }
+
+        // Close in reverse
+        for (let i = stack.length - 1; i >= 0; i--) {
+            s += stack[i] === '[' ? ']' : '}'
+        }
+
+        return s
     }
 
     /**
