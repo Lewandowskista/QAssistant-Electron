@@ -29,7 +29,10 @@ jobs:
 
       - name: Install x64 native modules for cross-compile (macOS only)
         if: matrix.os == 'macos-latest'
-        run: npm install @napi-rs/canvas-darwin-x64 --no-save
+        run: |
+          npm pack @napi-rs/canvas-darwin-x64@0.1.80
+          mkdir -p node_modules/@napi-rs/canvas-darwin-x64
+          tar -xzf napi-rs-canvas-darwin-x64-0.1.80.tgz -C node_modules/@napi-rs/canvas-darwin-x64 --strip-components=1
 
       - name: Build and Package
         env:
