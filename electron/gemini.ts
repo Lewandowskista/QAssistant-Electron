@@ -1070,9 +1070,10 @@ export class GeminiService {
     ): Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>> {
         const sysLines: string[] = []
         sysLines.push('@role:evidence_verifier')
-        sysLines.push('@task:verify_claims_against_reference_docs')
-        sysLines.push('@verdicts:supported(confirmed_by_docs)|contradicted(conflicts_with_docs)|partially_supported(mixed)|unverifiable(absent_from_docs_hallucination_signal)')
-        sysLines.push('@rules:one_verdict_per_claim|confidence_float_0_to_1|cite_chunk_ids|reasoning_1_to_2_sentences|index_matches_input_order')
+        sysLines.push('@task:verify_claims_strictly_against_reference_docs_only')
+        sysLines.push('@ground_truth:ref_docs_are_sole_source_of_truth|no_outside_knowledge|no_assumptions')
+        sysLines.push('@verdicts:supported(claim_concept_or_meaning_confirmed_by_docs)|contradicted(claim_conflicts_with_docs)|partially_supported(docs_confirm_part_but_not_all)|unverifiable(concept_absent_from_docs_treat_as_hallucination)')
+        sysLines.push('@rules:one_verdict_per_claim|default_to_unverifiable_when_in_doubt|confidence_float_0_to_1|confidence_max_0.5_for_unverifiable|cite_chunk_ids|reasoning_1_to_2_sentences|index_matches_input_order|semantic_match_acceptable_exact_wording_not_required')
         sysLines.push('@out_fmt:json_array[{claimIndex:number,verdict:string,confidence:number,sourceChunkIds:string[],reasoning:string}]')
 
         const userLines: string[] = []
@@ -1117,9 +1118,10 @@ export class GeminiService {
     }> {
         const sysLines: string[] = []
         sysLines.push('@role:accuracy_scorer')
-        sysLines.push('@task:multi_dimension_scoring_of_ai_response')
-        sysLines.push('@dimensions:factualAccuracy(0-100,claims_correct_per_docs)|completeness(0-100,covers_key_info_relevant_to_question)|faithfulness(0-100,avoids_hallucinations_inverse_of_unverifiable_rate)|relevance(0-100,actually_answers_the_question)')
-        sysLines.push('@rules:score_each_dimension_independently|score_int_0_to_100|confidence_float_0_to_1|reasoning_1_to_2_sentences|all_four_dimensions_required')
+        sysLines.push('@task:multi_dimension_scoring_of_ai_response_against_reference_docs')
+        sysLines.push('@ground_truth:ref_doc_excerpts_are_sole_source_of_truth|no_outside_knowledge|semantic_equivalence_is_sufficient_exact_wording_not_required')
+        sysLines.push('@dimensions:factualAccuracy(0-100,pct_claims_supported_or_partially_supported_by_docs)|completeness(0-100,how_much_key_info_from_docs_relevant_to_question_is_covered)|faithfulness(0-100,penalise_every_unverifiable_claim_heavily_100_minus_unverifiable_rate)|relevance(0-100,response_directly_addresses_the_question)')
+        sysLines.push('@rules:score_each_dimension_independently|score_int_0_to_100|unverifiable_claims_count_against_faithfulness_and_factualAccuracy|confidence_float_0_to_1|reasoning_2_to_3_sentences_cite_specific_evidence|all_four_dimensions_required')
         sysLines.push('@out_fmt:json_object{factualAccuracy:{score:int,confidence:float,reasoning:string},completeness:{score:int,confidence:float,reasoning:string},faithfulness:{score:int,confidence:float,reasoning:string},relevance:{score:int,confidence:float,reasoning:string}}')
 
         const userLines: string[] = []

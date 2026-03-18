@@ -356,7 +356,8 @@ function findRelevantChunksClient(
         return { chunk, score }
     })
 
-    scored.sort((a, b) => b.score - a.score)
+    // Secondary sort by chunk id ensures identical ordering for equal scores across runs
+    scored.sort((a, b) => b.score - a.score || a.chunk.id.localeCompare(b.chunk.id))
 
     const selected: DocChunkData[] = []
     let tokenCount = 0
