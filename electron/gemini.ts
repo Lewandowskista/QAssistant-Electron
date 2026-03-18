@@ -59,7 +59,9 @@ export class GeminiService {
             systemInstruction,
             generationConfig: {
                 temperature,
-                topP: 0.9,
+                // At temperature=0 (greedy) topP must be 1.0, otherwise nucleus sampling
+                // still introduces variance even when temperature is zero.
+                topP: temperature === 0 ? 1.0 : 0.9,
                 maxOutputTokens,
                 ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
             }
