@@ -13,9 +13,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-12
-            arch: x64
-            label: mac-x64
           - os: macos-latest
             arch: arm64
             label: mac-arm64
