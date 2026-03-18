@@ -22,7 +22,7 @@ mac:
       arch:
         - x64
         - arm64
-  x64ArchFiles: "**/canvas-darwin-x64/*.node"
+  x64ArchFiles: "**/canvas-darwin-x64/*.node,**/canvas-darwin-arm64/*.node"
   category: public.app-category.developer-tools
   darkModeSupport: true
   hardenedRuntime: false

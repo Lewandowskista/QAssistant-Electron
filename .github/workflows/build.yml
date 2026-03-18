@@ -27,6 +27,10 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Install x64 native modules for cross-compile (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: npm install @napi-rs/canvas-darwin-x64 --no-save
+
       - name: Build and Package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
