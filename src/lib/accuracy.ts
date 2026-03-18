@@ -179,7 +179,7 @@ export async function runAccuracyEvaluation(
         onProgress(i, totalPairs, pair.question)
 
         // Find relevant chunks for this pair
-        const relevantChunks = findRelevantChunksClient(pair.question, pair.agentResponse, allChunks, 12000)
+        const relevantChunks = findRelevantChunksClient(pair.question, pair.agentResponse, allChunks, 60000)
         const refChunksForApi = relevantChunks.map(c => ({ id: c.id, content: c.content }))
 
         // LLM Call 1: Extract claims
@@ -271,7 +271,7 @@ export async function runAccuracyEvaluation(
 
 // ── Client-side chunking (mirrors electron/accuracy.ts) ─────────────────────
 
-const CHUNK_TARGET_CHARS = 3200
+const CHUNK_TARGET_CHARS = 6000
 const CHUNK_OVERLAP_CHARS = 800
 
 function clientChunkDocument(text: string, docId: string): DocChunkData[] {

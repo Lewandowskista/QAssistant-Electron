@@ -1058,7 +1058,7 @@ export class GeminiService {
         const userLines: string[] = []
         userLines.push('ref_docs[')
         for (const chunk of refChunks) {
-            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeToonValue(chunk.content, 3000)}}`)
+            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeToonValue(chunk.content, 6000)}}`)
         }
         userLines.push(']')
         userLines.push('---')
@@ -1115,8 +1115,8 @@ export class GeminiService {
         userLines.push(']')
         userLines.push('---')
         userLines.push('ref_doc_excerpts[')
-        for (const chunk of refChunks.slice(0, 10)) {
-            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeToonValue(chunk.content, 2000)}}`)
+        for (const chunk of refChunks) {
+            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeToonValue(chunk.content, 6000)}}`)
         }
         userLines.push(']')
 

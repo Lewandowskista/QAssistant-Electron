@@ -9,7 +9,7 @@ export type DocChunk = {
     tokenEstimate: number
 }
 
-const CHUNK_TARGET_CHARS = 3200   // ~800 tokens
+const CHUNK_TARGET_CHARS = 6000   // ~1500 tokens — larger chunks preserve more context per dense document
 const CHUNK_OVERLAP_CHARS = 800   // ~200 tokens
 
 /**
@@ -115,7 +115,7 @@ export function findRelevantChunks(
     question: string,
     agentResponse: string,
     allChunks: DocChunk[],
-    maxTokens = 12000
+    maxTokens = 60000
 ): DocChunk[] {
     const queryTerms = new Set([...tokenize(question), ...tokenize(agentResponse)])
 
