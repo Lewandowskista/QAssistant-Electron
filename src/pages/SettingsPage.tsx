@@ -155,6 +155,8 @@ export default function SettingsPage() {
     const [geminiKey, setGeminiKey] = useState('')
     const [geminiModel, setGeminiModel] = useState('gemini-3-flash-preview')
     const [geminiStatus, setGeminiStatus] = useState<StatusState>(null)
+    const [availableModels, setAvailableModels] = useState<string[]>([])
+    const [modelsLoading, setModelsLoading] = useState(false)
 
     // ── CCv2 ─────────────────────────────────────────────────────────────────
     const [ccv2Sub, setCcv2Sub] = useState('')
@@ -488,16 +490,24 @@ export default function SettingsPage() {
 
     const checkGeminiModels = async () => {
         if (!geminiKey.trim()) { flash(setGeminiStatus, 'Enter your API key first.', false); return }
-        flash(setGeminiStatus, 'Checking available models...', true)
+        setModelsLoading(true)
+        flash(setGeminiStatus, 'Fetching available models...', true)
         try {
             const models = await api.aiListModels(geminiKey.trim())
             if (models && models.length > 0) {
-                flash(setGeminiStatus, `Available models: ${models.join(', ')}`, true, 10000)
+                // Filter to generative models only (exclude embedding, AQA, etc.)
+                const generative = (models as string[]).filter((m: string) =>
+                    m.includes('gemini') && !m.includes('embedding') && !m.includes('aqa')
+                )
+                setAvailableModels(generative.length > 0 ? generative : models)
+                flash(setGeminiStatus, `${generative.length > 0 ? generative.length : models.length} models available — select one below.`, true, 6000)
             } else {
-                flash(setGeminiStatus, 'No models found or error occurred. Check Console.', false)
+                flash(setGeminiStatus, 'No models found. Check your API key.', false)
             }
         } catch (e: any) {
             flash(setGeminiStatus, `Error: ${e.message}`, false)
+        } finally {
+            setModelsLoading(false)
         }
     }
 
@@ -886,32 +896,51 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         </div>
                         <div>
                             <FieldLabel>Preferred Model</FieldLabel>
-                            <div className="flex gap-2">
-                                <select 
-                                    className={`${inp} flex-1 appearance-none px-3 cursor-pointer`}
-                                    value={['gemini-3-flash-preview', 'gemini-2.5-flash'].includes(geminiModel) ? geminiModel : 'custom'}
+                            {availableModels.length > 0 ? (
+                                <select
+                                    className={`${inp} w-full appearance-none px-3 cursor-pointer`}
+                                    value={availableModels.includes(geminiModel) ? geminiModel : '__custom__'}
                                     onChange={(e) => {
-                                        if (e.target.value !== 'custom') setGeminiModel(e.target.value)
+                                        if (e.target.value !== '__custom__') setGeminiModel(e.target.value)
                                     }}
                                 >
-                                    <option value="gemini-3-flash-preview">Gemini 3 Flash (Free)</option>
-                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Free)</option>
-                                    <option value="custom">-- Custom / Other --</option>
+                                    {availableModels.map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                    {!availableModels.includes(geminiModel) && (
+                                        <option value="__custom__">{geminiModel} (current)</option>
+                                    )}
                                 </select>
-                                {(!['gemini-3-flash-preview', 'gemini-2.5-flash'].includes(geminiModel)) && (
-                                    <Input 
-                                        value={geminiModel} 
-                                        onChange={e => setGeminiModel(e.target.value)} 
-                                        placeholder="Model ID, e.g. gemini-3-flash-preview"
-                                        className={`${inp} flex-1`}
-                                    />
-                                )}
-                            </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <select
+                                        className={`${inp} flex-1 appearance-none px-3 cursor-pointer`}
+                                        value={['gemini-3-flash-preview', 'gemini-2.5-flash'].includes(geminiModel) ? geminiModel : 'custom'}
+                                        onChange={(e) => {
+                                            if (e.target.value !== 'custom') setGeminiModel(e.target.value)
+                                        }}
+                                    >
+                                        <option value="gemini-3-flash-preview">Gemini 3 Flash (Free)</option>
+                                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (Free)</option>
+                                        <option value="custom">-- Custom / Other --</option>
+                                    </select>
+                                    {(!['gemini-3-flash-preview', 'gemini-2.5-flash'].includes(geminiModel)) && (
+                                        <Input
+                                            value={geminiModel}
+                                            onChange={e => setGeminiModel(e.target.value)}
+                                            placeholder="Model ID, e.g. gemini-3-flash-preview"
+                                            className={`${inp} flex-1`}
+                                        />
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="flex items-center gap-2 mt-3">
                         <Button size="sm" className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-9" onClick={saveGemini}>Save Gemini Settings</Button>
-                        <Button variant="outline" size="sm" className="h-9 border-[#2A2A3A] text-[#9CA3AF] font-bold" onClick={checkGeminiModels}>Check Available Models</Button>
+                        <Button variant="outline" size="sm" className="h-9 border-[#2A2A3A] text-[#9CA3AF] font-bold" onClick={checkGeminiModels} disabled={modelsLoading}>
+                            {modelsLoading ? 'Fetching...' : availableModels.length > 0 ? 'Refresh Models' : 'Check Available Models'}
+                        </Button>
                     </div>
                     <StatusBanner s={geminiStatus} />
                 </Sec>
