@@ -1017,25 +1017,23 @@ export class GeminiService {
      * Extracts atomic, independently verifiable claims from an AI agent's response.
      */
     async extractClaims(agentResponse: string, modelOverride?: string): Promise<Array<{ claimText: string; claimType: string }>> {
-        const systemInstruction = [
-            '@role:claim_extractor',
-            '@task:extract_atomic_claims_from_agent_response',
-            '@rules:',
-            '- Break the response into atomic, independently verifiable statements',
-            '- Each claim must be self-contained (no pronouns needing resolution)',
-            '- Skip filler phrases, hedging language, greetings, and meta-statements',
-            '- claimType must be one of: factual, procedural, definitional, numerical',
-            '- Target 3-15 claims depending on response length',
-            '@out_fmt:json_array[{claimText:string, claimType:string}]',
-        ].join('\n')
+        const sysLines: string[] = []
+        sysLines.push('@role:claim_extractor')
+        sysLines.push('@task:extract_atomic_verifiable_claims')
+        sysLines.push('@rules:atomic_self_contained|no_pronouns|skip_filler_hedging_greetings_meta|3_to_15_claims|claimType_one_of(factual,procedural,definitional,numerical)')
+        sysLines.push('@out_fmt:json_array[{claimText:string,claimType:string}]')
 
-        const prompt = `Agent response to extract claims from:\n\n${agentResponse}`
+        const userLines: string[] = []
+        userLines.push('agent_response{')
+        userLines.push(` text:${GeminiService.sanitizeToonValue(agentResponse, 8000)}`)
+        userLines.push('}')
+
         const raw = await this.executeWithFallback(
-            prompt,
+            userLines.join('\n'),
             modelOverride,
             0.1,
             MAX_TOKENS.claim_extraction,
-            systemInstruction,
+            sysLines.join('\n'),
             true
         )
         const parsed = GeminiService.parseJsonResponse(raw)
@@ -1050,31 +1048,32 @@ export class GeminiService {
         refChunks: Array<{ id: string; content: string }>,
         modelOverride?: string
     ): Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>> {
-        const systemInstruction = [
-            '@role:evidence_verifier',
-            '@task:verify_claims_against_reference_documents',
-            '@rules:',
-            '- verdict must be one of: supported, contradicted, partially_supported, unverifiable',
-            '- supported: claim is confirmed by the reference docs',
-            '- contradicted: claim directly conflicts with the reference docs',
-            '- partially_supported: claim mixes supported and unsupported parts',
-            '- unverifiable: information is absent from the reference docs (hallucination signal)',
-            '- confidence is a float 0.0-1.0',
-            '- sourceChunkIds: list chunk IDs that contain the evidence',
-            '- reasoning: 1-2 sentences explaining the verdict',
-            '@out_fmt:json_array[{claimIndex:number, verdict:string, confidence:number, sourceChunkIds:string[], reasoning:string}]',
-        ].join('\n')
+        const sysLines: string[] = []
+        sysLines.push('@role:evidence_verifier')
+        sysLines.push('@task:verify_claims_against_reference_docs')
+        sysLines.push('@verdicts:supported(confirmed_by_docs)|contradicted(conflicts_with_docs)|partially_supported(mixed)|unverifiable(absent_from_docs_hallucination_signal)')
+        sysLines.push('@rules:one_verdict_per_claim|confidence_float_0_to_1|cite_chunk_ids|reasoning_1_to_2_sentences|index_matches_input_order')
+        sysLines.push('@out_fmt:json_array[{claimIndex:number,verdict:string,confidence:number,sourceChunkIds:string[],reasoning:string}]')
 
-        const chunksBlock = refChunks.map(c => `[CHUNK ${c.id}]\n${c.content}`).join('\n\n---\n\n')
-        const claimsBlock = claims.map((c, i) => `${i}: ${c.claimText}`).join('\n')
-        const prompt = `REFERENCE DOCUMENTS:\n${chunksBlock}\n\nCLAIMS TO VERIFY:\n${claimsBlock}`
+        const userLines: string[] = []
+        userLines.push('ref_docs[')
+        for (const chunk of refChunks) {
+            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeToonValue(chunk.content, 3000)}}`)
+        }
+        userLines.push(']')
+        userLines.push('---')
+        userLines.push('claims[')
+        for (let i = 0; i < claims.length; i++) {
+            userLines.push(` {idx:${i},text:${GeminiService.sanitizeToonValue(claims[i].claimText, 500)},type:${claims[i].claimType}}`)
+        }
+        userLines.push(']')
 
         const raw = await this.executeWithFallback(
-            prompt,
+            userLines.join('\n'),
             modelOverride,
             0.1,
             MAX_TOKENS.claim_verification,
-            systemInstruction,
+            sysLines.join('\n'),
             true
         )
         const parsed = GeminiService.parseJsonResponse(raw)
@@ -1096,44 +1095,40 @@ export class GeminiService {
         faithfulness: { score: number; confidence: number; reasoning: string }
         relevance: { score: number; confidence: number; reasoning: string }
     }> {
-        const systemInstruction = [
-            '@role:accuracy_scorer',
-            '@task:multi_dimension_scoring_of_ai_response',
-            '@dimensions:',
-            '- factualAccuracy (0-100): Are the claims in the response factually correct per the reference docs?',
-            '- completeness (0-100): Does the response cover the key information from the docs relevant to the question?',
-            '- faithfulness (0-100): Does the response avoid hallucinations? Inverse of unverifiable claim rate.',
-            '- relevance (0-100): Does the response actually answer the question asked?',
-            '@rules:',
-            '- Each dimension must have: score (0-100), confidence (0.0-1.0), reasoning (1-2 sentences)',
-            '- Score independently; a response can be relevant but factually wrong',
-            '@out_fmt:json_object{factualAccuracy:{score,confidence,reasoning}, completeness:{score,confidence,reasoning}, faithfulness:{score,confidence,reasoning}, relevance:{score,confidence,reasoning}}',
-        ].join('\n')
+        const sysLines: string[] = []
+        sysLines.push('@role:accuracy_scorer')
+        sysLines.push('@task:multi_dimension_scoring_of_ai_response')
+        sysLines.push('@dimensions:factualAccuracy(0-100,claims_correct_per_docs)|completeness(0-100,covers_key_info_relevant_to_question)|faithfulness(0-100,avoids_hallucinations_inverse_of_unverifiable_rate)|relevance(0-100,actually_answers_the_question)')
+        sysLines.push('@rules:score_each_dimension_independently|score_int_0_to_100|confidence_float_0_to_1|reasoning_1_to_2_sentences|all_four_dimensions_required')
+        sysLines.push('@out_fmt:json_object{factualAccuracy:{score:int,confidence:float,reasoning:string},completeness:{score:int,confidence:float,reasoning:string},faithfulness:{score:int,confidence:float,reasoning:string},relevance:{score:int,confidence:float,reasoning:string}}')
 
-        const chunksBlock = refChunks.slice(0, 10).map(c => `[CHUNK ${c.id}]\n${c.content}`).join('\n\n---\n\n')
-        const verdictsBlock = claimVerdicts.map(c => `- "${c.claimText}" → ${c.verdict}: ${c.reasoning}`).join('\n')
-        const prompt = [
-            `QUESTION: ${question}`,
-            '',
-            `AGENT RESPONSE: ${agentResponse}`,
-            '',
-            'CLAIM VERDICTS:',
-            verdictsBlock,
-            '',
-            'REFERENCE DOCUMENT EXCERPTS:',
-            chunksBlock
-        ].join('\n')
+        const userLines: string[] = []
+        userLines.push('eval_context{')
+        userLines.push(` question:${GeminiService.sanitizeToonValue(question, 1000)}`)
+        userLines.push(` agent_response:${GeminiService.sanitizeToonValue(agentResponse, 6000)}`)
+        userLines.push('}')
+        userLines.push('---')
+        userLines.push('claim_verdicts[')
+        for (const cv of claimVerdicts) {
+            userLines.push(` {claim:${GeminiService.sanitizeToonValue(cv.claimText, 400)},verdict:${cv.verdict},reasoning:${GeminiService.sanitizeToonValue(cv.reasoning, 200)}}`)
+        }
+        userLines.push(']')
+        userLines.push('---')
+        userLines.push('ref_doc_excerpts[')
+        for (const chunk of refChunks.slice(0, 10)) {
+            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeToonValue(chunk.content, 2000)}}`)
+        }
+        userLines.push(']')
 
         const raw = await this.executeWithFallback(
-            prompt,
+            userLines.join('\n'),
             modelOverride,
             0.2,
             MAX_TOKENS.dimension_scoring,
-            systemInstruction,
+            sysLines.join('\n'),
             true
         )
         const parsed = GeminiService.parseJsonResponse(raw)
-        // Ensure all four dimensions are present with defaults
         const defaultDim = { score: 0, confidence: 0, reasoning: '' }
         return {
             factualAccuracy: parsed.factualAccuracy ?? defaultDim,
