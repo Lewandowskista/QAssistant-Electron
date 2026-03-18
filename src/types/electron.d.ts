@@ -134,6 +134,12 @@ export interface ElectronAPI {
     generateCustomReport: (args: { project: any; template: any }) => Promise<{ success: boolean; html?: string; error?: string }>;
     exportCustomReportPdf: (args: { project: any; template: any }) => Promise<{ success: boolean; path?: string; error?: string }>;
 
+    // AI Accuracy Testing
+    readDocumentText: (args: { filePath: string }) => Promise<{ success: boolean; text?: string; chunkCount?: number; error?: string }>;
+    aiAccuracyExtractClaims: (args: { apiKey: string; agentResponse: string; modelName?: string }) => Promise<Array<{ claimText: string; claimType: string }>>;
+    aiAccuracyVerifyClaims: (args: { apiKey: string; claims: Array<{ claimText: string; claimType: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string }) => Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>>;
+    aiAccuracyScoreDimensions: (args: { apiKey: string; question: string; agentResponse: string; claimVerdicts: Array<{ claimText: string; verdict: string; reasoning: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string }) => Promise<{ factualAccuracy: { score: number; confidence: number; reasoning: string }; completeness: { score: number; confidence: number; reasoning: string }; faithfulness: { score: number; confidence: number; reasoning: string }; relevance: { score: number; confidence: number; reasoning: string } }>;
+
     // System
     showNotification: (title: string, body: string) => void;
     setAlwaysOnTop: (flag: boolean) => void;

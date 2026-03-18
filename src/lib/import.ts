@@ -1,5 +1,5 @@
 import Papa from 'papaparse'
-import * as XLSX from 'xlsx'
+import readXlsxFile from 'read-excel-file'
 import { TestCase } from '@/store/useProjectStore'
 
 export interface ParsedImportData {
@@ -7,6 +7,9 @@ export interface ParsedImportData {
     rows: Record<string, string>[]
     fileName: string
 }
+
+const MAX_IMPORT_FILE_SIZE_BYTES = 10 * 1024 * 1024
+const MAX_IMPORT_ROWS = 5000
 
 export const TEST_CASE_IMPORT_FIELDS = [
     { field: '(Ignore)', display: '(Ignore)' },
@@ -57,12 +60,21 @@ export function autoDetectMappings(headers: string[]): Record<string, string> {
 export async function parseImportFile(file: File): Promise<ParsedImportData> {
     const ext = file.name.split('.').pop()?.toLowerCase()
 
+    if (file.size > MAX_IMPORT_FILE_SIZE_BYTES) {
+        throw new Error('File is too large. Maximum supported size is 10MB.')
+    }
+
     if (ext === 'csv') {
         return new Promise((resolve, reject) => {
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
                 complete: (results: any) => {
+                    if (results.data.length > MAX_IMPORT_ROWS) {
+                        reject(new Error(`File has too many rows. Maximum supported rows is ${MAX_IMPORT_ROWS}.`))
+                        return
+                    }
+
                     resolve({
                         headers: results.meta.fields || [],
                         rows: results.data,
@@ -74,48 +86,41 @@ export async function parseImportFile(file: File): Promise<ParsedImportData> {
                 }
             })
         })
-    } else if (ext === 'xlsx' || ext === 'xls') {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target?.result as ArrayBuffer)
-                    const workbook = XLSX.read(data, { type: 'array' })
+    } else if (ext === 'xlsx') {
+        const sheetRows = await readXlsxFile(file)
 
-                    if (workbook.SheetNames.length === 0) {
-                        reject(new Error("No sheets found in workbook"))
-                        return
-                    }
+        if (sheetRows.length === 0) {
+            return { headers: [], rows: [], fileName: file.name }
+        }
 
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-                    const rows = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet, { defval: "" })
+        if (sheetRows.length - 1 > MAX_IMPORT_ROWS) {
+            throw new Error(`File has too many rows. Maximum supported rows is ${MAX_IMPORT_ROWS}.`)
+        }
 
-                    if (rows.length === 0) {
-                        resolve({ headers: [], rows: [], fileName: file.name })
-                        return
-                    }
-
-                    const headers = Object.keys(rows[0])
-                    const stringRows = rows.map(r => {
-                        const strRow: Record<string, string> = {}
-                        for (const key of headers) {
-                            strRow[key] = String(r[key] !== undefined && r[key] !== null ? r[key] : "")
-                        }
-                        return strRow
-                    })
-
-                    resolve({
-                        headers,
-                        rows: stringRows,
-                        fileName: file.name
-                    })
-                } catch (error) {
-                    reject(error)
-                }
-            }
-            reader.onerror = (error) => reject(error)
-            reader.readAsArrayBuffer(file)
+        const [headerRow, ...dataRows] = sheetRows
+        const headers = headerRow.map((cell, index) => {
+            const header = String(cell ?? '').trim()
+            return header || `Column ${index + 1}`
         })
+
+        const rows = dataRows
+            .filter(row => row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== ''))
+            .map(row => {
+                const parsedRow: Record<string, string> = {}
+                headers.forEach((header, index) => {
+                    const cell = row[index]
+                    parsedRow[header] = cell === null || cell === undefined ? '' : String(cell)
+                })
+                return parsedRow
+            })
+
+        return {
+            headers,
+            rows,
+            fileName: file.name
+        }
+    } else if (ext === 'xls') {
+        throw new Error('Legacy .xls files are no longer supported. Please resave as .xlsx or .csv.')
     }
 
     throw new Error(`Unsupported file type: .${ext}. Please use .csv or .xlsx`)

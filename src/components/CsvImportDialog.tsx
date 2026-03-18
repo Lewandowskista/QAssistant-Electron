@@ -96,14 +96,14 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
                                 type="file"
                                 ref={fileInputRef}
                                 className="hidden"
-                                accept=".csv,.xlsx,.xls"
+                                accept=".csv,.xlsx"
                                 onChange={handleFileSelect}
                             />
                             <div className="h-16 w-16 bg-[#A78BFA]/10 text-[#A78BFA] rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                                 <UploadCloud className="h-8 w-8" />
                             </div>
                             <h3 className="text-lg font-bold text-[#E2E8F0] mb-2">Click or Drag File to Upload</h3>
-                            <p className="text-sm text-[#6B7280]">Supports .csv, .xlsx, .xls</p>
+                            <p className="text-sm text-[#6B7280]">Supports .csv and .xlsx</p>
 
                             {isProcessing && <p className="mt-4 text-xs font-bold text-[#A78BFA] animate-pulse uppercase">Parsing File...</p>}
                         </div>

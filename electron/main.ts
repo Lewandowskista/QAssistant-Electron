@@ -39,6 +39,7 @@ import * as integrations from './integrations';
 import { saveFile, saveBytes, deleteFile } from './fileStorage';
 import * as bugReport from './bug-report';
 import { SapHacService } from './sapHac';
+import * as accuracy from './accuracy';
 // trayIconBase64 removed to use file-based icon
 // BOOTSTRAP: This self-executing function finds the REAL Electron API even if shadowed.
 const electron = (function() {
@@ -484,7 +485,49 @@ if (app) {
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
-        
+
+        // AI Accuracy Testing Handlers
+        ipcMain.handle('read-document-text', async (_e: any, { filePath }: any) => {
+            try {
+                assertString(filePath, 'filePath', 2000);
+                const text = await accuracy.readDocumentText(filePath);
+                const chunks = accuracy.chunkDocument(text, 'preview');
+                return { success: true, text, chunkCount: chunks.length };
+            }
+            catch (err: any) { return { success: false, error: String(err) }; }
+        });
+        ipcMain.handle('ai-accuracy-extract-claims', async (_e: any, { apiKey, agentResponse, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-accuracy-extract-claims'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertString(agentResponse, 'agentResponse', 50_000);
+                return await new GeminiService(apiKey).extractClaims(agentResponse, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
+        });
+        ipcMain.handle('ai-accuracy-verify-claims', async (_e: any, { apiKey, claims, refChunks, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-accuracy-verify-claims'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertArray(claims, 'claims', 200);
+                assertArray(refChunks, 'refChunks', 100);
+                return await new GeminiService(apiKey).verifyClaims(claims, refChunks, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
+        });
+        ipcMain.handle('ai-accuracy-score-dimensions', async (_e: any, { apiKey, question, agentResponse, claimVerdicts, refChunks, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-accuracy-score-dimensions'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertString(question, 'question', 10_000);
+                assertString(agentResponse, 'agentResponse', 50_000);
+                assertArray(claimVerdicts, 'claimVerdicts', 200);
+                assertArray(refChunks, 'refChunks', 100);
+                return await new GeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts, refChunks, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: String(err) }; }
+        });
+
         // Report Handlers
         ipcMain.handle('generate-test-cases-csv', (_e: any, { project: p }: any) => report.generateTestCasesCsv(p));
         ipcMain.handle('generate-executions-csv', (_e: any, { project: p }: any) => report.generateExecutionsCsv(p));

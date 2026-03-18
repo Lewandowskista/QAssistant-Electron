@@ -418,4 +418,83 @@ export type Project = {
     handoffPackets?: HandoffPacket[]
     artifactLinks?: ArtifactLink[]
     collaborationEvents?: CollaborationEvent[]
+
+    // AI Accuracy Testing
+    accuracyTestSuites?: AccuracyTestSuite[]
+}
+
+// ── AI Accuracy Testing ──────────────────────────────────────────────
+
+export type AccuracyScoreDimension = 'factualAccuracy' | 'completeness' | 'faithfulness' | 'relevance'
+
+export type ClaimVerdict = 'supported' | 'contradicted' | 'unverifiable' | 'partially_supported'
+
+export type AccuracyClaim = {
+    id: string
+    claimText: string
+    verdict: ClaimVerdict
+    confidence: number           // 0.0 - 1.0
+    sourceChunkIds: string[]     // which doc chunks support/contradict this claim
+    reasoning: string
+}
+
+export type AccuracyDimensionScore = {
+    dimension: AccuracyScoreDimension
+    score: number                // 0 - 100
+    confidence: number           // 0.0 - 1.0
+    reasoning: string
+}
+
+export type AccuracyQaPairResult = {
+    id: string
+    question: string
+    agentResponse: string
+    overallScore: number         // 0 - 100 weighted aggregate
+    dimensionScores: AccuracyDimensionScore[]
+    extractedClaims: AccuracyClaim[]
+    evaluatedAt: number
+}
+
+export type AccuracyEvalStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export type AccuracyEvalRun = {
+    id: string
+    name: string
+    status: AccuracyEvalStatus
+    qaPairResults: AccuracyQaPairResult[]
+    aggregateScore: number       // 0 - 100 mean of all pair overallScores
+    aggregateDimensions: AccuracyDimensionScore[] // averaged across all pairs
+    totalPairs: number
+    completedPairs: number
+    startedAt: number
+    completedAt?: number
+    error?: string
+}
+
+export type ReferenceDocument = {
+    id: string
+    fileName: string
+    filePath: string             // path in attachments dir
+    mimeType: string
+    fileSizeBytes: number
+    uploadedAt: number
+    chunkCount: number
+}
+
+export type AccuracyQaPair = {
+    id: string
+    question: string
+    agentResponse: string
+    addedAt: number
+    sourceLabel?: string         // e.g. "imported from CSV" or "manual"
+}
+
+export type AccuracyTestSuite = {
+    id: string
+    name: string
+    referenceDocuments: ReferenceDocument[]
+    qaPairs: AccuracyQaPair[]
+    evalRuns: AccuracyEvalRun[]
+    createdAt: number
+    updatedAt: number
 }

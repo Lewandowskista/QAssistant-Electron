@@ -8,7 +8,8 @@ import {
     TestCaseStatus, Checklist, ApiRequest, Runbook, RunbookCategory, RunbookStep,
     TestDataEntry, ChecklistItem, CollabState, HandoffPacket, ArtifactLink,
     CollaborationEvent, HandoffExecutionRef, LinkedPrRef, CollaborationActorRole,
-    EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution
+    EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution,
+    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun
 } from '../types/project'
 import { demoProject } from '@/data/demoProject'
 import { enrichHandoffCompleteness, migrateLegacyExecutionsToSessions, PROJECT_SCHEMA_VERSION } from '@/lib/collaboration'
@@ -20,7 +21,8 @@ export type {
     TestCaseStatus, Checklist, ApiRequest, Runbook, RunbookCategory, RunbookStep,
     TestDataEntry, ChecklistItem, CollabState, HandoffPacket, ArtifactLink,
     CollaborationEvent, HandoffExecutionRef, LinkedPrRef, CollaborationActorRole,
-    EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution
+    EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution,
+    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun
 }
 
 function generateId(): string {
@@ -140,7 +142,8 @@ function normalizeProject(project: any): Project {
         sourceColumns: project.sourceColumns || (project.columns ? { manual: project.columns } : undefined),
         handoffPackets: (project.handoffPackets || []).map((packet: any) => enrichHandoffCompleteness(packet)),
         artifactLinks: project.artifactLinks || [],
-        collaborationEvents: project.collaborationEvents || []
+        collaborationEvents: project.collaborationEvents || [],
+        accuracyTestSuites: project.accuracyTestSuites || []
     }
     normalizedProject.testRunSessions = migrateLegacyExecutionsToSessions(normalizedProject)
     return normalizedProject
@@ -1862,6 +1865,168 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                     })),
                     updatedAt: Date.now()
                 } : t
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    // ── AI Accuracy Testing ──────────────────────────────────────────────
+
+    addAccuracySuite: async (projectId: string, name: string): Promise<string> => {
+        const suite: AccuracyTestSuite = {
+            id: generateId(),
+            name,
+            referenceDocuments: [],
+            qaPairs: [],
+            evalRuns: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        }
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: [...(p.accuracyTestSuites || []), suite]
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+        return suite.id
+    },
+
+    updateAccuracySuite: async (projectId: string, suiteId: string, updates: Partial<AccuracyTestSuite>) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
+                s.id === suiteId ? { ...s, ...updates, updatedAt: Date.now() } : s
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    deleteAccuracySuite: async (projectId: string, suiteId: string) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).filter(s => s.id !== suiteId)
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    addAccuracyRefDoc: async (projectId: string, suiteId: string, doc: Omit<ReferenceDocument, 'id' | 'uploadedAt'>): Promise<string> => {
+        const id = generateId()
+        const newDoc: ReferenceDocument = { ...doc, id, uploadedAt: Date.now() }
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
+                s.id === suiteId ? {
+                    ...s,
+                    referenceDocuments: [...s.referenceDocuments, newDoc],
+                    updatedAt: Date.now()
+                } : s
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+        return id
+    },
+
+    removeAccuracyRefDoc: async (projectId: string, suiteId: string, docId: string) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
+                s.id === suiteId ? {
+                    ...s,
+                    referenceDocuments: s.referenceDocuments.filter(d => d.id !== docId),
+                    updatedAt: Date.now()
+                } : s
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    addAccuracyQaPair: async (projectId: string, suiteId: string, question: string, agentResponse: string, sourceLabel?: string): Promise<string> => {
+        const id = generateId()
+        const pair: AccuracyQaPair = { id, question, agentResponse, addedAt: Date.now(), sourceLabel }
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
+                s.id === suiteId ? {
+                    ...s,
+                    qaPairs: [...s.qaPairs, pair],
+                    updatedAt: Date.now()
+                } : s
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+        return id
+    },
+
+    batchAddAccuracyQaPairs: async (projectId: string, suiteId: string, pairs: Array<{ question: string; agentResponse: string; sourceLabel?: string }>) => {
+        const newPairs: AccuracyQaPair[] = pairs.map(p => ({
+            id: generateId(),
+            question: p.question,
+            agentResponse: p.agentResponse,
+            addedAt: Date.now(),
+            sourceLabel: p.sourceLabel
+        }))
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
+                s.id === suiteId ? {
+                    ...s,
+                    qaPairs: [...s.qaPairs, ...newPairs],
+                    updatedAt: Date.now()
+                } : s
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    removeAccuracyQaPair: async (projectId: string, suiteId: string, pairId: string) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
+                s.id === suiteId ? {
+                    ...s,
+                    qaPairs: s.qaPairs.filter(pair => pair.id !== pairId),
+                    updatedAt: Date.now()
+                } : s
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+    },
+
+    addAccuracyEvalRun: async (projectId: string, suiteId: string, run: Omit<AccuracyEvalRun, 'id'>): Promise<string> => {
+        const id = generateId()
+        const newRun: AccuracyEvalRun = { ...run, id }
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
+                s.id === suiteId ? {
+                    ...s,
+                    evalRuns: [...s.evalRuns, newRun],
+                    updatedAt: Date.now()
+                } : s
+            )
+        } : p)
+        if (window.electronAPI) saveProjectsToDisk(projects)
+        set({ projects })
+        return id
+    },
+
+    updateAccuracyEvalRun: async (projectId: string, suiteId: string, runId: string, updates: Partial<AccuracyEvalRun>) => {
+        const projects = get().projects.map(p => p.id === projectId ? {
+            ...p,
+            accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
+                s.id === suiteId ? {
+                    ...s,
+                    evalRuns: s.evalRuns.map(r => r.id === runId ? { ...r, ...updates } : r),
+                    updatedAt: Date.now()
+                } : s
             )
         } : p)
         if (window.electronAPI) saveProjectsToDisk(projects)

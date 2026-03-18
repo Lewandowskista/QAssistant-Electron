@@ -13,6 +13,9 @@ const MAX_TOKENS: Record<string, number> = {
     suggestions: 2048,
     smoke_subset: 1024,
     project_analysis: 4096,
+    claim_extraction: 2048,
+    claim_verification: 4096,
+    dimension_scoring: 2048,
 }
 
 /**
@@ -941,5 +944,127 @@ export class GeminiService {
         } catch { finalMsg = 'Crash parsing error object' }
 
         throw `Gemini Chat API Error: ${finalMsg}`
+    }
+
+    // ── AI Accuracy Testing ──────────────────────────────────────────────────
+
+    /**
+     * Extracts atomic, independently verifiable claims from an AI agent's response.
+     */
+    async extractClaims(agentResponse: string, modelOverride?: string): Promise<Array<{ claimText: string; claimType: string }>> {
+        const systemInstruction = [
+            '@role:claim_extractor',
+            '@task:extract_atomic_claims_from_agent_response',
+            '@rules:',
+            '- Break the response into atomic, independently verifiable statements',
+            '- Each claim must be self-contained (no pronouns needing resolution)',
+            '- Skip filler phrases, hedging language, greetings, and meta-statements',
+            '- claimType must be one of: factual, procedural, definitional, numerical',
+            '- Target 3-15 claims depending on response length',
+            '@out_fmt:json_array[{claimText:string, claimType:string}]',
+        ].join('\n')
+
+        const prompt = `Agent response to extract claims from:\n\n${agentResponse}`
+        const raw = await this.executeWithFallback(
+            prompt,
+            modelOverride,
+            0.1,
+            MAX_TOKENS.claim_extraction,
+            systemInstruction,
+            true
+        )
+        return JSON.parse(raw)
+    }
+
+    /**
+     * Verifies a list of claims against reference document chunks.
+     */
+    async verifyClaims(
+        claims: Array<{ claimText: string; claimType: string }>,
+        refChunks: Array<{ id: string; content: string }>,
+        modelOverride?: string
+    ): Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>> {
+        const systemInstruction = [
+            '@role:evidence_verifier',
+            '@task:verify_claims_against_reference_documents',
+            '@rules:',
+            '- verdict must be one of: supported, contradicted, partially_supported, unverifiable',
+            '- supported: claim is confirmed by the reference docs',
+            '- contradicted: claim directly conflicts with the reference docs',
+            '- partially_supported: claim mixes supported and unsupported parts',
+            '- unverifiable: information is absent from the reference docs (hallucination signal)',
+            '- confidence is a float 0.0-1.0',
+            '- sourceChunkIds: list chunk IDs that contain the evidence',
+            '- reasoning: 1-2 sentences explaining the verdict',
+            '@out_fmt:json_array[{claimIndex:number, verdict:string, confidence:number, sourceChunkIds:string[], reasoning:string}]',
+        ].join('\n')
+
+        const chunksBlock = refChunks.map(c => `[CHUNK ${c.id}]\n${c.content}`).join('\n\n---\n\n')
+        const claimsBlock = claims.map((c, i) => `${i}: ${c.claimText}`).join('\n')
+        const prompt = `REFERENCE DOCUMENTS:\n${chunksBlock}\n\nCLAIMS TO VERIFY:\n${claimsBlock}`
+
+        const raw = await this.executeWithFallback(
+            prompt,
+            modelOverride,
+            0.1,
+            MAX_TOKENS.claim_verification,
+            systemInstruction,
+            true
+        )
+        return JSON.parse(raw)
+    }
+
+    /**
+     * Scores an agent response on 4 dimensions: factualAccuracy, completeness, faithfulness, relevance.
+     */
+    async scoreDimensions(
+        question: string,
+        agentResponse: string,
+        claimVerdicts: Array<{ claimText: string; verdict: string; reasoning: string }>,
+        refChunks: Array<{ id: string; content: string }>,
+        modelOverride?: string
+    ): Promise<{
+        factualAccuracy: { score: number; confidence: number; reasoning: string }
+        completeness: { score: number; confidence: number; reasoning: string }
+        faithfulness: { score: number; confidence: number; reasoning: string }
+        relevance: { score: number; confidence: number; reasoning: string }
+    }> {
+        const systemInstruction = [
+            '@role:accuracy_scorer',
+            '@task:multi_dimension_scoring_of_ai_response',
+            '@dimensions:',
+            '- factualAccuracy (0-100): Are the claims in the response factually correct per the reference docs?',
+            '- completeness (0-100): Does the response cover the key information from the docs relevant to the question?',
+            '- faithfulness (0-100): Does the response avoid hallucinations? Inverse of unverifiable claim rate.',
+            '- relevance (0-100): Does the response actually answer the question asked?',
+            '@rules:',
+            '- Each dimension must have: score (0-100), confidence (0.0-1.0), reasoning (1-2 sentences)',
+            '- Score independently; a response can be relevant but factually wrong',
+            '@out_fmt:json_object{factualAccuracy:{score,confidence,reasoning}, completeness:{score,confidence,reasoning}, faithfulness:{score,confidence,reasoning}, relevance:{score,confidence,reasoning}}',
+        ].join('\n')
+
+        const chunksBlock = refChunks.slice(0, 10).map(c => `[CHUNK ${c.id}]\n${c.content}`).join('\n\n---\n\n')
+        const verdictsBlock = claimVerdicts.map(c => `- "${c.claimText}" → ${c.verdict}: ${c.reasoning}`).join('\n')
+        const prompt = [
+            `QUESTION: ${question}`,
+            '',
+            `AGENT RESPONSE: ${agentResponse}`,
+            '',
+            'CLAIM VERDICTS:',
+            verdictsBlock,
+            '',
+            'REFERENCE DOCUMENT EXCERPTS:',
+            chunksBlock
+        ].join('\n')
+
+        const raw = await this.executeWithFallback(
+            prompt,
+            modelOverride,
+            0.2,
+            MAX_TOKENS.dimension_scoring,
+            systemInstruction,
+            true
+        )
+        return JSON.parse(raw)
     }
 }

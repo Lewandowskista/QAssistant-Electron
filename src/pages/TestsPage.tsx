@@ -23,7 +23,8 @@ import {
     Trash2,
     Archive,
     Search,
-    RotateCcw
+    RotateCcw,
+    ShieldCheck
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -48,8 +49,9 @@ import CoverageMatrix from "@/components/CoverageMatrix"
 import { toast } from "sonner"
 import { SubtabBar } from "@/components/ui/subtab-bar"
 import { SegmentedControl } from "@/components/ui/segmented-control"
+import AIAccuracyPanel from "@/components/ai-accuracy/AIAccuracyPanel"
 
-type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder'
+type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder' | 'AIAccuracy'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTasksForQaAi, sanitizeTestCasesForAi, sanitizeTestPlansForAi } from '@/lib/aiUtils'
@@ -513,7 +515,8 @@ export default function TestsPage() {
                             { id: 'TestRuns', label: 'Test Runs', icon: History, count: totalRuns },
                             { id: 'Reports', label: 'Exports', icon: BarChart3 },
                             { id: 'CoverageMatrix', label: 'Coverage Matrix', icon: Layers },
-                            { id: 'RegressionBuilder', label: 'Regression Builder', icon: Zap }
+                            { id: 'RegressionBuilder', label: 'Regression Builder', icon: Zap },
+                            { id: 'AIAccuracy', label: 'AI Accuracy', icon: ShieldCheck }
                         ]}
                     />
                 </div>
@@ -1237,6 +1240,12 @@ export default function TestsPage() {
                             </div>
                         )
                     }
+
+                    {activeSubTab === 'AIAccuracy' && (
+                        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                            <AIAccuracyPanel />
+                        </div>
+                    )}
                 </div>
 
                 <TestPlanDialog

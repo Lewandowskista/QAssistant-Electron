@@ -141,4 +141,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Report Builder (M1)
   generateCustomReport: (args: any) => ipcRenderer.invoke('generate-custom-report', args),
   exportCustomReportPdf: (args: any) => ipcRenderer.invoke('export-custom-report-pdf', args),
+
+  // AI Accuracy Testing
+  readDocumentText: (args: any) => ipcRenderer.invoke('read-document-text', typeof args === 'string' ? { filePath: args } : args),
+  aiAccuracyExtractClaims: async (args: any) => { const res = await ipcRenderer.invoke('ai-accuracy-extract-claims', args); if (res?.__isError) throw new Error(res.message); return res; },
+  aiAccuracyVerifyClaims: async (args: any) => { const res = await ipcRenderer.invoke('ai-accuracy-verify-claims', args); if (res?.__isError) throw new Error(res.message); return res; },
+  aiAccuracyScoreDimensions: async (args: any) => { const res = await ipcRenderer.invoke('ai-accuracy-score-dimensions', args); if (res?.__isError) throw new Error(res.message); return res; },
 });
