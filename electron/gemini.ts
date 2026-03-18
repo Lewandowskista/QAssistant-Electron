@@ -173,6 +173,26 @@ export class GeminiService {
         return s
     }
 
+    /**
+     * Sanitizer for document/reference content embedded in accuracy prompts.
+     * Unlike sanitizeToonValue, this preserves colons and pipes so that reference
+     * text is not corrupted before being sent to the model. It only strips characters
+     * that would break JSON string encoding in the model's output context, and
+     * wraps the result in JSON-safe double quotes so the TOON parser treats it as
+     * an opaque string rather than a structured value.
+     */
+    private static sanitizeDocContent(value: string | null | undefined, maxLength = 6000): string {
+        if (!value?.trim()) return '""'
+        let s = value.length > maxLength ? value.substring(0, maxLength) + '...' : value
+        // Normalise line endings to spaces so the TOON line structure isn't broken
+        s = s.replace(/\r\n/g, ' ').replace(/\r/g, ' ').replace(/\n/g, ' ')
+        // Escape characters that would break a JSON string literal
+        s = s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+        // Escape TOON structural chars only at top-level: { } [ ] that could confuse the TOON parser
+        s = s.replace(/{/g, '(').replace(/}/g, ')').replace(/\[/g, '(').replace(/\]/g, ')')
+        return `"${s}"`
+    }
+
     private static sanitizeToonValueForTestGen(value: string | null | undefined, maxLength = 2000): string {
         if (!value?.trim()) return ''
         let s = value.length > maxLength ? value.substring(0, maxLength) + '...' : value
@@ -1031,7 +1051,7 @@ export class GeminiService {
         const raw = await this.executeWithFallback(
             userLines.join('\n'),
             modelOverride,
-            0.1,
+            0,
             MAX_TOKENS.claim_extraction,
             sysLines.join('\n'),
             true
@@ -1058,7 +1078,7 @@ export class GeminiService {
         const userLines: string[] = []
         userLines.push('ref_docs[')
         for (const chunk of refChunks) {
-            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeToonValue(chunk.content, 6000)}}`)
+            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeDocContent(chunk.content, 6000)}}`)
         }
         userLines.push(']')
         userLines.push('---')
@@ -1071,7 +1091,7 @@ export class GeminiService {
         const raw = await this.executeWithFallback(
             userLines.join('\n'),
             modelOverride,
-            0.1,
+            0,
             MAX_TOKENS.claim_verification,
             sysLines.join('\n'),
             true
@@ -1116,14 +1136,14 @@ export class GeminiService {
         userLines.push('---')
         userLines.push('ref_doc_excerpts[')
         for (const chunk of refChunks) {
-            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeToonValue(chunk.content, 6000)}}`)
+            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeDocContent(chunk.content, 6000)}}`)
         }
         userLines.push(']')
 
         const raw = await this.executeWithFallback(
             userLines.join('\n'),
             modelOverride,
-            0.2,
+            0,
             MAX_TOKENS.dimension_scoring,
             sysLines.join('\n'),
             true
