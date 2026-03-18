@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import {
     Zap, Globe, Cpu, Server, Share2, Database, Search,
     Plus, X, Edit2, Check, Copy, RefreshCw, ExternalLink,
-    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell, Sun, User, LogOut
+    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell, Sun, User, LogOut, AlertTriangle
 } from "lucide-react"
 import { useTheme } from "@/hooks/useTheme"
 import { Button } from "@/components/ui/button"
@@ -12,9 +12,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useProjectStore } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
+import { useSettingsStore } from "@/store/useSettingsStore"
 import { LinearConnection, JiraConnection } from "@/types/project"
 import type { UserRole, AuthProvider } from "@/types/user"
 import { useConfirm } from "@/components/ConfirmDialog"
+import { toast } from "sonner"
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 type StatusState = { msg: string; ok: boolean } | null
@@ -115,7 +117,8 @@ function FormPanel({ title, onSave, onTest, onCancel, children, status }: {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-    const api = window.electronAPI as any
+    const api = window.electronAPI
+    const saveSettingsStore = useSettingsStore(s => s.save)
     const { projects, activeProjectId, updateProject, importProject } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
 
@@ -123,7 +126,7 @@ export default function SettingsPage() {
     const [appVersion, setAppVersion] = useState('')
     const [dataPath, setDataPath] = useState('')
     const [sysInfo, setSysInfo] = useState<any>(null)
-    const [activeSection, setActiveSection] = useState<string | null>('general')
+    const [activeSection, setActiveSection] = useState<string | null>(null)
     const { theme, toggleTheme } = useTheme()
 
     // ── Global settings state ─────────────────────────────────────────────────
@@ -181,9 +184,47 @@ export default function SettingsPage() {
     const [oauthConnecting, setOauthConnecting] = useState<AuthProvider | null>(null)
     const [oauthStatus, setOauthStatus] = useState<StatusState>(null)
 
+    // ── Credential storage status ─────────────────────────────────────────────
+    const [credStorageEncrypted, setCredStorageEncrypted] = useState<boolean | null>(null)
+
+    // ── Orphaned attachments ──────────────────────────────────────────────────
+    type OrphanEntry = { filePath: string; fileName: string; fileSizeBytes: number }
+    const [orphanScanResult, setOrphanScanResult] = useState<{ orphaned: OrphanEntry[]; totalSize: number } | null>(null)
+    const [orphanScanning, setOrphanScanning] = useState(false)
+    const [orphanDeleting, setOrphanDeleting] = useState(false)
+
+    const handleScanOrphans = useCallback(async () => {
+        setOrphanScanning(true)
+        setOrphanScanResult(null)
+        try {
+            const referencedPaths: string[] = []
+            for (const project of projects) {
+                project.files.forEach(f => referencedPaths.push(f.filePath))
+                project.notes.forEach(n => n.attachments.forEach(a => referencedPaths.push(a.filePath)))
+            }
+            const result = await api.scanOrphanedAttachments(referencedPaths)
+            setOrphanScanResult(result)
+        } finally {
+            setOrphanScanning(false)
+        }
+    }, [api, projects])
+
+    const handleDeleteOrphans = useCallback(async () => {
+        if (!orphanScanResult || orphanScanResult.orphaned.length === 0) return
+        setOrphanDeleting(true)
+        try {
+            const { deleted } = await api.deleteOrphanedAttachments(orphanScanResult.orphaned.map(o => o.filePath))
+            toast.success(`Deleted ${deleted} orphaned file${deleted !== 1 ? 's' : ''}.`)
+            setOrphanScanResult(null)
+        } finally {
+            setOrphanDeleting(false)
+        }
+    }, [api, orphanScanResult])
+
     // ── Load user profile + OAuth listener ───────────────────────────────────
     useEffect(() => {
         if (!userLoaded) loadProfile()
+        api.getCredentialStorageStatus?.().then(s => setCredStorageEncrypted(s.encrypted))
     }, [])
 
     useEffect(() => {
@@ -254,11 +295,9 @@ export default function SettingsPage() {
         load()
     }, [activeProjectId, activeProject?.geminiModel])
 
-    const saveSetting = useCallback(async (patch: Record<string, any>) => {
-        const cur = await api.readSettingsFile()
-        await api.writeSettingsFile({ ...cur, ...patch })
-        window.dispatchEvent(new Event('settings-updated'))
-    }, [])
+    const saveSetting = useCallback(async (patch: Record<string, unknown>) => {
+        await saveSettingsStore(patch)
+    }, [saveSettingsStore])
 
     const flash = (set: (s: StatusState) => void, msg: string, ok: boolean, ms = 3000) => {
         set({ msg, ok })
@@ -301,7 +340,7 @@ export default function SettingsPage() {
         await api.secureStoreSet(`${prefix}automation_api_key`, newKey)
         setApiKey(newKey)
         if (apiEnabled) {
-            await api.automationApiRestart(newKey, parseInt(apiPort))
+            await api.automationApiRestart({ apiKey: newKey, port: parseInt(apiPort) })
             flash(setAutomationStatus, 'API key regenerated and API restarted. Update your test runners.', true)
         } else {
             flash(setAutomationStatus, 'API key regenerated. Update your test runners.', true)
@@ -560,6 +599,16 @@ export default function SettingsPage() {
                     <span className="text-xs font-bold">{showSecrets ? 'Hide secrets' : 'Reveal secrets'}</span>
                 </Button>
             </div>
+
+            {/* Credential encryption warning */}
+            {credStorageEncrypted === false && (
+                <div className="flex-none mx-8 mt-4 flex items-start gap-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
+                    <AlertTriangle className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
+                    <p className="text-xs text-yellow-300 leading-relaxed">
+                        <span className="font-bold">Credentials are stored unencrypted.</span> Your OS keyring and Electron safeStorage are both unavailable on this system. API keys and tokens are written to disk in plaintext. Consider running the app with a full desktop session (e.g. a running D-Bus/Keychain service) to enable encryption.
+                    </p>
+                </div>
+            )}
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-8 py-6 space-y-3 custom-scrollbar">
@@ -1193,6 +1242,55 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             <Trash2 className="h-3.5 w-3.5" />Purge All Data
                         </Button>
                     </div>
+
+                    {/* Orphaned attachment cleanup */}
+                    <div className="mt-4 bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <div>
+                                <p className="text-[10px] font-bold uppercase text-[#6B7280]">Orphaned Attachments</p>
+                                <p className="text-[11px] text-[#6B7280] mt-0.5">Files in the attachments folder no longer referenced by any project.</p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 border-[#2A2A3A] text-[#9CA3AF] font-bold"
+                                onClick={handleScanOrphans}
+                                disabled={orphanScanning}
+                            >
+                                {orphanScanning ? 'Scanning…' : 'Scan'}
+                            </Button>
+                        </div>
+                        {orphanScanResult && (
+                            orphanScanResult.orphaned.length === 0 ? (
+                                <p className="text-xs text-[#10B981] font-medium">No orphaned files found.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-[#F59E0B] font-medium">
+                                        {orphanScanResult.orphaned.length} orphaned file{orphanScanResult.orphaned.length !== 1 ? 's' : ''} — {(orphanScanResult.totalSize / 1024).toFixed(1)} KB total
+                                    </p>
+                                    <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1">
+                                        {orphanScanResult.orphaned.map(o => (
+                                            <div key={o.filePath} className="flex items-center justify-between text-[11px] text-[#9CA3AF] bg-[#0A0A0D] border border-[#1F1F24] rounded px-2 py-1">
+                                                <span className="truncate flex-1">{o.fileName}</span>
+                                                <span className="ml-2 flex-none text-[#6B7280]">{(o.fileSizeBytes / 1024).toFixed(1)} KB</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-red-400 hover:bg-red-950/30 font-bold gap-2"
+                                        onClick={handleDeleteOrphans}
+                                        disabled={orphanDeleting}
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        {orphanDeleting ? 'Deleting…' : `Delete ${orphanScanResult.orphaned.length} File${orphanScanResult.orphaned.length !== 1 ? 's' : ''}`}
+                                    </Button>
+                                </div>
+                            )
+                        )}
+                    </div>
+
                     <div className="mt-6 pt-4 border-t border-[#2A2A3A] text-center">
                         <p className="text-[11px] text-[#4B5563] italic">© 2026 Lewandowskista · QAssistant</p>
                     </div>
