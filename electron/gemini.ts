@@ -15,8 +15,8 @@ const MAX_TOKENS: Record<string, number> = {
     smoke_subset: 1024,
     project_analysis: 4096,
     claim_extraction: 8192,
-    claim_verification: 8192,
-    dimension_scoring: 4096,
+    claim_verification: 16384,
+    dimension_scoring: 8192,
 }
 
 /**

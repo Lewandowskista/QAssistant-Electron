@@ -178,8 +178,13 @@ export async function runAccuracyEvaluation(
         const pair = suite.qaPairs[i]
         onProgress(i, totalPairs, pair.question)
 
-        // Find relevant chunks for this pair
-        const relevantChunks = findRelevantChunksClient(pair.question, pair.agentResponse, allChunks, 60000)
+        // Find relevant chunks for this pair.
+        // verifyClaims needs enough context to look up every claim citation.
+        // scoreDimensions needs a representative sample — a smaller window keeps
+        // the prompt within the model's safe output-generation range.
+        // Both calls receive the same chunk set (top-20 by relevance, ≤20k tokens)
+        // so the model never sees a prompt so large that it truncates its output.
+        const relevantChunks = findRelevantChunksClient(pair.question, pair.agentResponse, allChunks, 20000, 20)
         const refChunksForApi = relevantChunks.map(c => ({ id: c.id, content: c.content }))
 
         // LLM Call 1: Extract claims
@@ -336,7 +341,8 @@ function findRelevantChunksClient(
     question: string,
     agentResponse: string,
     allChunks: DocChunkData[],
-    maxTokens: number
+    maxTokens: number,
+    maxChunks = 20
 ): DocChunkData[] {
     const queryTerms = new Set([...tokenize(question), ...tokenize(agentResponse)])
 
@@ -355,6 +361,7 @@ function findRelevantChunksClient(
     const selected: DocChunkData[] = []
     let tokenCount = 0
     for (const { chunk } of scored) {
+        if (selected.length >= maxChunks) break
         if (tokenCount + chunk.tokenEstimate > maxTokens) break
         selected.push(chunk)
         tokenCount += chunk.tokenEstimate
