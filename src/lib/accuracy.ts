@@ -112,7 +112,8 @@ export function computeAggregateScores(pairResults: AccuracyQaPairResult[]): {
 
 export const QA_PAIR_CSV_ALIASES: Record<string, string[]> = {
     question: ['question', 'q', 'query', 'input', 'user_input', 'user input', 'prompt'],
-    agentResponse: ['response', 'answer', 'agent_response', 'agent response', 'output', 'ai_response', 'ai response', 'chatbot_response', 'chatbot response']
+    agentResponse: ['response', 'answer', 'agent_response', 'agent response', 'output', 'ai_response', 'ai response', 'chatbot_response', 'chatbot response'],
+    expectedAnswer: ['expected', 'expected_answer', 'expected answer', 'correct', 'correct_answer', 'correct answer', 'ground_truth', 'ground truth', 'human_answer', 'human answer', 'ideal', 'ideal_answer', 'ideal answer']
 }
 
 export function autoDetectQaPairMappings(headers: string[]): Record<string, string> {
@@ -228,6 +229,7 @@ export async function runAccuracyEvaluation(
             apiKey,
             question: pair.question,
             agentResponse: pair.agentResponse,
+            expectedAnswer: pair.expectedAnswer,
             claimVerdicts: claimVerdictsForScoring,
             refChunks: refChunksForApi,
             modelName

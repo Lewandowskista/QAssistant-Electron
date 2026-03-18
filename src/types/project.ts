@@ -485,6 +485,7 @@ export type AccuracyQaPair = {
     id: string
     question: string
     agentResponse: string
+    expectedAnswer?: string      // optional human-provided ground-truth answer
     addedAt: number
     sourceLabel?: string         // e.g. "imported from CSV" or "manual"
 }

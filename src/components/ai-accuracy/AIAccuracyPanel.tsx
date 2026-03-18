@@ -234,7 +234,7 @@ export default function AIAccuracyPanel() {
                                 evalProgress={evalProgress}
                                 onAddDoc={handleAddDoc}
                                 onRemoveDoc={docId => removeAccuracyRefDoc(activeProjectId, activeSuite.id, docId)}
-                                onAddPair={async (q, r) => { await addAccuracyQaPair(activeProjectId, activeSuite.id, q, r, 'manual') }}
+                                onAddPair={async (q, r, expected) => { await addAccuracyQaPair(activeProjectId, activeSuite.id, q, r, 'manual', expected) }}
                                 onBatchAddPairs={async (pairs) => { await batchAddAccuracyQaPairs(activeProjectId, activeSuite.id, pairs) }}
                                 onRemovePair={pairId => removeAccuracyQaPair(activeProjectId, activeSuite.id, pairId)}
                                 onRunEvaluation={handleRunEvaluation}

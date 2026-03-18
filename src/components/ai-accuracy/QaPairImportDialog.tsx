@@ -9,12 +9,13 @@ import { QA_PAIR_CSV_ALIASES, autoDetectQaPairMappings } from "@/lib/accuracy"
 interface QaPairImportDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    onImport: (pairs: Array<{ question: string; agentResponse: string; sourceLabel: string }>) => void
+    onImport: (pairs: Array<{ question: string; agentResponse: string; sourceLabel: string; expectedAnswer?: string }>) => void
 }
 
 const QA_FIELDS = [
-    { id: 'question', label: 'Question' },
-    { id: 'agentResponse', label: 'Agent Response' }
+    { id: 'question', label: 'Question', required: true },
+    { id: 'agentResponse', label: 'Agent Response', required: true },
+    { id: 'expectedAnswer', label: 'Expected Answer', required: false }
 ]
 
 export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImportDialogProps) {
@@ -76,6 +77,7 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
         if (!parsedData) return
         const questionHeader = getMappedField('question')
         const responseHeader = getMappedField('agentResponse')
+        const expectedHeader = getMappedField('expectedAnswer')
 
         if (!questionHeader || !responseHeader) {
             setError("Please map both Question and Agent Response columns.")
@@ -86,6 +88,7 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
             .map((row, idx) => ({
                 question: row[questionHeader]?.trim() ?? '',
                 agentResponse: row[responseHeader]?.trim() ?? '',
+                expectedAnswer: expectedHeader ? (row[expectedHeader]?.trim() || undefined) : undefined,
                 sourceLabel: `CSV row ${idx + 2}`
             }))
             .filter(p => p.question && p.agentResponse)
@@ -153,10 +156,13 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                                 <p className="text-[9px] font-bold text-[#6B7280] uppercase tracking-widest">Map Columns</p>
                                 {QA_FIELDS.map(field => (
                                     <div key={field.id} className="flex items-center gap-3">
-                                        <span className="text-xs font-semibold text-[#E2E8F0] w-36 shrink-0">{field.label}</span>
+                                        <span className="text-xs font-semibold text-[#E2E8F0] w-36 shrink-0">
+                                            {field.label}
+                                            {!field.required && <span className="text-[9px] text-[#6B7280] font-normal ml-1">(optional)</span>}
+                                        </span>
                                         <Select value={getMappedField(field.id)} onValueChange={val => setFieldMapping(field.id, val)}>
                                             <SelectTrigger className="flex-1 h-9 bg-[#1A1A24] border-[#2A2A3A] text-xs">
-                                                <SelectValue placeholder="Select column…" />
+                                                <SelectValue placeholder={field.required ? "Select column…" : "Skip (not in file)"} />
                                             </SelectTrigger>
                                             <SelectContent className="bg-[#13131A] border-[#2A2A3A]">
                                                 {parsedData.headers.map(h => (

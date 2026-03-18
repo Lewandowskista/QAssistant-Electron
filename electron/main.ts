@@ -532,7 +532,7 @@ if (app) {
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });
-        ipcMain.handle('ai-accuracy-score-dimensions', async (_e: any, { apiKey, question, agentResponse, claimVerdicts, refChunks, modelName }: any) => {
+        ipcMain.handle('ai-accuracy-score-dimensions', async (_e: any, { apiKey, question, agentResponse, expectedAnswer, claimVerdicts, refChunks, modelName }: any) => {
             const rateErr = checkAiRateLimit('ai-accuracy-score-dimensions'); if (rateErr) return rateErr;
             try {
                 assertString(apiKey, 'apiKey');
@@ -540,7 +540,7 @@ if (app) {
                 assertString(agentResponse, 'agentResponse', 50_000);
                 assertArray(claimVerdicts, 'claimVerdicts', 200);
                 assertArray(refChunks, 'refChunks', 100);
-                return await new GeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts, refChunks, modelName);
+                return await new GeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts, refChunks, modelName, expectedAnswer);
             }
             catch (err: any) { return { __isError: true, message: String(err) }; }
         });

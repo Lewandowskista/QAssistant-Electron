@@ -1945,9 +1945,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set({ projects })
     },
 
-    addAccuracyQaPair: async (projectId: string, suiteId: string, question: string, agentResponse: string, sourceLabel?: string): Promise<string> => {
+    addAccuracyQaPair: async (projectId: string, suiteId: string, question: string, agentResponse: string, sourceLabel?: string, expectedAnswer?: string): Promise<string> => {
         const id = generateId()
-        const pair: AccuracyQaPair = { id, question, agentResponse, addedAt: Date.now(), sourceLabel }
+        const pair: AccuracyQaPair = { id, question, agentResponse, expectedAnswer, addedAt: Date.now(), sourceLabel }
         const projects = get().projects.map(p => p.id === projectId ? {
             ...p,
             accuracyTestSuites: (p.accuracyTestSuites || []).map(s =>
@@ -1963,11 +1963,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         return id
     },
 
-    batchAddAccuracyQaPairs: async (projectId: string, suiteId: string, pairs: Array<{ question: string; agentResponse: string; sourceLabel?: string }>) => {
+    batchAddAccuracyQaPairs: async (projectId: string, suiteId: string, pairs: Array<{ question: string; agentResponse: string; sourceLabel?: string; expectedAnswer?: string }>) => {
         const newPairs: AccuracyQaPair[] = pairs.map(p => ({
             id: generateId(),
             question: p.question,
             agentResponse: p.agentResponse,
+            expectedAnswer: p.expectedAnswer,
             addedAt: Date.now(),
             sourceLabel: p.sourceLabel
         }))

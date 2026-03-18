@@ -15,8 +15,8 @@ interface SuiteSetupProps {
     evalProgress: { completed: number; total: number; currentQuestion?: string } | null
     onAddDoc: (filePath: string, fileName: string, mimeType: string, fileSizeBytes: number) => Promise<void>
     onRemoveDoc: (docId: string) => void
-    onAddPair: (question: string, agentResponse: string) => Promise<void>
-    onBatchAddPairs: (pairs: Array<{ question: string; agentResponse: string; sourceLabel: string }>) => Promise<void>
+    onAddPair: (question: string, agentResponse: string, expectedAnswer?: string) => Promise<void>
+    onBatchAddPairs: (pairs: Array<{ question: string; agentResponse: string; sourceLabel: string; expectedAnswer?: string }>) => Promise<void>
     onRemovePair: (pairId: string) => void
     onRunEvaluation: () => void
 }
@@ -46,15 +46,16 @@ function DocRow({ doc, onRemove }: { doc: ReferenceDocument; onRemove: () => voi
     )
 }
 
-function AddPairForm({ onAdd, onCancel }: { onAdd: (q: string, r: string) => Promise<void>; onCancel: () => void }) {
+function AddPairForm({ onAdd, onCancel }: { onAdd: (q: string, r: string, expected?: string) => Promise<void>; onCancel: () => void }) {
     const [question, setQuestion] = useState('')
     const [response, setResponse] = useState('')
+    const [expectedAnswer, setExpectedAnswer] = useState('')
     const [saving, setSaving] = useState(false)
 
     const handleSave = async () => {
         if (!question.trim() || !response.trim()) return
         setSaving(true)
-        await onAdd(question.trim(), response.trim())
+        await onAdd(question.trim(), response.trim(), expectedAnswer.trim() || undefined)
         setSaving(false)
         onCancel()
     }
@@ -77,6 +78,17 @@ function AddPairForm({ onAdd, onCancel }: { onAdd: (q: string, r: string) => Pro
                     onChange={e => setResponse(e.target.value)}
                     placeholder="Paste the chatbot's response here..."
                     className="bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0] resize-none h-28"
+                />
+            </div>
+            <div>
+                <label className="text-[9px] font-bold text-[#6B7280] uppercase tracking-widest block mb-1.5">
+                    Expected Answer <span className="text-[#6B7280]/60 normal-case font-normal">(optional — human-verified correct answer)</span>
+                </label>
+                <Textarea
+                    value={expectedAnswer}
+                    onChange={e => setExpectedAnswer(e.target.value)}
+                    placeholder="Provide the correct answer as written by a human expert…"
+                    className="bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0] resize-none h-20"
                 />
             </div>
             <div className="flex items-center gap-2 justify-end">
@@ -253,6 +265,11 @@ export function SuiteSetup({
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-[#E2E8F0] truncate">{pair.question}</p>
                                     <p className="text-[10px] text-[#6B7280] truncate mt-0.5">{pair.agentResponse}</p>
+                                    {pair.expectedAnswer && (
+                                        <p className="text-[9px] text-emerald-400/70 truncate mt-0.5">
+                                            <span className="font-bold">Expected:</span> {pair.expectedAnswer}
+                                        </p>
+                                    )}
                                     {pair.sourceLabel && (
                                         <p className="text-[9px] text-[#6B7280]/60 mt-0.5 italic">{pair.sourceLabel}</p>
                                     )}

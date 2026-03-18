@@ -1109,7 +1109,8 @@ export class GeminiService {
         agentResponse: string,
         claimVerdicts: Array<{ claimText: string; verdict: string; reasoning: string }>,
         refChunks: Array<{ id: string; content: string }>,
-        modelOverride?: string
+        modelOverride?: string,
+        expectedAnswer?: string
     ): Promise<{
         factualAccuracy: { score: number; confidence: number; reasoning: string }
         completeness: { score: number; confidence: number; reasoning: string }
@@ -1121,13 +1122,16 @@ export class GeminiService {
         sysLines.push('@task:multi_dimension_scoring_of_ai_response_against_reference_docs')
         sysLines.push('@ground_truth:ref_doc_excerpts_are_sole_source_of_truth|no_outside_knowledge|semantic_equivalence_is_sufficient_exact_wording_not_required')
         sysLines.push('@dimensions:factualAccuracy(0-100,pct_claims_supported_or_partially_supported_by_docs)|completeness(0-100,how_much_key_info_from_docs_relevant_to_question_is_covered)|faithfulness(0-100,penalise_every_unverifiable_claim_heavily_100_minus_unverifiable_rate)|relevance(0-100,response_directly_addresses_the_question)')
-        sysLines.push('@rules:score_each_dimension_independently|score_int_0_to_100|unverifiable_claims_count_against_faithfulness_and_factualAccuracy|confidence_float_0_to_1|reasoning_2_to_3_sentences_cite_specific_evidence|all_four_dimensions_required')
+        sysLines.push('@rules:score_each_dimension_independently|score_int_0_to_100|unverifiable_claims_count_against_faithfulness_and_factualAccuracy|if_expected_answer_present_use_as_primary_ground_truth_above_ref_docs|confidence_float_0_to_1|reasoning_2_to_3_sentences_cite_specific_evidence|all_four_dimensions_required')
         sysLines.push('@out_fmt:json_object{factualAccuracy:{score:int,confidence:float,reasoning:string},completeness:{score:int,confidence:float,reasoning:string},faithfulness:{score:int,confidence:float,reasoning:string},relevance:{score:int,confidence:float,reasoning:string}}')
 
         const userLines: string[] = []
         userLines.push('eval_context{')
         userLines.push(` question:${GeminiService.sanitizeToonValue(question, 1000)}`)
         userLines.push(` agent_response:${GeminiService.sanitizeToonValue(agentResponse, 6000)}`)
+        if (expectedAnswer?.trim()) {
+            userLines.push(` expected_answer:${GeminiService.sanitizeDocContent(expectedAnswer, 3000)}`)
+        }
         userLines.push('}')
         userLines.push('---')
         userLines.push('claim_verdicts[')
