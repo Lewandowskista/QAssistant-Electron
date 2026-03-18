@@ -37,7 +37,7 @@ export class GeminiService {
     async listAvailableModels(): Promise<string[]> {
         try {
             // Use header-based auth to avoid leaking the API key in URL logs/proxies
-            const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+            const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
                 headers: { 'x-goog-api-key': this.apiKey },
                 signal: AbortSignal.timeout(30_000),
             });
@@ -45,8 +45,18 @@ export class GeminiService {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json() as any;
-            // The API returns model names with "models/" prefix, e.g., "models/gemini-1.5-flash"
-            return data.models?.map((m: any) => m.name.replace('models/', '')) || [];
+            const models: any[] = data.models || [];
+
+            // Keep only models that support generateContent — these are the ones with
+            // active generation quotas (RPM/TPM/RPD > 0). Models that only support
+            // embedContent, countTokens, etc. have no generation quota and can't be
+            // used as a preferred model.
+            return models
+                .filter((m: any) =>
+                    Array.isArray(m.supportedGenerationMethods) &&
+                    m.supportedGenerationMethods.includes('generateContent')
+                )
+                .map((m: any) => (m.name as string).replace('models/', ''));
         } catch (err) {
             console.error('Failed to list Gemini models');
             return [];

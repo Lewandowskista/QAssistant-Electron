@@ -495,12 +495,8 @@ export default function SettingsPage() {
         try {
             const models = await api.aiListModels({ apiKey: geminiKey.trim() })
             if (models && models.length > 0) {
-                // Filter to generative models only (exclude embedding, AQA, etc.)
-                const generative = (models as string[]).filter((m: string) =>
-                    m.includes('gemini') && !m.includes('embedding') && !m.includes('aqa')
-                )
-                setAvailableModels(generative.length > 0 ? generative : models)
-                flash(setGeminiStatus, `${generative.length > 0 ? generative.length : models.length} models available — select one below.`, true, 6000)
+                setAvailableModels(models)
+                flash(setGeminiStatus, `${models.length} models available — select one below.`, true, 6000)
             } else {
                 flash(setGeminiStatus, 'No models found. Check your API key.', false)
             }
