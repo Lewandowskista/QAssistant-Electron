@@ -572,22 +572,22 @@ if (app) {
             }
             catch (err: any) { return { success: false, error: errMsg(err) }; }
         });
-        ipcMain.handle('ai-accuracy-extract-claims', async (_e: any, { apiKey, agentResponse, modelName }: any) => {
+        ipcMain.handle('ai-accuracy-extract-claims', async (_e: any, { apiKey, agentResponse, modelName, expectedAnswer }: any) => {
             const rateErr = checkAiRateLimit('ai-accuracy-extract-claims'); if (rateErr) return rateErr;
             try {
                 assertString(apiKey, 'apiKey');
                 assertString(agentResponse, 'agentResponse', 50_000);
-                return await getGeminiService(apiKey).extractClaims(agentResponse, modelName);
+                return await getGeminiService(apiKey).extractClaims(agentResponse, modelName, expectedAnswer);
             }
             catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
-        ipcMain.handle('ai-accuracy-verify-claims', async (_e: any, { apiKey, claims, refChunks, modelName }: any) => {
+        ipcMain.handle('ai-accuracy-verify-claims', async (_e: any, { apiKey, claims, refChunks, modelName, expectedAnswer }: any) => {
             const rateErr = checkAiRateLimit('ai-accuracy-verify-claims'); if (rateErr) return rateErr;
             try {
                 assertString(apiKey, 'apiKey');
                 assertArray(claims, 'claims', 200);
                 assertArray(refChunks, 'refChunks', 100);
-                return await getGeminiService(apiKey).verifyClaims(claims as any[], refChunks as any[], modelName);
+                return await getGeminiService(apiKey).verifyClaims(claims as any[], refChunks as any[], modelName, expectedAnswer);
             }
             catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
@@ -600,6 +600,17 @@ if (app) {
                 assertArray(claimVerdicts, 'claimVerdicts', 200);
                 assertArray(refChunks, 'refChunks', 100);
                 return await getGeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts as any[], refChunks as any[], modelName, expectedAnswer);
+            }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
+        });
+        ipcMain.handle('ai-accuracy-rerank-chunks', async (_e: any, { apiKey, question, agentResponse, chunks, topK, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-accuracy-rerank-chunks'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertString(question, 'question', 10_000);
+                assertString(agentResponse, 'agentResponse', 50_000);
+                assertArray(chunks, 'chunks', 100);
+                return await getGeminiService(apiKey).rerankChunks(question, agentResponse, chunks as any[], topK ?? 20, modelName);
             }
             catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });

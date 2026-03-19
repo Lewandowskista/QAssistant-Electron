@@ -166,4 +166,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiAccuracyExtractClaims: (args: any) => invoke('ai-accuracy-extract-claims', args),
   aiAccuracyVerifyClaims: (args: any) => invoke('ai-accuracy-verify-claims', args),
   aiAccuracyScoreDimensions: (args: any) => invoke('ai-accuracy-score-dimensions', args),
+  aiAccuracyRerankChunks: (args: any) => invoke('ai-accuracy-rerank-chunks', args),
 });

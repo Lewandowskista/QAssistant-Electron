@@ -24,16 +24,19 @@ export interface ElectronAPI {
     writeProjectsFile: (data: Project[]) => Promise<{ success: boolean; error?: string }>;
     readSettingsFile: () => Promise<any>;
     writeSettingsFile: (data: any) => Promise<{ success: boolean; error?: string }>;
-    readJsonFile: (args: { filePath: string }) => Promise<{ success: boolean; data?: any; error?: string }>;
+    readJsonFile: (args: { filePath: string } | string) => Promise<{ success: boolean; data?: any; error?: string }>;
     
     // Credentials
+    getCredentialStorageStatus: () => Promise<{ mode: 'keychain' | 'safeStorage' | 'plaintext'; encrypted: boolean }>;
+    scanOrphanedAttachments: (referencedPaths: string[]) => Promise<{ orphaned: { filePath: string; fileName: string; fileSizeBytes: number }[]; totalSize: number }>;
+    deleteOrphanedAttachments: (filePaths: string[]) => Promise<{ deleted: number }>;
     secureStoreSet: (key: string, value: string) => Promise<{ success: boolean; error?: string }>;
     secureStoreGet: (key: string) => Promise<string | null>;
     secureStoreDelete: (key: string) => Promise<{ success: boolean; error?: string }>;
     secureStoreList: () => Promise<any[]>;
 
     // File operations
-    selectFile: () => Promise<string | null>;
+    selectFile: (filters?: { name: string; extensions: string[] }[]) => Promise<string | null>;
     openUrl: (url: string) => Promise<{ success: boolean; error?: string }>;
     openFile: (args: { filePath: string } | string) => Promise<void>;
     copyToAttachments: (sourcePath: string) => Promise<{ success: boolean; attachment?: Attachment; error?: string }>;
@@ -84,13 +87,12 @@ export interface ElectronAPI {
     sapHacGetCatalogVersions: (baseUrl: string) => Promise<ApiResponse<any[]>>;
     sapHacGetCatalogIds: (baseUrl: string) => Promise<{ success: boolean; data?: string[]; error?: string }>;
     sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) => Promise<{ success: boolean; data?: any; error?: string }>;
-    sapHacRequest: (opts: any) => Promise<{ success: boolean; status?: number; body?: string; error?: string }>;
 
     // Automation API
-    automationApiStart: (args: any) => Promise<any>;
+    automationApiStart: (args: { apiKey: string; port?: number }) => Promise<any>;
     automationApiStop: () => Promise<any>;
-    automationApiRestart: (args: any) => Promise<any>;
-    automationApiStatus: () => Promise<any>;
+    automationApiRestart: (args: { apiKey: string; port?: number }) => Promise<any>;
+    automationApiStatus: () => Promise<{ running: boolean; port: number | null }>;
 
     // Bug Reporting
     generateBugReportTask: (args: any) => Promise<any>;
@@ -112,23 +114,29 @@ export interface ElectronAPI {
     onOAuthComplete: (callback: (data: { provider: string; userInfo: any }) => void) => () => void;
 
     // GitHub Integration
-    githubCheckScope: () => Promise<{ hasRepoScope: boolean; scopes: string } | { __isError: boolean; message: string }>;
-    githubGetRepos: (args?: { forceRefresh?: boolean }) => Promise<GitHubRepo[] | { __isError: boolean; message: string }>;
-    githubGetPullRequests: (args: { owner: string; repo: string; state?: string; forceRefresh?: boolean }) => Promise<GitHubPullRequest[] | { __isError: boolean; message: string }>;
-    githubGetPrDetail: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubPrDetail | { __isError: boolean; message: string }>;
-    githubGetPrReviews: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubReview[] | { __isError: boolean; message: string }>;
-    githubGetPrCheckStatus: (args: { owner: string; repo: string; ref: string }) => Promise<string | null | { __isError: boolean; message: string }>;
-    githubGetCommits: (args: { owner: string; repo: string; branch?: string; forceRefresh?: boolean }) => Promise<GitHubCommit[] | { __isError: boolean; message: string }>;
-    githubGetBranches: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<{ name: string; sha: string }[] | { __isError: boolean; message: string }>;
-    githubGetReviewRequests: (args?: { forceRefresh?: boolean }) => Promise<GitHubSearchItem[] | { __isError: boolean; message: string }>;
-    githubGetMyOpenPrs: (args?: { forceRefresh?: boolean }) => Promise<GitHubSearchItem[] | { __isError: boolean; message: string }>;
-    githubGetWorkflowRuns: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<GitHubWorkflowRun[] | { __isError: boolean; message: string }>;
-    githubGetDeployments: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<GitHubDeployment[] | { __isError: boolean; message: string }>;
-    githubRerunWorkflow: (args: { owner: string; repo: string; runId: number }) => Promise<{ success: boolean } | { __isError: boolean; message: string }>;
-    githubGetPrComments: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubComment[] | { __isError: boolean; message: string }>;
-    githubGetWorkflowJobs: (args: { owner: string; repo: string; runId: number }) => Promise<GitHubWorkflowJob[] | { __isError: boolean; message: string }>;
-    githubGetWorkflowsList: (args: { owner: string; repo: string }) => Promise<GitHubWorkflow[] | { __isError: boolean; message: string }>;
-    githubDispatchWorkflow: (args: { owner: string; repo: string; workflowId: number; ref: string }) => Promise<{ success: boolean } | { __isError: boolean; message: string }>;
+    githubCheckScope: () => Promise<{ hasRepoScope: boolean; scopes: string }>;
+    githubGetRepos: (args?: { forceRefresh?: boolean }) => Promise<GitHubRepo[]>;
+    githubGetPullRequests: (args: { owner: string; repo: string; state?: string; forceRefresh?: boolean }) => Promise<GitHubPullRequest[]>;
+    githubGetPrDetail: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubPrDetail>;
+    githubGetPrReviews: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubReview[]>;
+    githubGetPrCheckStatus: (args: { owner: string; repo: string; ref: string }) => Promise<string | null>;
+    githubGetCommits: (args: { owner: string; repo: string; branch?: string; forceRefresh?: boolean }) => Promise<GitHubCommit[]>;
+    githubGetBranches: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<{ name: string; sha: string }[]>;
+    githubGetReviewRequests: (args?: { forceRefresh?: boolean }) => Promise<GitHubSearchItem[]>;
+    githubGetMyOpenPrs: (args?: { forceRefresh?: boolean }) => Promise<GitHubSearchItem[]>;
+    githubGetWorkflowRuns: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<GitHubWorkflowRun[]>;
+    githubGetDeployments: (args: { owner: string; repo: string; forceRefresh?: boolean }) => Promise<GitHubDeployment[]>;
+    githubRerunWorkflow: (args: { owner: string; repo: string; runId: number }) => Promise<{ success: boolean }>;
+    githubGetPrComments: (args: { owner: string; repo: string; prNumber: number }) => Promise<GitHubComment[]>;
+    githubGetWorkflowJobs: (args: { owner: string; repo: string; runId: number }) => Promise<GitHubWorkflowJob[]>;
+    githubGetWorkflowsList: (args: { owner: string; repo: string }) => Promise<GitHubWorkflow[]>;
+    githubDispatchWorkflow: (args: { owner: string; repo: string; workflowId: number; ref: string }) => Promise<{ success: boolean }>;
+
+    // Reports / exports
+    generateTestSummaryMarkdown: (project: any, filterPlanIds?: string[], aiResult?: string) => Promise<string>;
+    generateTestCasesCsv: (project: any) => Promise<string>;
+    generateExecutionsCsv: (project: any) => Promise<string>;
+    exportTestSummaryPdf: (project: any, filterPlanIds?: string[], aiResult?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
 
     // Report Builder (M1)
     generateCustomReport: (args: { project: any; template: any }) => Promise<{ success: boolean; html?: string; error?: string }>;
@@ -136,9 +144,10 @@ export interface ElectronAPI {
 
     // AI Accuracy Testing
     readDocumentText: (args: { filePath: string }) => Promise<{ success: boolean; text?: string; chunkCount?: number; error?: string }>;
-    aiAccuracyExtractClaims: (args: { apiKey: string; agentResponse: string; modelName?: string }) => Promise<Array<{ claimText: string; claimType: string }>>;
-    aiAccuracyVerifyClaims: (args: { apiKey: string; claims: Array<{ claimText: string; claimType: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string }) => Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>>;
-    aiAccuracyScoreDimensions: (args: { apiKey: string; question: string; agentResponse: string; claimVerdicts: Array<{ claimText: string; verdict: string; reasoning: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string }) => Promise<{ factualAccuracy: { score: number; confidence: number; reasoning: string }; completeness: { score: number; confidence: number; reasoning: string }; faithfulness: { score: number; confidence: number; reasoning: string }; relevance: { score: number; confidence: number; reasoning: string } }>;
+    aiAccuracyExtractClaims: (args: { apiKey: string; agentResponse: string; modelName?: string; expectedAnswer?: string }) => Promise<Array<{ claimText: string; claimType: string }>>;
+    aiAccuracyVerifyClaims: (args: { apiKey: string; claims: Array<{ claimText: string; claimType: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string; expectedAnswer?: string }) => Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>>;
+    aiAccuracyScoreDimensions: (args: { apiKey: string; question: string; agentResponse: string; expectedAnswer?: string; claimVerdicts: Array<{ claimText: string; verdict: string; reasoning: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string }) => Promise<{ factualAccuracy: { score: number; confidence: number; reasoning: string }; completeness: { score: number; confidence: number; reasoning: string }; faithfulness: { score: number; confidence: number; reasoning: string }; relevance: { score: number; confidence: number; reasoning: string } }>;
+    aiAccuracyRerankChunks: (args: { apiKey: string; question: string; agentResponse: string; chunks: Array<{ id: string; content: string }>; topK?: number; modelName?: string }) => Promise<string[]>;
 
     // System
     showNotification: (title: string, body: string) => void;

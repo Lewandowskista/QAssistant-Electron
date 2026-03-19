@@ -1,23 +1,23 @@
 import { useState, useRef } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
-import { AccuracyEvalRun, AccuracyTestSuite } from "@/types/project"
+import { AccuracyEvalRun } from "@/types/project"
 import { SegmentedControl } from "@/components/ui/segmented-control"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SuiteSetup } from "./SuiteSetup"
 import { EvalResults } from "./EvalResults"
 import { EvalRunHistory } from "./EvalRunHistory"
+import { RunComparisonView } from "./RunComparisonView"
 import { runAccuracyEvaluation } from "@/lib/accuracy"
 import { Plus, ChevronDown, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
 
 type PanelTab = 'setup' | 'results' | 'history'
 
 export default function AIAccuracyPanel() {
     const {
         projects, activeProjectId,
-        addAccuracySuite, updateAccuracySuite, deleteAccuracySuite,
+        addAccuracySuite, updateAccuracySuite,
         addAccuracyRefDoc, removeAccuracyRefDoc,
         addAccuracyQaPair, batchAddAccuracyQaPairs, removeAccuracyQaPair,
         addAccuracyEvalRun, updateAccuracyEvalRun
@@ -33,6 +33,7 @@ export default function AIAccuracyPanel() {
     const [isEvaluating, setIsEvaluating] = useState(false)
     const [evalProgress, setEvalProgress] = useState<{ completed: number; total: number; currentQuestion?: string } | null>(null)
     const [activeRunId, setActiveRunId] = useState<string | null>(null)
+    const [comparisonRuns, setComparisonRuns] = useState<{ base: AccuracyEvalRun; compare: AccuracyEvalRun } | null>(null)
     const abortRef = useRef<AbortController | null>(null)
 
     const activeSuite = suites.find(s => s.id === activeSuiteId) ?? suites[0] ?? null
@@ -158,7 +159,7 @@ export default function AIAccuracyPanel() {
                     <div className="relative">
                         <select
                             value={activeSuiteId ?? ''}
-                            onChange={e => { setActiveSuiteId(e.target.value); setActiveTab('setup') }}
+                            onChange={e => { setActiveSuiteId(e.target.value); setActiveTab('setup'); setComparisonRuns(null) }}
                             className="h-8 pl-3 pr-8 bg-[#1A1A24] border border-[#2A2A3A] rounded-lg text-xs font-semibold text-[#E2E8F0] appearance-none focus:outline-none focus:ring-1 focus:ring-[#A78BFA]/50"
                         >
                             {suites.map(s => (
@@ -238,6 +239,7 @@ export default function AIAccuracyPanel() {
                                 onBatchAddPairs={async (pairs) => { await batchAddAccuracyQaPairs(activeProjectId, activeSuite.id, pairs) }}
                                 onRemovePair={pairId => removeAccuracyQaPair(activeProjectId, activeSuite.id, pairId)}
                                 onRunEvaluation={handleRunEvaluation}
+                                onToggleHighAccuracyMode={enabled => updateAccuracySuite(activeProjectId, activeSuite.id, { highAccuracyMode: enabled })}
                             />
                         )}
 
@@ -262,19 +264,28 @@ export default function AIAccuracyPanel() {
                         )}
 
                         {activeTab === 'history' && (
-                            <EvalRunHistory
-                                runs={activeSuite.evalRuns}
-                                activeRunId={activeRunId ?? undefined}
-                                onSelectRun={run => {
-                                    setActiveRunId(run.id)
-                                    setActiveTab('results')
-                                }}
-                                onDeleteRun={runId => {
-                                    const updatedRuns = activeSuite.evalRuns.filter(r => r.id !== runId)
-                                    updateAccuracySuite(activeProjectId, activeSuite.id, { evalRuns: updatedRuns })
-                                    if (activeRunId === runId) setActiveRunId(null)
-                                }}
-                            />
+                            comparisonRuns ? (
+                                <RunComparisonView
+                                    baseRun={comparisonRuns.base}
+                                    compareRun={comparisonRuns.compare}
+                                    onClose={() => setComparisonRuns(null)}
+                                />
+                            ) : (
+                                <EvalRunHistory
+                                    runs={activeSuite.evalRuns}
+                                    activeRunId={activeRunId ?? undefined}
+                                    onSelectRun={run => {
+                                        setActiveRunId(run.id)
+                                        setActiveTab('results')
+                                    }}
+                                    onDeleteRun={runId => {
+                                        const updatedRuns = activeSuite.evalRuns.filter(r => r.id !== runId)
+                                        updateAccuracySuite(activeProjectId, activeSuite.id, { evalRuns: updatedRuns })
+                                        if (activeRunId === runId) setActiveRunId(null)
+                                    }}
+                                    onCompareRuns={(base, compare) => setComparisonRuns({ base, compare })}
+                                />
+                            )
                         )}
                     </>
                 )}

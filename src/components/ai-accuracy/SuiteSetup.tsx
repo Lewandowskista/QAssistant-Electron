@@ -5,7 +5,7 @@ import { AccuracyTestSuite, ReferenceDocument } from "@/types/project"
 import { QaPairImportDialog } from "./QaPairImportDialog"
 import {
     Upload, Trash2, FileText, Plus, FilePlus,
-    X, Play, Loader2, AlertCircle
+    X, Play, Loader2, AlertCircle, Zap
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -19,6 +19,7 @@ interface SuiteSetupProps {
     onBatchAddPairs: (pairs: Array<{ question: string; agentResponse: string; sourceLabel: string; expectedAnswer?: string }>) => Promise<void>
     onRemovePair: (pairId: string) => void
     onRunEvaluation: () => void
+    onToggleHighAccuracyMode: (enabled: boolean) => void
 }
 
 function DocRow({ doc, onRemove }: { doc: ReferenceDocument; onRemove: () => void }) {
@@ -113,7 +114,7 @@ export function SuiteSetup({
     suite, isEvaluating, evalProgress,
     onAddDoc, onRemoveDoc,
     onAddPair, onBatchAddPairs, onRemovePair,
-    onRunEvaluation
+    onRunEvaluation, onToggleHighAccuracyMode
 }: SuiteSetupProps) {
     const [showAddForm, setShowAddForm] = useState(false)
     const [showImportDialog, setShowImportDialog] = useState(false)
@@ -127,8 +128,9 @@ export function SuiteSetup({
         setDocError(null)
         setIsUploadingDoc(true)
         try {
-            const filePath: string = await (window.electronAPI as any).copyToAttachments(file.path || (file as any).path || '')
-            await onAddDoc(filePath, file.name, file.type || 'application/octet-stream', file.size)
+            const result = await window.electronAPI.copyToAttachments((file as File & { path: string }).path || '')
+            if (!result.success || !result.attachment) throw new Error(result.error || 'Failed to copy attachment')
+            await onAddDoc(result.attachment.filePath, file.name, file.type || 'application/octet-stream', file.size)
         } catch (err: unknown) {
             setDocError(err instanceof Error ? err.message : 'Failed to upload document')
         } finally {
@@ -320,21 +322,39 @@ export function SuiteSetup({
                             {suite.qaPairs.length} Q&amp;A pair{suite.qaPairs.length !== 1 ? 's' : ''}
                         </p>
                     </div>
-                    <Button
-                        disabled={!canRunEval}
-                        onClick={onRunEvaluation}
-                        className={cn(
-                            "font-bold",
-                            canRunEval
-                                ? "bg-[#A78BFA] hover:bg-[#9370EA] text-[#0F0F13]"
-                                : "bg-[#2A2A3A] text-[#6B7280] cursor-not-allowed"
-                        )}
-                    >
-                        {isEvaluating
-                            ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Evaluating…</>
-                            : <><Play className="h-4 w-4 mr-2" /> Run Evaluation</>
-                        }
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        {/* High accuracy mode toggle */}
+                        <button
+                            type="button"
+                            onClick={() => onToggleHighAccuracyMode(!suite.highAccuracyMode)}
+                            disabled={isEvaluating}
+                            className={cn(
+                                "flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[10px] font-bold transition-colors",
+                                suite.highAccuracyMode
+                                    ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                                    : "border-[#2A2A3A] text-[#6B7280] hover:text-[#E2E8F0]"
+                            )}
+                            title="High accuracy mode runs claim verification twice and merges results for greater consistency. Uses 2× API calls for verification."
+                        >
+                            <Zap className="h-3 w-3" />
+                            High Accuracy
+                        </button>
+                        <Button
+                            disabled={!canRunEval}
+                            onClick={onRunEvaluation}
+                            className={cn(
+                                "font-bold",
+                                canRunEval
+                                    ? "bg-[#A78BFA] hover:bg-[#9370EA] text-[#0F0F13]"
+                                    : "bg-[#2A2A3A] text-[#6B7280] cursor-not-allowed"
+                            )}
+                        >
+                            {isEvaluating
+                                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Evaluating…</>
+                                : <><Play className="h-4 w-4 mr-2" /> Run Evaluation</>
+                            }
+                        </Button>
+                    </div>
                 </div>
 
                 {!canRunEval && !isEvaluating && (

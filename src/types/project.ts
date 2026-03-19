@@ -453,6 +453,9 @@ export type AccuracyQaPairResult = {
     dimensionScores: AccuracyDimensionScore[]
     extractedClaims: AccuracyClaim[]
     evaluatedAt: number
+    status?: 'success' | 'failed'
+    error?: string
+    claimExtractionRetried?: boolean
 }
 
 export type AccuracyEvalStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -498,4 +501,5 @@ export type AccuracyTestSuite = {
     evalRuns: AccuracyEvalRun[]
     createdAt: number
     updatedAt: number
+    highAccuracyMode?: boolean   // when true, claim verification runs twice and results are merged
 }

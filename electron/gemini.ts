@@ -1041,11 +1041,14 @@ export class GeminiService {
     /**
      * Extracts atomic, independently verifiable claims from an AI agent's response.
      */
-    async extractClaims(agentResponse: string, modelOverride?: string): Promise<Array<{ claimText: string; claimType: string }>> {
+    async extractClaims(agentResponse: string, modelOverride?: string, expectedAnswer?: string): Promise<Array<{ claimText: string; claimType: string }>> {
         const sysLines: string[] = []
         sysLines.push('@role:claim_extractor')
         sysLines.push('@task:extract_atomic_verifiable_claims')
         sysLines.push('@rules:atomic_self_contained|no_pronouns|skip_filler_hedging_greetings_meta|3_to_15_claims|claimType_one_of(factual,procedural,definitional,numerical)')
+        if (expectedAnswer?.trim()) {
+            sysLines.push('@expected_answer_guidance:if_expected_answer_present_prioritise_claims_that_differ_from_or_contradict_it_as_these_are_most_diagnostically_valuable')
+        }
         sysLines.push('@out_fmt:json_array[{claimText:string,claimType:string}]')
 
         const userLines: string[] = []
@@ -1053,6 +1056,11 @@ export class GeminiService {
         // Use sanitizeDocContent to preserve colons/pipes in technical content (URLs, code, timestamps)
         userLines.push(` text:${GeminiService.sanitizeDocContent(agentResponse, 8000)}`)
         userLines.push('}')
+        if (expectedAnswer?.trim()) {
+            userLines.push('expected_answer{')
+            userLines.push(` text:${GeminiService.sanitizeDocContent(expectedAnswer, 3000)}`)
+            userLines.push('}')
+        }
 
         const raw = await this.executeWithFallback(
             userLines.join('\n'),
@@ -1072,17 +1080,28 @@ export class GeminiService {
     async verifyClaims(
         claims: Array<{ claimText: string; claimType: string }>,
         refChunks: Array<{ id: string; content: string }>,
-        modelOverride?: string
+        modelOverride?: string,
+        expectedAnswer?: string
     ): Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>> {
         const sysLines: string[] = []
         sysLines.push('@role:evidence_verifier')
         sysLines.push('@task:verify_claims_strictly_against_reference_docs_only')
-        sysLines.push('@ground_truth:ref_docs_are_sole_source_of_truth|no_outside_knowledge|no_assumptions')
-        sysLines.push('@verdicts:supported(claim_concept_or_meaning_confirmed_by_docs)|contradicted(claim_conflicts_with_docs)|partially_supported(docs_confirm_part_but_not_all)|unverifiable(concept_absent_from_docs_treat_as_hallucination)')
-        sysLines.push('@rules:one_verdict_per_claim|default_to_unverifiable_when_in_doubt|confidence_float_0_to_1|confidence_max_0.5_for_unverifiable|cite_chunk_ids|reasoning_1_to_2_sentences|index_matches_input_order|semantic_match_acceptable_exact_wording_not_required')
+        if (expectedAnswer?.trim()) {
+            sysLines.push('@ground_truth:ref_docs_and_expected_answer_are_sources_of_truth|expected_answer_takes_precedence_over_ref_docs_when_both_present|no_outside_knowledge|no_assumptions')
+        } else {
+            sysLines.push('@ground_truth:ref_docs_are_sole_source_of_truth|no_outside_knowledge|no_assumptions')
+        }
+        sysLines.push('@verdicts:supported(claim_concept_or_meaning_confirmed_by_docs_or_expected_answer)|contradicted(claim_conflicts_with_docs_or_expected_answer)|partially_supported(sources_confirm_part_but_not_all)|unverifiable(concept_absent_from_all_sources_treat_as_hallucination)')
+        sysLines.push('@rules:one_verdict_per_claim|default_to_unverifiable_when_in_doubt|confidence_float_0_to_1|confidence_max_0.5_for_unverifiable|cite_chunk_ids_when_applicable|reasoning_1_to_2_sentences|index_matches_input_order|semantic_match_acceptable_exact_wording_not_required')
         sysLines.push('@out_fmt:json_array[{claimIndex:number,verdict:string,confidence:number,sourceChunkIds:string[],reasoning:string}]')
 
         const userLines: string[] = []
+        if (expectedAnswer?.trim()) {
+            userLines.push('expected_answer{')
+            userLines.push(` text:${GeminiService.sanitizeDocContent(expectedAnswer, 3000)}`)
+            userLines.push('}')
+            userLines.push('---')
+        }
         userLines.push('ref_docs[')
         for (const chunk of refChunks) {
             userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeDocContent(chunk.content, 6000)}}`)
@@ -1137,8 +1156,10 @@ export class GeminiService {
         sysLines.push('@role:accuracy_scorer')
         sysLines.push('@task:multi_dimension_scoring_of_ai_response_against_reference_docs')
         sysLines.push('@ground_truth:ref_doc_excerpts_are_sole_source_of_truth|no_outside_knowledge|semantic_equivalence_is_sufficient_exact_wording_not_required')
-        sysLines.push('@dimensions:factualAccuracy(0-100,pct_claims_supported_or_partially_supported_by_docs)|completeness(0-100,how_much_key_info_from_docs_relevant_to_question_is_covered)|faithfulness(0-100,penalise_every_unverifiable_claim_heavily_100_minus_unverifiable_rate)|relevance(0-100,response_directly_addresses_the_question)')
-        sysLines.push('@rules:score_each_dimension_independently|score_int_0_to_100|unverifiable_claims_count_against_faithfulness_and_factualAccuracy|if_expected_answer_present_use_as_primary_ground_truth_above_ref_docs|confidence_float_0_to_1|reasoning_2_to_3_sentences_cite_specific_evidence|all_four_dimensions_required')
+        sysLines.push('@dimensions:factualAccuracy(score_is_precomputed_provide_reasoning_only_do_not_override_score)|completeness(0-100,how_much_key_info_from_docs_relevant_to_question_is_covered)|faithfulness(score_is_precomputed_provide_reasoning_only_do_not_override_score)|relevance(0-100,response_directly_addresses_the_question)')
+        sysLines.push('@calibration:score_90_to_100(nearly_all_claims_supported_no_hallucinations_response_is_comprehensive_and_directly_addresses_question)|score_70_to_89(most_claims_supported_minor_gaps_or_imprecisions_response_addresses_question)|score_50_to_69(some_claims_unsupported_or_unverifiable_notable_gaps_partially_addresses_question)|score_0_to_49(many_contradictions_or_unverifiable_claims_major_gaps_misses_or_ignores_question)')
+        sysLines.push('@consistency_rules:score_must_align_with_claim_verdict_distribution_not_general_impression')
+        sysLines.push('@rules:score_each_dimension_independently|score_int_0_to_100|factualAccuracy_and_faithfulness_scores_are_precomputed_your_score_fields_will_be_ignored|if_expected_answer_present_use_as_primary_ground_truth_above_ref_docs|confidence_float_0_to_1|reasoning_2_to_3_sentences_cite_specific_evidence|all_four_dimensions_required')
         sysLines.push('@out_fmt:json_object{factualAccuracy:{score:int,confidence:float,reasoning:string},completeness:{score:int,confidence:float,reasoning:string},faithfulness:{score:int,confidence:float,reasoning:string},relevance:{score:int,confidence:float,reasoning:string}}')
 
         const userLines: string[] = []
@@ -1179,5 +1200,55 @@ export class GeminiService {
             faithfulness: parsed.faithfulness ?? defaultDim,
             relevance: parsed.relevance ?? defaultDim,
         }
+    }
+
+    /**
+     * Re-ranks a candidate set of document chunks by semantic relevance to a question and response.
+     * Called after TF-IDF retrieval to promote chunks that keyword scoring may have missed.
+     * Returns an ordered array of chunk IDs (most relevant first), capped to topK.
+     */
+    async rerankChunks(
+        question: string,
+        agentResponse: string,
+        chunks: Array<{ id: string; content: string }>,
+        topK: number,
+        modelOverride?: string
+    ): Promise<string[]> {
+        const sysLines: string[] = []
+        sysLines.push('@role:relevance_ranker')
+        sysLines.push('@task:rank_document_chunks_by_semantic_relevance_to_question_and_response')
+        sysLines.push('@rules:rank_by_semantic_meaning_not_keyword_overlap|consider_paraphrases_synonyms_and_implied_concepts|return_only_chunk_ids_in_order_most_relevant_first|omit_chunks_with_zero_relevance|limit_to_top_' + topK)
+        sysLines.push('@out_fmt:json_array[string]  // ordered chunk IDs, most relevant first, max ' + topK + ' items')
+
+        const userLines: string[] = []
+        userLines.push('eval_query{')
+        userLines.push(` question:${GeminiService.sanitizeToonValue(question, 1000)}`)
+        userLines.push(` agent_response:${GeminiService.sanitizeDocContent(agentResponse, 3000)}`)
+        userLines.push('}')
+        userLines.push('---')
+        userLines.push('candidate_chunks[')
+        for (const chunk of chunks) {
+            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeDocContent(chunk.content, 2000)}}`)
+        }
+        userLines.push(']')
+
+        const raw = await this.executeWithFallback(
+            userLines.join('\n'),
+            modelOverride,
+            0,
+            512,
+            sysLines.join('\n'),
+            true
+        )
+        const parsed = GeminiService.parseJsonResponse(raw)
+        if (!Array.isArray(parsed)) return chunks.slice(0, topK).map(c => c.id)
+
+        // Validate returned IDs — filter out any hallucinated ones
+        const validIds = new Set(chunks.map(c => c.id))
+        const ranked = (parsed as any[]).filter((id): id is string => typeof id === 'string' && validIds.has(id))
+
+        // Append any unranked chunks at the end (fallback) up to topK
+        const unranked = chunks.map(c => c.id).filter(id => !ranked.includes(id))
+        return [...ranked, ...unranked].slice(0, topK)
     }
 }
