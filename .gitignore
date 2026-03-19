@@ -28,3 +28,6 @@ QAssistant_CS_Ref/
 .env
 .env.local
 .env.*.local
+
+# Claude Code local settings
+.claude/settings.local.json
