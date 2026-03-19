@@ -121,6 +121,19 @@ export default function DocsPage() {
   const contentRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
 
+  // Build a map from subsection id → parent section id so the scroll spy
+  // always highlights the parent section in the sidebar.
+  const subsectionToSection = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const section of DOC_SECTIONS) {
+      map.set(section.id, section.id)
+      for (const sub of section.subsections) {
+        map.set(sub.id, section.id)
+      }
+    }
+    return map
+  }, [])
+
   // Scroll spy via IntersectionObserver
   useEffect(() => {
     const container = contentRef.current
@@ -131,7 +144,7 @@ export default function DocsPage() {
         for (const entry of entries) {
           if (entry.isIntersecting) {
             const id = entry.target.getAttribute("data-section-id")
-            if (id) setActiveSection(id)
+            if (id) setActiveSection(subsectionToSection.get(id) ?? id)
           }
         }
       },
@@ -144,7 +157,7 @@ export default function DocsPage() {
     }
 
     return () => observer.disconnect()
-  }, [])
+  }, [subsectionToSection])
 
   const registerSection = useCallback((id: string, el: HTMLElement | null) => {
     if (el) sectionRefs.current.set(id, el)

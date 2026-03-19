@@ -109,7 +109,7 @@ export default function MainLayout() {
         await saveSettings({ alwaysOnTop: next })
     }
 
-    // Global keyboard shortcuts: Ctrl+1-5 for navigation, Ctrl+K for command palette
+    // Global keyboard shortcuts: Ctrl+K palette, Ctrl+N add task, Ctrl+, settings, F1 docs, Ctrl+1-5 nav
     useEffect(() => {
         const NAV_SHORTCUTS: Record<string, string> = {
             '1': '/',
@@ -126,6 +126,17 @@ export default function MainLayout() {
             if (isCtrl && e.key === 'k') {
                 e.preventDefault()
                 setPaletteOpen(prev => !prev)
+            } else if (isCtrl && e.key === 'n') {
+                e.preventDefault()
+                const { projects: ps, activeProjectId: aid } = useProjectStore.getState()
+                if (ps.length > 0 && !aid) setActiveProject(ps[0].id)
+                navigate('/tasks')
+            } else if (isCtrl && e.key === ',') {
+                e.preventDefault()
+                setSettingsOpen(true)
+            } else if (e.key === 'F1') {
+                e.preventDefault()
+                navigate('/docs')
             } else if (isCtrl && NAV_SHORTCUTS[e.key]) {
                 e.preventDefault()
                 navigate(NAV_SHORTCUTS[e.key])
