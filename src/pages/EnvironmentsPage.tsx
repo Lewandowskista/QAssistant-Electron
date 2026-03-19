@@ -39,7 +39,7 @@ const ENV_TYPES: { id: EnvironmentType; label: string }[] = [
 ]
 
 export default function EnvironmentsPage() {
-    const api = window.electronAPI as any
+    const api = window.electronAPI
     const { projects, activeProjectId, addEnvironment, updateEnvironment, deleteEnvironment, setEnvironmentDefault } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const environments = activeProject?.environments || []

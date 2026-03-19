@@ -36,7 +36,7 @@ export function DimensionRadarChart({ dimensionScores }: DimensionRadarChartProp
                         fontSize: 11,
                         color: '#E2E8F0'
                     }}
-                    formatter={(value: number) => [`${value}/100`, 'Score']}
+                    formatter={(value) => [`${value}/100`, 'Score']}
                 />
             </RadarChart>
         </ResponsiveContainer>

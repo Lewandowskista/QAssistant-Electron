@@ -14,12 +14,17 @@ import {
     Handshake,
     GitPullRequest,
     CircleHelp,
+    Sparkles,
+    Copy,
     type LucideIcon
 } from "lucide-react"
 import { cn, evaluateQualityGate } from "@/lib/utils"
 import FormattedText from "@/components/FormattedText"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { getApiKey } from "@/lib/credentials"
+import { toast } from "sonner"
 import {
     Select,
     SelectContent,
@@ -38,6 +43,7 @@ import {
 } from "@/components/DashboardCharts"
 import { Project, Task, TestPlan, Note, Checklist } from "@/types/project"
 import { getCollaborationMetrics, getReleaseQueue } from "@/lib/collaboration"
+import WelcomeScreen from "@/components/WelcomeScreen"
 
 type MetricCardProps = {
     icon: LucideIcon
@@ -120,6 +126,10 @@ export default function DashboardPage() {
     const { projects, activeProjectId, seedDemoProject } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId) as Project | undefined
     const [selectedSprint, setSelectedSprint] = useState<string>('all')
+    const [standupOpen, setStandupOpen] = useState(false)
+    const [standupSummary, setStandupSummary] = useState<string | null>(null)
+    const [standupLoading, setStandupLoading] = useState(false)
+    const api = window.electronAPI
 
     const tasks = useMemo(() => activeProject?.tasks || [], [activeProject])
 
@@ -328,34 +338,135 @@ export default function DashboardPage() {
         )
     }
 
+    const handleStandupSummary = async () => {
+        const apiKey = await getApiKey(api, 'gemini_api_key', activeProject?.id)
+        if (!apiKey) {
+            toast.error('Configure a Gemini API key in Settings to generate standup summaries.')
+            return
+        }
+        setStandupLoading(true)
+        setStandupOpen(true)
+        setStandupSummary(null)
+        try {
+            const recentRuns = (activeProject?.testRunSessions || [])
+                .slice(0, 5)
+                .map((s: any) => {
+                    const planName = activeProject?.testPlans?.find((p: TestPlan) => p.id === s.testPlanId)?.name || 'Test Run'
+                    const results = s.executions || []
+                    const passed = results.filter((e: any) => e.result === 'passed').length
+                    return { planName, passed, total: results.length }
+                })
+            const recentlyVerified = (activeProject?.collaborationEvents || [])
+                .filter((e: any) => e.eventType === 'verification_passed' && Date.now() - e.timestamp < 86400000)
+                .map((e: any) => e.title)
+                .slice(0, 5)
+            const highPriorityOpen = (activeProject?.tasks || [])
+                .filter((t: Task) => (t.priority === 'critical' || t.priority === 'high') && !['done', 'canceled'].includes(t.status))
+                .map((t: Task) => t.title)
+                .slice(0, 5)
+            const metrics = {
+                projectName: activeProject!.name,
+                date: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+                readyForQa: releaseQueue?.tasksReadyForQa?.length || 0,
+                blocked: openTasks.filter((t: Task) => t.status === 'blocked' || t.collabState === 'ready_for_dev').length,
+                failedTests,
+                overdueTasks: openTasks.filter((t: Task) => t.dueDate && t.dueDate < Date.now()).length,
+                recentRuns,
+                recentlyVerified,
+                highPriorityOpen,
+            }
+            const result = await api.aiStandupSummary({ apiKey, metrics, modelName: activeProject?.geminiModel })
+            if (result && typeof result === 'object' && '__isError' in result) {
+                toast.error(`AI error: ${(result as any).message}`)
+                setStandupOpen(false)
+                return
+            }
+            setStandupSummary(typeof result === 'string' ? result : null)
+        } catch (e: any) {
+            toast.error(`Failed to generate summary: ${e.message || e}`)
+            setStandupOpen(false)
+        } finally {
+            setStandupLoading(false)
+        }
+    }
+
+    if (projects.length === 0) {
+        return <WelcomeScreen onLoadDemo={seedDemoProject} />
+    }
+
     return (
         <div className="space-y-6 max-w-[1600px] animate-in fade-in duration-500 pb-10">
+            {/* Standup Summary Dialog */}
+            <Dialog open={standupOpen} onOpenChange={setStandupOpen}>
+                <DialogContent className="max-w-lg bg-[#13131A] border-[#2A2A3A] text-[#E2E8F0]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-widest">
+                            <Sparkles className="h-4 w-4 text-[#A78BFA]" /> AI Standup Summary
+                        </DialogTitle>
+                    </DialogHeader>
+                    {standupLoading ? (
+                        <div className="flex items-center gap-3 py-8 justify-center text-[#A78BFA]">
+                            <Sparkles className="h-4 w-4 animate-pulse" />
+                            <span className="text-xs font-bold uppercase tracking-widest animate-pulse">Generating summary...</span>
+                        </div>
+                    ) : standupSummary ? (
+                        <div className="space-y-4">
+                            <div className="bg-[#0F0F13] rounded-xl p-4 text-sm text-[#E2E8F0] leading-relaxed whitespace-pre-wrap font-mono border border-[#2A2A3A]">
+                                {standupSummary}
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2 text-[#6B7280] hover:text-[#E2E8F0]"
+                                onClick={() => { navigator.clipboard.writeText(standupSummary); toast.success('Copied to clipboard') }}
+                            >
+                                <Copy className="h-3.5 w-3.5" /> Copy
+                            </Button>
+                        </div>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
+
             {/* Header */}
             <PageHeader
                 eyebrow="Project Overview"
                 title={activeProject.name}
                 description="Project dashboard"
-                actions={availableSprints.length > 0 ? (
+                actions={(
                     <div className="flex items-center gap-3">
-                        <Label className="app-field-label mb-0">Sprint Context</Label>
-                        <Select value={selectedSprint} onValueChange={setSelectedSprint}>
-                            <SelectTrigger className="w-[220px]">
-                                <SelectValue placeholder="Select Sprint" />
-                            </SelectTrigger>
-                            <SelectContent className="z-50">
-                                <SelectItem value="all" className="text-xs">All Issues</SelectItem>
-                                {availableSprints.map((name: string) => {
-                                    const sprint = tasks.find((t: Task) => t.sprint?.name === name)?.sprint
-                                    return (
-                                        <SelectItem key={name} value={name} className="text-xs">
-                                            {name} {sprint?.isActive ? '(ACTIVE)' : ''}
-                                        </SelectItem>
-                                    )
-                                })}
-                            </SelectContent>
-                        </Select>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleStandupSummary}
+                            disabled={standupLoading}
+                            className="h-9 gap-2 border border-[#A78BFA]/20 text-[#A78BFA] hover:bg-[#A78BFA]/10 text-[10px] font-black uppercase tracking-widest"
+                        >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Standup Summary
+                        </Button>
+                        {availableSprints.length > 0 && (
+                            <>
+                                <Label className="app-field-label mb-0">Sprint Context</Label>
+                                <Select value={selectedSprint} onValueChange={setSelectedSprint}>
+                                    <SelectTrigger className="w-[220px]">
+                                        <SelectValue placeholder="Select Sprint" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50">
+                                        <SelectItem value="all" className="text-xs">All Issues</SelectItem>
+                                        {availableSprints.map((name: string) => {
+                                            const sprint = tasks.find((t: Task) => t.sprint?.name === name)?.sprint
+                                            return (
+                                                <SelectItem key={name} value={name} className="text-xs">
+                                                    {name} {sprint?.isActive ? '(ACTIVE)' : ''}
+                                                </SelectItem>
+                                            )
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                            </>
+                        )}
                     </div>
-                ) : undefined}
+                )}
             />
 
             <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_1fr] gap-4">

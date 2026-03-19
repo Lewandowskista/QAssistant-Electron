@@ -490,6 +490,69 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
+    // ── GET /api/projects/:id/quality-gate ── CI/CD quality gate evaluation ──
+    server.get('/api/projects/:id/quality-gate', async (req: any, res: any) => {
+        try {
+            const projects = await readProjects()
+            const project = projects.find((item: any) => item.id === req.params.id)
+            if (!project) return res.status(404).json({ error: 'Project not found.' })
+
+            const allTestCases: any[] = (project.testPlans || []).flatMap((tp: any) => tp.testCases || [])
+            const allTasks: any[] = project.tasks || []
+            const activeTasks = allTasks.filter((t: any) => !['done', 'canceled', 'duplicate'].includes(t.status))
+
+            const passedCases = allTestCases.filter((tc: any) => tc.status === 'passed').length
+            const passRate = allTestCases.length > 0 ? Math.round((passedCases / allTestCases.length) * 100) : 0
+            const criticalBlockers = activeTasks.filter((t: any) => t.priority === 'critical' || t.severity === 'blocker').length
+            const tasksWithLinkedTests = activeTasks.filter((t: any) =>
+                allTestCases.some((tc: any) => tc.sourceIssueId === t.sourceIssueId || tc.linkedDefectIds?.includes(t.id))
+            ).length
+            const coveragePercent = activeTasks.length > 0 ? Math.round((tasksWithLinkedTests / activeTasks.length) * 100) : 100
+
+            const enabledGates = (project.qualityGates || []).filter((g: any) => g.isEnabled)
+
+            const gateResults = enabledGates.map((gate: any) => {
+                const criteriaResults = (gate.criteria || []).map((criterion: any) => {
+                    let actualValue = 0
+                    switch (criterion.type) {
+                        case 'pass_rate': actualValue = passRate; break
+                        case 'critical_bugs': actualValue = criticalBlockers; break
+                        case 'smoke_tests': {
+                            const smokeCases = allTestCases.filter((tc: any) => tc.testType === 'smoke' || tc.tags?.includes('smoke'))
+                            const smokePassed = smokeCases.filter((tc: any) => tc.status === 'passed').length
+                            actualValue = smokeCases.length > 0 ? Math.round((smokePassed / smokeCases.length) * 100) : 0
+                            break
+                        }
+                        case 'coverage': actualValue = coveragePercent; break
+                        case 'blockers': actualValue = activeTasks.filter((t: any) => t.priority === 'critical').length; break
+                    }
+                    let passed = false
+                    switch (criterion.operator) {
+                        case 'gte': passed = actualValue >= criterion.value; break
+                        case 'lte': passed = actualValue <= criterion.value; break
+                        case 'eq': passed = actualValue === criterion.value; break
+                    }
+                    return { label: criterion.label, type: criterion.type, operator: criterion.operator, threshold: criterion.value, actualValue, passed }
+                })
+                return { gateId: gate.id, gateName: gate.name, passed: criteriaResults.every((r: any) => r.passed), criteria: criteriaResults }
+            })
+
+            const overallPassed = gateResults.length === 0 || gateResults.every((g: any) => g.passed)
+            const status = overallPassed ? 'go' : gateResults.some((g: any) => g.passed) ? 'caution' : 'no-go'
+
+            res.json({
+                projectId: project.id,
+                projectName: project.name,
+                status,
+                passed: overallPassed,
+                metrics: { passRate, criticalBlockers, coveragePercent, totalTestCases: allTestCases.length, passedTestCases: passedCases },
+                gates: gateResults,
+            })
+        } catch (e: any) {
+            res.status(500).json({ error: e.message })
+        }
+    })
+
     server.post('/api/handoffs/:id/verify', async (req: any, res: any) => {
         try {
             const passed = !!req.body?.passed

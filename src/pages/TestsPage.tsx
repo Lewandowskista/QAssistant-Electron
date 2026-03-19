@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import { TestPlan, TestCase, TestCaseStatus } from "@/types/project"
 import {
@@ -50,14 +50,17 @@ import { toast } from "sonner"
 import { SubtabBar } from "@/components/ui/subtab-bar"
 import { SegmentedControl } from "@/components/ui/segmented-control"
 import AIAccuracyPanel from "@/components/ai-accuracy/AIAccuracyPanel"
+import { TestResultImportDialog } from "@/components/TestResultImportDialog"
 
-type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder' | 'AIAccuracy'
+type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder' | 'RiskMatrix' | 'AIAccuracy'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTasksForQaAi, sanitizeTestCasesForAi, sanitizeTestPlansForAi } from '@/lib/aiUtils'
+import { computeRiskScores } from '@/lib/riskPrioritization'
+import { AiSetupPrompt } from '@/components/ui/AiSetupPrompt'
 
 export default function TestsPage() {
-    const api = window.electronAPI as any;
+    const api = window.electronAPI;
     const {
         projects,
         activeProjectId,
@@ -96,9 +99,22 @@ export default function TestsPage() {
     const [runDialogOpen, setRunDialogOpen] = useState(false)
     const [singleRunDialogOpen, setSingleRunDialogOpen] = useState(false)
     const [importDialogOpen, setImportDialogOpen] = useState(false)
+    const [importResultsDialogOpen, setImportResultsDialogOpen] = useState(false)
     const [editingCase, setEditingCase] = useState<TestCase | null>(null)
     const [activePlanForCase, setActivePlanForCase] = useState<TestPlan | null>(null)
     const [activeCaseForRun, setActiveCaseForRun] = useState<TestCase | null>(null)
+
+    const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null)
+
+    useEffect(() => {
+        if (!activeProjectId || !api) return
+        Promise.all([
+            api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`),
+            api.secureStoreGet('gemini_api_key'),
+        ]).then(([projectKey, globalKey]) => {
+            setGeminiConfigured(!!(projectKey || globalKey))
+        }).catch(() => setGeminiConfigured(false))
+    }, [activeProjectId])
 
     // Regression Builder States
     const [regressionFromDate, setRegressionFromDate] = useState<string>("")
@@ -298,7 +314,7 @@ export default function TestsPage() {
                 const timestamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 const planName = `Free Text · ${timestamp}`
                 const planId = await addTestPlan(activeProjectId, planName, `Generated from free-text description using Gemini.`)
-                for (const c of cases) {
+                for (const c of cases as any[]) {
                     await addTestCase(activeProjectId, planId, {
                         title: c.title,
                         displayId: c.testCaseId,
@@ -361,7 +377,7 @@ export default function TestsPage() {
             const newPlanName = `Regression: ${source} \u00B7 ${tasksToUse.length} Issues \u00B7 ${timestamp}`
             const newPlanId = await addTestPlan(activeProjectId, newPlanName, `Auto-generated from ${tasksToUse.length} ${source} issue(s) using Gemini.`)
 
-            for (const c of cases) {
+            for (const c of cases as any[]) {
                 await addTestCase(activeProjectId, newPlanId, {
                     title: c.title,
                     displayId: c.testCaseId, // Align with displayId from AI
@@ -475,13 +491,13 @@ export default function TestsPage() {
                     throw new Error(res.error)
                 }
             } else if (reportType === 'Summary') {
-                content = await api.generateTestSummaryMarkdown({ project: activeProject, filterPlanIds: undefined, aiResult: aiAnalysisResult || undefined })
+                content = await api.generateTestSummaryMarkdown(activeProject, undefined, aiAnalysisResult || undefined)
                 filename = `${activeProject.name.replace(/\s+/g, '-')}-test-summary.md`
             } else if (reportType === 'TestCasesCsv') {
-                content = await api.generateTestCasesCsv({ project: activeProject })
+                content = await api.generateTestCasesCsv(activeProject)
                 filename = `${activeProject.name.replace(/\s+/g, '-')}-test-cases.csv`
             } else if (reportType === 'ExecutionsCsv') {
-                content = await api.generateExecutionsCsv({ project: activeProject })
+                content = await api.generateExecutionsCsv(activeProject)
                 filename = `${activeProject.name.replace(/\s+/g, '-')}-executions.csv`
             }
             if (content && reportType !== 'SummaryPdf') await api.saveFileDialog({ defaultName: filename, content })
@@ -516,6 +532,7 @@ export default function TestsPage() {
                             { id: 'Reports', label: 'Exports', icon: BarChart3 },
                             { id: 'CoverageMatrix', label: 'Coverage Matrix', icon: Layers },
                             { id: 'RegressionBuilder', label: 'Regression Builder', icon: Zap },
+                            { id: 'RiskMatrix', label: 'Risk Matrix', icon: BarChart3 },
                             { id: 'AIAccuracy', label: 'AI Accuracy', icon: ShieldCheck }
                         ]}
                     />
@@ -587,6 +604,9 @@ export default function TestsPage() {
                                     <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
                                         <FileSpreadsheet className="h-3.5 w-3.5" /> IMPORT CSV
                                     </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => setImportResultsDialogOpen(true)} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
+                                        <ArrowRightCircle className="h-3.5 w-3.5" /> IMPORT RESULTS
+                                    </Button>
                                     <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
                                         <Plus className="h-3.5 w-3.5" /> NEW PLAN
                                     </Button>
@@ -634,6 +654,14 @@ export default function TestsPage() {
 
                             {/* Content Area */}
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                                {geminiConfigured === false && (
+                                    <div className="max-w-5xl mx-auto mb-6">
+                                        <AiSetupPrompt
+                                            featureName="AI Test Case Generation"
+                                            description="Connect a Gemini API key to generate structured test cases from your Linear or Jira issues — including preconditions, steps, test data, and expected results linked back to the originating task."
+                                        />
+                                    </div>
+                                )}
                                 {filteredPlans.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-full py-20 text-center opacity-30">
                                         <Layers className="h-16 w-16 mb-4" />
@@ -1008,6 +1036,65 @@ export default function TestsPage() {
                     }
 
                     {
+                        activeSubTab === 'RiskMatrix' && (() => {
+                            const riskScores = computeRiskScores(testPlans, projectRunSessions, activeProject?.tasks || [])
+                            const getRiskColor = (score: number) =>
+                                score >= 75 ? 'text-[#EF4444]' : score >= 50 ? 'text-[#F59E0B]' : score >= 25 ? 'text-[#3B82F6]' : 'text-[#10B981]'
+                            const getRiskBg = (score: number) =>
+                                score >= 75 ? 'bg-[#EF4444]/10 border-[#EF4444]/20' : score >= 50 ? 'bg-[#F59E0B]/10 border-[#F59E0B]/20' : score >= 25 ? 'bg-[#3B82F6]/10 border-[#3B82F6]/20' : 'bg-[#10B981]/10 border-[#10B981]/20'
+                            return (
+                                <div className="flex-1 flex flex-col min-h-0 bg-[#0F0F13]">
+                                    <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center gap-4">
+                                        <BarChart3 className="h-4 w-4 text-[#A78BFA]" />
+                                        <span className="text-[11px] font-extrabold text-[#6B7280] uppercase tracking-[0.25em]">RISK-BASED TEST PRIORITIZATION</span>
+                                        <div className="flex-1" />
+                                        <div className="flex items-center gap-3 text-[10px] font-bold">
+                                            <span className="text-[#EF4444]">● High Risk</span>
+                                            <span className="text-[#F59E0B]">● Medium</span>
+                                            <span className="text-[#3B82F6]">● Low</span>
+                                            <span className="text-[#10B981]">● Minimal</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                                        {riskScores.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-full opacity-30 gap-4">
+                                                <BarChart3 className="h-16 w-16 text-[#6B7280]" strokeWidth={1} />
+                                                <p className="text-xs font-black uppercase tracking-widest text-[#6B7280]">No test cases to prioritize</p>
+                                            </div>
+                                        ) : (
+                                            <div className="max-w-5xl mx-auto space-y-2">
+                                                <div className="text-[10px] text-[#6B7280] mb-4">
+                                                    Scoring: 30% SAP module criticality · 30% historical failure rate · 20% linked defects · 20% linked task priority
+                                                </div>
+                                                {riskScores.map(({ testCase: tc, planName, riskScore, factors }) => (
+                                                    <div key={tc.id} className={cn("rounded-xl border p-4 flex items-start gap-4", getRiskBg(riskScore))}>
+                                                        <div className={cn("text-2xl font-black w-12 text-center shrink-0 tabular-nums", getRiskColor(riskScore))}>
+                                                            {riskScore}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="text-xs font-bold text-[#E2E8F0] truncate">{tc.displayId} — {tc.title}</span>
+                                                            </div>
+                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#6B7280]">
+                                                                <span className="font-mono">{planName}</span>
+                                                                {tc.sapModule && <span className="text-[#A78BFA] font-bold">{tc.sapModule}</span>}
+                                                                <span>Module crit: <b>{factors.moduleCriticality}</b></span>
+                                                                <span>Fail rate: <b>{factors.historicalFailureRate}%</b></span>
+                                                                <span>Defects: <b>{factors.linkedDefects / 20}</b></span>
+                                                                <span>Task prio: <b>{factors.taskPriority}</b></span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        })()
+                    }
+
+                    {
                         activeSubTab === 'RegressionBuilder' && (
                             <div className="flex-1 flex flex-col min-h-0 bg-[#0F0F13]">
                                 {/* Toolbar */}
@@ -1064,6 +1151,12 @@ export default function TestsPage() {
                                 {/* Content */}
                                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                     <div className="max-w-5xl mx-auto space-y-8">
+                                        {geminiConfigured === false && (
+                                            <AiSetupPrompt
+                                                featureName="AI Smoke Subset Selection"
+                                                description="Connect a Gemini API key to let AI identify the highest-risk test cases for your smoke run — balancing coverage against execution time, weighted by priority and failure history."
+                                            />
+                                        )}
                                         {builderStatus && (
                                             <div className="bg-[#10B981]/10 border border-[#10B981]/20 rounded-xl p-4 flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
                                                 <div className="flex items-center gap-3">
@@ -1281,6 +1374,10 @@ export default function TestsPage() {
                     open={importDialogOpen}
                     onOpenChange={setImportDialogOpen}
                     onImport={handleImportedData}
+                />
+                <TestResultImportDialog
+                    open={importResultsDialogOpen}
+                    onOpenChange={setImportResultsDialogOpen}
                 />
             </div>
         </>

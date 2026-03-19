@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
-import { Plus, Search, Trash2, Loader2, Code2, Server, Key, Copy } from "lucide-react"
+import { Plus, Search, Trash2, Loader2, Code2, Server, Key, Copy, Braces, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,6 +24,7 @@ export default function ApiPage() {
     const { projects, activeProjectId, addApiRequest, updateApiRequest, deleteApiRequest } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
+    const api = window.electronAPI
 
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedReqId, setSelectedReqId] = useState<string | null>(null)
@@ -42,6 +43,8 @@ export default function ApiPage() {
     const [isExecuting, setIsExecuting] = useState(false)
     const [responseStatus, setResponseStatus] = useState<number | null>(null)
     const [responseTime, setResponseTime] = useState<number | null>(null)
+    const [selectedEnvId, setSelectedEnvId] = useState<string>("")
+    const [varsOpen, setVarsOpen] = useState(false)
 
     const requests = activeProject?.apiRequests || []
     const filtered = requests.filter(r =>
@@ -99,18 +102,51 @@ export default function ApiPage() {
         }
     }
 
+    const buildVarMap = async (): Promise<Record<string, string>> => {
+        const env = activeProject?.environments.find(e => e.id === selectedEnvId) || activeProject?.environments.find(e => e.isDefault)
+        if (!env) return {}
+        let token = ''
+        let username = ''
+        let password = ''
+        try {
+            token = await api.secureStoreGet(`Env_${env.id}_Token`) || ''
+            username = await api.secureStoreGet(`Env_${env.id}_Username`) || ''
+            password = await api.secureStoreGet(`Env_${env.id}_Password`) || ''
+        } catch { /* non-fatal */ }
+        return {
+            '{{baseUrl}}': env.baseUrl,
+            '{{hacUrl}}': env.hacUrl,
+            '{{backOfficeUrl}}': env.backOfficeUrl,
+            '{{storefrontUrl}}': env.storefrontUrl,
+            '{{occBasePath}}': env.occBasePath,
+            '{{solrAdminUrl}}': env.solrAdminUrl,
+            '{{token}}': token,
+            '{{username}}': username,
+            '{{password}}': password,
+            '{{envName}}': env.name,
+        }
+    }
+
+    const applyVars = (text: string, vars: Record<string, string>): string =>
+        text.replace(/\{\{[\w]+\}\}/g, match => vars[match] !== undefined ? vars[match] : match)
+
     const handleSend = async () => {
         if (!url) return
         setIsExecuting(true)
         const startTime = performance.now()
         try {
-            let parsedHeaders = {}
-            try { parsedHeaders = JSON.parse(headers) } catch { /* ignore invalid JSON */ }
+            const vars = await buildVarMap()
+            const resolvedUrl = applyVars(url, vars)
+            const resolvedHeaders = applyVars(headers, vars)
+            const resolvedBody = applyVars(body, vars)
 
-            const res = await fetch(url, {
+            let parsedHeaders = {}
+            try { parsedHeaders = JSON.parse(resolvedHeaders) } catch { /* ignore invalid JSON */ }
+
+            const res = await fetch(resolvedUrl, {
                 method,
                 headers: parsedHeaders,
-                body: ['GET', 'HEAD'].includes(method) ? undefined : body
+                body: ['GET', 'HEAD'].includes(method) ? undefined : resolvedBody
             })
             const endTime = performance.now()
             setResponseStatus(res.status)
@@ -322,6 +358,51 @@ export default function ApiPage() {
                     </div>
                 </div>
 
+                {/* Env + Variables bar */}
+                <div className="px-4 py-2 bg-[#0F0F13] border-b border-[#2A2A3A] flex items-center gap-3">
+                    <Braces className="h-3 w-3 text-[#A78BFA] shrink-0" />
+                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest shrink-0">Env</span>
+                    <select
+                        value={selectedEnvId}
+                        onChange={e => setSelectedEnvId(e.target.value)}
+                        className="h-7 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-xs text-[#E2E8F0] focus:outline-none"
+                    >
+                        <option value="">Auto (default)</option>
+                        {(activeProject?.environments || []).map(env => (
+                            <option key={env.id} value={env.id}>{env.name}</option>
+                        ))}
+                    </select>
+                    <button
+                        type="button"
+                        onClick={() => setVarsOpen(v => !v)}
+                        className="flex items-center gap-1 text-[10px] font-bold text-[#6B7280] hover:text-[#A78BFA] transition-colors ml-2"
+                    >
+                        <ChevronDown className={cn("h-3 w-3 transition-transform", varsOpen && "rotate-180")} />
+                        Variables
+                    </button>
+                    {varsOpen && (
+                        <div className="absolute top-[148px] left-[280px] z-50 bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-3 shadow-xl text-[10px] font-mono text-[#9CA3AF] grid grid-cols-2 gap-x-6 gap-y-1 min-w-[380px]">
+                            {[
+                                ['{{baseUrl}}', 'Environment base URL'],
+                                ['{{hacUrl}}', 'HAC URL'],
+                                ['{{backOfficeUrl}}', 'BackOffice URL'],
+                                ['{{storefrontUrl}}', 'Storefront URL'],
+                                ['{{occBasePath}}', 'OCC base path'],
+                                ['{{solrAdminUrl}}', 'Solr admin URL'],
+                                ['{{token}}', 'Stored auth token'],
+                                ['{{username}}', 'Stored username'],
+                                ['{{password}}', 'Stored password'],
+                                ['{{envName}}', 'Environment name'],
+                            ].map(([v, desc]) => (
+                                <div key={v} className="flex items-center gap-2">
+                                    <span className="text-[#A78BFA] font-bold">{v}</span>
+                                    <span className="text-[#6B7280]">{desc}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
                 {/* URL Bar */}
                 <div className="p-4 flex gap-2 border-b border-[#2A2A3A]">
                     <Select value={method} onValueChange={m => setMethod(m as HttpMethod)}>
@@ -339,7 +420,7 @@ export default function ApiPage() {
                     <Input
                         value={url}
                         onChange={e => setUrl(e.target.value)}
-                        placeholder="https://..."
+                        placeholder="https://... or {{baseUrl}}/api/..."
                         className="h-11 flex-1 bg-[#1A1A24] border-[#2A2A3A] border-x-0 rounded-none font-mono text-sm text-[#A78BFA]"
                     />
                     <Button onClick={handleSend} disabled={isExecuting} className="h-11 px-8 bg-[#A78BFA] text-[#0F0F13] font-black rounded-l-none">

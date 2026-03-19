@@ -118,7 +118,6 @@ function CodeReviewsContent() {
             top.map(async item => {
                 const [owner, repo] = item.repoFullName.split('/')
                 const detail = await api.githubGetPrDetail({ owner, repo, prNumber: item.number })
-                if ('__isError' in detail) return null
                 return { key: `${item.repoFullName}#${item.number}`, detail }
             })
         )
@@ -148,8 +147,6 @@ function CodeReviewsContent() {
                 api.githubGetReviewRequests({ forceRefresh: force }),
                 api.githubGetMyOpenPrs({ forceRefresh: force }),
             ])
-            if ('__isError' in reviewResult) throw new Error(reviewResult.message)
-            if ('__isError' in myPrResult) throw new Error(myPrResult.message)
             setReviewRequests(reviewResult)
             setMyPrs(myPrResult)
             setLastUpdated(new Date())

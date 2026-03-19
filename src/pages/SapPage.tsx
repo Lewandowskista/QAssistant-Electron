@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
-import { ServerCog, Play, RefreshCw, TerminalSquare, CheckCircle2, Zap, Activity, ShieldQuestion, Globe, Layers, AlertTriangle } from "lucide-react"
+import { getApiKey } from "@/lib/credentials"
+import { ServerCog, Play, RefreshCw, TerminalSquare, CheckCircle2, Zap, Activity, ShieldQuestion, Globe, Layers, AlertTriangle, Sparkles } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CronJobEntry, FlexibleSearchResult, ImpExResult } from "@/lib/sapHac"
@@ -83,6 +84,8 @@ export default function SapPage() {
     const [flexQuery, setFlexQuery] = useState("")
     const [flexResult, setFlexResult] = useState<FlexibleSearchResult | null>(null)
     const [flexLoading, setFlexLoading] = useState(false)
+    const [nlQuery, setNlQuery] = useState("")
+    const [nlLoading, setNlLoading] = useState(false)
 
     const [impExScript, setImpExScript] = useState("")
     const [impExResult, setImpExResult] = useState("")
@@ -255,6 +258,35 @@ export default function SapPage() {
         }
 
         setCronJobs(res.data || [])
+    }
+
+    const generateFlexFromNl = async () => {
+        if (!nlQuery.trim()) return
+        const apiKey = await getApiKey(api, "gemini_api_key", activeProject?.id)
+        if (!apiKey) {
+            toast.error("Configure a Gemini API key in Settings to use AI-assisted query generation.")
+            return
+        }
+        setNlLoading(true)
+        try {
+            const result = await api.aiGenerateFlexSearch({ apiKey, naturalLanguageQuery: nlQuery.trim(), modelName: activeProject?.geminiModel })
+            if (result && typeof result === "object" && "__isError" in result) {
+                toast.error(`AI error: ${(result as any).message}`)
+                return
+            }
+            const query = typeof result === "string" ? result.trim() : ""
+            if (query) {
+                setFlexQuery(query)
+                setNlQuery("")
+                toast.success("FlexSearch query generated — review and execute.")
+            } else {
+                toast.error("AI returned an empty query. Try rephrasing your request.")
+            }
+        } catch (e: unknown) {
+            toast.error(`Failed to generate query: ${getErrorMessage(e)}`)
+        } finally {
+            setNlLoading(false)
+        }
     }
 
     const runFlexSearch = async () => {
@@ -606,6 +638,25 @@ export default function SapPage() {
                                             <SelectItem value="promotions">Enabled Promotions</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                </div>
+                                <div className="px-4 py-3 bg-[#0F0F13] border-b border-[#2A2A3A] flex items-center gap-3">
+                                    <Sparkles className="h-3.5 w-3.5 text-[#A78BFA] shrink-0" />
+                                    <Input
+                                        value={nlQuery}
+                                        onChange={e => setNlQuery(e.target.value)}
+                                        onKeyDown={e => { if (e.key === "Enter" && !nlLoading) void generateFlexFromNl() }}
+                                        placeholder='Ask AI: "find all products in staged catalog with no price"'
+                                        className="flex-1 h-8 bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0] placeholder:text-[#6B7280]/60"
+                                    />
+                                    <Button
+                                        onClick={generateFlexFromNl}
+                                        disabled={!nlQuery.trim() || nlLoading}
+                                        className="h-8 px-4 bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA] font-black text-[10px] uppercase gap-2 hover:bg-[#A78BFA]/20"
+                                        variant="ghost"
+                                    >
+                                        {nlLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                                        {nlLoading ? "Generating..." : "Generate"}
+                                    </Button>
                                 </div>
                                 <div className="h-48 bg-[#0F0F13] border-b border-[#2A2A3A] p-4 relative">
                                     <textarea

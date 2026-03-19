@@ -1251,4 +1251,152 @@ export class GeminiService {
         const unranked = chunks.map(c => c.id).filter(id => !ranked.includes(id))
         return [...ranked, ...unranked].slice(0, topK)
     }
+
+    /** Generate a concise daily QA standup summary from project metrics */
+    async generateStandupSummary(metrics: {
+        projectName: string
+        date: string
+        readyForQa: number
+        blocked: number
+        failedTests: number
+        overdueTasks: number
+        recentRuns: Array<{ planName: string; passed: number; total: number }>
+        recentlyVerified: string[]
+        highPriorityOpen: string[]
+    }, modelName?: string): Promise<string> {
+        const sysLines: string[] = [
+            '@role:sr_qa_engineer',
+            '@task:daily_standup_summary',
+            '@output_format:plain_text_markdown—concise—structured—no_filler',
+            '@rules:3_sections_only:Yesterday_Today_Blockers|bullet_points|max_150_words_total|be_specific_not_generic|omit_sections_with_no_items',
+        ]
+
+        const userLines: string[] = [
+            'standup_data{',
+            ` project:${GeminiService.sanitizeToonValue(metrics.projectName, 100)}`,
+            ` date:${metrics.date}`,
+            ` ready_for_qa_count:${metrics.readyForQa}`,
+            ` blocked_tasks:${metrics.blocked}`,
+            ` failed_test_cases:${metrics.failedTests}`,
+            ` overdue_tasks:${metrics.overdueTasks}`,
+            ` recent_test_runs:${JSON.stringify(metrics.recentRuns).substring(0, 500)}`,
+            ` recently_verified:${JSON.stringify(metrics.recentlyVerified).substring(0, 300)}`,
+            ` high_priority_open:${JSON.stringify(metrics.highPriorityOpen).substring(0, 300)}`,
+            '}',
+            'produce_standup_summary_for_a_qa_engineer_sharing_status_with_their_team',
+        ]
+
+        return await this.executeWithFallback(userLines.join('\n'), modelName, 0.6, 1024, sysLines.join('\n'))
+    }
+
+    /** Convert a plain-English question into a SAP Commerce FlexSearch (FlexibleSearch) SQL query */
+    async generateFlexSearch(naturalLanguageQuery: string, modelName?: string): Promise<string> {
+        const sysLines: string[] = [
+            '@role:sap_commerce_flexsearch_expert',
+            '@task:natural_language_to_flexsearch',
+            '@output_format:raw_flexsearch_sql_only—no_markdown—no_explanation—no_code_block_fences',
+            '@rules:output_only_the_select_statement|use_SAP_FlexibleSearch_syntax_with_curly_braces_for_types_and_attributes|qualify_attributes_as_{TypeAlias:attribute}|use_AS_aliases|be_concise|if_unsure_produce_best_effort_query',
+        ]
+        sysLines.push(SAP_COMMERCE_CONTEXT_BLOCK.substring(0, 3000))
+
+        const userLines: string[] = [
+            'natural_language_request{',
+            ` query:${GeminiService.sanitizeToonValue(naturalLanguageQuery, 500)}`,
+            '}',
+            'instructions{',
+            ' produce:single_FlexibleSearch_SELECT_statement',
+            ' syntax:use_curly_braces_for_type_and_attribute_references_e.g._{Product_AS_p}_{p:code}',
+            ' output:raw_SQL_only—no_preamble—no_explanation—no_markdown',
+            '}',
+        ]
+
+        return await this.executeWithFallback(userLines.join('\n'), modelName, 0.2, 1024, sysLines.join('\n'))
+    }
+
+    /** Detect potential duplicate bugs by comparing new bug data against existing open bugs */
+    async findDuplicateBugs(
+        newBugTitle: string,
+        newBugDescription: string,
+        newBugReproSteps: string,
+        affectedComponents: string[],
+        existingBugs: Array<{ id: string; title: string; description: string; components?: string[] }>,
+        modelName?: string
+    ): Promise<Array<{ bugId: string; title: string; similarityScore: number; reasoning: string }>> {
+        if (existingBugs.length === 0) return []
+
+        const sysLines: string[] = [
+            '@role:qa_duplicate_detector',
+            '@task:find_duplicate_bugs',
+            '@out_fmt:json_array[{bugId,title,similarityScore,reasoning}]',
+            '@rules:compare_semantically_not_just_keywords|consider_repro_steps_and_components|similarityScore_0_to_100|only_return_bugs_with_score_above_40|max_5_results|order_by_score_desc|reasoning_max_80_chars|return_empty_array_if_no_duplicates',
+        ]
+
+        const userLines: string[] = [
+            'new_bug{',
+            ` title:${GeminiService.sanitizeToonValue(newBugTitle, 200)}`,
+            ` description:${GeminiService.sanitizeToonValue(newBugDescription, 400)}`,
+            ` repro_steps:${GeminiService.sanitizeToonValue(newBugReproSteps, 400)}`,
+            ` components:${affectedComponents.join(',')}`,
+            '}',
+            'existing_open_bugs[',
+        ]
+        for (const bug of existingBugs.slice(0, 40)) {
+            userLines.push(` {bugId:${GeminiService.sanitizeToonValue(bug.id, 50)},title:${GeminiService.sanitizeToonValue(bug.title, 200)},description:${GeminiService.sanitizeToonValue(bug.description, 200)},components:${(bug.components || []).join(',')}}`)
+        }
+        userLines.push(']')
+
+        const raw = await this.executeWithFallback(userLines.join('\n'), modelName, 0.2, 1024, sysLines.join('\n'), true)
+        const parsed = GeminiService.parseJsonResponse(raw)
+        if (!Array.isArray(parsed)) return []
+        return (parsed as any[]).filter(d => d && typeof d.bugId === 'string').map(d => ({
+            bugId: String(d.bugId),
+            title: String(d.title || ''),
+            similarityScore: Number(d.similarityScore) || 0,
+            reasoning: String(d.reasoning || ''),
+        })).slice(0, 5)
+    }
+
+    /** Analyze a PR diff and identify which test cases are most likely impacted */
+    async analyzeTestImpact(
+        changedFiles: string[],
+        prTitle: string,
+        prDescription: string,
+        testCases: Array<{ id: string; title: string; sapModule?: string; components?: string[]; tags?: string[] }>,
+        modelName?: string
+    ): Promise<{ impactedCaseIds: string[]; affectedModules: string[]; rationale: string }> {
+        if (testCases.length === 0) return { impactedCaseIds: [], affectedModules: [], rationale: 'No test cases in project.' }
+
+        const sysLines: string[] = [
+            '@role:sr_qa_engineer',
+            '@task:test_impact_analysis',
+            '@out_fmt:json{impactedCaseIds:string[],affectedModules:string[],rationale:string}',
+            '@rules:analyze_changed_files_for_sap_module_and_component_mapping|match_test_cases_by_sapModule_and_components_and_semantic_title_relevance|include_cases_that_test_the_changed_area|impactedCaseIds_are_test_case_ids_from_the_list|affectedModules_use_exact_sap_module_names|rationale_max_200_chars|be_precise_avoid_over_selecting',
+        ]
+
+        const userLines: string[] = [
+            'pr_context{',
+            ` title:${GeminiService.sanitizeToonValue(prTitle, 200)}`,
+            ` description:${GeminiService.sanitizeToonValue(prDescription, 500)}`,
+            '}',
+            'changed_files[',
+        ]
+        for (const f of changedFiles.slice(0, 60)) {
+            userLines.push(` ${GeminiService.sanitizeToonValue(f, 200)}`)
+        }
+        userLines.push(']')
+        userLines.push('test_cases[')
+        for (const tc of testCases.slice(0, 100)) {
+            userLines.push(` {id:${GeminiService.sanitizeToonValue(tc.id, 50)},title:${GeminiService.sanitizeToonValue(tc.title, 200)},sapModule:${tc.sapModule || ''},components:${(tc.components || []).join(',')},tags:${(tc.tags || []).join(',')}}`)
+        }
+        userLines.push(']')
+
+        const raw = await this.executeWithFallback(userLines.join('\n'), modelName, 0.2, 1536, sysLines.join('\n'), true)
+        const parsed = GeminiService.parseJsonResponse(raw)
+        if (!parsed || typeof parsed !== 'object') return { impactedCaseIds: [], affectedModules: [], rationale: 'Analysis failed.' }
+        return {
+            impactedCaseIds: Array.isArray(parsed.impactedCaseIds) ? parsed.impactedCaseIds.filter((id: any) => typeof id === 'string') : [],
+            affectedModules: Array.isArray(parsed.affectedModules) ? parsed.affectedModules.filter((m: any) => typeof m === 'string') : [],
+            rationale: typeof parsed.rationale === 'string' ? parsed.rationale : '',
+        }
+    }
 }

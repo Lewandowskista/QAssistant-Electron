@@ -104,6 +104,22 @@ if (app) {
     let USER_PROFILE_FILE = '';
 
     const isMac = process.platform === 'darwin';
+    const appUserModelId = 'com.lewandowskista.qassistant';
+
+    function resolveWindowIconPath(): string | undefined {
+        const candidates = [
+            path.join(__dirname, '../../build/icon.png'),
+            path.join(process.resourcesPath, 'icon.png')
+        ];
+
+        for (const candidate of candidates) {
+            if (fs.existsSync(candidate)) {
+                return candidate;
+            }
+        }
+
+        return undefined;
+    }
 
     // SECURITY: Helper to validate paths are within allowed directories
     function isPathWithin(targetPath: string, baseDir: string): boolean {
@@ -124,6 +140,8 @@ if (app) {
     }
 
     function createWindow() {
+        const windowIcon = !isMac ? resolveWindowIconPath() : undefined;
+
         mainWindow = new BrowserWindow({
             width: 1400,
             height: 900,
@@ -140,7 +158,8 @@ if (app) {
                 sandbox: true
             },
             backgroundColor: '#0f0f13',
-            show: false
+            show: false,
+            icon: windowIcon
         });
 
         mainWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
@@ -615,6 +634,47 @@ if (app) {
             catch (err: any) { return { __isError: true, message: errMsg(err) }; }
         });
 
+        ipcMain.handle('ai-standup-summary', async (_e: any, { apiKey, metrics, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-standup-summary'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertObject(metrics, 'metrics');
+                return await getGeminiService(apiKey).generateStandupSummary(metrics, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
+        });
+
+        ipcMain.handle('ai-generate-flexsearch', async (_e: any, { apiKey, naturalLanguageQuery, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-generate-flexsearch'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertString(naturalLanguageQuery, 'naturalLanguageQuery', 1000);
+                return await getGeminiService(apiKey).generateFlexSearch(naturalLanguageQuery, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
+        });
+
+        ipcMain.handle('ai-find-duplicate-bugs', async (_e: any, { apiKey, newBugTitle, newBugDescription, newBugReproSteps, affectedComponents, existingBugs, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-find-duplicate-bugs'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertString(newBugTitle, 'newBugTitle', 500);
+                return await getGeminiService(apiKey).findDuplicateBugs(newBugTitle, newBugDescription || '', newBugReproSteps || '', affectedComponents || [], existingBugs || [], modelName);
+            }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
+        });
+
+        ipcMain.handle('ai-test-impact-analysis', async (_e: any, { apiKey, changedFiles, prTitle, prDescription, testCases, modelName }: any) => {
+            const rateErr = checkAiRateLimit('ai-test-impact-analysis'); if (rateErr) return rateErr;
+            try {
+                assertString(apiKey, 'apiKey');
+                assertArray(changedFiles, 'changedFiles', 200);
+                assertArray(testCases, 'testCases', 500);
+                return await getGeminiService(apiKey).analyzeTestImpact(changedFiles, prTitle || '', prDescription || '', testCases, modelName);
+            }
+            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
+        });
+
         // Report Handlers
         ipcMain.handle('generate-test-cases-csv', (_e: any, { project: p }: any) => report.generateTestCasesCsv(p));
         ipcMain.handle('generate-executions-csv', (_e: any, { project: p }: any) => report.generateExecutionsCsv(p));
@@ -695,6 +755,94 @@ if (app) {
             if (!res.filePath) return { success: false, error: 'No file path selected.' };
             await fsp.writeFile(res.filePath, content);
             return { success: true, path: res.filePath };
+        });
+
+        ipcMain.handle('import-test-results', async (_e: any, { filePath }: any) => {
+            try {
+                assertString(filePath, 'filePath', 2000);
+                const resolvedPath = path.resolve(filePath);
+                const ext = path.extname(resolvedPath).toLowerCase();
+                if (!['.xml', '.json'].includes(ext)) {
+                    return { success: false, error: `Unsupported file type '${ext}'. Use JUnit XML (.xml) or Playwright JSON (.json).` };
+                }
+                const content = await fsp.readFile(resolvedPath, 'utf8');
+
+                if (ext === '.xml') {
+                    // Parse JUnit XML — minimal regex-based parser (no dependencies)
+                    const suites: any[] = [];
+                    const suiteRe = /<testsuite([^>]*)>([\s\S]*?)<\/testsuite>/g;
+                    const caseRe = /<testcase([^>]*)>([\s\S]*?)<\/testcase>|<testcase([^>]*)\/>/g;
+                    const attrRe = /(\w+)="([^"]*)"/g;
+
+                    const parseAttrs = (str: string) => {
+                        const attrs: Record<string, string> = {};
+                        let m;
+                        while ((m = attrRe.exec(str)) !== null) attrs[m[1]] = m[2];
+                        attrRe.lastIndex = 0;
+                        return attrs;
+                    };
+
+                    let sm;
+                    while ((sm = suiteRe.exec(content)) !== null) {
+                        const suiteAttrs = parseAttrs(sm[1]);
+                        const body = sm[2];
+                        const cases: any[] = [];
+                        let cm;
+                        while ((cm = caseRe.exec(body)) !== null) {
+                            const cAttrs = parseAttrs(cm[1] || cm[3] || '');
+                            const cBody = cm[2] || '';
+                            let result: string = 'passed';
+                            let failureMsg = '';
+                            if (/<failure/i.test(cBody)) { result = 'failed'; const fm = cBody.match(/<failure[^>]*>([\s\S]*?)<\/failure>/i); failureMsg = fm ? fm[1].trim().substring(0, 500) : ''; }
+                            else if (/<error/i.test(cBody)) { result = 'failed'; const em = cBody.match(/<error[^>]*>([\s\S]*?)<\/error>/i); failureMsg = em ? em[1].trim().substring(0, 500) : ''; }
+                            else if (/<skipped/i.test(cBody)) result = 'skipped';
+                            const durationSeconds = cAttrs.time ? parseFloat(cAttrs.time) : undefined;
+                            cases.push({ externalId: cAttrs.classname ? `${cAttrs.classname}.${cAttrs.name}` : cAttrs.name, title: cAttrs.name || 'Unnamed', result, actualResult: failureMsg, durationSeconds });
+                        }
+                        suites.push({ name: suiteAttrs.name || 'Imported Suite', cases });
+                    }
+                    return { success: true, format: 'junit', suites };
+                } else {
+                    // Parse Playwright JSON report
+                    let pw: any;
+                    try { pw = JSON.parse(content); } catch { return { success: false, error: 'Invalid JSON file.' }; }
+                    // Playwright report has: { suites: [{ title, specs: [{ title, tests: [{ results: [{ status, duration, error }] }] }] }] }
+                    const suites: any[] = [];
+                    const flattenSuites = (node: any, parentTitle = '') => {
+                        if (!node) return;
+                        const title = parentTitle ? `${parentTitle} > ${node.title}` : (node.title || '');
+                        if (node.specs && Array.isArray(node.specs)) {
+                            const cases: any[] = [];
+                            for (const spec of node.specs) {
+                                const specTitle = spec.title || 'Unnamed';
+                                let result: string = 'passed';
+                                let actualResult = '';
+                                let durationSeconds: number | undefined;
+                                if (spec.tests && spec.tests.length > 0) {
+                                    const test = spec.tests[0];
+                                    if (test.results && test.results.length > 0) {
+                                        const res = test.results[0];
+                                        const st = (res.status || '').toLowerCase();
+                                        result = st === 'passed' ? 'passed' : st === 'skipped' ? 'skipped' : 'failed';
+                                        if (res.error?.message) actualResult = res.error.message.substring(0, 500);
+                                        if (res.duration) durationSeconds = res.duration / 1000;
+                                    }
+                                }
+                                cases.push({ externalId: `${title}.${specTitle}`, title: specTitle, result, actualResult, durationSeconds });
+                            }
+                            if (cases.length > 0) suites.push({ name: title || 'Imported Suite', cases });
+                        }
+                        if (node.suites && Array.isArray(node.suites)) {
+                            for (const s of node.suites) flattenSuites(s, title);
+                        }
+                    };
+                    const rootSuites = pw.suites || (Array.isArray(pw) ? pw : [pw]);
+                    for (const s of rootSuites) flattenSuites(s);
+                    return { success: true, format: 'playwright', suites };
+                }
+            } catch (e: any) {
+                return { success: false, error: e.message };
+            }
         });
 
         // Integration Handlers
@@ -1039,6 +1187,10 @@ if (app) {
     }
 
     app.whenReady().then(async () => {
+        if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
+            app.setAppUserModelId(appUserModelId);
+        }
+
         // Register q-media protocol
         if (protocol) {
             protocol.handle('q-media', async (request: Request) => {

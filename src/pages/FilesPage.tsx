@@ -15,7 +15,7 @@ function isImageAttachment(file: Attachment) {
 export default function FilesPage() {
     const { projects, activeProjectId, addProjectFile, deleteProjectFile, linkArtifact } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     const [searchQuery, setSearchQuery] = useState("")
     const [linkedTaskFilter, setLinkedTaskFilter] = useState("all")
     const [isDragging, setIsDragging] = useState(false)

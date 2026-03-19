@@ -1,10 +1,11 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3, ClipboardCheck } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3, ClipboardCheck, Activity, Compass } from "lucide-react"
 import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
+import { useSettingsStore } from "@/store/useSettingsStore"
 import { ProjectDialog } from "@/components/ProjectDialog"
 import CommandPalette from "@/components/CommandPalette"
 import { lazy, Suspense } from "react"
@@ -42,32 +43,37 @@ export default function MainLayout() {
     const activeRole = userProfile?.activeRole ?? 'qa'
     const connectedIdentity = userProfile?.identities?.[0] ?? null
 
+    const loadSettings = useSettingsStore(s => s.load)
+    const saveSettings = useSettingsStore(s => s.save)
+    const currentTheme = useSettingsStore(s => s.settings.theme)
+    const isPinnedStore = useSettingsStore(s => s.settings.alwaysOnTop)
+    const isSapActive = useSettingsStore(s => s.settings.sapCommerceContext)
+
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editingProject, setEditingProject] = useState<Project | undefined>(undefined)
     const [paletteOpen, setPaletteOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
-    const [isPinned, setIsPinned] = useState(false)
+    const [isPinned, setIsPinned] = useState(isPinnedStore)
     const [copilotOpen, setCopilotOpen] = useState(false)
     const [isMaximized, setIsMaximized] = useState(false)
     const [toolsCollapsed, setToolsCollapsed] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
-    const [isSapActive, setIsSapActive] = useState(false)
     const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().indexOf('MAC') >= 0)
-    const [currentTheme, setCurrentTheme] = useState<'dark' | 'light'>('dark')
 
     // Routes that use h-full flex layouts and need the full content area (no padding/max-width)
-    const FULL_BLEED_ROUTES = ['/notes', '/files', '/tasks', '/tests', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks', '/github', '/code-reviews', '/deployments']
+    const FULL_BLEED_ROUTES = ['/notes', '/files', '/tasks', '/tests', '/exploratory', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks', '/github', '/code-reviews', '/deployments', '/activity', '/reports', '/docs']
     const isFullBleedRoute = FULL_BLEED_ROUTES.some(r => location.pathname.startsWith(r))
 
     useEffect(() => {
         loadProjects()
         if (!userLoaded) loadProfile()
-        const api = window.electronAPI as any;
+        loadSettings()
+        const api = window.electronAPI
         if (api) {
-
             const removePaletteListener = api.onCommandPalette?.(() => setPaletteOpen(prev => !prev))
             const removeTaskListener = api.onAddTask?.(() => {
-                if (projects.length > 0 && !activeProjectId) setActiveProject(projects[0].id)
+                const { projects: ps, activeProjectId: aid } = useProjectStore.getState()
+                if (ps.length > 0 && !aid) setActiveProject(ps[0].id)
                 navigate('/tasks')
             })
             const removeMaxListener = api.onMaximizedStatus?.((status: boolean) => setIsMaximized(status))
@@ -79,22 +85,9 @@ export default function MainLayout() {
             }
             window.addEventListener('open-project-dialog', handleOpenDialog)
 
-            api.getSystemInfo().then((info: { platform: string }) => {
+            api.getSystemInfo().then((info) => {
                 setIsMac(info.platform === 'darwin')
             })
-
-            const refreshSettings = async () => {
-                const settings = await api.readSettingsFile()
-                if (settings?.alwaysOnTop !== undefined) setIsPinned(settings.alwaysOnTop)
-                setIsSapActive(!!settings?.sapCommerceContext)
-                const t: 'dark' | 'light' = settings?.theme === 'light' ? 'light' : 'dark'
-                document.documentElement.classList.toggle('light', t === 'light')
-                document.documentElement.classList.toggle('dark', t === 'dark')
-                setCurrentTheme(t)
-            }
-
-            window.addEventListener('settings-updated', refreshSettings)
-            refreshSettings()
 
             return () => {
                 removePaletteListener?.()
@@ -102,23 +95,18 @@ export default function MainLayout() {
                 removeMaxListener?.()
                 removeSettingsListener?.()
                 window.removeEventListener('open-project-dialog', handleOpenDialog)
-                window.removeEventListener('settings-updated', refreshSettings)
             }
         }
-    }, [loadProjects, projects.length, activeProjectId, setActiveProject, navigate])
+    }, [loadProjects, setActiveProject, navigate])
+
+    // Close settings drawer when navigating away
+    useEffect(() => { setSettingsOpen(false) }, [location.pathname])
 
     const handlePinToggle = async () => {
         const next = !isPinned
         setIsPinned(next)
         window.electronAPI?.setAlwaysOnTop(next)
-
-        // Persist to settings
-        const api = window.electronAPI as any
-        if (api) {
-            const settings = await api.readSettingsFile()
-            await api.writeSettingsFile({ ...settings, alwaysOnTop: next })
-            window.dispatchEvent(new Event('settings-updated'))
-        }
+        await saveSettings({ alwaysOnTop: next })
     }
 
     // Global keyboard shortcuts: Ctrl+1-5 for navigation, Ctrl+K for command palette
@@ -161,10 +149,10 @@ export default function MainLayout() {
             items: [
                 { name: "Tasks", href: "/tasks", icon: CheckSquare },
                 ...(activeRole === 'dev' ? [
-                    { name: "GitHub", href: "/github", icon: GitBranch },
                     { name: "Code Reviews", href: "/code-reviews", icon: MessageSquare },
                 ] : [
                     { name: "Tests", href: "/tests", icon: FlaskConical },
+                    { name: "Exploratory", href: "/exploratory", icon: Compass },
                     { name: "Test Data", href: "/test-data", icon: Database },
                     { name: "Checklists", href: "/checklists", icon: ListChecks },
                 ]),
@@ -173,8 +161,10 @@ export default function MainLayout() {
         {
             title: activeRole === 'dev' ? "DEV TOOLS" : "QA ADVANCED",
             items: [
+                { name: "GitHub", href: "/github", icon: GitBranch },
                 { name: "Environments", href: "/environments", icon: Globe },
                 { name: "Release Queue", href: "/release-queue", icon: ClipboardCheck },
+                { name: "Activity Feed", href: "/activity", icon: Activity },
                 { name: "API", href: "/api", icon: Code },
                 { name: "Runbooks", href: "/runbooks", icon: BookOpen },
                 ...(activeRole === 'qa' ? [

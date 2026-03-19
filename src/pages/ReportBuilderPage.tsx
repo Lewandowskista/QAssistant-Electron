@@ -216,202 +216,238 @@ export default function ReportBuilderPage() {
   }
 
   return (
-    <div className="flex h-full gap-4 bg-[hsl(var(--surface-overlay))] p-6 text-[hsl(var(--text-primary))]">
+    <div className="flex h-full bg-[hsl(var(--surface-overlay))] text-[hsl(var(--text-primary))]">
       {/* Left: Template List */}
-      <div className="w-72 flex flex-col gap-4 border-r border-[hsl(var(--border-default))] pr-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Templates</h2>
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant={showDefaults ? 'default' : 'outline'}
+      <div className="w-80 flex flex-col flex-none border-r border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[hsl(var(--border-default))]">
+          <h2 className="text-base font-semibold tracking-tight">Templates</h2>
+          <div className="flex items-center gap-1.5">
+            <button
               onClick={() => setShowDefaults(!showDefaults)}
-              title="Toggle default templates"
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                showDefaults
+                  ? 'bg-[hsl(var(--border-default))] text-[hsl(var(--text-secondary))]'
+                  : 'bg-transparent text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--border-default))]'
+              )}
             >
-              {showDefaults ? 'Hide' : 'Show'} Defaults
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
+              {showDefaults ? 'Hide Defaults' : 'Show Defaults'}
+            </button>
+            <button
               onClick={() => setIsCreating(!isCreating)}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--border-default))] text-[hsl(var(--text-primary))] transition-colors hover:bg-[hsl(var(--border-strong))]"
+              title="New template"
             >
-              <Plus className="h-4 w-4" />
-            </Button>
+              <Plus className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
-        {isCreating && (
-          <div className="space-y-2 rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-3">
-            <input
-              type="text"
-              placeholder="Template name..."
-              value={newTemplateName}
-              onChange={(e) => setNewTemplateName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateTemplate()}
-              className="w-full rounded border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] px-3 py-2 text-sm text-[hsl(var(--text-primary))]"
-              autoFocus
-            />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleCreateTemplate}>Create</Button>
-              <Button size="sm" variant="outline" onClick={() => setIsCreating(false)}>Cancel</Button>
+        <div className="flex-1 overflow-y-auto">
+          {isCreating && (
+            <div className="mx-4 mt-4 space-y-2 rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] p-3">
+              <input
+                type="text"
+                placeholder="Template name..."
+                value={newTemplateName}
+                onChange={(e) => setNewTemplateName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateTemplate()}
+                className="w-full rounded border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] px-3 py-2 text-sm text-[hsl(var(--text-primary))] outline-none focus:border-[hsl(var(--border-strong))]"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleCreateTemplate} className="flex-1">Create</Button>
+                <Button size="sm" variant="outline" onClick={() => setIsCreating(false)} className="flex-1">Cancel</Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Show default templates when no saved templates or when toggled */}
-        {showDefaults && (
-          <div className="space-y-2 border-b border-[hsl(var(--border-default))] pb-4">
-            <p className="px-1 text-xs font-semibold text-[hsl(var(--text-secondary))]">DEFAULT TEMPLATES</p>
-            {DEFAULT_TEMPLATES.map((template, idx) => (
-              <div
-                key={idx}
-                className="rounded border border-dashed border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-3 transition-colors hover:bg-[hsl(var(--surface-elevated))]"
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">{template.name}</div>
-                    <div className="text-xs text-[hsl(var(--text-secondary))]">{template.description}</div>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => handleCreateFromDefault(template)}
-                >
-                  <Copy className="h-3 w-3 mr-1" />
-                  Use Template
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Saved templates */}
-        {templates.length > 0 && (
-          <div className="flex-1 overflow-y-auto space-y-2">
-            <p className="px-1 text-xs font-semibold text-[hsl(var(--text-secondary))]">SAVED TEMPLATES</p>
-            {templates.map((template) => (
-              <div
-                key={template.id}
-                onClick={() => setSelectedTemplate(template)}
-                className={cn(
-                  'p-3 rounded cursor-pointer transition-colors',
-                  selectedTemplate?.id === template.id
-                    ? 'border border-primary bg-primary/10'
-                    : 'bg-[hsl(var(--surface-card-alt))] hover:bg-[hsl(var(--surface-elevated))]'
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{template.name}</div>
-                    <div className="text-xs text-text-secondary">{template.sections?.length || 0} sections · {template.format}</div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteTemplate(template.id)
-                    }}
+          {/* Default templates section */}
+          {showDefaults && (
+            <div className="px-4 pt-4">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))]">Default Templates</p>
+              <div className="space-y-2">
+                {DEFAULT_TEMPLATES.map((template, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] p-3 transition-colors hover:border-[hsl(var(--border-strong))]"
                   >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </Button>
-                </div>
+                    <div className="mb-2.5">
+                      <div className="font-medium text-sm leading-tight">{template.name}</div>
+                      <div className="mt-0.5 text-xs text-[hsl(var(--text-secondary))] leading-snug">{template.description}</div>
+                    </div>
+                    <button
+                      onClick={() => handleCreateFromDefault(template)}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-md border border-[hsl(var(--border-default))] bg-transparent px-3 py-1.5 text-xs font-medium text-[hsl(var(--text-primary))] transition-colors hover:bg-[hsl(var(--surface-elevated))]"
+                    >
+                      <Copy className="h-3 w-3" />
+                      Use Template
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
+
+          {/* Saved templates section */}
+          {templates.length > 0 && (
+            <div className={cn('px-4 pb-4', showDefaults ? 'mt-4 pt-4 border-t border-[hsl(var(--border-default))]' : 'pt-4')}>
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))]">Saved Templates</p>
+              <div className="space-y-1.5">
+                {templates.map((template) => (
+                  <div
+                    key={template.id}
+                    onClick={() => setSelectedTemplate(template)}
+                    className={cn(
+                      'group flex items-center justify-between gap-2 rounded-lg p-3 cursor-pointer transition-colors',
+                      selectedTemplate?.id === template.id
+                        ? 'bg-primary/15 border border-primary/40'
+                        : 'border border-transparent hover:bg-[hsl(var(--surface-overlay))] hover:border-[hsl(var(--border-default))]'
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{template.name}</div>
+                      <div className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{template.sections?.length || 0} sections · {template.format || 'html'}</div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteTemplate(template.id)
+                      }}
+                      className="flex-none opacity-0 group-hover:opacity-100 flex h-6 w-6 items-center justify-center rounded text-red-400 hover:bg-red-400/10 transition-all"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {templates.length === 0 && !showDefaults && (
+            <div className="px-4 pt-8 text-center text-sm text-[hsl(var(--text-secondary))]">
+              <p className="mb-3">No saved templates yet.</p>
+              <button
+                onClick={() => setShowDefaults(true)}
+                className="text-xs text-[hsl(var(--text-secondary))] underline underline-offset-2 hover:text-[hsl(var(--text-primary))] transition-colors"
+              >
+                Browse default templates
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right: Template Editor / Preview */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {selectedTemplate ? (
-          <div className="space-y-4 overflow-y-auto flex-1">
-            <div className="sticky top-0 border-b border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] pb-4 pt-0">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <h1 className="text-2xl font-bold">{selectedTemplate.name}</h1>
-                  <p className="mt-1 text-sm text-[hsl(var(--text-secondary))]">{selectedTemplate.description || 'Custom report template'}</p>
-                </div>
-                <Button onClick={handleExportReport} className="gap-2 whitespace-nowrap">
-                  <Download className="h-4 w-4" />
-                  Export {(selectedTemplate.format || 'html').toUpperCase()}
-                </Button>
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* Sticky header */}
+            <div className="flex-none flex items-center justify-between gap-4 border-b border-[hsl(var(--border-default))] px-6 py-4 bg-[hsl(var(--surface-overlay))]">
+              <div>
+                <h1 className="text-lg font-semibold leading-tight">{selectedTemplate.name}</h1>
+                <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{selectedTemplate.description || 'Custom report template'}</p>
               </div>
+              <Button onClick={handleExportReport} className="gap-2 whitespace-nowrap flex-none">
+                <Download className="h-4 w-4" />
+                Export {(selectedTemplate.format || 'html').toUpperCase()}
+              </Button>
             </div>
 
-            {/* Format Selection */}
-            <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
-              <h3 className="font-semibold mb-3 text-sm">Export Format</h3>
-              <div className="flex flex-wrap gap-2">
-                {REPORT_FORMATS.map((format) => (
-                  <Button
-                    key={format}
-                    size="sm"
-                    variant={(selectedTemplate.format || 'html') === format ? 'default' : 'outline'}
-                    onClick={() => handleUpdateFormat(format)}
-                  >
-                    {format.toUpperCase()}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Sections Configuration */}
-            <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
-              <h3 className="font-semibold mb-3 text-sm">Sections ({selectedTemplate.sections?.filter((s: any) => s.enabled).length}/{selectedTemplate.sections?.length})</h3>
-              <div className="space-y-2">
-                {selectedTemplate.sections?.map((section: any) => (
-                  <div key={section.id} className="flex items-center gap-3 rounded border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] p-3 transition-colors hover:border-[hsl(var(--border-strong))]">
-                    <input
-                      type="checkbox"
-                      checked={section.enabled}
-                      onChange={(e) => handleToggleSection(section.id, e.target.checked)}
-                      className="h-4 w-4 cursor-pointer rounded border-[hsl(var(--border-default))]"
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">{section.label}</div>
-                      <div className="text-xs text-[hsl(var(--text-secondary))]">{section.type}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {(!selectedTemplate.sections || selectedTemplate.sections.length === 0) && (
-                <div className="py-4 text-center text-sm text-[hsl(var(--text-secondary))]">No sections added</div>
-              )}
-            </div>
-
-            {/* Add More Sections */}
-            <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
-              <h3 className="font-semibold mb-3 text-sm">Add Sections</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {AVAILABLE_SECTIONS.map((section) => {
-                  const exists = selectedTemplate.sections?.some((s: any) => s.type === section.type)
-                  return (
-                    <Button
-                      key={section.type}
-                      size="sm"
-                      variant={exists ? 'outline' : 'default'}
-                      disabled={exists}
-                      onClick={() => handleAddSection(section.type)}
-                      className="text-xs"
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              {/* Format Selection */}
+              <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))] mb-3">Export Format</h3>
+                <div className="flex flex-wrap gap-2">
+                  {REPORT_FORMATS.map((format) => (
+                    <button
+                      key={format}
+                      onClick={() => handleUpdateFormat(format)}
+                      className={cn(
+                        'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+                        (selectedTemplate.format || 'html') === format
+                          ? 'bg-primary text-primary-foreground'
+                          : 'border border-[hsl(var(--border-default))] text-[hsl(var(--text-secondary))] hover:border-[hsl(var(--border-strong))] hover:text-[hsl(var(--text-primary))]'
+                      )}
                     >
-                      {exists ? '✓ ' : '+ '}{section.label}
-                    </Button>
-                  )
-                })}
+                      {format.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sections Configuration */}
+              <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))]">Sections</h3>
+                  <span className="text-xs text-[hsl(var(--text-secondary))]">
+                    {selectedTemplate.sections?.filter((s: any) => s.enabled).length} / {selectedTemplate.sections?.length} enabled
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {selectedTemplate.sections?.map((section: any) => (
+                    <label
+                      key={section.id}
+                      className="flex items-center gap-3 rounded-md border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] px-3 py-2.5 cursor-pointer transition-colors hover:border-[hsl(var(--border-strong))]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={section.enabled}
+                        onChange={(e) => handleToggleSection(section.id, e.target.checked)}
+                        className="h-4 w-4 cursor-pointer rounded accent-primary"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{section.label}</div>
+                        <div className="text-xs text-[hsl(var(--text-secondary))]">{section.type}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                {(!selectedTemplate.sections || selectedTemplate.sections.length === 0) && (
+                  <div className="py-6 text-center text-sm text-[hsl(var(--text-secondary))]">No sections added yet</div>
+                )}
+              </div>
+
+              {/* Add More Sections */}
+              <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))] mb-3">Add Sections</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {AVAILABLE_SECTIONS.map((section) => {
+                    const exists = selectedTemplate.sections?.some((s: any) => s.type === section.type)
+                    return (
+                      <button
+                        key={section.type}
+                        disabled={exists}
+                        onClick={() => handleAddSection(section.type)}
+                        className={cn(
+                          'rounded-md px-3 py-2 text-xs font-medium text-left transition-colors',
+                          exists
+                            ? 'border border-[hsl(var(--border-default))] text-[hsl(var(--text-secondary))] opacity-50 cursor-not-allowed'
+                            : 'border border-[hsl(var(--border-default))] text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--surface-overlay))] hover:border-[hsl(var(--border-strong))]'
+                        )}
+                      >
+                        <span className={cn('mr-1', exists ? 'text-green-500' : 'text-[hsl(var(--text-secondary))]')}>
+                          {exists ? '✓' : '+'}
+                        </span>
+                        {section.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center text-[hsl(var(--text-secondary))]">
-            <div className="text-center">
-              <Eye className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <div className="text-lg font-semibold mb-2">No template selected</div>
-              <p className="mb-4">Select a template or create a new one to get started</p>
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-[hsl(var(--text-secondary))]">
+            <div className="text-center max-w-xs">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[hsl(var(--surface-card-alt))] border border-[hsl(var(--border-default))]">
+                <Eye className="h-7 w-7 opacity-60" />
+              </div>
+              <div className="text-base font-semibold text-[hsl(var(--text-primary))] mb-1">No template selected</div>
+              <p className="text-sm leading-relaxed mb-5">Select a template from the left or create a new one to get started</p>
               {templates.length === 0 && (
-                <Button onClick={() => setShowDefaults(true)}>View Default Templates</Button>
+                <Button variant="outline" onClick={() => setShowDefaults(true)}>View Default Templates</Button>
               )}
             </div>
           </div>

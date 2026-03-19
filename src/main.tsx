@@ -27,6 +27,9 @@ const CodeReviewsPage = lazy(() => import('@/pages/CodeReviewsPage'))
 const DeploymentsPage = lazy(() => import('@/pages/DeploymentsPage'))
 const ReportBuilderPage = lazy(() => import('@/pages/ReportBuilderPage'))
 const ReleaseQueuePage = lazy(() => import('@/pages/ReleaseQueuePage'))
+const ActivityFeedPage = lazy(() => import('@/pages/ActivityFeedPage'))
+const ExploratoryTestingPage = lazy(() => import('@/pages/ExploratoryTestingPage'))
+const DocsPage = lazy(() => import('@/pages/DocsPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 window.onerror = (msg, url, line, col, error) => {
@@ -68,11 +71,14 @@ createRoot(rootElement).render(
             <Route path="notes" element={<ErrorBoundary name="Notes"><RequireProject><NotesPage /></RequireProject></ErrorBoundary>} />
             <Route path="files" element={<ErrorBoundary name="Files"><RequireProject><FilesPage /></RequireProject></ErrorBoundary>} />
             <Route path="environments" element={<ErrorBoundary name="Environments"><RequireProject><EnvironmentsPage /></RequireProject></ErrorBoundary>} />
-            <Route path="github" element={<ErrorBoundary name="GitHub"><RequireProject><RequireRole role="dev"><GitHubPage /></RequireRole></RequireProject></ErrorBoundary>} />
+            <Route path="github" element={<ErrorBoundary name="GitHub"><RequireProject><GitHubPage /></RequireProject></ErrorBoundary>} />
             <Route path="code-reviews" element={<ErrorBoundary name="Code Reviews"><RequireRole role="dev"><CodeReviewsPage /></RequireRole></ErrorBoundary>} />
             <Route path="deployments" element={<ErrorBoundary name="Deployments"><RequireProject><RequireRole role="dev"><DeploymentsPage /></RequireRole></RequireProject></ErrorBoundary>} />
             <Route path="release-queue" element={<ErrorBoundary name="Release Queue"><RequireProject><ReleaseQueuePage /></RequireProject></ErrorBoundary>} />
+            <Route path="activity" element={<ErrorBoundary name="Activity Feed"><RequireProject><ActivityFeedPage /></RequireProject></ErrorBoundary>} />
+            <Route path="exploratory" element={<ErrorBoundary name="Exploratory Testing"><RequireProject><ExploratoryTestingPage /></RequireProject></ErrorBoundary>} />
             <Route path="reports" element={<ErrorBoundary name="Reports"><RequireProject><ReportBuilderPage /></RequireProject></ErrorBoundary>} />
+            <Route path="docs" element={<ErrorBoundary name="Docs"><DocsPage /></ErrorBoundary>} />
             <Route path="settings" element={<ErrorBoundary name="Settings"><SettingsPage /></ErrorBoundary>} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>

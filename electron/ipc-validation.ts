@@ -17,8 +17,9 @@ export function assertObject(val: unknown, name: string): asserts val is Record<
         throw new Error(`IPC validation: '${name}' must be a plain object`)
 }
 
-export function assertArray(val: unknown, name: string): asserts val is unknown[] {
+export function assertArray(val: unknown, name: string, maxLen?: number): asserts val is unknown[] {
     if (!Array.isArray(val)) throw new Error(`IPC validation: '${name}' must be an array`)
+    if (maxLen !== undefined && val.length > maxLen) throw new Error(`IPC validation: '${name}' exceeds max length of ${maxLen}`)
 }
 
 export function assertNumber(val: unknown, name: string, min?: number, max?: number): asserts val is number {

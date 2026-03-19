@@ -59,23 +59,19 @@ function DeploymentsContent() {
                 api.githubGetWorkflowRuns({ owner: repo.owner.login, repo: repo.name, forceRefresh: force }),
                 api.githubGetDeployments({ owner: repo.owner.login, repo: repo.name, forceRefresh: force }),
             ])
-            if ('__isError' in wfResult) throw new Error(wfResult.message)
-            if ('__isError' in depResult) throw new Error(depResult.message)
             setWorkflows(wfResult)
             setDeployments(depResult)
             setLastUpdated(new Date())
 
             // Fetch commits for deployment SHA enrichment (non-blocking)
             api.githubGetCommits({ owner: repo.owner.login, repo: repo.name }).then(commitResult => {
-                if (!('__isError' in commitResult)) {
-                    const map: Record<string, GitHubCommit> = {}
-                    ;(commitResult as GitHubCommit[]).forEach(c => {
-                        map[c.sha] = c
-                        map[c.shortSha] = c
-                    })
-                    setCommitBySha(map)
-                }
-            })
+                const map: Record<string, GitHubCommit> = {}
+                commitResult.forEach(c => {
+                    map[c.sha] = c
+                    map[c.shortSha] = c
+                })
+                setCommitBySha(map)
+            }).catch(() => { /* non-fatal */ })
         } catch (e: any) {
             setError(e.message)
         } finally {
@@ -103,8 +99,7 @@ function DeploymentsContent() {
         if (!selectedRepo) return
         setRerunningId(runId)
         try {
-            const result = await api.githubRerunWorkflow({ owner: selectedRepo.owner.login, repo: selectedRepo.name, runId })
-            if ('__isError' in result) throw new Error(result.message)
+            await api.githubRerunWorkflow({ owner: selectedRepo.owner.login, repo: selectedRepo.name, runId })
             setTimeout(() => loadRepoData(selectedRepo, true), 2000)
         } catch (e: any) {
             setError(e.message)
@@ -123,9 +118,7 @@ function DeploymentsContent() {
             setLoadingJobs(runId)
             try {
                 const result = await api.githubGetWorkflowJobs({ owner: selectedRepo.owner.login, repo: selectedRepo.name, runId })
-                if (!('__isError' in result)) {
-                    setRunJobs(prev => ({ ...prev, [runId]: result as GitHubWorkflowJob[] }))
-                }
+                setRunJobs(prev => ({ ...prev, [runId]: result }))
             } finally {
                 setLoadingJobs(null)
             }
@@ -136,13 +129,12 @@ function DeploymentsContent() {
         if (!selectedRepo || !dispatchWorkflowId || !dispatchRef) return
         setDispatching(true)
         try {
-            const result = await api.githubDispatchWorkflow({
+            await api.githubDispatchWorkflow({
                 owner: selectedRepo.owner.login,
                 repo: selectedRepo.name,
                 workflowId: dispatchWorkflowId,
                 ref: dispatchRef,
             })
-            if ('__isError' in result) throw new Error(result.message)
             setShowDispatch(false)
             setTimeout(() => loadRepoData(selectedRepo, true), 2000)
         } catch (e: any) {
@@ -157,12 +149,9 @@ function DeploymentsContent() {
         setShowDispatch(true)
         setDispatchRef(selectedRepo.defaultBranch)
         try {
-            const result = await api.githubGetWorkflowsList({ owner: selectedRepo.owner.login, repo: selectedRepo.name })
-            if (!('__isError' in result)) {
-                const wfs = result as GitHubWorkflow[]
-                setAvailableWorkflows(wfs)
-                if (wfs.length > 0) setDispatchWorkflowId(wfs[0].id)
-            }
+            const wfs = await api.githubGetWorkflowsList({ owner: selectedRepo.owner.login, repo: selectedRepo.name })
+            setAvailableWorkflows(wfs)
+            if (wfs.length > 0) setDispatchWorkflowId(wfs[0].id)
         } catch { /* non-fatal */ }
     }
 

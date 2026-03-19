@@ -1,35 +1,22 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback } from 'react'
+import { useSettingsStore } from '@/store/useSettingsStore'
 
 type Theme = 'dark' | 'light'
 
+/** Apply the theme CSS class to the document root. */
 export function applyThemeClass(theme: Theme) {
     document.documentElement.classList.toggle('light', theme === 'light')
     document.documentElement.classList.toggle('dark', theme === 'dark')
 }
 
 export function useTheme() {
-    const [theme, setTheme] = useState<Theme>('dark')
-
-    useEffect(() => {
-        const api = window.electronAPI as any
-        if (!api) return
-        api.readSettingsFile().then((settings: any) => {
-            const saved: Theme = settings?.theme === 'light' ? 'light' : 'dark'
-            setTheme(saved)
-            applyThemeClass(saved)
-        })
-    }, [])
+    const theme = useSettingsStore(s => s.settings.theme) as Theme
+    const save = useSettingsStore(s => s.save)
 
     const toggleTheme = useCallback(async () => {
         const next: Theme = theme === 'dark' ? 'light' : 'dark'
-        setTheme(next)
-        applyThemeClass(next)
-        const api = window.electronAPI as any
-        if (!api) return
-        const settings = await api.readSettingsFile()
-        await api.writeSettingsFile({ ...settings, theme: next })
-        window.dispatchEvent(new Event('settings-updated'))
-    }, [theme])
+        await save({ theme: next })
+    }, [theme, save])
 
     return { theme, toggleTheme }
 }

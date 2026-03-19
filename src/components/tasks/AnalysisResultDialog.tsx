@@ -30,7 +30,7 @@ export default function AnalysisResultDialog({
     const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().includes('MAC'))
 
     useEffect(() => {
-        (window.electronAPI as any)?.getSystemInfo?.().then((info: any) => {
+        window.electronAPI?.getSystemInfo?.().then((info) => {
             if (info?.platform) setIsMac(info.platform === 'darwin')
         })
     }, [])

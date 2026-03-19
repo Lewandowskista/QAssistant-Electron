@@ -66,23 +66,17 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                 api.githubGetPrReviews({ owner, repo, prNumber }),
             ])
             if (cancelled) return
-            if (!('__isError' in detailResult)) {
-                setDetail(detailResult as GitHubPrDetail)
-                // Fetch CI status from the head SHA
-                const pr = detailResult as GitHubPrDetail
-                if (pr.checkStatus !== undefined) {
-                    setCheckStatus(pr.checkStatus)
-                }
+            setDetail(detailResult)
+            if (detailResult.checkStatus !== undefined) {
+                setCheckStatus(detailResult.checkStatus)
             }
-            if (!('__isError' in reviewResult)) {
-                setReviews(reviewResult as GitHubReview[])
-            }
+            setReviews(reviewResult)
             setLoadingDetail(false)
 
             // Comments non-blocking
             const commentsResult = await api.githubGetPrComments({ owner, repo, prNumber })
             if (cancelled) return
-            if (!('__isError' in commentsResult)) setComments(commentsResult as GitHubComment[])
+            setComments(commentsResult)
             setLoadingComments(false)
         }
 

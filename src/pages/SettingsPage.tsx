@@ -1,10 +1,11 @@
 /* cspell:disable-file */
 /* cspell:words testplans ATATT aistudio Lewandowskista */
 import { useState, useEffect, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
 import {
     Zap, Globe, Cpu, Server, Share2, Database, Search,
     Plus, X, Edit2, Check, Copy, RefreshCw, ExternalLink,
-    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell, Sun, User, LogOut, AlertTriangle
+    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell, Sun, User, LogOut, AlertTriangle, BookOpen
 } from "lucide-react"
 import { useTheme } from "@/hooks/useTheme"
 import { Button } from "@/components/ui/button"
@@ -117,6 +118,7 @@ function FormPanel({ title, onSave, onTest, onCancel, children, status }: {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
+    const navigate = useNavigate()
     const api = window.electronAPI
     const saveSettingsStore = useSettingsStore(s => s.save)
     const { projects, activeProjectId, updateProject, importProject } = useProjectStore()
@@ -1179,6 +1181,15 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         </div>
                     )}
                     {!webhookForm.open && <StatusBanner s={webhookStatus} />}
+                </Sec>
+
+                {/* ── HELP & DOCUMENTATION ────────────────────────────────── */}
+                <Sec id="docs" title="Help & Documentation" icon={<BookOpen className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                    <p className="text-xs text-[#6B7280] mb-4">Complete documentation for every feature, integration, and keyboard shortcut in QAssistant.</p>
+                    <Button size="sm" className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-9 gap-2" onClick={() => navigate('/docs')}>
+                        <BookOpen className="h-3.5 w-3.5" /> Open Documentation
+                    </Button>
+                    <p className="text-[10px] text-[#6B7280] mt-2">Tip: Press F1 anywhere to open docs.</p>
                 </Sec>
 
                 {/* ── DIAGNOSTICS ──────────────────────────────────────────── */}

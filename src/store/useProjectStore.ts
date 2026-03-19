@@ -9,7 +9,8 @@ import {
     TestDataEntry, ChecklistItem, CollabState, HandoffPacket, ArtifactLink,
     CollaborationEvent, HandoffExecutionRef, LinkedPrRef, CollaborationActorRole,
     EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution,
-    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun
+    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun,
+    ExploratorySession, ExploratoryObservation
 } from '../types/project'
 import { demoProject } from '@/data/demoProject'
 import { enrichHandoffCompleteness, migrateLegacyExecutionsToSessions, PROJECT_SCHEMA_VERSION } from '@/lib/collaboration'
@@ -22,7 +23,8 @@ export type {
     TestDataEntry, ChecklistItem, CollabState, HandoffPacket, ArtifactLink,
     CollaborationEvent, HandoffExecutionRef, LinkedPrRef, CollaborationActorRole,
     EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution,
-    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun
+    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun,
+    ExploratorySession, ExploratoryObservation
 }
 
 function generateId(): string {
@@ -346,6 +348,24 @@ interface ProjectState {
     updateReportTemplate: (projectId: string, templateId: string, updates: any) => Promise<void>
     deleteReportTemplate: (projectId: string, templateId: string) => Promise<void>
     reorderReportSections: (projectId: string, templateId: string, sectionIds: string[]) => Promise<void>
+
+    // AI Accuracy Testing
+    addAccuracySuite: (projectId: string, name: string) => Promise<string>
+    updateAccuracySuite: (projectId: string, suiteId: string, updates: Partial<AccuracyTestSuite>) => Promise<void>
+    deleteAccuracySuite: (projectId: string, suiteId: string) => Promise<void>
+    addAccuracyRefDoc: (projectId: string, suiteId: string, doc: Omit<ReferenceDocument, 'id' | 'uploadedAt'>) => Promise<string>
+    removeAccuracyRefDoc: (projectId: string, suiteId: string, docId: string) => Promise<void>
+    addAccuracyQaPair: (projectId: string, suiteId: string, question: string, agentResponse: string, sourceLabel?: string, expectedAnswer?: string) => Promise<string>
+    batchAddAccuracyQaPairs: (projectId: string, suiteId: string, pairs: Array<{ question: string; agentResponse: string; sourceLabel?: string; expectedAnswer?: string }>) => Promise<void>
+    removeAccuracyQaPair: (projectId: string, suiteId: string, pairId: string) => Promise<void>
+    addAccuracyEvalRun: (projectId: string, suiteId: string, run: Omit<AccuracyEvalRun, 'id'>) => Promise<string>
+    updateAccuracyEvalRun: (projectId: string, suiteId: string, runId: string, updates: Partial<AccuracyEvalRun>) => Promise<void>
+
+    // Exploratory Testing
+    addExploratorySession: (projectId: string, charter: string, timebox: number, tester: string) => Promise<string>
+    updateExploratorySession: (projectId: string, sessionId: string, updates: Partial<ExploratorySession>) => Promise<void>
+    addExploratoryObservation: (projectId: string, sessionId: string, obs: Omit<ExploratoryObservation, 'id' | 'timestamp'>) => Promise<string>
+    deleteExploratorySession: (projectId: string, sessionId: string) => Promise<void>
 }
 
 // Canonical ElectronAPI type is now in src/types/electron.d.ts
@@ -2032,5 +2052,53 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         } : p)
         if (window.electronAPI) saveProjectsToDisk(projects)
         set({ projects })
-    }
+    },
+
+    // ── Exploratory Sessions ─────────────────────────────────────────────────
+
+    addExploratorySession: async (projectId: string, charter: string, timebox: number, tester: string) => {
+        const id = generateId()
+        const updated = get().projects.map(p => p.id !== projectId ? p : {
+            ...p,
+            exploratorySessions: [
+                { id, charter, timebox, tester, startedAt: Date.now(), observations: [], discoveredBugIds: [], notes: '' },
+                ...(p.exploratorySessions || [])
+            ]
+        })
+        if (window.electronAPI) saveProjectsToDisk(updated)
+        set({ projects: updated })
+        return id
+    },
+
+    updateExploratorySession: async (projectId: string, sessionId: string, updates: Partial<ExploratorySession>) => {
+        const updated = get().projects.map(p => p.id !== projectId ? p : {
+            ...p,
+            exploratorySessions: (p.exploratorySessions || []).map(s => s.id === sessionId ? { ...s, ...updates } : s)
+        })
+        if (window.electronAPI) saveProjectsToDisk(updated)
+        set({ projects: updated })
+    },
+
+    addExploratoryObservation: async (projectId: string, sessionId: string, obs: Omit<ExploratoryObservation, 'id' | 'timestamp'>) => {
+        const id = generateId()
+        const updated = get().projects.map(p => p.id !== projectId ? p : {
+            ...p,
+            exploratorySessions: (p.exploratorySessions || []).map(s => s.id !== sessionId ? s : {
+                ...s,
+                observations: [...s.observations, { id, timestamp: Date.now(), ...obs }]
+            })
+        })
+        if (window.electronAPI) saveProjectsToDisk(updated)
+        set({ projects: updated })
+        return id
+    },
+
+    deleteExploratorySession: async (projectId: string, sessionId: string) => {
+        const updated = get().projects.map(p => p.id !== projectId ? p : {
+            ...p,
+            exploratorySessions: (p.exploratorySessions || []).filter(s => s.id !== sessionId)
+        })
+        if (window.electronAPI) saveProjectsToDisk(updated)
+        set({ projects: updated })
+    },
 }))

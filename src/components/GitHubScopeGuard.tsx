@@ -33,11 +33,7 @@ export function GitHubScopeGuard({ children }: Props) {
             try {
                 const result = await window.electronAPI.githubCheckScope()
                 if (cancelled) return
-                if ('__isError' in result) {
-                    setError(result.message)
-                } else {
-                    setHasScope(result.hasRepoScope)
-                }
+                setHasScope(result.hasRepoScope)
             } catch (e: any) {
                 if (!cancelled) setError(e.message)
             } finally {

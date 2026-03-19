@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
+import { NOTE_TITLE_DEBOUNCE_MS, NOTE_CONTENT_DEBOUNCE_MS } from "@/lib/constants"
 import { useProjectStore } from "@/store/useProjectStore"
-import { Plus, Trash2, Paperclip, ExternalLink, StickyNote, Code, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { Plus, Trash2, Paperclip, ExternalLink, StickyNote, Code, PanelRightClose, PanelRightOpen, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,22 +14,32 @@ export default function NotesPage() {
     const { projects, activeProjectId, addNote, updateNote, deleteNote, removeAttachmentFromNote, attachFileToNote, linkArtifact } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const notes = activeProject?.notes || []
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
 
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
     const [linkedTaskFilter, setLinkedTaskFilter] = useState<string>("all")
+    const [searchQuery, setSearchQuery] = useState("")
     const [sourceMode, setSourceMode] = useState(false)
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
 
     const selectedNote = notes.find(n => n.id === selectedItemId)
     const artifactLinks = activeProject?.artifactLinks || []
     const filteredNotes = notes.filter((note) => {
-        if (linkedTaskFilter === 'all') return true
-        return artifactLinks.some((link) =>
-            ((link.sourceType === 'task' && link.sourceId === linkedTaskFilter && link.targetType === 'note' && link.targetId === note.id) ||
-            (link.targetType === 'task' && link.targetId === linkedTaskFilter && link.sourceType === 'note' && link.sourceId === note.id))
-        )
+        if (linkedTaskFilter !== 'all') {
+            const linked = artifactLinks.some((link) =>
+                ((link.sourceType === 'task' && link.sourceId === linkedTaskFilter && link.targetType === 'note' && link.targetId === note.id) ||
+                (link.targetType === 'task' && link.targetId === linkedTaskFilter && link.sourceType === 'note' && link.sourceId === note.id))
+            )
+            if (!linked) return false
+        }
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase()
+            const titleMatch = note.title.toLowerCase().includes(q)
+            const contentMatch = note.content.toLowerCase().includes(q)
+            if (!titleMatch && !contentMatch) return false
+        }
+        return true
     })
 
     // Local editor state to avoid persisting on every keystroke.
@@ -38,7 +49,11 @@ export default function NotesPage() {
     const contentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Initialize local state whenever a different note is selected.
+    // Clear pending debounce timers first so a stale write from the previously
+    // selected note can never fire after the selection has already changed.
     useEffect(() => {
+        if (titleTimer.current) { clearTimeout(titleTimer.current); titleTimer.current = null }
+        if (contentTimer.current) { clearTimeout(contentTimer.current); contentTimer.current = null }
         setTitleState(selectedNote?.title || '')
         setContentState(selectedNote?.content || '')
         setSourceMode(false)
@@ -50,7 +65,7 @@ export default function NotesPage() {
         if (titleTimer.current) clearTimeout(titleTimer.current)
         titleTimer.current = setTimeout(() => {
             updateNote(activeProjectId!, selectedNote.id, { title: titleState })
-        }, 600)
+        }, NOTE_TITLE_DEBOUNCE_MS)
         return () => { if (titleTimer.current) clearTimeout(titleTimer.current) }
     }, [titleState, selectedNote, activeProjectId])
 
@@ -60,7 +75,7 @@ export default function NotesPage() {
         if (contentTimer.current) clearTimeout(contentTimer.current)
         contentTimer.current = setTimeout(() => {
             updateNote(activeProjectId!, selectedNote.id, { content: contentState })
-        }, 800)
+        }, NOTE_CONTENT_DEBOUNCE_MS)
         return () => { if (contentTimer.current) clearTimeout(contentTimer.current) }
     }, [contentState, selectedNote, activeProjectId])
 
@@ -104,7 +119,16 @@ export default function NotesPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    <div className="px-2 mb-2">
+                    <div className="px-2 mb-2 space-y-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[#6B7280] pointer-events-none" />
+                            <Input
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search notes..."
+                                className="h-8 pl-7 text-[11px] bg-[#0F0F13] border-[#2A2A3A] text-[#E2E8F0] placeholder:text-[#6B7280]"
+                            />
+                        </div>
                         <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="w-full h-8 rounded-md bg-[#0F0F13] border border-[#2A2A3A] px-2 text-[11px] text-[#E2E8F0]">
                             <option value="all">All Notes</option>
                             {(activeProject?.tasks || []).map((task) => (
@@ -186,6 +210,7 @@ export default function NotesPage() {
                                     onClick={() => setSourceMode(s => !s)}
                                     className={cn("h-9 w-9", sourceMode ? "text-[#A78BFA] bg-[#A78BFA]/10" : "text-[#6B7280] hover:text-[#A78BFA]")}
                                     title={sourceMode ? "Switch to Visual Editor" : "Switch to HTML Source"}
+                                    aria-label={sourceMode ? "Switch to Visual Editor" : "Switch to HTML Source"}
                                 >
                                     <Code className="h-4 w-4" />
                                 </Button>
@@ -195,10 +220,11 @@ export default function NotesPage() {
                                     onClick={() => setAttachmentsOpen(v => !v)}
                                     className={cn("h-9 w-9", attachmentsOpen ? "text-[#A78BFA] bg-[#A78BFA]/10" : "text-[#6B7280] hover:text-[#A78BFA]")}
                                     title={attachmentsOpen ? "Hide Attachments" : "Show Attachments"}
+                                    aria-label={attachmentsOpen ? "Hide Attachments" : "Show Attachments"}
                                 >
                                     {attachmentsOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                                 </Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-[#EF4444] hover:bg-[#EF4444]/10">
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-[#EF4444] hover:bg-[#EF4444]/10" aria-label="Delete note">
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                                 <Button className="h-9 px-6 bg-[#A78BFA] text-[#0F0F13] font-black text-xs">AUTO-SAVING</Button>

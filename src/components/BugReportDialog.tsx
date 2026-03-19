@@ -19,8 +19,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Bug, Clipboard, Globe, ShieldAlert } from "lucide-react"
+import { Bug, Clipboard, Globe, ShieldAlert, Sparkles, Loader2, AlertTriangle, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getApiKey } from "@/lib/credentials"
+import { toast } from "sonner"
 
 interface BugReportDialogProps {
     open: boolean
@@ -36,10 +38,13 @@ interface BugReportDialogProps {
     }
 }
 
+type DuplicateCandidate = { bugId: string; title: string; similarityScore: number; reasoning: string }
+
 export function BugReportDialog({ open, onOpenChange, defaultEnv, prefillData }: BugReportDialogProps) {
     const { projects, activeProjectId, addTask } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const environments = activeProject?.environments || []
+    const api = window.electronAPI
 
     const [title, setTitle] = useState("")
     const [titleError, setTitleError] = useState("")
@@ -48,7 +53,18 @@ export function BugReportDialog({ open, onOpenChange, defaultEnv, prefillData }:
     const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
     const [severity, setSeverity] = useState<'minor' | 'major' | 'critical' | 'blocker'>('major')
     const [reproducibility, setReproducibility] = useState<'always' | 'sometimes' | 'rarely' | 'once' | 'unable'>('sometimes')
-    const reporter = "QA Tester" // Could be from settings
+    const reporter = "QA Tester"
+
+    const [duplicates, setDuplicates] = useState<DuplicateCandidate[]>([])
+    const [checkingDuplicates, setCheckingDuplicates] = useState(false)
+    const [duplicatesChecked, setDuplicatesChecked] = useState(false)
+
+    useEffect(() => {
+        if (!open) {
+            setDuplicates([])
+            setDuplicatesChecked(false)
+        }
+    }, [open])
 
     useEffect(() => {
         if (defaultEnv) setSelectedEnvId(defaultEnv.id)
@@ -57,6 +73,43 @@ export function BugReportDialog({ open, onOpenChange, defaultEnv, prefillData }:
     }, [defaultEnv, prefillData, open])
 
     const selectedEnv = environments.find(e => e.id === selectedEnvId)
+
+    const handleCheckDuplicates = async () => {
+        if (!title.trim()) { setTitleError("Enter a summary first."); return }
+        if (!activeProject) return
+        const apiKey = await getApiKey(api, 'gemini_api_key', activeProject.id)
+        if (!apiKey) { toast.error('Configure a Gemini API key in Settings to use duplicate detection.'); return }
+
+        const openBugs = activeProject.tasks
+            .filter(t => t.status !== 'done' && t.status !== 'closed' && (t.issueType?.toLowerCase().includes('bug') || t.title.startsWith('[BUG]')))
+            .map(t => ({ id: t.id, title: t.title, description: t.description || '', components: t.components || [] }))
+
+        if (openBugs.length === 0) {
+            toast.info('No open bugs to compare against.')
+            setDuplicatesChecked(true)
+            setDuplicates([])
+            return
+        }
+
+        setCheckingDuplicates(true)
+        try {
+            const result = await api.aiFindDuplicateBugs({
+                apiKey,
+                newBugTitle: title,
+                newBugDescription: description,
+                newBugReproSteps: description,
+                affectedComponents: [],
+                existingBugs: openBugs,
+                modelName: activeProject.geminiModel,
+            })
+            setDuplicates(Array.isArray(result) ? result : [])
+            setDuplicatesChecked(true)
+        } catch (err: any) {
+            toast.error('Duplicate check failed: ' + err.message)
+        } finally {
+            setCheckingDuplicates(false)
+        }
+    }
 
     const handleSubmit = async () => {
         if (!activeProjectId) return
@@ -90,14 +143,18 @@ ${description}
             linkedTestCaseId: prefillData?.testCaseId
         })
 
-        // Reset and close
         setTitle("")
         setTitleError("")
         setDescription("")
         setSeverity('major')
         setReproducibility('sometimes')
+        setDuplicates([])
+        setDuplicatesChecked(false)
         onOpenChange(false)
     }
+
+    const getScoreColor = (score: number) =>
+        score >= 80 ? 'text-[#EF4444]' : score >= 60 ? 'text-[#F59E0B]' : 'text-[#A78BFA]'
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -125,7 +182,7 @@ ${description}
                                 id="bug-title"
                                 placeholder="Short, descriptive title of the issue"
                                 value={title}
-                                onChange={e => { setTitle(e.target.value); if (e.target.value.trim()) setTitleError("") }}
+                                onChange={e => { setTitle(e.target.value); if (e.target.value.trim()) setTitleError(""); setDuplicatesChecked(false); setDuplicates([]) }}
                                 className={cn("bg-background/50 focus-visible:ring-red-500/40 focus-visible:border-red-500/50 font-semibold", titleError && "border-red-500/70")}
                             />
                             {titleError && <p className="text-xs text-red-400 px-1">{titleError}</p>}
@@ -209,9 +266,54 @@ ${description}
                                 rows={6}
                                 placeholder="1. Go to...\n2. Click...\n3. Observe..."
                                 value={description}
-                                onChange={e => setDescription(e.target.value)}
+                                onChange={e => { setDescription(e.target.value); setDuplicatesChecked(false); setDuplicates([]) }}
                                 className="bg-background/50 resize-none min-h-[150px] font-mono text-sm leading-relaxed"
                             />
+                        </div>
+
+                        {/* Duplicate Detection */}
+                        <div className="rounded-xl border border-[#2A2A3A] bg-[#0F0F13] overflow-hidden">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-[#2A2A3A]">
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="h-3.5 w-3.5 text-[#A78BFA]" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">AI Duplicate Check</span>
+                                    {duplicatesChecked && duplicates.length === 0 && (
+                                        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#10B981]/10 text-[#10B981]">No duplicates found</span>
+                                    )}
+                                    {duplicates.length > 0 && (
+                                        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#F59E0B]/10 text-[#F59E0B]">{duplicates.length} possible duplicate{duplicates.length !== 1 ? 's' : ''}</span>
+                                    )}
+                                </div>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={handleCheckDuplicates}
+                                    disabled={checkingDuplicates || !title.trim()}
+                                    className="h-7 text-[10px] font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-1.5"
+                                >
+                                    {checkingDuplicates ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                                    {checkingDuplicates ? 'Checking...' : 'Check'}
+                                </Button>
+                            </div>
+                            {duplicates.length > 0 && (
+                                <div className="p-2 space-y-1.5">
+                                    {duplicates.map(d => (
+                                        <div key={d.bugId} className="flex items-start gap-2 p-2 rounded-lg bg-[#1A1A24] border border-[#2A2A3A]">
+                                            <AlertTriangle className="h-3.5 w-3.5 text-[#F59E0B] shrink-0 mt-0.5" />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={cn("text-[10px] font-black", getScoreColor(d.similarityScore))}>{d.similarityScore}%</span>
+                                                    <span className="text-xs font-semibold text-[#E2E8F0] truncate">{d.title}</span>
+                                                </div>
+                                                <p className="text-[10px] text-[#9CA3AF] mt-0.5">{d.reasoning}</p>
+                                            </div>
+                                            <ExternalLink className="h-3 w-3 text-[#6B7280] shrink-0 mt-0.5" />
+                                        </div>
+                                    ))}
+                                    <p className="text-[10px] text-[#6B7280] px-1 pb-1">Review the above before filing. You can still proceed if this is a new issue.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

@@ -6,7 +6,7 @@ import { useListKeyboardNav } from '@/hooks/useListKeyboardNav'
 import {
     GitBranch, GitPullRequest, RefreshCw, Loader2, ExternalLink,
     ChevronDown, X, Search,
-    Plus, Minus, FileText, Rocket
+    Plus, Minus, FileText, Rocket, Sparkles, Zap, CheckCircle2
 } from 'lucide-react'
 import { cn, formatTimeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,9 @@ import { RepoSelector } from '@/components/github/RepoSelector'
 import { CheckStatusIcon, mergeableLabel, ReviewSummaryBadges } from '@/components/github/StatusBadges'
 import { SubtabBar } from '@/components/ui/subtab-bar'
 import { SegmentedControl } from '@/components/ui/segmented-control'
+import { useProjectStore } from '@/store/useProjectStore'
+import { getApiKey } from '@/lib/credentials'
+import { toast } from 'sonner'
 
 type Tab = 'pulls' | 'commits'
 
@@ -44,6 +47,8 @@ function PrDescription({ body }: { body: string }) {
 function GitHubContent() {
     const api = window.electronAPI
     const { repos, selectedRepo, setSelectedRepo, loading: loadingRepos, error: repoError } = useGitHubRepos()
+    const { projects, activeProjectId, addTestPlan, batchAddTestCasesToPlan } = useProjectStore()
+    const activeProject = projects.find(p => p.id === activeProjectId)
 
     const [prs, setPrs] = useState<GitHubPullRequest[]>([])
     const [commits, setCommits] = useState<GitHubCommit[]>([])
@@ -67,6 +72,12 @@ function GitHubContent() {
     // PR search
     const [prSearch, setPrSearch] = useState('')
 
+    // Test Impact Analysis
+    const [impactLoading, setImpactLoading] = useState(false)
+    const [impactResult, setImpactResult] = useState<{ impactedCaseIds: string[]; affectedModules: string[]; rationale: string } | null>(null)
+    const [impactSelectedIds, setImpactSelectedIds] = useState<Set<string>>(new Set())
+    const [buildingRegression, setBuildingRegression] = useState(false)
+
     // Detail panel
     const [selectedPr, setSelectedPr] = useState<GitHubPullRequest | null>(null)
     const [prDetail, setPrDetail] = useState<GitHubPrDetail | null>(null)
@@ -85,8 +96,6 @@ function GitHubContent() {
                 api.githubGetPullRequests({ owner: repo.owner.login, repo: repo.name, state: prFilter, forceRefresh: force }),
                 api.githubGetCommits({ owner: repo.owner.login, repo: repo.name, branch: branch ?? undefined, forceRefresh: force }),
             ])
-            if ('__isError' in prResult) throw new Error(prResult.message)
-            if ('__isError' in commitResult) throw new Error(commitResult.message)
             setPrs(prResult)
             setCommits(commitResult)
             setLastUpdated(new Date())
@@ -111,8 +120,8 @@ function GitHubContent() {
                 const reviewMap: Record<number, GitHubReview[]> = {}
                 openPrs.forEach((pr: GitHubPullRequest, i: number) => {
                     const r = reviewResults[i]
-                    if (r.status === 'fulfilled' && !('__isError' in r.value)) {
-                        reviewMap[pr.number] = r.value as GitHubReview[]
+                    if (r.status === 'fulfilled') {
+                        reviewMap[pr.number] = r.value
                     }
                 })
                 setPrReviews(reviewMap)
@@ -120,22 +129,20 @@ function GitHubContent() {
                 const checkMap: Record<number, string | null> = {}
                 openPrs.forEach((pr: GitHubPullRequest, i: number) => {
                     const r = checkResults[i]
-                    if (r.status === 'fulfilled' && (r.value === null || typeof r.value !== 'object' || !('__isError' in r.value))) {
-                        checkMap[pr.number] = r.value as string | null
+                    if (r.status === 'fulfilled') {
+                        checkMap[pr.number] = r.value
                     }
                 })
                 setPrCheckStatuses(checkMap)
 
                 // Map most recent deployment per branch
-                if (!('__isError' in deployResult)) {
-                    const deployMap: Record<string, GitHubDeployment> = {}
-                    ;(deployResult as GitHubDeployment[]).forEach(d => {
-                        if (!deployMap[d.ref] || d.createdAt > deployMap[d.ref].createdAt) {
-                            deployMap[d.ref] = d
-                        }
-                    })
-                    setBranchDeployments(deployMap)
-                }
+                const deployMap: Record<string, GitHubDeployment> = {}
+                deployResult.forEach(d => {
+                    if (!deployMap[d.ref] || d.createdAt > deployMap[d.ref].createdAt) {
+                        deployMap[d.ref] = d
+                    }
+                })
+                setBranchDeployments(deployMap)
             }
         } catch (e: any) {
             setError(e.message)
@@ -151,9 +158,9 @@ function GitHubContent() {
             setSelectedBranch(selectedRepo.defaultBranch)
             loadRepoData(selectedRepo)
             // Load branches for commit branch selector
-            api.githubGetBranches({ owner: selectedRepo.owner.login, repo: selectedRepo.name }).then(result => {
-                if (!('__isError' in result)) setBranches(result)
-            })
+            api.githubGetBranches({ owner: selectedRepo.owner.login, repo: selectedRepo.name })
+                .then(result => setBranches(result))
+                .catch(() => { /* non-fatal */ })
         }
     }, [selectedRepo, prFilter])
 
@@ -163,17 +170,17 @@ function GitHubContent() {
         setSelectedPr(pr)
         setPrDetail(null)
         setPrComments([])
+        setImpactResult(null)
+        setImpactSelectedIds(new Set())
         setLoadingDetail(true)
         setLoadingComments(true)
         try {
             const detailResult = await api.githubGetPrDetail({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: pr.number })
-            if (!('__isError' in detailResult)) setPrDetail(detailResult as GitHubPrDetail)
+            setPrDetail(detailResult)
             // Fetch reviews if not already cached
             if (!prReviews[pr.number]) {
                 const reviewResult = await api.githubGetPrReviews({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: pr.number })
-                if (!('__isError' in reviewResult)) {
-                    setPrReviews(prev => ({ ...prev, [pr.number]: reviewResult as GitHubReview[] }))
-                }
+                setPrReviews(prev => ({ ...prev, [pr.number]: reviewResult }))
             }
         } finally {
             setLoadingDetail(false)
@@ -181,9 +188,61 @@ function GitHubContent() {
         // Fetch comments (non-blocking)
         try {
             const commentsResult = await api.githubGetPrComments({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: pr.number })
-            if (!('__isError' in commentsResult)) setPrComments(commentsResult as GitHubComment[])
+            setPrComments(commentsResult)
         } finally {
             setLoadingComments(false)
+        }
+    }
+
+    const handleTestImpactAnalysis = async () => {
+        if (!selectedPr || !selectedRepo || !activeProject) return
+        const apiKey = await getApiKey(api, 'gemini_api_key', activeProject.id)
+        if (!apiKey) { toast.error('Configure a Gemini API key in Settings.'); return }
+        const allTestCases = activeProject.testPlans.flatMap(tp => tp.testCases || []).map(tc => ({
+            id: tc.id, title: tc.title, sapModule: tc.sapModule, components: tc.components, tags: tc.tags,
+        }))
+        if (allTestCases.length === 0) { toast.info('No test cases in project to analyze.'); return }
+        setImpactLoading(true)
+        try {
+            const detail = prDetail || await api.githubGetPrDetail({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: selectedPr.number })
+            const changedFiles = (detail?.files || []).map((f: any) => f.filename || f.path || String(f))
+            const result = await api.aiTestImpactAnalysis({
+                apiKey,
+                changedFiles,
+                prTitle: selectedPr.title,
+                prDescription: detail?.body || '',
+                testCases: allTestCases,
+                modelName: activeProject.geminiModel,
+            })
+            setImpactResult(result)
+            setImpactSelectedIds(new Set(result.impactedCaseIds))
+        } catch (err: any) {
+            toast.error('Impact analysis failed: ' + err.message)
+        } finally {
+            setImpactLoading(false)
+        }
+    }
+
+    const handleBuildImpactRegressionSuite = async () => {
+        if (!activeProjectId || !activeProject || impactSelectedIds.size === 0 || !selectedPr) return
+        setBuildingRegression(true)
+        try {
+            const allTestCases = activeProject.testPlans.flatMap(tp => tp.testCases || [])
+            const selectedCases = allTestCases.filter(tc => impactSelectedIds.has(tc.id))
+            const ts = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+            const planName = `PR #${selectedPr.number} Impact Suite · ${ts}`
+            const planId = await addTestPlan(activeProjectId, planName, `Auto-generated from PR #${selectedPr.number}: ${selectedPr.title}`, true, 'manual')
+            await batchAddTestCasesToPlan(activeProjectId, planId, selectedCases.map(tc => ({
+                title: tc.title, preConditions: tc.preConditions, steps: tc.steps, testData: tc.testData,
+                expectedResult: tc.expectedResult, actualResult: '', priority: tc.priority, status: 'not-run', sapModule: tc.sapModule, sourceIssueId: tc.sourceIssueId,
+            })))
+            toast.success(`Created "${planName}" with ${selectedCases.length} test cases.`)
+            setImpactResult(null)
+            setImpactSelectedIds(new Set())
+        } catch (err: any) {
+            toast.error('Failed to create regression suite: ' + err.message)
+        } finally {
+            setBuildingRegression(false)
         }
     }
 
@@ -586,6 +645,84 @@ function GitHubContent() {
                                     {prDetail.body && (
                                         <PrDescription body={prDetail.body} />
                                     )}
+
+                                    {/* Test Impact Analysis */}
+                                    <div className="rounded-xl border border-[#2A2A3A] bg-[#0D0D11] overflow-hidden">
+                                        <div className="flex items-center justify-between px-3 py-2 border-b border-[#2A2A3A]">
+                                            <div className="flex items-center gap-2">
+                                                <Sparkles className="h-3.5 w-3.5 text-[#A78BFA]" />
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">Test Impact</span>
+                                                {impactResult && (
+                                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-[#A78BFA]">
+                                                        {impactResult.impactedCaseIds.length} impacted
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={handleTestImpactAnalysis}
+                                                disabled={impactLoading}
+                                                className="h-7 text-[10px] font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-1"
+                                            >
+                                                {impactLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                                                {impactLoading ? 'Analyzing...' : 'Analyze'}
+                                            </Button>
+                                        </div>
+                                        {impactResult && (
+                                            <div className="p-3 space-y-3">
+                                                {impactResult.affectedModules.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {impactResult.affectedModules.map(m => (
+                                                            <span key={m} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] uppercase">{m}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {impactResult.rationale && (
+                                                    <p className="text-[10px] text-[#9CA3AF] leading-relaxed">{impactResult.rationale}</p>
+                                                )}
+                                                {impactResult.impactedCaseIds.length > 0 ? (
+                                                    <>
+                                                        <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
+                                                            {activeProject?.testPlans.flatMap(tp => tp.testCases || [])
+                                                                .filter(tc => impactResult.impactedCaseIds.includes(tc.id))
+                                                                .map(tc => (
+                                                                    <label key={tc.id} className="flex items-center gap-2 cursor-pointer group">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={impactSelectedIds.has(tc.id)}
+                                                                            onChange={() => setImpactSelectedIds(prev => {
+                                                                                const next = new Set(prev)
+                                                                                if (next.has(tc.id)) next.delete(tc.id); else next.add(tc.id)
+                                                                                return next
+                                                                            })}
+                                                                            className="accent-[#A78BFA]"
+                                                                        />
+                                                                        <span className="text-[10px] text-[#E2E8F0] group-hover:text-[#A78BFA] transition-colors truncate">
+                                                                            {tc.displayId} — {tc.title}
+                                                                        </span>
+                                                                    </label>
+                                                                ))
+                                                            }
+                                                        </div>
+                                                        <Button
+                                                            onClick={handleBuildImpactRegressionSuite}
+                                                            disabled={buildingRegression || impactSelectedIds.size === 0}
+                                                            className="w-full h-8 bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD] text-[10px] font-bold gap-2"
+                                                        >
+                                                            {buildingRegression ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                                                            {buildingRegression ? 'Building...' : `Build Regression Suite (${impactSelectedIds.size})`}
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <div className="flex items-center gap-2 py-1">
+                                                        <CheckCircle2 className="h-3.5 w-3.5 text-[#10B981]" />
+                                                        <span className="text-[10px] text-[#10B981]">No test cases identified as impacted.</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
 
                                     {/* Comments */}
                                     <div>

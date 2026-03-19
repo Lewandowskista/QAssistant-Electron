@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { UploadCloud, FileSpreadsheet, AlertCircle, ChevronRight } from "lucide-react"
 import { parseImportFile } from "@/lib/import"
-import { QA_PAIR_CSV_ALIASES, autoDetectQaPairMappings } from "@/lib/accuracy"
+import { autoDetectQaPairMappings } from "@/lib/accuracy"
 
 interface QaPairImportDialogProps {
     open: boolean

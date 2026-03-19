@@ -379,6 +379,30 @@ export type QualityGate = {
     isEnabled: boolean
 }
 
+// ── Exploratory Testing ──────────────────────────────────────────────
+
+export type ExploratoryObservationType = 'observation' | 'finding' | 'bug' | 'question'
+
+export type ExploratoryObservation = {
+    id: string
+    timestamp: number
+    type: ExploratoryObservationType
+    description: string
+    severity?: TaskSeverity
+}
+
+export type ExploratorySession = {
+    id: string
+    charter: string
+    timebox: number          // minutes
+    tester: string
+    startedAt: number
+    completedAt?: number
+    observations: ExploratoryObservation[]
+    discoveredBugIds: string[] // Task IDs created during session
+    notes: string
+}
+
 export type Project = {
     id: string
     schemaVersion?: number
@@ -421,6 +445,9 @@ export type Project = {
 
     // AI Accuracy Testing
     accuracyTestSuites?: AccuracyTestSuite[]
+
+    // Exploratory Testing
+    exploratorySessions?: ExploratorySession[]
 }
 
 // ── AI Accuracy Testing ──────────────────────────────────────────────

@@ -13,9 +13,10 @@ import {
     useSensors
 } from "@dnd-kit/core"
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
-import { HelpCircle, Loader2, Plus, RefreshCw } from "lucide-react"
+import { HelpCircle, Loader2, Plus, RefreshCw, Bookmark, X, Check } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
 import { sanitizeProjectForQaAi, sanitizeTaskForQaAi } from "@/lib/aiUtils"
@@ -51,6 +52,22 @@ const FILTER_STORAGE_PREFIX = "qassistant:taskFilters:"
 const BOARD_STORAGE_PREFIX = "qassistant:taskBoardMode:"
 const SORT_STORAGE_PREFIX = "qassistant:taskSortMode:"
 const FILTER_PANEL_STORAGE_PREFIX = "qassistant:taskFilterPanel:"
+const FILTER_PRESETS_PREFIX = "qassistant:taskFilterPresets:"
+
+type FilterPreset = { name: string; filters: TaskBoardFilters }
+
+function loadPresets(projectId: string): FilterPreset[] {
+    try {
+        const raw = window.localStorage.getItem(`${FILTER_PRESETS_PREFIX}${projectId}`)
+        return raw ? JSON.parse(raw) : []
+    } catch {
+        return []
+    }
+}
+
+function savePresets(projectId: string, presets: FilterPreset[]) {
+    window.localStorage.setItem(`${FILTER_PRESETS_PREFIX}${projectId}`, JSON.stringify(presets))
+}
 
 function toLinearColumn(state: { name: string; type?: string }) : TaskBoardColumn {
     const type = String(state.type || "").toLowerCase()
@@ -106,6 +123,9 @@ export default function TasksPage() {
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
     const [syncTimestamp, setSyncTimestamp] = useState<number | null>(null)
     const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null)
+    const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([])
+    const [presetNameInput, setPresetNameInput] = useState("")
+    const [showPresetInput, setShowPresetInput] = useState(false)
 
     useEffect(() => {
         if (!activeProjectId) return
@@ -113,6 +133,9 @@ export default function TasksPage() {
         setBoardMode(loadJson(`${BOARD_STORAGE_PREFIX}${activeProjectId}`, { value: "board" }).value as "board" | "triage")
         setSortMode(loadJson(`${SORT_STORAGE_PREFIX}${activeProjectId}`, { value: "manual" }).value as TaskSortMode)
         setIsFilterPanelCollapsed(loadJson(`${FILTER_PANEL_STORAGE_PREFIX}${activeProjectId}`, { value: true }).value as boolean)
+        setFilterPresets(loadPresets(activeProjectId))
+        setShowPresetInput(false)
+        setPresetNameInput("")
     }, [activeProjectId])
 
     const setFilters = useCallback((updater: (current: TaskBoardFilters) => TaskBoardFilters) => {
@@ -467,6 +490,26 @@ export default function TasksPage() {
 
     const clearFilters = () => setFilters(() => ({ ...DEFAULT_TASK_FILTERS, source: sourceMode }))
 
+    const saveFilterPreset = () => {
+        if (!activeProjectId || !presetNameInput.trim()) return
+        const next = [...filterPresets.filter(p => p.name !== presetNameInput.trim()), { name: presetNameInput.trim(), filters }]
+        setFilterPresets(next)
+        savePresets(activeProjectId, next)
+        setPresetNameInput("")
+        setShowPresetInput(false)
+    }
+
+    const applyFilterPreset = (preset: FilterPreset) => {
+        setFilters(() => preset.filters)
+    }
+
+    const deleteFilterPreset = (name: string) => {
+        if (!activeProjectId) return
+        const next = filterPresets.filter(p => p.name !== name)
+        setFilterPresets(next)
+        savePresets(activeProjectId, next)
+    }
+
     const filterChipClass = "rounded-lg border border-[#2A2A3A] bg-[#13131A] px-3 py-2 text-left transition-colors hover:border-[#A78BFA]/40"
     const noExternalConnections = sourceMode === "linear"
         ? (activeProject?.linearConnections?.length ?? 0) === 0
@@ -559,6 +602,78 @@ export default function TasksPage() {
                     collapsed={isFilterPanelCollapsed}
                     onCollapsedChange={persistFilterPanelCollapsed}
                 />
+
+                {/* Filter Presets Bar */}
+                {(filterPresets.length > 0 || showPresetInput) && (
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-[#0F0F13] border-t border-[#2A2A3A]">
+                        <Bookmark className="h-3 w-3 text-[#6B7280] shrink-0" />
+                        {filterPresets.map((preset) => (
+                            <div key={preset.name} className="flex items-center gap-0.5 rounded-full bg-[#1A1A24] border border-[#2A2A3A] pl-2.5 pr-1 py-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => applyFilterPreset(preset)}
+                                    className="text-[10px] font-bold text-[#A78BFA] hover:text-[#C4B5FD] uppercase tracking-widest"
+                                >
+                                    {preset.name}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => deleteFilterPreset(preset.name)}
+                                    className="ml-1 h-4 w-4 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#EF4444] hover:bg-[#EF4444]/10"
+                                >
+                                    <X className="h-2.5 w-2.5" />
+                                </button>
+                            </div>
+                        ))}
+                        {showPresetInput ? (
+                            <div className="flex items-center gap-1.5">
+                                <Input
+                                    value={presetNameInput}
+                                    onChange={(e) => setPresetNameInput(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') saveFilterPreset(); if (e.key === 'Escape') setShowPresetInput(false) }}
+                                    placeholder="Preset name..."
+                                    className="h-6 w-36 text-[10px] bg-[#1A1A24] border-[#2A2A3A] px-2 py-0"
+                                    autoFocus
+                                />
+                                <button
+                                    type="button"
+                                    onClick={saveFilterPreset}
+                                    className="h-6 w-6 rounded flex items-center justify-center bg-[#A78BFA]/10 text-[#A78BFA] hover:bg-[#A78BFA]/20"
+                                >
+                                    <Check className="h-3 w-3" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPresetInput(false)}
+                                    className="h-6 w-6 rounded flex items-center justify-center text-[#6B7280] hover:text-[#E2E8F0]"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => setShowPresetInput(true)}
+                                className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#6B7280] hover:text-[#A78BFA] transition-colors"
+                            >
+                                <Bookmark className="h-3 w-3" />
+                                Save current filters
+                            </button>
+                        )}
+                    </div>
+                )}
+                {!showPresetInput && filterPresets.length === 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-[#0F0F13] border-t border-[#2A2A3A]">
+                        <button
+                            type="button"
+                            onClick={() => setShowPresetInput(true)}
+                            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#6B7280] hover:text-[#A78BFA] transition-colors"
+                        >
+                            <Bookmark className="h-3 w-3" />
+                            Save current filters
+                        </button>
+                    </div>
+                )}
             </header>
 
             <div className="flex min-h-0 flex-1">

@@ -1,6 +1,6 @@
 
 import { useEditor, EditorContent } from '@tiptap/react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import StarterKit from '@tiptap/starter-kit'
 import Color from '@tiptap/extension-color'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -20,6 +20,13 @@ interface RichTextEditorProps {
 }
 
 export const RichTextEditor = ({ content, onChange }: RichTextEditorProps) => {
+    // Track the last HTML value emitted by onUpdate so we can distinguish
+    // "the parent reflected our own change back" from "the parent sent genuinely
+    // new content (e.g. note switched)".  Only call setContent when the incoming
+    // prop is truly different from what we last emitted, which breaks the
+    // update loop without relying on the fragile editor.isFocused check.
+    const lastEmittedRef = useRef<string>(content)
+
     const editor = useEditor({
         extensions: [
             StarterKit,
@@ -30,7 +37,9 @@ export const RichTextEditor = ({ content, onChange }: RichTextEditorProps) => {
         ],
         content: content,
         onUpdate: ({ editor: updatedEditor }) => {
-            onChange(updatedEditor.getHTML())
+            const html = updatedEditor.getHTML()
+            lastEmittedRef.current = html
+            onChange(html)
         },
         editorProps: {
             attributes: {
@@ -39,17 +48,14 @@ export const RichTextEditor = ({ content, onChange }: RichTextEditorProps) => {
         },
     })
 
-    // Synchronize content when selected note changes.
-    // Avoid calling setContent while the editor is focused to prevent
-    // resetting the selection / caret (which causes a vibrating caret).
     useEffect(() => {
-        if (editor && content !== editor.getHTML()) {
-            // Only update external content when the editor is not focused.
-            // This prevents a sync loop: parent updates -> prop changes ->
-            // setContent() which resets selection while the user types.
-            if (!editor.isFocused) {
-                editor.commands.setContent(content)
-            }
+        if (!editor) return
+        // Only push content into the editor when the prop carries a value that
+        // did not originate from our own last keystroke.  This prevents the
+        // circular-update that resets the caret position while the user types.
+        if (content !== lastEmittedRef.current) {
+            lastEmittedRef.current = content
+            editor.commands.setContent(content)
         }
     }, [content, editor])
 

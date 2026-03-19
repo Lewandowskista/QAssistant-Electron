@@ -7,6 +7,64 @@ import { Textarea } from '@/components/ui/textarea'
 import { Project, Task, HandoffPacket, HandoffType } from '@/types/project'
 import { getHandoffMissingFields } from '@/lib/collaboration'
 
+type HandoffTemplate = {
+    id: string
+    label: string
+    type: HandoffType
+    severity: Task['severity']
+    reproStepsTemplate: string
+    expectedResultTemplate: string
+    actualResultTemplate: string
+}
+
+const HANDOFF_TEMPLATES: HandoffTemplate[] = [
+    {
+        id: 'ui_bug',
+        label: 'UI Bug',
+        type: 'bug_handoff',
+        severity: 'minor',
+        reproStepsTemplate: '1. Navigate to [page/component]\n2. [Perform action]\n3. Observe the visual issue\n\nBrowser: [browser + version]\nScreen resolution: [resolution]\nZoom level: [zoom]',
+        expectedResultTemplate: 'The UI element [description] should display correctly with proper styling, alignment, and responsive behaviour.',
+        actualResultTemplate: 'The UI element [description] appears [misaligned / unstyled / broken] — see attached screenshot for details.',
+    },
+    {
+        id: 'api_error',
+        label: 'API / Backend Error',
+        type: 'bug_handoff',
+        severity: 'major',
+        reproStepsTemplate: '1. Authenticate as [user type]\n2. Call endpoint: [METHOD] [endpoint]\n3. Request body (if applicable):\n   [paste JSON]\n4. Observe the error response',
+        expectedResultTemplate: 'The API returns HTTP 200 with a valid response body conforming to the documented schema.',
+        actualResultTemplate: 'The API returns HTTP [status] with error: [error message / code]. Full response body attached.',
+    },
+    {
+        id: 'data_issue',
+        label: 'Data / ImpEx Issue',
+        type: 'bug_handoff',
+        severity: 'major',
+        reproStepsTemplate: '1. Import the attached ImpEx / run the data setup script\n2. Navigate to [catalog / product / order]\n3. Verify the data attributes listed below\n\nAffected items: [codes or IDs]',
+        expectedResultTemplate: 'The data attributes [list] should reflect the values defined in the ImpEx / data script.',
+        actualResultTemplate: 'Attribute [name] shows [actual value] instead of [expected value]. FlexSearch query result attached.',
+    },
+    {
+        id: 'performance',
+        label: 'Performance Issue',
+        type: 'bug_handoff',
+        severity: 'major',
+        reproStepsTemplate: '1. Environment: [env name, CCv2 / local]\n2. Navigate to [page]\n3. Perform action: [description]\n4. Measure response time using [browser DevTools / Dynatrace / etc.]\n\nLoad conditions: [user count / product count]',
+        expectedResultTemplate: 'Page / operation should complete within [X] ms under [Y] concurrent users.',
+        actualResultTemplate: 'Observed response time: [actual ms]. HAR file / trace attached. Notable bottleneck: [description].',
+    },
+    {
+        id: 'security',
+        label: 'Security / Access Control',
+        type: 'bug_handoff',
+        severity: 'critical',
+        reproStepsTemplate: '1. Log in as [role / permission group]\n2. Attempt to access [resource / endpoint]\n3. Observe that access is [granted / not revoked properly]\n\nUser UID: [uid]\nTest environment: [env name]',
+        expectedResultTemplate: 'Users with [role] should NOT have access to [resource]. A 403 / redirect to login should be returned.',
+        actualResultTemplate: 'User with [role] was able to [access / modify] [resource] without appropriate permissions.',
+    },
+]
+
 interface HandoffPacketDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -44,6 +102,16 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
     const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([])
     const [linkedFileIds, setLinkedFileIds] = useState<string[]>([])
     const [isSaving, setIsSaving] = useState(false)
+
+    const applyTemplate = (templateId: string) => {
+        const template = HANDOFF_TEMPLATES.find(t => t.id === templateId)
+        if (!template) return
+        setType(template.type)
+        setSeverity(template.severity)
+        setReproSteps(template.reproStepsTemplate)
+        setExpectedResult(template.expectedResultTemplate)
+        setActualResult(template.actualResultTemplate)
+    }
 
     const environments = activeProject.environments || []
     const allTestCases = activeProject.testPlans.flatMap((plan) => plan.testCases || [])
@@ -114,6 +182,22 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                         Capture structured repro details, environment, and linked evidence for {task.title}.
                     </DialogDescription>
                 </DialogHeader>
+
+                {!handoff && (
+                    <div className="rounded-lg border border-[#2A2A3A] bg-[#0F0F13] p-3 flex items-center gap-3">
+                        <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest shrink-0">Template</span>
+                        <select
+                            defaultValue=""
+                            onChange={e => { if (e.target.value) applyTemplate(e.target.value) }}
+                            className="flex-1 h-8 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-xs text-[#E2E8F0] focus:outline-none"
+                        >
+                            <option value="">Apply a template (optional)...</option>
+                            {HANDOFF_TEMPLATES.map(t => (
+                                <option key={t.id} value={t.id}>{t.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
                     <div className="space-y-2">
