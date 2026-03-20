@@ -3,6 +3,7 @@ import { UserProfile } from './user';
 import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem, GitHubComment, GitHubWorkflowJob, GitHubWorkflow } from './github';
 import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
 import { CronJobEntry, FlexibleSearchResult, ImpExResult } from '@/lib/sapHac';
+import { AppUpdateState } from './update';
 import {
     SyncConfig,
     SyncConflictPayload,
@@ -38,6 +39,11 @@ export interface ElectronAPI {
     writeProjectsFile: (data: Project[]) => Promise<{ success: boolean; error?: string }>;
     readSettingsFile: () => Promise<any>;
     writeSettingsFile: (data: any) => Promise<{ success: boolean; error?: string }>;
+    getAppUpdateState: () => Promise<AppUpdateState>;
+    checkForAppUpdate: () => Promise<AppUpdateState>;
+    downloadAppUpdate: () => Promise<AppUpdateState>;
+    installAppUpdate: () => Promise<boolean>;
+    dismissAppUpdate: (version: string) => Promise<AppUpdateState>;
     readJsonFile: (args: { filePath: string } | string) => Promise<{ success: boolean; data?: any; error?: string }>;
     
     // Credentials
@@ -168,6 +174,7 @@ export interface ElectronAPI {
     setAlwaysOnTop: (flag: boolean) => void;
     getAppVersion: () => Promise<string>;
     getSystemInfo: () => Promise<{ platform: string; arch: string; nodeVersion: string; electronVersion: string; appVersion: string }>;
+    onAppUpdateStatus: (callback: (state: AppUpdateState) => void) => () => void;
     isMinimizedToTray: () => Promise<boolean>;
     appQuit: () => void;
 

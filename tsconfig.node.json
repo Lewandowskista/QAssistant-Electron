@@ -28,6 +28,7 @@
   "include": [
     "vite.config.ts",
     "electron.vite.config.ts",
-    "electron/**/*.ts"
+    "electron/**/*.ts",
+    "src/types/update.ts"
   ]
 }

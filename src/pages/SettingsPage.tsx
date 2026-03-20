@@ -15,6 +15,7 @@ import { useProjectStore } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { LinearConnection, JiraConnection } from "@/types/project"
+import type { AppUpdateState } from "@/types/update"
 import type { UserRole, AuthProvider } from "@/types/user"
 import { useConfirm } from "@/components/ConfirmDialog"
 import { toast } from "sonner"
@@ -59,6 +60,32 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 const inp = "h-10 rounded-xl text-sm"
+
+function formatUpdateStatus(state: AppUpdateState): string {
+    switch (state.status) {
+        case 'checking':
+            return 'Checking for updates...'
+        case 'available':
+            return state.availableVersion ? `Version ${state.availableVersion} is available.` : 'An update is available.'
+        case 'none':
+            return 'You are running the latest version.'
+        case 'downloading':
+            return `Downloading update${state.downloadProgressPercent !== undefined ? ` (${Math.round(state.downloadProgressPercent)}%)` : ''}...`
+        case 'downloaded':
+            return state.availableVersion ? `Version ${state.availableVersion} is ready to install.` : 'Update downloaded and ready to install.'
+        case 'error':
+            return state.errorMessage || 'The update check failed.'
+        case 'disabled':
+            return 'Auto-update is unavailable for this build or platform.'
+        default:
+            return 'Check for updates to compare this install with the latest GitHub release.'
+    }
+}
+
+function formatUpdateCheckTime(value?: number): string {
+    if (!value) return 'Not checked yet'
+    return new Date(value).toLocaleString()
+}
 
 // ── Components ────────────────────────────────────────────────────────────────
 function Sec({ id, title, icon, children, activeSection, setActiveSection }: { 
@@ -134,6 +161,8 @@ export default function SettingsPage() {
     // ── Global settings state ─────────────────────────────────────────────────
     const [sapContext, setSapContext] = useState(false)
     const [minimizeToTray, setMinimizeToTray] = useState(false)
+    const [autoCheckForUpdates, setAutoCheckForUpdates] = useState(true)
+    const [appUpdateState, setAppUpdateState] = useState<AppUpdateState>({ status: 'idle', currentVersion: '' })
 
     // ── Automation API ────────────────────────────────────────────────────────
     const [apiEnabled, setApiEnabled] = useState(false)
@@ -270,13 +299,14 @@ export default function SettingsPage() {
             const settings = await api.readSettingsFile()
             setSapContext(!!settings.sapCommerceContext)
             setMinimizeToTray(!!settings.minimizeToTray)
+            setAutoCheckForUpdates(settings.autoCheckForUpdates !== false)
             setApiEnabled(!!settings.automationApiEnabled)
             setApiPort(settings.automationPort || '5248')
             setWebhooks(settings.webhooks || [])
 
             const projectPrefix = activeProject ? `project:${activeProject.id}:` : ''
 
-            const [storedKey, storedGemini, storedCcv2Sub, storedCcv2Token, ver, path, info] = await Promise.all([
+            const [storedKey, storedGemini, storedCcv2Sub, storedCcv2Token, ver, path, info, updateState] = await Promise.all([
                 activeProject ? api.secureStoreGet(`${projectPrefix}automation_api_key`) : Promise.resolve(null),
                 activeProject ? api.secureStoreGet(`${projectPrefix}gemini_api_key`) : Promise.resolve(null),
                 activeProject ? api.secureStoreGet(`${projectPrefix}ccv2_subscription_code`) : Promise.resolve(null),
@@ -284,6 +314,7 @@ export default function SettingsPage() {
                 api.getAppVersion(),
                 api.getAppDataPath(),
                 api.getSystemInfo(),
+                api.getAppUpdateState(),
             ])
             if (storedKey) setApiKey(storedKey)
             if (storedGemini) setGeminiKey(storedGemini)
@@ -293,9 +324,29 @@ export default function SettingsPage() {
             setAppVersion(ver || '')
             setDataPath(path || '')
             setSysInfo(info)
+            setAppUpdateState(updateState)
         }
         load()
     }, [activeProjectId, activeProject?.geminiModel])
+
+    useEffect(() => {
+        const unsub = api.onAppUpdateStatus((state) => {
+            setAppUpdateState(state)
+            if (state.status === 'available' && state.availableVersion && state.availableVersion !== appVersion) {
+                const deferredVersion = useSettingsStore.getState().settings.deferredVersion
+                if (deferredVersion !== state.availableVersion) {
+                    toast.info(`Update ${state.availableVersion} is available.`)
+                }
+            }
+            if (state.status === 'downloaded' && state.availableVersion) {
+                toast.success(`Update ${state.availableVersion} is ready to install.`)
+            }
+            if (state.status === 'error' && state.errorMessage) {
+                toast.error(state.errorMessage)
+            }
+        })
+        return unsub
+    }, [api, appVersion])
 
     const saveSetting = useCallback(async (patch: Record<string, unknown>) => {
         await saveSettingsStore(patch)
@@ -304,6 +355,33 @@ export default function SettingsPage() {
     const flash = (set: (s: StatusState) => void, msg: string, ok: boolean, ms = 3000) => {
         set({ msg, ok })
         setTimeout(() => set(null), ms)
+    }
+
+    const handleAutoCheckForUpdatesToggle = async () => {
+        const next = !autoCheckForUpdates
+        setAutoCheckForUpdates(next)
+        await saveSetting({ autoCheckForUpdates: next })
+    }
+
+    const handleCheckForUpdates = async () => {
+        const state = await api.checkForAppUpdate()
+        setAppUpdateState(state)
+    }
+
+    const handleDownloadUpdate = async () => {
+        const state = await api.downloadAppUpdate()
+        setAppUpdateState(state)
+    }
+
+    const handleInstallUpdate = async () => {
+        await api.installAppUpdate()
+    }
+
+    const handleLaterUpdate = async () => {
+        if (!appUpdateState.availableVersion) return
+        await api.dismissAppUpdate(appUpdateState.availableVersion)
+        await saveSetting({ deferredVersion: appUpdateState.availableVersion })
+        toast.info(`QAssistant will remind you about ${appUpdateState.availableVersion} later.`)
     }
 
     // ── Automation API helpers ────────────────────────────────────────────────
@@ -1181,6 +1259,122 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         </div>
                     )}
                     {!webhookForm.open && <StatusBanner s={webhookStatus} />}
+                </Sec>
+
+                {/* ── APPLICATION UPDATES ─────────────────────────────────── */}
+                <Sec id="updates" title="Application Updates" icon={<Download className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                    <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-4 space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-sm font-semibold text-[#E2E8F0]">GitHub Release Updates</p>
+                                <p className="text-xs text-[#6B7280] mt-1 max-w-xl">
+                                    QAssistant checks published GitHub Releases for newer packaged versions. Updates only install after you confirm.
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-bold uppercase text-[#6B7280]">Current Version</p>
+                                <p className="text-sm font-semibold text-[#E2E8F0] mt-1">{appUpdateState.currentVersion || appVersion || 'Unknown'}</p>
+                            </div>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-3">
+                            <div className="bg-[#0A0A0D] border border-[#1F1F24] rounded-xl px-4 py-3">
+                                <p className="text-[10px] font-bold uppercase text-[#6B7280]">Status</p>
+                                <p className="text-sm font-semibold text-[#E2E8F0] mt-1">{formatUpdateStatus(appUpdateState)}</p>
+                            </div>
+                            <div className="bg-[#0A0A0D] border border-[#1F1F24] rounded-xl px-4 py-3">
+                                <p className="text-[10px] font-bold uppercase text-[#6B7280]">Last Check</p>
+                                <p className="text-sm font-semibold text-[#E2E8F0] mt-1">{formatUpdateCheckTime(appUpdateState.lastCheckedAt)}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-[#0A0A0D] border border-[#1F1F24] rounded-xl px-4 py-3">
+                            <div>
+                                <p className="text-sm font-semibold text-[#E2E8F0]">Check automatically on startup</p>
+                                <p className="text-[11px] text-[#6B7280] mt-1">Recommended for release builds. You can still check manually below.</p>
+                            </div>
+                            <Toggle on={autoCheckForUpdates} onToggle={handleAutoCheckForUpdatesToggle} />
+                        </div>
+
+                        {appUpdateState.downloadProgressPercent !== undefined && (
+                            <div>
+                                <div className="flex items-center justify-between text-[11px] text-[#9CA3AF] mb-2">
+                                    <span>Download progress</span>
+                                    <span>{Math.round(appUpdateState.downloadProgressPercent)}%</span>
+                                </div>
+                                <div className="h-2 rounded-full bg-[#1F1F24] overflow-hidden">
+                                    <div className="h-full bg-[#A78BFA] transition-all" style={{ width: `${Math.max(0, Math.min(100, appUpdateState.downloadProgressPercent))}%` }} />
+                                </div>
+                            </div>
+                        )}
+
+                        {appUpdateState.releaseNotes && (
+                            <div className="bg-[#0A0A0D] border border-[#1F1F24] rounded-xl px-4 py-3">
+                                <p className="text-[10px] font-bold uppercase text-[#6B7280] mb-2">Release Notes</p>
+                                <p className="text-xs text-[#CBD5E1] whitespace-pre-wrap">{appUpdateState.releaseNotes}</p>
+                            </div>
+                        )}
+
+                        {sysInfo?.platform === 'darwin' && (
+                            <div className="rounded-xl border border-[#7C2D12] bg-[#1C1210] px-4 py-3 text-xs text-[#FDBA74]">
+                                macOS release artifacts can be published, but production in-app auto-update still requires Apple signing and notarization to be fully reliable.
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                                size="sm"
+                                className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-9"
+                                onClick={handleCheckForUpdates}
+                                disabled={appUpdateState.status === 'checking' || appUpdateState.status === 'downloading'}
+                            >
+                                {appUpdateState.status === 'checking' ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                Check for Updates
+                            </Button>
+
+                            {appUpdateState.status === 'available' && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-9 border-[#2A2A3A] text-[#9CA3AF] font-bold"
+                                        onClick={handleDownloadUpdate}
+                                    >
+                                        Download Update
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-9 text-[#F59E0B] hover:bg-[#F59E0B]/10 font-bold"
+                                        onClick={handleLaterUpdate}
+                                    >
+                                        Later
+                                    </Button>
+                                </>
+                            )}
+
+                            {appUpdateState.status === 'downloaded' && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-9 border-[#2A2A3A] text-[#9CA3AF] font-bold"
+                                        onClick={handleInstallUpdate}
+                                    >
+                                        Install and Restart
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-9 text-[#F59E0B] hover:bg-[#F59E0B]/10 font-bold"
+                                        onClick={handleLaterUpdate}
+                                    >
+                                        Later
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </Sec>
 
                 {/* ── HELP & DOCUMENTATION ────────────────────────────────── */}

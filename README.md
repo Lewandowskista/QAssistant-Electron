@@ -43,7 +43,26 @@ npm run dev
 npm run lint
 npm run test
 npm run build
+npm run version:next
+npm run version:bump:logical
 ```
+
+### Release versioning
+
+QAssistant now treats `1.0.0` as the baseline application version.
+
+- `major`: breaking or architecture-shifting changes
+- `minor`: meaningful new features or feature expansions
+- `patch`: fixes, polish, and small non-breaking improvements
+
+Use these commands before creating a release tag:
+
+```bash
+npm run version:next
+npm run version:bump:logical
+```
+
+`version:next` prints the recommended next semantic version based on commits since the latest `v*` release tag. `version:bump:logical` applies that recommended version to `package.json` and `package-lock.json`. The release workflow then verifies that the pushed tag matches the repo version.
 
 ### First-run options
 

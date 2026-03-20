@@ -53,6 +53,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeProjectsFile: (data: any) => ipcRenderer.invoke('write-projects-file', data),
   readSettingsFile: () => ipcRenderer.invoke('read-settings-file'),
   writeSettingsFile: (data: any) => ipcRenderer.invoke('write-settings-file', data),
+  getAppUpdateState: () => ipcRenderer.invoke('get-app-update-state'),
+  checkForAppUpdate: () => ipcRenderer.invoke('check-app-update'),
+  downloadAppUpdate: () => ipcRenderer.invoke('download-app-update'),
+  installAppUpdate: () => ipcRenderer.invoke('install-app-update'),
+  dismissAppUpdate: (version: string) => ipcRenderer.invoke('dismiss-app-update', version),
   getCredentialStorageStatus: () => ipcRenderer.invoke('get-credential-storage-status'),
   scanOrphanedAttachments: (referencedPaths: string[]) => ipcRenderer.invoke('scan-orphaned-attachments', { referencedPaths }),
   deleteOrphanedAttachments: (filePaths: string[]) => ipcRenderer.invoke('delete-orphaned-attachments', { filePaths }),
@@ -119,6 +124,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAlwaysOnTop: (flag: boolean) => ipcRenderer.send('set-always-on-top', flag),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
+  onAppUpdateStatus: (callback: (state: any) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('app-update-status', listener);
+    return () => ipcRenderer.removeListener('app-update-status', listener);
+  },
   isMinimizedToTray: () => ipcRenderer.invoke('is-minimized-to-tray'),
   sapHacLogin: (baseUrl: string, user: string, pass: string, ignoreSsl?: boolean) => ipcRenderer.invoke('sap-hac-login', { baseUrl, user, pass, ignoreSsl }),
   sapHacGetCronJobs: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-cronjobs', { baseUrl }),

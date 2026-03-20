@@ -5,6 +5,12 @@ copyright: Copyright © 2026 Lewandowskista
 directories:
   buildResources: build
 
+publish:
+  provider: github
+  owner: Lewandowskista
+  repo: QAssistant-Electron
+  releaseType: release
+
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -20,6 +26,9 @@ asarUnpack:
 mac:
   target:
     - target: dmg
+      arch:
+        - x64
+    - target: zip
       arch:
         - x64
   category: public.app-category.developer-tools
@@ -55,4 +64,6 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+
+generateUpdatesFilesForAllChannels: true
 

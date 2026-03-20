@@ -48,6 +48,15 @@ import { saveFile, saveBytes, deleteFile } from './fileStorage';
 import * as bugReport from './bug-report';
 import { SapHacService } from './sapHac';
 import * as accuracy from './accuracy';
+import {
+    checkForAppUpdate,
+    dismissAppUpdate,
+    downloadAppUpdate,
+    getAppUpdateEventChannel,
+    getAppUpdateState,
+    initAppUpdater,
+    installAppUpdate,
+} from './appUpdater';
 // trayIconBase64 removed to use file-based icon
 // BOOTSTRAP: This self-executing function finds the REAL Electron API even if shadowed.
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -107,6 +116,7 @@ if (app) {
     let CREDENTIALS_FILE = '';
     let ATTACHMENTS_DIR = '';
     let SETTINGS_FILE = '';
+    let UPDATER_DATA_DIR = '';
     let tray: any = null;
     let USER_PROFILE_FILE = '';
 
@@ -197,6 +207,7 @@ if (app) {
             if (mainWindow) {
                 mainWindow.show();
                 mainWindow.webContents.send('window-maximized-status', mainWindow.isMaximized());
+                mainWindow.webContents.send(getAppUpdateEventChannel(), getAppUpdateState());
             }
         });
 
@@ -384,6 +395,17 @@ if (app) {
                 console.error('Error writing settings file:', e);
                 return false;
             }
+        });
+        ipcMain.handle('get-app-update-state', () => getAppUpdateState());
+        ipcMain.handle('check-app-update', async () => await checkForAppUpdate());
+        ipcMain.handle('download-app-update', async () => await downloadAppUpdate());
+        ipcMain.handle('install-app-update', () => {
+            installAppUpdate();
+            return true;
+        });
+        ipcMain.handle('dismiss-app-update', async (_e: any, version: unknown) => {
+            assertString(version, 'version', 100);
+            return await dismissAppUpdate(version);
         });
         ipcMain.handle('get-credential-storage-status', () => {
             const { safeStorage } = electron;
@@ -1400,10 +1422,12 @@ if (app) {
         CREDENTIALS_FILE = path.join(APP_DATA_DIR, 'credentials.json');
         ATTACHMENTS_DIR = path.join(APP_DATA_DIR, 'attachments');
         SETTINGS_FILE = path.join(APP_DATA_DIR, 'settings.json');
+        UPDATER_DATA_DIR = path.join(APP_DATA_DIR, 'updater');
         USER_PROFILE_FILE = path.join(APP_DATA_DIR, 'user.json');
 
         if (!fs.existsSync(APP_DATA_DIR)) fs.mkdirSync(APP_DATA_DIR, { recursive: true });
         if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
+        if (!fs.existsSync(UPDATER_DATA_DIR)) fs.mkdirSync(UPDATER_DATA_DIR, { recursive: true });
 
         // Initialise SQLite database (must happen before setupIpc)
         const DB_FILE = path.join(APP_DATA_DIR, 'qassistant.db');
@@ -1421,6 +1445,24 @@ if (app) {
         });
 
         setupIpc();
+        initAppUpdater({
+            getMainWindow: () => mainWindow,
+            readSettings: async () => {
+                try {
+                    if (!fs.existsSync(SETTINGS_FILE)) return {};
+                    const content = await fsp.readFile(SETTINGS_FILE, 'utf8');
+                    const parsed = JSON.parse(content);
+                    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : {};
+                } catch (error) {
+                    console.warn('[updater] Failed to read settings:', error);
+                    return {};
+                }
+            },
+            writeSettings: async (next) => {
+                await fsp.writeFile(SETTINGS_FILE, JSON.stringify(next, null, 2));
+            },
+            updaterDataDir: UPDATER_DATA_DIR,
+        });
         // Notify renderer when OAuth completes via the Express callback route
         setOAuthCompleteCallback((provider, userInfo) => {
             mainWindow?.webContents.send('oauth-complete', { provider, userInfo });

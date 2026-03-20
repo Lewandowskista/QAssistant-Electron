@@ -1,7 +1,7 @@
 {
   "name": "qassistant-electron",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "main": "out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -10,6 +10,9 @@
     "generate:icon": "powershell -ExecutionPolicy Bypass -File scripts/generate-app-icon.ps1",
     "lint": "eslint .",
     "test": "vitest run",
+    "version:next": "node scripts/release-version.mjs",
+    "version:bump:logical": "node scripts/release-version.mjs --apply",
+    "version:verify-tag": "node scripts/release-version.mjs --verify-tag",
     "build:mac": "electron-vite build && electron-builder --mac --publish never",
     "build:win": "electron-vite build && electron-builder --win --publish never"
   },
@@ -42,6 +45,7 @@
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",
     "electron-is-dev": "^3.0.1",
+    "electron-updater": "^6.8.3",
     "express": "^5.2.1",
     "lucide-react": "^0.576.0",
     "mammoth": "^1.12.0",

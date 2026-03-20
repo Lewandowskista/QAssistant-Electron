@@ -5,6 +5,9 @@ export interface AppSettings {
     alwaysOnTop: boolean
     sapCommerceContext: boolean
     minimizeToTray: boolean
+    autoCheckForUpdates: boolean
+    deferredVersion?: string
+    lastUpdateCheckAt?: number
     [key: string]: unknown
 }
 
@@ -13,6 +16,7 @@ const DEFAULTS: AppSettings = {
     alwaysOnTop: false,
     sapCommerceContext: false,
     minimizeToTray: false,
+    autoCheckForUpdates: true,
 }
 
 interface SettingsState {
