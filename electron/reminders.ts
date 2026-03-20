@@ -1,16 +1,13 @@
 // @ts-expect-error — electron default import may not match type declarations
 import electron from 'electron'
 const { Notification, BrowserWindow } = electron as any
-import fs from 'fs'
 import { REMINDER_COOLDOWN_MS } from './constants'
+import { getTasksForReminders, getRunbookStepsForReminders, getTestCaseStatusCountsForReminders } from './database'
 
 const notifiedIds = new Map<string, number>()
 const COOLDOWN = REMINDER_COOLDOWN_MS
-let projectsFilePath = ''
 
-export function startReminderService(filePath: string): () => void {
-    projectsFilePath = filePath
-
+export function startReminderService(): () => void {
     // Check periodically
     const dueDateInterval = setInterval(() => {
         checkDueDateReminders()
@@ -35,82 +32,52 @@ export function startReminderService(filePath: string): () => void {
     }
 }
 
-function readProjects(): any[] {
-    try {
-        if (!fs.existsSync(projectsFilePath)) return []
-        return JSON.parse(fs.readFileSync(projectsFilePath, 'utf8'))
-    } catch (e) {
-        console.warn('[Reminders] Failed to read projects file:', e)
-        return []
-    }
-}
-
 function checkDueDateReminders() {
     try {
-        const projects = readProjects()
+        const tasks = getTasksForReminders()
+        const runbookSteps = getRunbookStepsForReminders()
         const now = Date.now()
         const ONE_DAY = 24 * 60 * 60 * 1000
         const THREE_DAYS = 3 * ONE_DAY
 
-        for (const project of projects) {
-            const tasks = project.tasks || []
-
-            // Check for overdue tasks
-            const overdue = tasks.filter((t: any) =>
-                t.dueDate &&
-                t.dueDate < now &&
-                !['done', 'canceled', 'duplicate'].includes(t.status)
-            )
-
-            for (const t of overdue) {
-                const id = `overdue-${project.id}-${t.id}`
+        // Check for overdue tasks
+        for (const t of tasks) {
+            if (!t.dueDate || ['done', 'canceled', 'duplicate'].includes(t.status)) continue
+            if (t.dueDate < now) {
+                const id = `overdue-${t.projectId}-${t.taskId}`
                 const last = notifiedIds.get(id) || 0
                 if (now - last > COOLDOWN) {
                     showNotification(
-                        `Overdue Task — ${project.name}`,
-                        `"${t.title}" was due on ${new Date(t.dueDate).toLocaleDateString()}`
+                        `Overdue Task — ${t.projectName}`,
+                        `"${t.taskTitle}" was due on ${new Date(t.dueDate).toLocaleDateString()}`
                     )
                     notifiedIds.set(id, now)
                 }
-            }
-
-            // Check for tasks due soon
-            const dueSoon = tasks.filter((t: any) =>
-                t.dueDate &&
-                t.dueDate >= now &&
-                t.dueDate <= now + THREE_DAYS &&
-                !['done', 'canceled', 'duplicate'].includes(t.status)
-            )
-
-            for (const t of dueSoon) {
-                const id = `soon-${project.id}-${t.id}`
+            } else if (t.dueDate <= now + THREE_DAYS) {
+                const id = `soon-${t.projectId}-${t.taskId}`
                 const last = notifiedIds.get(id) || 0
                 if (now - last > COOLDOWN) {
                     const daysLeft = Math.ceil((t.dueDate - now) / ONE_DAY)
                     showNotification(
-                        `Due Soon — ${project.name}`,
-                        `"${t.title}" is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`
+                        `Due Soon — ${t.projectName}`,
+                        `"${t.taskTitle}" is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`
                     )
                     notifiedIds.set(id, now)
                 }
             }
+        }
 
-            const runbooks = project.runbooks || []
-            for (const rb of runbooks) {
-                const overdueSteps = (rb.steps || []).filter((s: any) =>
-                    s.dueDate && s.dueDate < now && s.status !== 'done'
+        // Check for overdue runbook steps
+        for (const s of runbookSteps) {
+            if (s.status === 'done') continue
+            const id = `overdue-rb-${s.projectId}-${s.runbookId}-${s.stepId}`
+            const last = notifiedIds.get(id) || 0
+            if (now - last > COOLDOWN) {
+                showNotification(
+                    `Runbook Alert — ${s.projectName}`,
+                    `Overdue step "${s.stepTitle}" in ${s.runbookName}`
                 )
-                for (const s of overdueSteps) {
-                    const id = `overdue-rb-${project.id}-${rb.id}-${s.id}`
-                    const last = notifiedIds.get(id) || 0
-                    if (now - last > COOLDOWN) {
-                        showNotification(
-                            `Runbook Alert — ${project.name}`,
-                            `Overdue step "${s.text}" in ${rb.name}`
-                        )
-                        notifiedIds.set(id, now)
-                    }
-                }
+                notifiedIds.set(id, now)
             }
         }
     } catch (e) {
@@ -120,24 +87,16 @@ function checkDueDateReminders() {
 
 function sendDailySummary() {
     try {
-        const projects = readProjects()
+        const tasks = getTasksForReminders()
+        const statusCounts = getTestCaseStatusCountsForReminders()
         const now = Date.now()
         const ONE_DAY = 24 * 60 * 60 * 1000
 
-        let totalTasks = 0
-        let overdue = 0
-        let dueToday = 0
-        let failedTests = 0
-
-        for (const project of projects) {
-            const tasks = (project.tasks || []).filter((t: any) => !['done', 'canceled', 'duplicate'].includes(t.status))
-            totalTasks += tasks.length
-            overdue += tasks.filter((t: any) => t.dueDate && t.dueDate < now).length
-            dueToday += tasks.filter((t: any) => t.dueDate && t.dueDate >= now && t.dueDate <= now + ONE_DAY).length
-
-            const allCases = (project.testPlans || []).flatMap((tp: any) => tp.testCases || [])
-            failedTests += allCases.filter((tc: any) => tc.status === 'failed').length
-        }
+        const activeTasks = tasks.filter(t => !['done', 'canceled', 'duplicate'].includes(t.status))
+        const totalTasks = activeTasks.length
+        const overdue = activeTasks.filter(t => t.dueDate && t.dueDate < now).length
+        const dueToday = activeTasks.filter(t => t.dueDate && t.dueDate >= now && t.dueDate <= now + ONE_DAY).length
+        const failedTests = statusCounts.filter(s => s.status === 'failed').reduce((acc, s) => acc + s.count, 0)
 
         if (totalTasks === 0 && failedTests === 0 && overdue === 0 && dueToday === 0) return
 

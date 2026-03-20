@@ -27,9 +27,16 @@ import { setCredential, getCredential, deleteCredential, listCredentials, initCr
 import * as oauth from './oauth';
 import * as github from './github';
 import { assertString, assertArray, assertObject } from './ipc-validation';
-import { withFileLock } from './file-lock';
 import { AI_RATE_LIMIT_MS, MAX_SAP_HAC_INSTANCES } from './constants';
 import { initFileStorage } from './fileStorage';
+import { initDatabase, getAllProjects, saveAllProjects, closeDatabase, getTaskById, getHandoffById } from './database';
+import { migrateJsonToSqlite } from './migration';
+import {
+    initSync, teardownSync, getStatus as getSyncStatus, getSyncConfig,
+    createWorkspace, joinWorkspace, disconnectWorkspace, getWorkspaceInfo,
+    triggerManualSync, setSyncWindowSender, onAppFocused,
+    pushTaskCollab, pushHandoff, pushCollabEvent, pushArtifactLink,
+} from './sync';
 import { GeminiService } from './gemini';
 import { startServer, stopServer, setOAuthCompleteCallback, getServerPort, isServerRunning } from './server';
 import { startReminderService } from './reminders';
@@ -193,6 +200,11 @@ if (app) {
             }
         });
 
+        // Auto-sync on focus: pull remote changes whenever the user brings the app to the foreground
+        mainWindow.on('focus', () => {
+            onAppFocused().catch(e => console.warn('[sync] onAppFocused failed:', e));
+        });
+
         // On macOS, clicking the red dot should hide the window (not destroy it)
         // so it can be restored from the Dock without crashing.
         mainWindow.on('close', (event: any) => {
@@ -267,31 +279,21 @@ if (app) {
 
     function setupIpc() {
         ipcMain.handle('get-app-data-path', () => APP_DATA_DIR);
-        ipcMain.handle('read-projects-file', async () => {
+        ipcMain.handle('read-projects-file', () => {
             try {
-                if (fs.existsSync(PROJECTS_FILE)) {
-                    const content = await fsp.readFile(PROJECTS_FILE, 'utf8');
-                    const parsed = JSON.parse(content);
-                    if (!Array.isArray(parsed)) {
-                        console.error('projects.json is not an array — resetting to empty.');
-                        return [];
-                    }
-                    return parsed;
-                }
+                return getAllProjects();
             } catch (e) {
-                console.error('Error reading projects file:', e);
+                console.error('Error reading projects from SQLite:', e);
+                return [];
             }
-            return [];
         });
-        ipcMain.handle('write-projects-file', async (_e: any, data: any) => {
+        ipcMain.handle('write-projects-file', (_e: any, data: any) => {
             try {
                 assertArray(data, 'projects');
-                await withFileLock(PROJECTS_FILE, () =>
-                    fsp.writeFile(PROJECTS_FILE, JSON.stringify(data, null, 2))
-                );
+                saveAllProjects(data);
                 return true;
             } catch (e) {
-                console.error('Error writing projects file:', e);
+                console.error('Error writing projects to SQLite:', e);
                 return false;
             }
         });
@@ -1145,6 +1147,95 @@ if (app) {
             }
             return false;
         });
+
+        // ── Cloud Sync (Phase 2) ──────────────────────────────────────────────
+        ipcMain.handle('sync-get-config', async () => {
+            try { return await getSyncConfig(); }
+            catch (e: any) { return { configured: false, error: e.message }; }
+        });
+        ipcMain.handle('sync-get-status', () => getSyncStatus());
+        ipcMain.handle('sync-init', async () => {
+            try { return await initSync(); }
+            catch (e: any) { return { ok: false, status: 'error', error: e.message }; }
+        });
+        ipcMain.handle('sync-create-workspace', async (_e: any, { supabaseUrl, supabaseAnonKey, userEmail, userPassword, workspaceName, displayName }: any) => {
+            try {
+                assertString(supabaseUrl, 'supabaseUrl', 500);
+                assertString(supabaseAnonKey, 'supabaseAnonKey', 500);
+                assertString(userEmail, 'userEmail', 200);
+                assertString(userPassword, 'userPassword', 200);
+                assertString(workspaceName, 'workspaceName', 200);
+                assertString(displayName, 'displayName', 100);
+                return await createWorkspace(supabaseUrl, supabaseAnonKey, userEmail, userPassword, workspaceName, displayName);
+            } catch (e: any) { return { ok: false, error: e.message }; }
+        });
+        ipcMain.handle('sync-join-workspace', async (_e: any, { supabaseUrl, supabaseAnonKey, userEmail, userPassword, inviteCode, displayName }: any) => {
+            try {
+                assertString(supabaseUrl, 'supabaseUrl', 500);
+                assertString(supabaseAnonKey, 'supabaseAnonKey', 500);
+                assertString(userEmail, 'userEmail', 200);
+                assertString(userPassword, 'userPassword', 200);
+                assertString(inviteCode, 'inviteCode', 20);
+                assertString(displayName, 'displayName', 100);
+                return await joinWorkspace(supabaseUrl, supabaseAnonKey, userEmail, userPassword, inviteCode, displayName);
+            } catch (e: any) { return { ok: false, error: e.message }; }
+        });
+        ipcMain.handle('sync-disconnect', async () => {
+            try { await disconnectWorkspace(); return { ok: true }; }
+            catch (e: any) { return { ok: false, error: e.message }; }
+        });
+        ipcMain.handle('sync-get-workspace-info', async () => {
+            try { return await getWorkspaceInfo(); }
+            catch (e: any) { return { workspaceId: null, error: e.message }; }
+        });
+        ipcMain.handle('sync-manual', async () => {
+            try { return await triggerManualSync(); }
+            catch (e: any) { return { ok: false, error: e.message }; }
+        });
+
+        // Granular sync push handlers — called by the renderer after collaborative mutations
+        ipcMain.handle('sync-push-task-collab', (_e: any, args: any) => {
+            try {
+                const { projectId, taskId, collabState, activeHandoffId, updatedAt } = args;
+                pushTaskCollab(projectId, taskId, collabState, activeHandoffId ?? null, updatedAt ?? Date.now());
+                return { ok: true };
+            } catch (e: any) { return { ok: false, error: e.message }; }
+        });
+        ipcMain.handle('sync-push-handoff', (_e: any, args: any) => {
+            try {
+                const { projectId, handoff } = args;
+                pushHandoff(projectId, handoff);
+                return { ok: true };
+            } catch (e: any) { return { ok: false, error: e.message }; }
+        });
+        ipcMain.handle('sync-push-collab-event', (_e: any, args: any) => {
+            try {
+                const { projectId, event } = args;
+                pushCollabEvent(projectId, event);
+                return { ok: true };
+            } catch (e: any) { return { ok: false, error: e.message }; }
+        });
+        ipcMain.handle('sync-push-artifact-link', (_e: any, args: any) => {
+            try {
+                const { projectId, link } = args;
+                pushArtifactLink(projectId, link);
+                return { ok: true };
+            } catch (e: any) { return { ok: false, error: e.message }; }
+        });
+
+        // Granular DB queries for post-sync targeted refresh (Improvement 5)
+        ipcMain.handle('get-task-by-id', (_e: any, taskId: string) => {
+            try {
+                assertString(taskId, 'taskId', 200);
+                return getTaskById(taskId);
+            } catch (e: any) { return null; }
+        });
+        ipcMain.handle('get-handoff-by-id', (_e: any, handoffId: string) => {
+            try {
+                assertString(handoffId, 'handoffId', 200);
+                return getHandoffById(handoffId);
+            } catch (e: any) { return null; }
+        });
     }
 
     function createTray() {
@@ -1241,14 +1332,29 @@ if (app) {
         if (!fs.existsSync(APP_DATA_DIR)) fs.mkdirSync(APP_DATA_DIR, { recursive: true });
         if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
 
+        // Initialise SQLite database (must happen before setupIpc)
+        const DB_FILE = path.join(APP_DATA_DIR, 'qassistant.db');
+        initDatabase(DB_FILE);
+
+        // One-time migration: import projects.json into SQLite if it exists and DB is empty
+        migrateJsonToSqlite(PROJECTS_FILE);
+
         initFileStorage(ATTACHMENTS_DIR);
         initCredentials(CREDENTIALS_FILE);
+
+        // Wire sync → renderer notifications
+        setSyncWindowSender((channel: string, ...args: any[]) => {
+            mainWindow?.webContents.send(channel, ...args);
+        });
 
         setupIpc();
         // Notify renderer when OAuth completes via the Express callback route
         setOAuthCompleteCallback((provider, userInfo) => {
             mainWindow?.webContents.send('oauth-complete', { provider, userInfo });
         });
+
+        // Auto-init cloud sync if credentials are already stored
+        initSync().catch(e => console.warn('[sync] Auto-init failed:', e));
         // Auto-start the server so the OAuth /auth/callback endpoint is always available
         startServer(crypto.randomBytes(32).toString('hex'), 5248);
         createWindow();
@@ -1288,10 +1394,12 @@ if (app) {
             Menu.setApplicationMenu(null);
         }
 
-        const stopReminderService = startReminderService(PROJECTS_FILE);
+        const stopReminderService = startReminderService();
         app.on('before-quit', () => {
             (app as any).isQuiting = true;
             stopReminderService();
+            teardownSync().catch(() => {});
+            closeDatabase();
         });
     });
 

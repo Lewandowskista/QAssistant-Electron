@@ -25,6 +25,7 @@ import { CollaborationTimeline } from "./CollaborationTimeline"
 import { TaskStateBadge, collabStateLabel, collabStateTone, coverageStateTone, dueStateTone, handoffStateTone } from "./TaskStateBadge"
 import { deriveTaskViewModels } from "@/lib/tasks"
 import { getConnectionApiKey } from "@/lib/credentials"
+import { PresenceAvatars } from "@/components/sync/PresenceAvatars"
 
 interface TaskDetailsSidebarProps {
     selectedTask: Task | null
@@ -271,7 +272,10 @@ export function TaskDetailsSidebar({
 
                     <TabsContent value="collaboration" className="m-0 space-y-5">
                         <div>
-                            <SectionTitle>Collaboration</SectionTitle>
+                            <div className="flex items-center justify-between">
+                                <SectionTitle>Collaboration</SectionTitle>
+                                <PresenceAvatars taskId={selectedTask.id} />
+                            </div>
                             <p className="mt-2 text-xs text-[#9CA3AF]">Track handoff completeness, PR context, release state, and QA verification without leaving the drawer.</p>
                         </div>
                         {activeProject ? <HandoffPanel activeProject={activeProject} task={selectedTask} /> : null}

@@ -172,4 +172,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiAccuracyVerifyClaims: (args: any) => invoke('ai-accuracy-verify-claims', args),
   aiAccuracyScoreDimensions: (args: any) => invoke('ai-accuracy-score-dimensions', args),
   aiAccuracyRerankChunks: (args: any) => invoke('ai-accuracy-rerank-chunks', args),
+
+  // Cloud Sync (Phase 2)
+  syncGetConfig: () => ipcRenderer.invoke('sync-get-config'),
+  syncGetStatus: () => ipcRenderer.invoke('sync-get-status'),
+  syncInit: () => ipcRenderer.invoke('sync-init'),
+  syncCreateWorkspace: (args: any) => ipcRenderer.invoke('sync-create-workspace', args),
+  syncJoinWorkspace: (args: any) => ipcRenderer.invoke('sync-join-workspace', args),
+  syncDisconnect: () => ipcRenderer.invoke('sync-disconnect'),
+  syncGetWorkspaceInfo: () => ipcRenderer.invoke('sync-get-workspace-info'),
+  syncManual: () => ipcRenderer.invoke('sync-manual'),
+  onSyncStatusChanged: (callback: (status: any) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('sync-status-changed', listener);
+    return () => ipcRenderer.removeListener('sync-status-changed', listener);
+  },
+  onSyncDataUpdated: (callback: (data: any) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('sync-data-updated', listener);
+    return () => ipcRenderer.removeListener('sync-data-updated', listener);
+  },
+  syncPushTaskCollab: (args: any) => ipcRenderer.invoke('sync-push-task-collab', args),
+  syncPushHandoff: (args: any) => ipcRenderer.invoke('sync-push-handoff', args),
+  syncPushCollabEvent: (args: any) => ipcRenderer.invoke('sync-push-collab-event', args),
+  syncPushArtifactLink: (args: any) => ipcRenderer.invoke('sync-push-artifact-link', args),
+  // Granular queries for post-sync targeted refresh
+  getTaskById: (taskId: string) => ipcRenderer.invoke('get-task-by-id', taskId),
+  getHandoffById: (handoffId: string) => ipcRenderer.invoke('get-handoff-by-id', handoffId),
+  // Conflict + permanent failure notifications from main process
+  onSyncConflictDetected: (callback: (data: { table: string; id: string }) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('sync-conflict-detected', listener);
+    return () => ipcRenderer.removeListener('sync-conflict-detected', listener);
+  },
+  onSyncMutationFailed: (callback: (data: { message: string }) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('sync-mutation-failed', listener);
+    return () => ipcRenderer.removeListener('sync-mutation-failed', listener);
+  },
 });

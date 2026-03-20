@@ -156,6 +156,26 @@ export interface ElectronAPI {
     getSystemInfo: () => Promise<{ platform: string; arch: string; nodeVersion: string; electronVersion: string; appVersion: string }>;
     isMinimizedToTray: () => Promise<boolean>;
     appQuit: () => void;
+
+    // Cloud Sync (Phase 2)
+    syncGetConfig: () => Promise<{ configured: boolean; url?: string; workspaceId?: string; userId?: string; email?: string; displayName?: string }>;
+    syncGetStatus: () => Promise<{ status: string; workspaceId: string | null; userId: string | null; error: string | null; pendingCount: number }>;
+    syncInit: () => Promise<{ ok: boolean; status: string }>;
+    syncCreateWorkspace: (args: { supabaseUrl: string; supabaseAnonKey: string; userEmail: string; userPassword: string; workspaceName: string; displayName: string }) => Promise<{ ok: boolean; workspaceId?: string; inviteCode?: string; error?: string }>;
+    syncJoinWorkspace: (args: { supabaseUrl: string; supabaseAnonKey: string; userEmail: string; userPassword: string; inviteCode: string; displayName: string }) => Promise<{ ok: boolean; workspaceId?: string; workspaceName?: string; error?: string }>;
+    syncDisconnect: () => Promise<{ ok: boolean; error?: string }>;
+    syncGetWorkspaceInfo: () => Promise<{ workspaceId: string | null; workspaceName?: string; inviteCode?: string; members?: Array<{ user_id: string; email: string; display_name: string; role: string }> }>;
+    syncManual: () => Promise<{ ok: boolean; error?: string }>;
+    onSyncStatusChanged: (callback: (status: { status: string; workspaceId: string | null; userId: string | null; error: string | null; pendingCount: number; lastSyncedAt: number | null }) => void) => () => void;
+    onSyncDataUpdated: (callback: (data: { table?: string; id?: string } | null) => void) => () => void;
+    syncPushTaskCollab: (args: { projectId: string; taskId: string; collabState: string; activeHandoffId?: string | null; updatedAt?: number }) => Promise<{ ok: boolean; error?: string }>;
+    syncPushHandoff: (args: { projectId: string; handoff: any }) => Promise<{ ok: boolean; error?: string }>;
+    syncPushCollabEvent: (args: { projectId: string; event: any }) => Promise<{ ok: boolean; error?: string }>;
+    syncPushArtifactLink: (args: { projectId: string; link: any }) => Promise<{ ok: boolean; error?: string }>;
+    getTaskById: (taskId: string) => Promise<any | null>;
+    getHandoffById: (handoffId: string) => Promise<any | null>;
+    onSyncConflictDetected: (callback: (data: { table: string; id: string }) => void) => () => void;
+    onSyncMutationFailed: (callback: (data: { message: string }) => void) => () => void;
 }
 
 declare global {

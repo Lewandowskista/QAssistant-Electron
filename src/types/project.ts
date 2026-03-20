@@ -240,6 +240,8 @@ export type CollaborationEvent = {
     handoffId?: string
     eventType: CollaborationEventType
     actorRole: CollaborationActorRole
+    actorUserId?: string       // Supabase auth.uid() of the actor (Phase 3)
+    actorDisplayName?: string  // Display name at time of event (Phase 3)
     timestamp: number
     title: string
     details?: string

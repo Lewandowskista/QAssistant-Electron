@@ -27,7 +27,7 @@ const env = loadEnv()
 export default defineConfig({
   main: {
     plugins: [
-      externalizeDepsPlugin()
+      externalizeDepsPlugin({ exclude: ['better-sqlite3'] })
     ],
     define: {
       'process.env.GITHUB_CLIENT_ID': JSON.stringify(env['GITHUB_CLIENT_ID'] || ''),

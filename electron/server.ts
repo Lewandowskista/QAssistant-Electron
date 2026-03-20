@@ -1,16 +1,14 @@
 // @ts-expect-error — electron default import may not match type declarations
 import electron from 'electron'
 const { app } = electron as any
-import path from 'path'
-import fs from 'fs'
 import crypto from 'crypto'
 import express from 'express'
 import type { Request, Response } from 'express'
 import cors from 'cors'
 import bodyParser from 'body-parser'
-import { withFileLock } from './file-lock'
 import * as oauth from './oauth'
 import { enrichHandoffCompleteness, getReleaseQueue, PROJECT_SCHEMA_VERSION } from '../src/lib/collaboration'
+import { getAllProjects, saveAllProjects } from './database'
 
 const server = express()
 server.use(cors({
@@ -49,29 +47,21 @@ export function startServer(apiToken: string, port: number = 3030) {
     currentPort = port
     requestedPort = port
 
-    const getDataPath = (): string =>
-        path.join(app.getPath('userData'), 'QAssistantData', 'projects.json')
-
-    const readProjects = async (): Promise<any[]> => {
+    const readProjects = (): any[] => {
         try {
-            if (!fs.existsSync(getDataPath())) return []
-            const content = await fs.promises.readFile(getDataPath(), 'utf8');
-            return JSON.parse(content).map((project: any) => ({
+            return getAllProjects().map((project: any) => ({
                 ...project,
                 schemaVersion: project.schemaVersion || PROJECT_SCHEMA_VERSION,
                 handoffPackets: (project.handoffPackets || []).map((packet: any) => enrichHandoffCompleteness(packet)),
             }))
         } catch (e) {
-            console.warn('[AutomationAPI] Failed to read projects file:', e)
+            console.warn('[AutomationAPI] Failed to read projects from SQLite:', e)
             return []
         }
     }
 
-    const writeProjects = async (projects: any[]): Promise<void> => {
-        const filePath = getDataPath()
-        await withFileLock(filePath, () =>
-            fs.promises.writeFile(filePath, JSON.stringify(projects, null, 2))
-        )
+    const writeProjects = (projects: any[]): void => {
+        saveAllProjects(projects)
     }
 
     // ── Public health endpoint (no auth) ───────────────────────────────────
@@ -132,7 +122,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/projects ── list all projects ──────────────────────────────
     server.get('/api/projects', async (_req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             res.json(projects.map((p: any) => ({
                 id: p.id,
                 name: p.name,
@@ -149,7 +139,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/projects/:id ── single project detail ───────────────────────
     server.get('/api/projects/:id', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const project = projects.find((p: any) => p.id === req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
             res.json(project)
@@ -160,7 +150,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     server.get('/api/projects/:id/release-readiness', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const project = projects.find((item: any) => item.id === req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
 
@@ -181,7 +171,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     server.get('/api/projects/:id/retest-queue', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const project = projects.find((item: any) => item.id === req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
 
@@ -199,7 +189,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     server.get('/api/projects/:id/traceability', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const project = projects.find((item: any) => item.id === req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
 
@@ -228,7 +218,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/testcases ── all test cases across all projects ─────────────
     server.get('/api/testcases', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const projectId = req.query.projectId as string | undefined
             const planId = req.query.planId as string | undefined
             const status = req.query.status as string | undefined
@@ -259,7 +249,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/testcases/:displayId ── find by display ID (e.g. TC-001) ──────
     server.get('/api/testcases/:displayId', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const displayId = req.params.displayId
 
             for (const project of projects) {
@@ -290,7 +280,7 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
 
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             let found = false
 
             for (const project of projects) {
@@ -322,7 +312,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
             if (!found) return res.status(404).json({ error: `Test case '${displayId}' not found.` })
 
-            await writeProjects(projects)
+            writeProjects(projects)
             res.json({ success: true, message: `Result recorded for ${displayId}` })
         } catch (e: any) {
             res.status(500).json({ error: 'Failed to record result.', detail: e.message })
@@ -338,7 +328,7 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
 
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const summary: any[] = []
 
             for (const item of results) {
@@ -378,7 +368,7 @@ export function startServer(apiToken: string, port: number = 3030) {
                 summary.push({ displayId, success: found, error: found ? undefined : 'Not found' })
             }
 
-            await writeProjects(projects)
+            writeProjects(projects)
             res.json({ success: true, results: summary })
         } catch (e: any) {
             res.status(500).json({ error: 'Batch operation failed.', detail: e.message })
@@ -388,7 +378,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/executions ── list executions with optional filtering ───────
     server.get('/api/executions', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const projectId = req.query.projectId as string | undefined
             const limit = Math.min(parseInt(req.query.limit as string || '100', 10), 1000)
 
@@ -414,7 +404,7 @@ export function startServer(apiToken: string, port: number = 3030) {
             const { projectId, taskId, ...payload } = req.body || {}
             if (!projectId || !taskId) return res.status(400).json({ error: 'Required fields: projectId, taskId' })
 
-            const projects = await readProjects()
+            const projects = readProjects()
             const project = projects.find((item: any) => item.id === projectId)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
             const task = (project.tasks || []).find((item: any) => item.id === taskId)
@@ -448,7 +438,7 @@ export function startServer(apiToken: string, port: number = 3030) {
             task.collabState = 'ready_for_dev'
             task.lastCollabUpdatedAt = Date.now()
 
-            await writeProjects(projects)
+            writeProjects(projects)
             res.status(201).json(handoff)
         } catch (e: any) {
             res.status(500).json({ error: e.message })
@@ -457,7 +447,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     server.post('/api/handoffs/:id/acknowledge', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
             if (!target) return res.status(404).json({ error: 'Handoff not found.' })
             const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
@@ -465,7 +455,7 @@ export function startServer(apiToken: string, port: number = 3030) {
             handoff.updatedAt = Date.now()
             const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
             if (task) task.collabState = 'dev_acknowledged'
-            await writeProjects(projects)
+            writeProjects(projects)
             res.json({ success: true })
         } catch (e: any) {
             res.status(500).json({ error: e.message })
@@ -474,7 +464,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     server.post('/api/handoffs/:id/ready-for-qa', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
             if (!target) return res.status(404).json({ error: 'Handoff not found.' })
             const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
@@ -483,7 +473,7 @@ export function startServer(apiToken: string, port: number = 3030) {
             handoff.resolutionSummary = req.body?.resolutionSummary || handoff.resolutionSummary
             const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
             if (task) task.collabState = 'ready_for_qa'
-            await writeProjects(projects)
+            writeProjects(projects)
             res.json({ success: true })
         } catch (e: any) {
             res.status(500).json({ error: e.message })
@@ -493,7 +483,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/projects/:id/quality-gate ── CI/CD quality gate evaluation ──
     server.get('/api/projects/:id/quality-gate', async (req: any, res: any) => {
         try {
-            const projects = await readProjects()
+            const projects = readProjects()
             const project = projects.find((item: any) => item.id === req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
 
@@ -559,7 +549,7 @@ export function startServer(apiToken: string, port: number = 3030) {
             const notes = req.body?.notes
             if (!notes) return res.status(400).json({ error: 'Required field: notes' })
 
-            const projects = await readProjects()
+            const projects = readProjects()
             const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
             if (!target) return res.status(404).json({ error: 'Handoff not found.' })
             const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
@@ -568,7 +558,7 @@ export function startServer(apiToken: string, port: number = 3030) {
             handoff.updatedAt = Date.now()
             const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
             if (task) task.collabState = passed ? 'verified' : 'ready_for_dev'
-            await writeProjects(projects)
+            writeProjects(projects)
             res.json({ success: true, passed })
         } catch (e: any) {
             res.status(500).json({ error: e.message })

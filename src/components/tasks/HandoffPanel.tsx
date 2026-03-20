@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Project, Task, HandoffPacket, CollabState } from '@/types/project'
 import { useProjectStore } from '@/store/useProjectStore'
 import { useUserStore } from '@/store/useUserStore'
 import { HandoffPacketDialog } from './HandoffPacketDialog'
 import { getHandoffMissingFields } from '@/lib/collaboration'
+import { MentionTextarea } from '@/components/sync/MentionTextarea'
 
 interface HandoffPanelProps {
     activeProject: Project
@@ -251,7 +251,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                     <Button variant="outline" className="w-full border-[#2A2A3A] text-[#E2E8F0]" onClick={handleStartRetest} disabled={(task.collabState || 'draft') !== 'ready_for_qa'}>
                         Start Retest
                     </Button>
-                    <Textarea value={qaNotes} onChange={(event) => setQaNotes(event.target.value)} placeholder="QA verification notes..." className="bg-[#0F0F13] border-[#2A2A3A]" />
+                    <MentionTextarea value={qaNotes} onChange={setQaNotes} placeholder="QA verification notes... (@ to mention)" rows={3} />
                     <div className="grid grid-cols-2 gap-2">
                         <Button variant="outline" className="border-[#10B981]/20 text-[#10B981]" onClick={() => handleVerify(true)}>Verify Fix</Button>
                         <Button variant="outline" className="border-[#EF4444]/20 text-[#EF4444]" onClick={() => handleVerify(false)}>Fail Verification</Button>
@@ -265,7 +265,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         <Button variant="outline" className="border-[#F59E0B]/20 text-[#F59E0B]" onClick={handleAcknowledge}>Acknowledge</Button>
                         <Button variant="outline" className="border-[#38BDF8]/20 text-[#38BDF8]" onClick={handleStartFix}>Start Fix</Button>
                     </div>
-                    <Textarea value={devResponse} onChange={(event) => setDevResponse(event.target.value)} placeholder="Developer response or resolution summary..." className="bg-[#0F0F13] border-[#2A2A3A]" />
+                    <MentionTextarea value={devResponse} onChange={setDevResponse} placeholder="Developer response or resolution summary... (@ to mention)" rows={3} />
                     <Button className="w-full bg-[#10B981] hover:bg-[#34D399] text-[#0F0F13]" onClick={handleReturnToQa}>
                         Return to QA
                     </Button>

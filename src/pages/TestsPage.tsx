@@ -58,9 +58,13 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTasksForQaAi, sanitizeTestCasesForAi, sanitizeTestPlansForAi } from '@/lib/aiUtils'
 import { computeRiskScores } from '@/lib/riskPrioritization'
 import { AiSetupPrompt } from '@/components/ui/AiSetupPrompt'
+import { useUserStore } from '@/store/useUserStore'
+import { DevTestPlanSummary } from '@/components/sync/DevTestPlanSummary'
 
 export default function TestsPage() {
     const api = window.electronAPI;
+    const activeRole = useUserStore(s => s.profile?.activeRole ?? 'qa')
+    if (activeRole === 'dev') return <DevTestPlanSummary />
     const {
         projects,
         activeProjectId,

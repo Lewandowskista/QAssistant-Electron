@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Toaster } from "sonner"
 import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
+import { SyncStatusIndicator } from "@/components/sync/SyncStatusIndicator"
 
 export default function MainLayout() {
     const location = useLocation()
@@ -318,6 +319,11 @@ export default function MainLayout() {
                             </div>
                         )
                     })}
+                </div>
+
+                {/* Cloud sync status */}
+                <div className="px-2 pb-1">
+                    <SyncStatusIndicator />
                 </div>
 
                 {/* User identity badge */}

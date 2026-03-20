@@ -44,22 +44,32 @@ function generateId(): string {
 }
 
 /**
- * Debounced persistence helper to prevent excessive disk I/O on every state change.
- * Issues #6 in Code Review.
+ * Persistence helper — writes projects to the SQLite database via IPC.
+ * better-sqlite3 is synchronous on the main-process side, so writes are
+ * atomic and do not require debouncing for correctness. We still fire-and-
+ * forget (no await at call sites) to keep the UI non-blocking.
  */
-let saveTimeout: any = null;
 const saveProjectsToDisk = (projects: Project[]) => {
-    if (saveTimeout) clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(async () => {
-        try {
-            if (window.electronAPI) {
-                await window.electronAPI.writeProjectsFile(projects);
-            }
-        } catch (error) {
-            console.error('Failed to persist projects to disk:', error);
-        }
-    }, 1000);
+    if (window.electronAPI) {
+        window.electronAPI.writeProjectsFile(projects).catch((error: unknown) => {
+            console.error('Failed to persist projects to SQLite:', error);
+        });
+    }
 };
+
+// Fire-and-forget sync push helpers — only enqueue if sync is configured
+function syncPushTaskCollab(projectId: string, taskId: string, collabState: string, activeHandoffId?: string | null) {
+    window.electronAPI?.syncPushTaskCollab?.({ projectId, taskId, collabState, activeHandoffId, updatedAt: Date.now() }).catch(() => {})
+}
+function syncPushHandoff(projectId: string, handoff: HandoffPacket) {
+    window.electronAPI?.syncPushHandoff?.({ projectId, handoff }).catch(() => {})
+}
+function syncPushCollabEvent(projectId: string, event: CollaborationEvent) {
+    window.electronAPI?.syncPushCollabEvent?.({ projectId, event }).catch(() => {})
+}
+function syncPushArtifactLink(projectId: string, link: ArtifactLink) {
+    window.electronAPI?.syncPushArtifactLink?.({ projectId, link }).catch(() => {})
+}
 
 export type TraceabilityResult = {
     task: Task | undefined
@@ -278,6 +288,8 @@ interface ProjectState {
         seedData: Partial<Task> & { title: string }
     ) => Promise<string>
     getTaskTraceability: (projectId: string, taskId: string) => TraceabilityResult
+    mergeRemoteTask: (task: Task & { handoffPackets?: HandoffPacket[]; collaborationEvents?: CollaborationEvent[] }) => void
+    mergeRemoteHandoff: (handoff: HandoffPacket) => void
 
     // Test Plan Actions
     addTestPlan: (projectId: string, name: string, description: string, isRegressionSuite?: boolean, source?: 'manual' | 'linear' | 'jira') => Promise<string>
@@ -739,6 +751,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         })
         if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        // Push new handoff, task collab state, and creation event to cloud
+        const createdProject = updatedProjects.find(p => p.id === projectId)
+        const createdPacket = createdProject?.handoffPackets?.find(p => p.id === handoffId)
+        const createdTask = createdProject?.tasks.find(t => t.id === taskId)
+        const createdEvent = createdProject?.collaborationEvents?.[0]
+        if (createdPacket) syncPushHandoff(projectId, createdPacket)
+        if (createdTask) syncPushTaskCollab(projectId, taskId, createdTask.collabState || 'draft', createdTask.activeHandoffId)
+        if (createdEvent) syncPushCollabEvent(projectId, createdEvent)
         return handoffId
     },
 
@@ -760,10 +780,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         })
         if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        const updatedProject = updatedProjects.find(p => p.id === projectId)
+        const updatedPacket = updatedProject?.handoffPackets?.find(p => p.id === handoffId)
+        if (updatedPacket) syncPushHandoff(projectId, updatedPacket)
     },
 
     setTaskCollabState: async (projectId: string, taskId: string, collabState: CollabState) => {
-        await get().updateTask(projectId, taskId, { collabState, lastCollabUpdatedAt: Date.now() })
+        const now = Date.now()
+        await get().updateTask(projectId, taskId, { collabState, lastCollabUpdatedAt: now })
+        const task = get().projects.find(p => p.id === projectId)?.tasks.find(t => t.id === taskId)
+        if (task) syncPushTaskCollab(projectId, taskId, collabState, task.activeHandoffId)
     },
 
     acknowledgeHandoff: async (projectId: string, handoffId: string, actorRole: CollaborationActorRole = 'dev') => {
@@ -796,6 +822,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         })
         if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        const ackProject = updatedProjects.find(p => p.id === projectId)
+        const ackHandoff = ackProject?.handoffPackets?.find(p => p.id === handoffId)
+        const ackTask = ackHandoff ? ackProject?.tasks.find(t => t.id === ackHandoff.taskId) : undefined
+        const ackEvent = ackProject?.collaborationEvents?.[0]
+        if (ackTask) syncPushTaskCollab(projectId, ackTask.id, ackTask.collabState || 'draft', ackTask.activeHandoffId)
+        if (ackEvent) syncPushCollabEvent(projectId, ackEvent)
     },
 
     linkArtifact: async (projectId: string, link: Omit<ArtifactLink, 'id' | 'createdAt'>) => {
@@ -818,6 +850,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         })
         if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        const newLink = updatedProjects.find(p => p.id === projectId)?.artifactLinks?.find(l => l.id === linkId)
+        if (newLink) syncPushArtifactLink(projectId, newLink)
         return linkId
     },
 
@@ -872,6 +906,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     addCollaborationEvent: async (projectId: string, event: Omit<CollaborationEvent, 'id' | 'timestamp'> & Partial<Pick<CollaborationEvent, 'timestamp'>>) => {
         const eventId = generateId()
+        // Attach the current user's identity from sync config if available
+        const syncConfig = (await import('./useSyncStore').catch(() => null))
+            ?.useSyncStore?.getState()?.config
+        const actorUserId = event.actorUserId ?? syncConfig?.userId ?? undefined
+        const actorDisplayName = event.actorDisplayName ?? syncConfig?.displayName ?? undefined
         const updatedProjects = get().projects.map((project) => {
             if (project.id !== projectId) return project
             return {
@@ -879,12 +918,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 collaborationEvents: [{
                     id: eventId,
                     timestamp: event.timestamp || Date.now(),
+                    actorUserId,
+                    actorDisplayName,
                     ...event
                 }, ...(project.collaborationEvents || [])]
             }
         })
         if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        const newEvent = updatedProjects.find(p => p.id === projectId)?.collaborationEvents?.[0]
+        if (newEvent) syncPushCollabEvent(projectId, newEvent)
         return eventId
     },
 
@@ -960,6 +1003,46 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             linkedNotes: (project?.notes || []).filter((note) => linkedNoteIds.has(note.id)),
             linkedFiles: (project?.files || []).filter((file) => linkedFileIds.has(file.id))
         }
+    },
+
+    // ── Granular remote merge (Improvement 5) ──────────────────────────────────
+    // These update only the affected entity in Zustand without a full reload.
+    mergeRemoteTask: (remoteTask) => {
+        set(state => ({
+            projects: state.projects.map(p => {
+                const taskIdx = p.tasks.findIndex(t => t.id === remoteTask.id)
+                if (taskIdx === -1) return p
+
+                const tasks = [...p.tasks]
+                tasks[taskIdx] = normalizeTask({ ...tasks[taskIdx], ...remoteTask })
+
+                // Merge handoff packets if provided by the DB query
+                const handoffPackets = remoteTask.handoffPackets
+                    ? [...(p.handoffPackets || []).filter(h => h.taskId !== remoteTask.id), ...remoteTask.handoffPackets]
+                    : p.handoffPackets
+
+                // Merge collaboration events if provided
+                const existingEventsForOtherTasks = (p.collaborationEvents || []).filter(e => e.taskId !== remoteTask.id)
+                const collaborationEvents = remoteTask.collaborationEvents
+                    ? [...existingEventsForOtherTasks, ...remoteTask.collaborationEvents]
+                    : p.collaborationEvents
+
+                return { ...p, tasks, handoffPackets, collaborationEvents }
+            })
+        }))
+    },
+
+    mergeRemoteHandoff: (remoteHandoff) => {
+        set(state => ({
+            projects: state.projects.map(p => {
+                const handoffPackets = (p.handoffPackets || [])
+                const existingIdx = handoffPackets.findIndex(h => h.id === remoteHandoff.id)
+                if (existingIdx === -1) return p
+                const updated = [...handoffPackets]
+                updated[existingIdx] = { ...updated[existingIdx], ...remoteHandoff }
+                return { ...p, handoffPackets: updated }
+            })
+        }))
     },
 
     deleteTask: async (projectId: string, taskId: string) => {
