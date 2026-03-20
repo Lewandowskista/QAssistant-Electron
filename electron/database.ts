@@ -8,6 +8,8 @@
  * write-projects-file IPC, so the renderer-side store needs minimal changes.
  */
 
+import type { Attachment, Note, Project, Task, TestCase, TestPlan } from '../src/types/project'
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Database = require('better-sqlite3')
 
@@ -540,7 +542,7 @@ type ProjectRow = {
     jira_connection_legacy_json: string | null
 }
 
-function rowToProject(row: ProjectRow): any {
+function rowToProject(row: ProjectRow): Project {
     return {
         id: row.id,
         schemaVersion: row.schema_version,
@@ -548,6 +550,17 @@ function rowToProject(row: ProjectRow): any {
         color: row.color,
         clientName: row.client_name ?? undefined,
         description: row.description ?? undefined,
+        tasks: [],
+        notes: [],
+        testPlans: [],
+        environments: [],
+        testExecutions: [],
+        testRunSessions: [],
+        files: [],
+        testDataGroups: [],
+        checklists: [],
+        apiRequests: [],
+        runbooks: [],
         geminiModel: row.gemini_model ?? undefined,
         columns: p(row.columns_json) ?? [],
         sourceColumns: p(row.source_columns_json),
@@ -601,7 +614,7 @@ type TaskRow = {
     updated_at: number
 }
 
-function rowToTask(row: TaskRow): any {
+function rowToTask(row: TaskRow): Task {
     return {
         id: row.id,
         title: row.title,
@@ -638,9 +651,60 @@ function rowToTask(row: TaskRow): any {
     }
 }
 
+type NoteRow = {
+    id: string
+    title: string
+    content: string
+    updated_at: number
+}
+
+type NoteAttachmentRow = {
+    id: string
+    file_name: string
+    file_path: string
+    mime_type: string | null
+    file_size_bytes: number | null
+}
+
+type TestPlanRow = {
+    id: string
+    display_id: string
+    name: string
+    description: string
+    is_archived: number | null
+    is_regression_suite: number | null
+    source: TestPlan['source']
+    criticality: string | null
+    created_at: number
+    updated_at: number
+}
+
+type TestCaseRow = {
+    id: string
+    display_id: string
+    title: string
+    pre_conditions: string
+    steps: string
+    test_data: string
+    expected_result: string
+    actual_result: string
+    priority: TestCase['priority']
+    status: TestCase['status']
+    sap_module: TestCase['sapModule'] | null
+    source_issue_id: string | null
+    tags_json: string | null
+    components_json: string | null
+    assigned_to: string | null
+    estimated_minutes: number | null
+    test_type: TestCase['testType'] | null
+    linked_defect_ids_json: string | null
+    change_log_json: string | null
+    updated_at: number
+}
+
 // ─── Read all projects (full denormalised document, mirrors old JSON shape) ────
 
-export function getAllProjects(): any[] {
+export function getAllProjects(): Project[] {
     const database = getDb()
 
     const projectRows = database.prepare('SELECT * FROM projects ORDER BY rowid').all() as ProjectRow[]
@@ -654,15 +718,15 @@ export function getAllProjects(): any[] {
         proj.tasks = taskRows.map(rowToTask)
 
         // notes + note attachments
-        const noteRows = database.prepare('SELECT * FROM notes WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
-        proj.notes = noteRows.map((n: any) => {
-            const attachRows = database.prepare('SELECT * FROM note_attachments WHERE note_id = ?').all(n.id) as any[]
+        const noteRows = database.prepare('SELECT * FROM notes WHERE project_id = ? ORDER BY rowid').all(pid) as NoteRow[]
+        proj.notes = noteRows.map((n): Note => {
+            const attachRows = database.prepare('SELECT * FROM note_attachments WHERE note_id = ?').all(n.id) as NoteAttachmentRow[]
             return {
                 id: n.id,
                 title: n.title,
                 content: n.content,
                 updatedAt: n.updated_at,
-                attachments: attachRows.map((a: any) => ({
+                attachments: attachRows.map((a): Attachment => ({
                     id: a.id, fileName: a.file_name, filePath: a.file_path,
                     mimeType: a.mime_type ?? undefined, fileSizeBytes: a.file_size_bytes ?? undefined
                 }))
@@ -670,9 +734,9 @@ export function getAllProjects(): any[] {
         })
 
         // test plans + test cases
-        const planRows = database.prepare('SELECT * FROM test_plans WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
-        proj.testPlans = planRows.map((plan: any) => {
-            const caseRows = database.prepare('SELECT * FROM test_cases WHERE test_plan_id = ? ORDER BY rowid').all(plan.id) as any[]
+        const planRows = database.prepare('SELECT * FROM test_plans WHERE project_id = ? ORDER BY rowid').all(pid) as TestPlanRow[]
+        proj.testPlans = planRows.map((plan): TestPlan => {
+            const caseRows = database.prepare('SELECT * FROM test_cases WHERE test_plan_id = ? ORDER BY rowid').all(plan.id) as TestCaseRow[]
             return {
                 id: plan.id,
                 displayId: plan.display_id,
@@ -684,7 +748,7 @@ export function getAllProjects(): any[] {
                 criticality: plan.criticality ?? undefined,
                 createdAt: plan.created_at,
                 updatedAt: plan.updated_at,
-                testCases: caseRows.map((tc: any) => ({
+                testCases: caseRows.map((tc): TestCase => ({
                     id: tc.id,
                     displayId: tc.display_id,
                     title: tc.title,

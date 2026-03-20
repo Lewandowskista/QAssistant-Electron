@@ -1,7 +1,13 @@
 import { safeStorage } from 'electron'
 import fs from 'node:fs'
 
-let keytar: any = null
+type KeytarModule = {
+    setPassword: (service: string, account: string, password: string) => Promise<void>
+    getPassword: (service: string, account: string) => Promise<string | null>
+    deletePassword: (service: string, account: string) => Promise<boolean>
+}
+
+let keytar: KeytarModule | null = null
 let KEYTAR_AVAILABLE = false
 try {
     // Use require so missing optional dependency won't crash build-time imports
