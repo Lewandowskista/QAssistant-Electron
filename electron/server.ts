@@ -4,17 +4,37 @@ const { app } = electron as any
 import crypto from 'crypto'
 import express from 'express'
 import type { Request, Response } from 'express'
-import cors from 'cors'
 import bodyParser from 'body-parser'
 import * as oauth from './oauth'
 import { enrichHandoffCompleteness, getReleaseQueue, PROJECT_SCHEMA_VERSION } from '../src/lib/collaboration'
 import { getAllProjects, saveAllProjects } from './database'
 
 const server = express()
-server.use(cors({
-    origin: [/localhost:\d+$/, /127\.0\.0\.1:\d+$/]
-}))
-server.use(bodyParser.json())
+
+// CORS: allow only the Electron renderer (origin is 'null' for file:// / custom
+// protocols) and the exact port the server is bound to. The regex below is kept
+// as a fallback for browser-based automation clients that set a localhost origin.
+server.use((req: any, res: any, next: any) => {
+    const origin = req.headers.origin as string | undefined
+    // Electron renderer sends no origin or 'null' — always allow
+    if (!origin || origin === 'null') {
+        res.header('Access-Control-Allow-Origin', 'null')
+        res.header('Vary', 'Origin')
+    } else {
+        // For browser clients, restrict to the exact port this server is running on
+        const allowed = new RegExp(`^https?://(localhost|127\\.0\\.0\\.1):${currentPort}$`)
+        if (allowed.test(origin)) {
+            res.header('Access-Control-Allow-Origin', origin)
+            res.header('Vary', 'Origin')
+        }
+    }
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+    if (req.method === 'OPTIONS') return res.sendStatus(204)
+    next()
+})
+
+server.use(bodyParser.json({ limit: '1mb' }))
 
 let authToken = crypto.randomBytes(32).toString('hex')
 let serverInstance: any = null

@@ -197,13 +197,25 @@ export default function ActivityFeedPage() {
                 {/* Feed */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     {events.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full opacity-30 gap-4">
-                            <Activity className="h-16 w-16 text-[#6B7280]" strokeWidth={1} />
-                            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#6B7280]">
-                                {searchQuery || typeFilter !== "all" || roleFilter !== "all" || memberFilter !== "all"
-                                    ? "No events match your filters"
-                                    : "No collaboration events yet"}
-                            </p>
+                        <div className="flex flex-col items-center justify-center h-full gap-5 py-16">
+                            {searchQuery || typeFilter !== "all" || roleFilter !== "all" || memberFilter !== "all" ? (
+                                <div className="flex flex-col items-center gap-3 opacity-40">
+                                    <Activity className="h-12 w-12 text-[#6B7280]" strokeWidth={1} />
+                                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#6B7280]">No events match your filters</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+                                    <div className="w-16 h-16 rounded-2xl bg-[#1A1A24] border border-[#2A2A3A] flex items-center justify-center opacity-60">
+                                        <Activity className="h-8 w-8 text-[#6B7280]" strokeWidth={1.5} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-[#E2E8F0] mb-2">No collaboration events yet</p>
+                                        <p className="text-xs text-[#6B7280] leading-relaxed">
+                                            Events appear here when tasks are handed off, PRs are linked, fixes are verified, or evidence is added. Start by creating a task and sending it through the handoff workflow.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="relative">

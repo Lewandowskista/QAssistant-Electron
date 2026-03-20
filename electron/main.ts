@@ -34,7 +34,7 @@ import { migrateJsonToSqlite } from './migration';
 import {
     initSync, teardownSync, getStatus as getSyncStatus, getSyncConfig,
     createWorkspace, joinWorkspace, disconnectWorkspace, getWorkspaceInfo,
-    triggerManualSync, setSyncWindowSender, onAppFocused,
+    triggerManualSync, setSyncWindowSender, setSyncLogDir, onAppFocused,
     pushTaskCollab, pushHandoff, pushCollabEvent, pushArtifactLink,
 } from './sync';
 import { GeminiService } from './gemini';
@@ -1443,6 +1443,7 @@ if (app) {
         setSyncWindowSender((channel: string, ...args: any[]) => {
             mainWindow?.webContents.send(channel, ...args);
         });
+        setSyncLogDir(APP_DATA_DIR);
 
         setupIpc();
         initAppUpdater({

@@ -30,6 +30,8 @@ import {
 } from './database'
 import type { ArtifactLink, CollaborationEvent, HandoffPacket } from '../src/types/project'
 import type { WorkspaceInfo, WorkspaceMember } from '../src/types/sync'
+import { appendFileSync, mkdirSync } from 'fs'
+import { join } from 'path'
 
 // ─── Credential keys ──────────────────────────────────────────────────────────
 const CRED_SUPABASE_URL      = 'sync_supabase_url'
@@ -46,6 +48,7 @@ const CRED_USER_DISPLAY_NAME = 'sync_user_display_name'
 type SyncStatus = 'disconnected' | 'connecting' | 'connected' | 'syncing' | 'error'
 
 let supabase: SupabaseClient | null = null
+let syncLogDir: string | null = null
 let realtimeChannel: RealtimeChannel | null = null
 let currentWorkspaceId: string | null = null
 let currentUserId: string | null = null
@@ -76,6 +79,30 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null
 
 export function setSyncWindowSender(fn: (channel: string, ...args: any[]) => void) {
     mainWindowSender = fn
+}
+
+export function setSyncLogDir(dir: string) {
+    syncLogDir = dir
+}
+
+/** Append a permanently-failed mutation to a dead-letter log for later review. */
+function writeDeadLetter(mutation: { id: number; table_name: string; op: string; row_id: string; payload_json: string; retry_count: number }): void {
+    if (!syncLogDir) return
+    try {
+        mkdirSync(syncLogDir, { recursive: true })
+        const logPath = join(syncLogDir, 'sync_dead_letters.jsonl')
+        const entry = JSON.stringify({
+            droppedAt: new Date().toISOString(),
+            table: mutation.table_name,
+            op: mutation.op,
+            rowId: mutation.row_id,
+            retryCount: mutation.retry_count,
+            payload: JSON.parse(mutation.payload_json),
+        })
+        appendFileSync(logPath, entry + '\n', 'utf8')
+    } catch (e) {
+        console.warn('[sync] Could not write dead-letter log:', e)
+    }
 }
 
 function notifyRenderer(channel: string, data: unknown) {
@@ -837,6 +864,7 @@ export async function flushPendingMutations() {
             console.error(`[sync] Failed to flush ${mutation.table}/${mutation.row_id}:`, e.message)
             if (mutation.retry_count >= MAX_MUTATION_RETRIES) {
                 console.error(`[sync] Dropping mutation after ${MAX_MUTATION_RETRIES} retries: ${mutation.table}/${mutation.row_id}`)
+                writeDeadLetter(mutation)
                 removeSyncMutation(mutation.id)
                 maxRetryFailed = true
             } else {

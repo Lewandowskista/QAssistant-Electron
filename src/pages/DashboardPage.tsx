@@ -16,6 +16,7 @@ import {
     CircleHelp,
     Sparkles,
     Copy,
+    ArrowRight,
     type LucideIcon
 } from "lucide-react"
 import { cn, evaluateQualityGate } from "@/lib/utils"
@@ -184,10 +185,18 @@ export default function DashboardPage() {
 
     const notes = (activeProject?.notes || []).slice(0, 5)
     const checklists = (activeProject?.checklists || []).slice(0, 5)
-    const handoffs = activeProject?.handoffPackets || []
-    const collaborationEvents = activeProject?.collaborationEvents || []
-    const releaseQueue = activeProject ? getReleaseQueue(activeProject) : null
-    const collaborationMetrics = activeProject ? getCollaborationMetrics(activeProject) : null
+    const handoffs = useMemo(() => activeProject?.handoffPackets || [], [activeProject?.handoffPackets])
+    const collaborationEvents = useMemo(() => activeProject?.collaborationEvents || [], [activeProject?.collaborationEvents])
+    const releaseQueue = useMemo(
+        () => activeProject ? getReleaseQueue(activeProject) : null,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [tasks, handoffs, collaborationEvents]
+    )
+    const collaborationMetrics = useMemo(
+        () => activeProject ? getCollaborationMetrics(activeProject) : null,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [handoffs, collaborationEvents]
+    )
 
     const closedColumnIds = useMemo(() => {
         const closedTypes = new Set(['completed', 'canceled'])
@@ -392,6 +401,48 @@ export default function DashboardPage() {
 
     if (projects.length === 0) {
         return <WelcomeScreen onLoadDemo={seedDemoProject} />
+    }
+
+    // Empty project — guide the user to create their first task and test plan
+    if (tasks.length === 0 && testPlans.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 animate-in fade-in duration-500 max-w-2xl mx-auto py-16 px-6">
+                <div className="w-20 h-20 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                    <LayoutDashboard className="h-10 w-10 text-primary" strokeWidth={1.5} />
+                </div>
+                <div className="text-center space-y-2">
+                    <h2 className="text-2xl font-black text-[#E2E8F0] tracking-tight">{activeProject.name} is ready</h2>
+                    <p className="text-sm text-[#6B7280] max-w-md leading-relaxed">
+                        This project has no tasks or test plans yet. Add your first items to start tracking quality metrics and collaboration events.
+                    </p>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4 w-full">
+                    <a href="#/tasks" className="group p-5 rounded-2xl border border-[#2A2A3A] bg-[#13131A] hover:border-primary/40 hover:bg-primary/5 transition-all flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <CheckSquare className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-[#E2E8F0] mb-1">Create a Task</p>
+                            <p className="text-xs text-[#6B7280] leading-snug">Log bugs and feature work, then hand them off between QA and Dev.</p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-[#6B7280] group-hover:text-primary transition-colors shrink-0 mt-1" />
+                    </a>
+                    <a href="#/tests" className="group p-5 rounded-2xl border border-[#2A2A3A] bg-[#13131A] hover:border-primary/40 hover:bg-primary/5 transition-all flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <PlayCircle className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-[#E2E8F0] mb-1">Create a Test Plan</p>
+                            <p className="text-xs text-[#6B7280] leading-snug">Build test cases, run executions, and track pass rates over time.</p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-[#6B7280] group-hover:text-primary transition-colors shrink-0 mt-1" />
+                    </a>
+                </div>
+                <Button variant="ghost" size="sm" className="text-[#6B7280] hover:text-[#E2E8F0] gap-2 text-xs" onClick={seedDemoProject}>
+                    <Sparkles className="h-3.5 w-3.5" /> Load demo data instead
+                </Button>
+            </div>
+        )
     }
 
     return (

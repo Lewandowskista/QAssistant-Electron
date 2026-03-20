@@ -22,6 +22,7 @@ import {
 import { Toaster } from "sonner"
 import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
 import { SyncStatusIndicator } from "@/components/sync/SyncStatusIndicator"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 export default function MainLayout() {
     const location = useLocation()
@@ -59,6 +60,7 @@ export default function MainLayout() {
     const [isMaximized, setIsMaximized] = useState(false)
     const [toolsCollapsed, setToolsCollapsed] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
+    const { confirm: confirmDelete, dialog: confirmDeleteDialog } = useConfirm()
     const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().indexOf('MAC') >= 0)
 
     // Routes that use h-full flex layouts and need the full content area (no padding/max-width)
@@ -147,6 +149,32 @@ export default function MainLayout() {
         return () => window.removeEventListener('keydown', handleGlobalKey)
     }, [navigate])
 
+    const activeNavItem = (() => {
+        const allItems = [
+            { name: "Dashboard", href: "/", icon: LayoutDashboard },
+            { name: "Notes", href: "/notes", icon: FileText },
+            { name: "Files", href: "/files", icon: FileText },
+            { name: "Tasks", href: "/tasks", icon: CheckSquare },
+            { name: "Code Reviews", href: "/code-reviews", icon: MessageSquare },
+            { name: "Tests", href: "/tests", icon: FlaskConical },
+            { name: "Exploratory", href: "/exploratory", icon: Compass },
+            { name: "Test Data", href: "/test-data", icon: Database },
+            { name: "Checklists", href: "/checklists", icon: ListChecks },
+            { name: "GitHub", href: "/github", icon: GitBranch },
+            { name: "Environments", href: "/environments", icon: Globe },
+            { name: "Release Queue", href: "/release-queue", icon: ClipboardCheck },
+            { name: "Activity Feed", href: "/activity", icon: Activity },
+            { name: "API", href: "/api", icon: Code },
+            { name: "Runbooks", href: "/runbooks", icon: BookOpen },
+            { name: "Reports", href: "/reports", icon: BarChart3 },
+            { name: "Deployments", href: "/deployments", icon: Rocket },
+            { name: "SAP HAC", href: "/sap", icon: ServerCog },
+        ]
+        return allItems.find(item =>
+            item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href)
+        )
+    })()
+
     const navGroups = [
         { items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }] },
         {
@@ -233,7 +261,10 @@ export default function MainLayout() {
                                         <DropdownMenuItem onClick={() => { setEditingProject(project); setDialogOpen(true); }}>
                                             <Edit2 className="mr-2 h-3 w-3" /> Edit
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem className="text-red-400" onClick={() => deleteProject(project.id)}>
+                                        <DropdownMenuItem className="text-red-400" onClick={async () => {
+                                            const ok = await confirmDelete(`Delete "${project.name}"?`, { description: 'All tasks, tests, notes, and handoffs will be permanently deleted. This cannot be undone.', confirmLabel: 'Delete Project', destructive: true })
+                                            if (ok) deleteProject(project.id)
+                                        }}>
                                             <Trash2 className="mr-2 h-3 w-3" /> Delete
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
@@ -361,8 +392,18 @@ export default function MainLayout() {
                 )}>
                     <div className="flex items-center gap-4 min-w-0 flex-1">
                         {toolsCollapsed && (
-                            <button onClick={() => setToolsCollapsed(false)} aria-label="Expand sidebar" className="app-region-no-drag rounded-lg p-1.5 hover:bg-panel-muted text-muted-ui hover:text-foreground shrink-0">
+                            <button
+                                onClick={() => setToolsCollapsed(false)}
+                                aria-label="Expand sidebar"
+                                className="app-region-no-drag flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-panel-muted text-muted-ui hover:text-foreground shrink-0 transition-colors"
+                            >
                                 <ChevronRight className="h-3 w-3" />
+                                {activeNavItem && (
+                                    <>
+                                        <activeNavItem.icon className="h-3.5 w-3.5 text-primary" />
+                                        <span className="text-xs font-semibold text-foreground">{activeNavItem.name}</span>
+                                    </>
+                                )}
                             </button>
                         )}
                         <div className="flex items-center gap-3 shrink-0">
@@ -506,6 +547,7 @@ export default function MainLayout() {
                 <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} project={editingProject} />
                 <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
                 <Toaster theme={currentTheme} position="bottom-right" />
+                {confirmDeleteDialog}
             </div>
 
             </div>

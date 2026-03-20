@@ -77,6 +77,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     async disconnect() {
         await window.electronAPI.syncDisconnect()
         set({ config: { configured: false }, status: 'disconnected', workspaceInfo: null, pendingCount: 0, error: null, lastSyncedAt: null })
+        // Clear the presence singleton so it re-initialises with fresh credentials
+        // if the user connects to a different workspace later.
+        import('@/hooks/usePresence').then(m => m.clearPresenceClient?.())
     },
 
     async loadWorkspaceInfo() {

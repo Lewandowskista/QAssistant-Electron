@@ -12,7 +12,8 @@ import {
     MoreVertical,
     Play,
     PlusCircle,
-    GripVertical
+    GripVertical,
+    RefreshCcw
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,7 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 
 const CATEGORIES: { id: RunbookCategory; label: string; color: string }[] = [
     { id: 'deployment', label: 'Deployment', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
@@ -97,10 +99,10 @@ export default function RunbooksPage() {
     }
 
     return (
-        <div className="flex h-full bg-[#0F0F13] text-[#E2E8F0] overflow-hidden">
+        <div className="flex h-full bg-[#0F0F13] text-qa-text overflow-hidden">
             {/* Sidebar: Categories & List */}
-            <div className="w-80 flex flex-col border-r border-[#2A2A3A] bg-[#13131A] shrink-0">
-                <div className="p-4 border-b border-[#2A2A3A] space-y-4">
+            <div className="w-80 flex flex-col border-r border-qa-border bg-[#13131A] shrink-0">
+                <div className="p-4 border-b border-qa-border space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-sm font-bold tracking-tight flex items-center gap-2">
                             <BookOpen className="h-4 w-4 text-primary" />
@@ -116,7 +118,7 @@ export default function RunbooksPage() {
                             placeholder="Search runbooks..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 h-9 bg-[#1A1A24] border-[#2A2A3A] text-xs focus:ring-primary/50"
+                            className="pl-9 h-9 bg-[#1A1A24] border-qa-border text-xs focus:ring-primary/50"
                         />
                     </div>
                 </div>
@@ -165,8 +167,8 @@ export default function RunbooksPage() {
                                     className={cn(
                                         "w-full flex flex-col gap-1.5 rounded-md px-3 py-2.5 text-xs transition-all text-left border",
                                         selectedRunbookId === rb.id
-                                            ? "bg-[#2D2D3F] border-primary/30 text-[#E2E8F0]"
-                                            : "border-transparent text-[#6B7280] hover:bg-[#252535] hover:text-[#E2E8F0]"
+                                            ? "bg-[#2D2D3F] border-primary/30 text-qa-text"
+                                            : "border-transparent text-qa-text-muted hover:bg-[#252535] hover:text-qa-text"
                                     )}
                                 >
                                     <div className="flex items-center justify-between gap-2">
@@ -189,7 +191,7 @@ export default function RunbooksPage() {
                                                 <MoreVertical className="h-3.5 w-3.5" />
                                             </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-32 bg-[#1A1A24] border-[#2A2A3A] text-white">
+                                        <DropdownMenuContent align="end" className="w-32 bg-[#1A1A24] border-qa-border text-white">
                                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); deleteRunbook(activeProjectId!, rb.id); if (selectedRunbookId === rb.id) setSelectedRunbookId(null); }}>
                                                 <Trash2 className="mr-2 h-3 w-3 text-red-400" /> Delete
                                             </DropdownMenuItem>
@@ -206,16 +208,16 @@ export default function RunbooksPage() {
             <div className="flex-1 flex flex-col bg-[#0F0F13] min-w-0">
                 {selectedRunbook ? (
                     <>
-                        <div className="h-14 flex items-center justify-between px-6 border-b border-[#2A2A3A] bg-[#13131A]/30 backdrop-blur-sm sticky top-0 z-10">
+                        <div className="h-14 flex items-center justify-between px-6 border-b border-qa-border bg-[#13131A]/30 backdrop-blur-sm sticky top-0 z-10">
                             <div className="flex items-center gap-4">
                                 <h1 className="text-lg font-bold tracking-tight">{selectedRunbook.name}</h1>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" size="sm" className="h-7 text-[10px] uppercase tracking-wider bg-[#1A1A24] border-[#2A2A3A] hover:bg-[#252535]">
+                                        <Button variant="outline" size="sm" className="h-7 text-[10px] uppercase tracking-wider bg-[#1A1A24] border-qa-border hover:bg-[#252535]">
                                             {selectedRunbook.category}
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="bg-[#1A1A24] border-[#2A2A3A] text-white">
+                                    <DropdownMenuContent className="bg-[#1A1A24] border-qa-border text-white">
                                         {CATEGORIES.map(cat => (
                                             <DropdownMenuItem key={cat.id} onClick={() => updateRunbook(activeProjectId!, selectedRunbook.id, { category: cat.id })}>
                                                 {cat.label}
@@ -225,6 +227,23 @@ export default function RunbooksPage() {
                                 </DropdownMenu>
                             </div>
                             <div className="flex items-center gap-2">
+                                {selectedRunbook.steps.some(s => s.status !== 'pending') && (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                            if (!activeProjectId) return
+                                            selectedRunbook.steps.forEach(step => {
+                                                updateRunbookStep(activeProjectId, selectedRunbook.id, step.id, { status: 'pending' })
+                                            })
+                                        }}
+                                        className="h-8 gap-2 text-qa-text-muted hover:text-qa-text"
+                                        title="Reset all steps to Pending"
+                                    >
+                                        <RefreshCcw className="h-3.5 w-3.5" />
+                                        Reset Progress
+                                    </Button>
+                                )}
                                 <Button size="sm" onClick={handleAddStep} className="h-8 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
                                     <PlusCircle className="h-4 w-4" />
                                     Add Step
@@ -236,7 +255,7 @@ export default function RunbooksPage() {
                             <div className="max-w-3xl mx-auto space-y-8 pb-32">
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between mb-6">
-                                        <h3 className="text-xs font-black tracking-[0.2em] text-[#6B7280] uppercase">Procedure Steps</h3>
+                                        <h3 className="text-xs font-black tracking-[0.2em] text-qa-text-muted uppercase">Procedure Steps</h3>
                                         <div className="text-[10px] text-muted-foreground flex items-center gap-3">
                                             <span className="flex items-center gap-1"><Circle className="h-2 w-2 text-slate-500" /> Pending</span>
                                             <span className="flex items-center gap-1"><Clock className="h-2 w-2 text-blue-500" /> In Progress</span>
@@ -246,7 +265,7 @@ export default function RunbooksPage() {
 
                                     <div className="space-y-3">
                                         {selectedRunbook.steps.sort((a, b) => a.order - b.order).map((step) => (
-                                            <div key={step.id} className="group flex items-start gap-4 p-4 rounded-xl border border-[#2A2A3A] bg-[#13131A] hover:border-primary/30 transition-all duration-200">
+                                            <div key={step.id} className="group flex items-start gap-4 p-4 rounded-xl border border-qa-border bg-[#13131A] hover:border-primary/30 transition-all duration-200">
                                                 <div className="mt-1 shrink-0">
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
@@ -254,7 +273,7 @@ export default function RunbooksPage() {
                                                                 {getStatusIcon(step.status)}
                                                             </button>
                                                         </DropdownMenuTrigger>
-                                                        <DropdownMenuContent className="bg-[#1A1A24] border-[#2A2A3A] text-white">
+                                                        <DropdownMenuContent className="bg-[#1A1A24] border-qa-border text-white">
                                                             {STATUS_ORDER.map(s => (
                                                                 <DropdownMenuItem key={s} onClick={() => updateRunbookStep(activeProjectId!, selectedRunbook.id, step.id, { status: s })}>
                                                                     <div className="flex items-center gap-2 capitalize">
@@ -271,7 +290,7 @@ export default function RunbooksPage() {
                                                             <input
                                                                 value={step.title}
                                                                 onChange={(e) => updateRunbookStep(activeProjectId!, selectedRunbook.id, step.id, { title: e.target.value })}
-                                                                className="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-[#E2E8F0]"
+                                                                className="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-qa-text"
                                                             />
                                                             <textarea
                                                                 placeholder="Add description..."
@@ -300,7 +319,7 @@ export default function RunbooksPage() {
                                     </div>
 
                                     {selectedRunbook.steps.length === 0 && (
-                                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-[#2A2A3A] rounded-2xl opacity-40 text-center space-y-3">
+                                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-qa-border rounded-2xl opacity-40 text-center space-y-3">
                                             <PlusCircle className="h-8 w-8" />
                                             <div>
                                                 <p className="text-sm font-semibold">No steps yet</p>
@@ -336,12 +355,12 @@ export default function RunbooksPage() {
             </div>
 
             <Dialog open={isPromptOpen} onOpenChange={setIsPromptOpen}>
-                <DialogContent className="bg-[#13131A] border-[#2A2A3A] sm:max-w-[425px]">
+                <DialogContent className="bg-[#13131A] border-qa-border sm:max-w-[425px]">
                     <DialogHeader>
-                        <DialogTitle className="text-[#E2E8F0]">{promptTitle}</DialogTitle>
+                        <DialogTitle className="text-qa-text">{promptTitle}</DialogTitle>
                     </DialogHeader>
                     <div className="py-4 space-y-3">
-                        <label className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest px-1">{promptLabel}</label>
+                        <label className="text-[10px] font-bold text-qa-text-muted uppercase tracking-widest px-1">{promptLabel}</label>
                         <Input
                             autoFocus
                             value={promptValue}
@@ -352,11 +371,11 @@ export default function RunbooksPage() {
                                     setIsPromptOpen(false)
                                 }
                             }}
-                            className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]"
+                            className="bg-[#1A1A24] border-qa-border text-qa-text"
                         />
                     </div>
                     <DialogFooter className="bg-[#13131A]">
-                        <Button variant="ghost" onClick={() => setIsPromptOpen(false)} className="text-[#6B7280] hover:text-[#E2E8F0]">
+                        <Button variant="ghost" onClick={() => setIsPromptOpen(false)} className="text-qa-text-muted hover:text-qa-text">
                             CANCEL
                         </Button>
                         <Button 
@@ -376,10 +395,3 @@ export default function RunbooksPage() {
     )
 }
 
-function Badge({ children, className }: { children: React.ReactNode, className?: string }) {
-    return (
-        <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors font-mono", className)}>
-            {children}
-        </span>
-    )
-}

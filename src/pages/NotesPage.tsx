@@ -47,6 +47,9 @@ export default function NotesPage() {
     const [contentState, setContentState] = useState<string>(selectedNote?.content || '')
     const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const contentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // Track which note ID the pending debounce timers belong to, so a timer
+    // scheduled for note A can never fire and overwrite note B's data.
+    const timerNoteIdRef = useRef<string | null>(null)
 
     // Initialize local state whenever a different note is selected.
     // Clear pending debounce timers first so a stale write from the previously
@@ -54,6 +57,7 @@ export default function NotesPage() {
     useEffect(() => {
         if (titleTimer.current) { clearTimeout(titleTimer.current); titleTimer.current = null }
         if (contentTimer.current) { clearTimeout(contentTimer.current); contentTimer.current = null }
+        timerNoteIdRef.current = selectedItemId
         setTitleState(selectedNote?.title || '')
         setContentState(selectedNote?.content || '')
         setSourceMode(false)
@@ -63,8 +67,10 @@ export default function NotesPage() {
     useEffect(() => {
         if (!selectedNote || !activeProjectId) return
         if (titleTimer.current) clearTimeout(titleTimer.current)
+        const noteId = selectedNote.id
         titleTimer.current = setTimeout(() => {
-            updateNote(activeProjectId!, selectedNote.id, { title: titleState })
+            if (timerNoteIdRef.current !== noteId) return
+            updateNote(activeProjectId!, noteId, { title: titleState })
         }, NOTE_TITLE_DEBOUNCE_MS)
         return () => { if (titleTimer.current) clearTimeout(titleTimer.current) }
     }, [titleState, selectedNote, activeProjectId])
@@ -73,8 +79,10 @@ export default function NotesPage() {
     useEffect(() => {
         if (!selectedNote || !activeProjectId) return
         if (contentTimer.current) clearTimeout(contentTimer.current)
+        const noteId = selectedNote.id
         contentTimer.current = setTimeout(() => {
-            updateNote(activeProjectId!, selectedNote.id, { content: contentState })
+            if (timerNoteIdRef.current !== noteId) return
+            updateNote(activeProjectId!, noteId, { content: contentState })
         }, NOTE_CONTENT_DEBOUNCE_MS)
         return () => { if (contentTimer.current) clearTimeout(contentTimer.current) }
     }, [contentState, selectedNote, activeProjectId])

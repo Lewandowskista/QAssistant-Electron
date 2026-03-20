@@ -23,6 +23,12 @@ export interface PresenceUser {
 const channelRegistry = new Map<string, any>()
 let supabaseClient: any = null
 
+/** Called by useSyncStore.disconnect() to clear the singleton on logout. */
+export function clearPresenceClient() {
+    supabaseClient = null
+    channelRegistry.clear()
+}
+
 async function getSupabase() {
     if (supabaseClient) return supabaseClient
     try {
@@ -102,8 +108,16 @@ export function usePresence(taskId: string | undefined) {
 
         return () => {
             mounted = false
-            // Untrack this user when they leave
-            channelRef.current?.untrack?.().catch(() => {})
+            // Untrack this user and remove the channel from the registry
+            // to prevent unbounded growth when many tasks are visited.
+            if (channelRef.current) {
+                channelRef.current.untrack?.().catch(() => {})
+                const channelName = `presence:task:${taskId}`
+                const registered = channelRegistry.get(channelName)
+                if (registered === channelRef.current) {
+                    channelRegistry.delete(channelName)
+                }
+            }
         }
     }, [taskId, config?.userId, config?.configured])
 
