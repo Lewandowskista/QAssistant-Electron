@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Clock3, FlaskConical, GitPullRequest, Handshake, Users } from 'lucide-react'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useProjectStore } from '@/store/useProjectStore'
 import { useSyncStore } from '@/store/useSyncStore'
 import { getCollaborationMetrics, getReleaseQueue, type ReleaseQueueItem } from '@/lib/collaboration'
@@ -76,57 +76,55 @@ export default function ReleaseQueuePage() {
         return m
     }, [members])
 
-    function getActorName(taskId: string): { userId?: string; displayName?: string } | undefined {
+    const getActorName = useCallback((taskId: string): { userId?: string; displayName?: string } | undefined => {
         const actor = taskActorMap.get(taskId)
         if (!actor) return undefined
         const displayName = actor.displayName ?? (actor.userId ? memberMap.get(actor.userId) : undefined)
         return displayName ? { ...actor, displayName } : undefined
-    }
+    }, [memberMap, taskActorMap])
 
-    if (!activeProject || !queue || !metrics) {
-        return (
-            <div className="space-y-4">
-                <h1 className="text-2xl font-semibold text-[#E2E8F0]">Release Queue</h1>
-                <p className="text-sm text-[#6B7280]">Select or create a project to review verification work.</p>
-            </div>
-        )
+    const queueSections = {
+        tasksReadyForQa: queue?.tasksReadyForQa ?? [],
+        handoffsMissingEvidence: queue?.handoffsMissingEvidence ?? [],
+        prsLinkedButNotRetested: queue?.prsLinkedButNotRetested ?? [],
+        failedVerificationsNeedingDev: queue?.failedVerificationsNeedingDev ?? [],
     }
 
     const sections: Array<{ title: string; icon: typeof CheckCircle2; items: ReleaseQueueItem[]; empty: string }> = [
         {
             title: 'Ready for QA',
             icon: CheckCircle2,
-            items: queue.tasksReadyForQa,
+            items: queueSections.tasksReadyForQa,
             empty: 'No fixes are currently waiting for QA verification.',
         },
         {
             title: 'Missing Evidence',
             icon: AlertTriangle,
-            items: queue.handoffsMissingEvidence,
+            items: queueSections.handoffsMissingEvidence,
             empty: 'All active handoffs currently include evidence.',
         },
         {
             title: 'PRs Waiting for Retest',
             icon: GitPullRequest,
-            items: queue.prsLinkedButNotRetested,
+            items: queueSections.prsLinkedButNotRetested,
             empty: 'No linked PRs are waiting on QA retest.',
         },
         {
             title: 'Failed Verification',
             icon: FlaskConical,
-            items: queue.failedVerificationsNeedingDev,
+            items: queueSections.failedVerificationsNeedingDev,
             empty: 'No failed verifications are waiting on developer follow-up.',
         },
     ]
 
     // Per-member workload (items across all queues)
-    const memberWorkload = useMemo(() => {
+    const memberWorkload = (() => {
         if (!isConnected || members.length === 0) return []
         const allItems = [
-            ...queue.tasksReadyForQa,
-            ...queue.handoffsMissingEvidence,
-            ...queue.prsLinkedButNotRetested,
-            ...queue.failedVerificationsNeedingDev,
+            ...queueSections.tasksReadyForQa,
+            ...queueSections.handoffsMissingEvidence,
+            ...queueSections.prsLinkedButNotRetested,
+            ...queueSections.failedVerificationsNeedingDev,
         ]
         const counts = new Map<string, { displayName: string; count: number; userId: string }>()
         for (const item of allItems) {
@@ -137,7 +135,16 @@ export default function ReleaseQueuePage() {
             else counts.set(actor.userId, { displayName: actor.displayName!, count: 1, userId: actor.userId })
         }
         return Array.from(counts.values()).sort((a, b) => b.count - a.count)
-    }, [queue, isConnected, members, taskActorMap, memberMap])
+    })()
+
+    if (!activeProject || !queue || !metrics) {
+        return (
+            <div className="space-y-4">
+                <h1 className="text-2xl font-semibold text-[#E2E8F0]">Release Queue</h1>
+                <p className="text-sm text-[#6B7280]">Select or create a project to review verification work.</p>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6 max-w-[1600px] pb-10">

@@ -2,7 +2,7 @@
 import {
   LayoutDashboard, CheckSquare, FlaskConical, FileText, GitBranch,
   Rocket, Globe, Compass, Code, ServerCog, Database, BarChart3,
-  Activity, ClipboardCheck, BookOpen, Folder, Settings, Cpu,
+  Activity, ClipboardCheck, Folder, Settings, Cpu,
   Keyboard, Zap, ListChecks, type LucideIcon,
 } from "lucide-react"
 

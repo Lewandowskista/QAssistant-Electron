@@ -26,7 +26,7 @@ import * as crypto from 'node:crypto';
 import { setCredential, getCredential, deleteCredential, listCredentials, initCredentials, isKeychainAvailable } from './credentialService';
 import * as oauth from './oauth';
 import * as github from './github';
-import { assertString, assertArray, assertObject } from './ipc-validation';
+import { assertString, assertArray, assertObject, assertOptionalString, assertNumber } from './ipc-validation';
 import { AI_RATE_LIMIT_MS, MAX_SAP_HAC_INSTANCES } from './constants';
 import { initFileStorage } from './fileStorage';
 import { initDatabase, getAllProjects, saveAllProjects, closeDatabase, getTaskById, getHandoffById } from './database';
@@ -277,6 +277,68 @@ if (app) {
         return String(err);
     }
 
+    function assertAutomationArgs(args: unknown) {
+        assertObject(args, 'automationArgs');
+        const payload = args as Record<string, unknown>;
+        assertString(payload.apiKey, 'apiKey', 500);
+        if (payload.port !== undefined) assertNumber(payload.port, 'port', 1024, 65535);
+    }
+
+    function assertSyncTaskCollabArgs(args: unknown) {
+        assertObject(args, 'syncTaskCollabArgs');
+        const payload = args as Record<string, unknown>;
+        assertString(payload.projectId, 'projectId', 200);
+        assertString(payload.taskId, 'taskId', 200);
+        assertString(payload.collabState, 'collabState', 50);
+        assertOptionalString(payload.activeHandoffId, 'activeHandoffId', 200);
+        if (payload.updatedAt !== undefined) assertNumber(payload.updatedAt, 'updatedAt', 0);
+    }
+
+    function assertSyncHandoffArgs(args: unknown) {
+        assertObject(args, 'syncHandoffArgs');
+        const payload = args as Record<string, unknown>;
+        assertString(payload.projectId, 'projectId', 200);
+        assertObject(payload.handoff, 'handoff');
+        const handoff = payload.handoff as Record<string, unknown>;
+        assertString(handoff.id, 'handoff.id', 200);
+        assertString(handoff.taskId, 'handoff.taskId', 200);
+        assertString(handoff.type, 'handoff.type', 50);
+        assertString(handoff.createdByRole, 'handoff.createdByRole', 50);
+        assertNumber(handoff.createdAt, 'handoff.createdAt', 0);
+        assertNumber(handoff.updatedAt, 'handoff.updatedAt', 0);
+    }
+
+    function assertSyncCollabEventArgs(args: unknown) {
+        assertObject(args, 'syncCollabEventArgs');
+        const payload = args as Record<string, unknown>;
+        assertString(payload.projectId, 'projectId', 200);
+        assertObject(payload.event, 'event');
+        const event = payload.event as Record<string, unknown>;
+        assertString(event.id, 'event.id', 200);
+        assertString(event.taskId, 'event.taskId', 200);
+        assertString(event.eventType, 'event.eventType', 80);
+        assertString(event.actorRole, 'event.actorRole', 50);
+        assertNumber(event.timestamp, 'event.timestamp', 0);
+        assertOptionalString(event.handoffId, 'event.handoffId', 200);
+        if (event.title !== undefined && event.title !== null) assertString(event.title, 'event.title', 500);
+        if (event.details !== undefined && event.details !== null) assertString(event.details, 'event.details', 10_000);
+    }
+
+    function assertSyncArtifactLinkArgs(args: unknown) {
+        assertObject(args, 'syncArtifactLinkArgs');
+        const payload = args as Record<string, unknown>;
+        assertString(payload.projectId, 'projectId', 200);
+        assertObject(payload.link, 'link');
+        const link = payload.link as Record<string, unknown>;
+        assertString(link.id, 'link.id', 200);
+        assertString(link.sourceType, 'link.sourceType', 50);
+        assertString(link.sourceId, 'link.sourceId', 200);
+        assertString(link.targetType, 'link.targetType', 50);
+        assertString(link.targetId, 'link.targetId', 200);
+        assertString(link.label, 'link.label', 100);
+        assertNumber(link.createdAt, 'link.createdAt', 0);
+    }
+
     function setupIpc() {
         ipcMain.handle('get-app-data-path', () => APP_DATA_DIR);
         ipcMain.handle('read-projects-file', () => {
@@ -399,9 +461,16 @@ if (app) {
                 return { __isError: true, message: errMsg(err) };
             }
         });
-        ipcMain.handle('automation-api-start', async (_e: any, { apiKey, port }: any) => startServer(apiKey, port));
+        ipcMain.handle('automation-api-start', async (_e: any, args: any) => {
+            assertAutomationArgs(args);
+            return startServer(args.apiKey, args.port);
+        });
         ipcMain.handle('automation-api-stop', () => stopServer());
-        ipcMain.handle('automation-api-restart', async (_e: any, { apiKey, port }: any) => { stopServer(); return startServer(apiKey, port); });
+        ipcMain.handle('automation-api-restart', async (_e: any, args: any) => {
+            assertAutomationArgs(args);
+            stopServer();
+            return startServer(args.apiKey, args.port);
+        });
         ipcMain.handle('automation-api-status', () => ({ running: isServerRunning(), port: getServerPort() }));
         ipcMain.handle('test-linear-connection', async (_e: any, { apiKey }: any) => await integrations.getLinearTeams(apiKey));
         ipcMain.handle('test-jira-connection', async (_e: any, { domain, email, apiToken, token }: any) => await integrations.getJiraProjects(domain, email, apiToken || token));
@@ -1196,6 +1265,7 @@ if (app) {
         // Granular sync push handlers — called by the renderer after collaborative mutations
         ipcMain.handle('sync-push-task-collab', (_e: any, args: any) => {
             try {
+                assertSyncTaskCollabArgs(args);
                 const { projectId, taskId, collabState, activeHandoffId, updatedAt } = args;
                 pushTaskCollab(projectId, taskId, collabState, activeHandoffId ?? null, updatedAt ?? Date.now());
                 return { ok: true };
@@ -1203,6 +1273,7 @@ if (app) {
         });
         ipcMain.handle('sync-push-handoff', (_e: any, args: any) => {
             try {
+                assertSyncHandoffArgs(args);
                 const { projectId, handoff } = args;
                 pushHandoff(projectId, handoff);
                 return { ok: true };
@@ -1210,6 +1281,7 @@ if (app) {
         });
         ipcMain.handle('sync-push-collab-event', (_e: any, args: any) => {
             try {
+                assertSyncCollabEventArgs(args);
                 const { projectId, event } = args;
                 pushCollabEvent(projectId, event);
                 return { ok: true };
@@ -1217,6 +1289,7 @@ if (app) {
         });
         ipcMain.handle('sync-push-artifact-link', (_e: any, args: any) => {
             try {
+                assertSyncArtifactLinkArgs(args);
                 const { projectId, link } = args;
                 pushArtifactLink(projectId, link);
                 return { ok: true };
@@ -1228,13 +1301,13 @@ if (app) {
             try {
                 assertString(taskId, 'taskId', 200);
                 return getTaskById(taskId);
-            } catch (e: any) { return null; }
+            } catch { return null; }
         });
         ipcMain.handle('get-handoff-by-id', (_e: any, handoffId: string) => {
             try {
                 assertString(handoffId, 'handoffId', 200);
                 return getHandoffById(handoffId);
-            } catch (e: any) { return null; }
+            } catch { return null; }
         });
     }
 

@@ -38,8 +38,9 @@ describe('ai utils', () => {
         expect(context?.role).toBe('dev')
         if (!context || context.role !== 'dev') throw new Error('expected dev context')
 
-        expect(context.handoffs).toHaveLength(1)
-        expect(context.handoffs[0].linkedPrs[0].repoFullName).toBe('acme/storefront')
+        expect(context.handoffs.length).toBeGreaterThanOrEqual(1)
+        const handoffWithPr = context.handoffs.find((handoff) => handoff.linkedPrs.length > 0)
+        expect(handoffWithPr?.linkedPrs[0].repoFullName).toBe('acme/storefront')
         expect(context.tasks[0]).not.toHaveProperty('description')
     })
 

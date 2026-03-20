@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Play, Square, Clock, Bug, Eye, HelpCircle, Lightbulb, Trash2, CheckCircle, ChevronDown, ChevronRight, FileText, Timer } from 'lucide-react'
+import { Plus, Play, Square, Clock, Bug, Eye, HelpCircle, Lightbulb, Trash2, CheckCircle, Timer } from 'lucide-react'
 import { useProjectStore } from '@/store/useProjectStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { ExploratorySession, ExploratoryObservation, ExploratoryObservationType, TaskSeverity } from '@/types/project'
+import type { ExploratoryObservation, ExploratoryObservationType, TaskSeverity } from '@/types/project'
 import {
     Dialog,
     DialogContent,
@@ -73,8 +73,6 @@ export default function ExploratoryTestingPage() {
     const [bugDialogOpen, setBugDialogOpen] = useState(false)
     const [bugTitle, setBugTitle] = useState('')
     const [bugDesc, setBugDesc] = useState('')
-    const [bugObs, setBugObs] = useState<ExploratoryObservation | null>(null)
-
     const selectedSession = sessions.find(s => s.id === selectedSessionId) || sessions[0] || null
     const isActive = selectedSession && !selectedSession.completedAt
 
@@ -83,7 +81,7 @@ export default function ExploratoryTestingPage() {
         if (!selectedSessionId && sessions.length > 0) {
             setSelectedSessionId(sessions[0].id)
         }
-    }, [sessions.length])
+    }, [selectedSessionId, sessions])
 
     // Timer for active session
     useEffect(() => {

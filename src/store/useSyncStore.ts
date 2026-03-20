@@ -1,22 +1,13 @@
 import { create } from 'zustand'
-
-export type CloudSyncStatus = 'disconnected' | 'connecting' | 'connected' | 'syncing' | 'error'
-
-export type SyncConfig = {
-    configured: boolean
-    url?: string
-    workspaceId?: string
-    userId?: string
-    email?: string
-    displayName?: string
-}
-
-export type WorkspaceInfo = {
-    workspaceId: string | null
-    workspaceName?: string
-    inviteCode?: string
-    members?: Array<{ user_id: string; email: string; display_name: string; role: string }>
-}
+import type {
+    CloudSyncStatus,
+    SyncConfig,
+    SyncCreateWorkspaceArgs,
+    SyncDataUpdatedPayload,
+    SyncJoinWorkspaceArgs,
+    SyncStatusPayload,
+    WorkspaceInfo,
+} from '@/types/sync'
 
 interface SyncState {
     config: SyncConfig | null
@@ -30,27 +21,13 @@ interface SyncState {
     // Actions
     loadConfig: () => Promise<void>
     initSync: () => Promise<{ ok: boolean }>
-    createWorkspace: (args: {
-        supabaseUrl: string
-        supabaseAnonKey: string
-        userEmail: string
-        userPassword: string
-        workspaceName: string
-        displayName: string
-    }) => Promise<{ ok: boolean; inviteCode?: string; error?: string }>
-    joinWorkspace: (args: {
-        supabaseUrl: string
-        supabaseAnonKey: string
-        userEmail: string
-        userPassword: string
-        inviteCode: string
-        displayName: string
-    }) => Promise<{ ok: boolean; workspaceName?: string; error?: string }>
+    createWorkspace: (args: SyncCreateWorkspaceArgs) => Promise<{ ok: boolean; inviteCode?: string; error?: string }>
+    joinWorkspace: (args: SyncJoinWorkspaceArgs) => Promise<{ ok: boolean; workspaceName?: string; error?: string }>
     disconnect: () => Promise<void>
     loadWorkspaceInfo: () => Promise<void>
     manualSync: () => Promise<{ ok: boolean; error?: string }>
-    setStatusFromIpc: (data: { status: string; workspaceId: string | null; error: string | null; pendingCount: number; lastSyncedAt: number | null }) => void
-    reloadProjectsAfterSync: (data?: { table?: string; id?: string } | null) => void
+    setStatusFromIpc: (data: SyncStatusPayload) => void
+    reloadProjectsAfterSync: (data?: SyncDataUpdatedPayload) => void
 }
 
 export const useSyncStore = create<SyncState>((set, get) => ({

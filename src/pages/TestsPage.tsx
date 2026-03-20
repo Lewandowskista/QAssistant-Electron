@@ -64,7 +64,6 @@ import { DevTestPlanSummary } from '@/components/sync/DevTestPlanSummary'
 export default function TestsPage() {
     const api = window.electronAPI;
     const activeRole = useUserStore(s => s.profile?.activeRole ?? 'qa')
-    if (activeRole === 'dev') return <DevTestPlanSummary />
     const {
         projects,
         activeProjectId,
@@ -118,7 +117,7 @@ export default function TestsPage() {
         ]).then(([projectKey, globalKey]) => {
             setGeminiConfigured(!!(projectKey || globalKey))
         }).catch(() => setGeminiConfigured(false))
-    }, [activeProjectId])
+    }, [activeProjectId, api])
 
     // Regression Builder States
     const [regressionFromDate, setRegressionFromDate] = useState<string>("")
@@ -520,6 +519,10 @@ export default function TestsPage() {
             case 'skipped': return <ArrowRightCircle className="h-4 w-4 text-[#6B7280]" />
             default: return <HelpCircle className="h-4 w-4 text-[#9CA3AF]" />
         }
+    }
+
+    if (activeRole === 'dev') {
+        return <DevTestPlanSummary />
     }
 
     return (

@@ -19,7 +19,7 @@
  *      tasks (collab fields), handoff_packets, artifact_links, collaboration_events
  */
 
-import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js'
 import { getCredential, setCredential, deleteCredential } from './credentialService'
 import {
     getDb,
@@ -28,6 +28,8 @@ import {
     removeSyncMutation,
     incrementSyncMutationRetry,
 } from './database'
+import type { ArtifactLink, CollaborationEvent, HandoffPacket } from '../src/types/project'
+import type { WorkspaceInfo, WorkspaceMember } from '../src/types/sync'
 
 // ─── Credential keys ──────────────────────────────────────────────────────────
 const CRED_SUPABASE_URL      = 'sync_supabase_url'
@@ -241,6 +243,43 @@ export function getStatus() {
     }
 }
 
+async function signInOrSignUp(
+    client: SupabaseClient,
+    userEmail: string,
+    userPassword: string,
+): Promise<{ userId: string; accessToken: string; refreshToken: string }> {
+    const { data: signUpData, error: signUpError } = await client.auth.signUp({
+        email: userEmail,
+        password: userPassword,
+    })
+
+    if (signUpError && !signUpError.message.includes('already registered')) {
+        throw new Error(signUpError.message)
+    }
+
+    if (signUpData?.session) {
+        return {
+            userId: signUpData.session.user.id,
+            accessToken: signUpData.session.access_token,
+            refreshToken: signUpData.session.refresh_token ?? '',
+        }
+    }
+
+    const { data: signInData, error: signInError } = await client.auth.signInWithPassword({
+        email: userEmail,
+        password: userPassword,
+    })
+    if (signInError || !signInData.session) {
+        throw new Error(signInError?.message ?? 'Sign-in failed')
+    }
+
+    return {
+        userId: signInData.session.user.id,
+        accessToken: signInData.session.access_token,
+        refreshToken: signInData.session.refresh_token ?? '',
+    }
+}
+
 // ─── Workspace management ─────────────────────────────────────────────────────
 
 export async function createWorkspace(
@@ -253,67 +292,22 @@ export async function createWorkspace(
 ): Promise<{ ok: boolean; workspaceId?: string; inviteCode?: string; error?: string }> {
     try {
         const client = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } })
-
-        let userId: string
-        let accessToken: string
-        let refreshToken: string | undefined
-
-        const { data: signUpData, error: signUpError } = await client.auth.signUp({
-            email: userEmail,
-            password: userPassword,
+        const { userId, accessToken, refreshToken } = await signInOrSignUp(client, userEmail, userPassword)
+        const { data, error } = await client.rpc('create_workspace_with_owner', {
+            workspace_name: workspaceName.trim(),
+            member_email: userEmail.trim(),
+            member_display_name: displayName.trim(),
         })
 
-        if (signUpError && !signUpError.message.includes('already registered')) {
-            return { ok: false, error: signUpError.message }
+        const workspaceRow = Array.isArray(data) ? data[0] : data
+        if (error || !workspaceRow?.workspace_id || !workspaceRow?.invite_code) {
+            return { ok: false, error: error?.message ?? 'Could not create workspace' }
         }
 
-        if (signUpData?.session) {
-            userId = signUpData.session.user.id
-            accessToken = signUpData.session.access_token
-            refreshToken = signUpData.session.refresh_token
-        } else {
-            const { data: signInData, error: signInError } = await client.auth.signInWithPassword({
-                email: userEmail,
-                password: userPassword,
-            })
-            if (signInError || !signInData.session) {
-                return { ok: false, error: signInError?.message ?? 'Sign-in failed' }
-            }
-            userId = signInData.session.user.id
-            accessToken = signInData.session.access_token
-            refreshToken = signInData.session.refresh_token
-        }
-
-        const inviteCode = generateInviteCode()
-        const { data: wsData, error: wsError } = await client
-            .from('workspaces')
-            .insert({
-                name: workspaceName,
-                owner_id: userId,
-                invite_code: inviteCode,
-            })
-            .select('id')
-            .single()
-
-        if (wsError || !wsData) {
-            return { ok: false, error: wsError?.message ?? 'Could not create workspace' }
-        }
-
-        const workspaceId = wsData.id
-
-        await client.from('workspace_members').insert({
-            workspace_id: workspaceId,
-            user_id: userId,
-            email: userEmail,
-            display_name: displayName,
-            role: 'owner',
-        })
-
-        await saveCloudCredentials(supabaseUrl, supabaseAnonKey, workspaceId, userId, userEmail, displayName, accessToken, refreshToken ?? '')
-
-        return { ok: true, workspaceId, inviteCode }
-    } catch (e: any) {
-        return { ok: false, error: e.message }
+        await saveCloudCredentials(supabaseUrl, supabaseAnonKey, workspaceRow.workspace_id, userId, userEmail, displayName, accessToken, refreshToken)
+        return { ok: true, workspaceId: workspaceRow.workspace_id, inviteCode: workspaceRow.invite_code }
+    } catch (e: unknown) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
 }
 
@@ -327,62 +321,22 @@ export async function joinWorkspace(
 ): Promise<{ ok: boolean; workspaceId?: string; workspaceName?: string; error?: string }> {
     try {
         const client = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } })
-
-        let userId: string
-        let accessToken: string
-        let refreshToken: string | undefined
-
-        const { data: signUpData, error: signUpError } = await client.auth.signUp({
-            email: userEmail,
-            password: userPassword,
+        const { userId, accessToken, refreshToken } = await signInOrSignUp(client, userEmail, userPassword)
+        const { data, error } = await client.rpc('join_workspace_by_invite', {
+            invite_code_input: inviteCode.trim().toUpperCase(),
+            member_email: userEmail.trim(),
+            member_display_name: displayName.trim(),
         })
 
-        if (signUpError && !signUpError.message.includes('already registered')) {
-            return { ok: false, error: signUpError.message }
+        const workspaceRow = Array.isArray(data) ? data[0] : data
+        if (error || !workspaceRow?.workspace_id || !workspaceRow?.workspace_name) {
+            return { ok: false, error: error?.message ?? 'Invalid invite code' }
         }
 
-        if (signUpData?.session) {
-            userId = signUpData.session.user.id
-            accessToken = signUpData.session.access_token
-            refreshToken = signUpData.session.refresh_token
-        } else {
-            const { data: signInData, error: signInError } = await client.auth.signInWithPassword({
-                email: userEmail,
-                password: userPassword,
-            })
-            if (signInError || !signInData.session) {
-                return { ok: false, error: signInError?.message ?? 'Sign-in failed' }
-            }
-            userId = signInData.session.user.id
-            accessToken = signInData.session.access_token
-            refreshToken = signInData.session.refresh_token
-        }
-
-        const { data: wsData, error: wsError } = await client
-            .from('workspaces')
-            .select('id, name')
-            .eq('invite_code', inviteCode.toUpperCase())
-            .single()
-
-        if (wsError || !wsData) {
-            return { ok: false, error: 'Invalid invite code' }
-        }
-
-        const workspaceId = wsData.id
-
-        await client.from('workspace_members').upsert({
-            workspace_id: workspaceId,
-            user_id: userId,
-            email: userEmail,
-            display_name: displayName,
-            role: 'member',
-        }, { onConflict: 'workspace_id,user_id' })
-
-        await saveCloudCredentials(supabaseUrl, supabaseAnonKey, workspaceId, userId, userEmail, displayName, accessToken, refreshToken ?? '')
-
-        return { ok: true, workspaceId, workspaceName: wsData.name }
-    } catch (e: any) {
-        return { ok: false, error: e.message }
+        await saveCloudCredentials(supabaseUrl, supabaseAnonKey, workspaceRow.workspace_id, userId, userEmail, displayName, accessToken, refreshToken)
+        return { ok: true, workspaceId: workspaceRow.workspace_id, workspaceName: workspaceRow.workspace_name }
+    } catch (e: unknown) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
 }
 
@@ -401,7 +355,7 @@ export async function disconnectWorkspace(): Promise<void> {
     notifyRenderer('sync-status-changed', getStatus())
 }
 
-export async function getWorkspaceInfo(): Promise<{ workspaceId: string | null; workspaceName?: string; inviteCode?: string; members?: any[] }> {
+export async function getWorkspaceInfo(): Promise<WorkspaceInfo> {
     if (!supabase || !currentWorkspaceId) return { workspaceId: null }
     const { data } = await supabase
         .from('workspaces')
@@ -416,7 +370,7 @@ export async function getWorkspaceInfo(): Promise<{ workspaceId: string | null; 
         workspaceId: currentWorkspaceId,
         workspaceName: data?.name,
         inviteCode: data?.invite_code,
-        members: members ?? [],
+        members: (members ?? []) as WorkspaceMember[],
     }
 }
 
@@ -438,15 +392,6 @@ async function saveCloudCredentials(
 }
 
 // ─── Invite code ──────────────────────────────────────────────────────────────
-
-function generateInviteCode(): string {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-    let code = ''
-    for (let i = 0; i < 8; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)]
-    }
-    return code
-}
 
 // ─── Pull: remote → local ─────────────────────────────────────────────────────
 
@@ -737,7 +682,7 @@ export function pushTaskCollab(projectId: string, taskId: string, collabState: s
 }
 
 /** Push a full handoff packet to Supabase */
-export function pushHandoff(projectId: string, handoff: any) {
+export function pushHandoff(projectId: string, handoff: HandoffPacket) {
     const now = Date.now()
     enqueue({
         table: 'sync_handoffs',
@@ -781,7 +726,7 @@ export function pushHandoff(projectId: string, handoff: any) {
 }
 
 /** Push a collaboration event to Supabase */
-export function pushCollabEvent(projectId: string, event: any) {
+export function pushCollabEvent(projectId: string, event: CollaborationEvent) {
     enqueue({
         table: 'sync_collab_events',
         op: 'upsert',
@@ -804,7 +749,7 @@ export function pushCollabEvent(projectId: string, event: any) {
 }
 
 /** Push an artifact link to Supabase */
-export function pushArtifactLink(projectId: string, link: any) {
+export function pushArtifactLink(projectId: string, link: ArtifactLink) {
     enqueue({
         table: 'sync_artifact_links',
         op: 'upsert',
