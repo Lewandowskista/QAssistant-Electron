@@ -150,7 +150,7 @@ describe('useProjectStore — handoff operations', () => {
         await useProjectStore.getState().acknowledgeHandoff(projectId, handoffId, 'dev')
 
         const project = useProjectStore.getState().projects.find(p => p.id === projectId)!
-        const handoff = project.handoffPackets?.find(h => h.id === handoffId)!
+        const handoff = (project.handoffPackets ?? []).find(h => h.id === handoffId)!
         const task = project.tasks.find(t => t.id === taskId)!
 
         expect(handoff.acknowledgedAt).toBeGreaterThan(0)
