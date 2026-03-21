@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { safeInvoke } from "@/lib/safeInvoke"
 import { IMPEX_TEMPLATES } from "@/data/impexTemplates"
 import {
     Select,
@@ -134,18 +135,27 @@ export default function TestDataPage() {
     const handleExport = async () => {
         if (!selectedGroup || !window.electronAPI) return
         const content = JSON.stringify(selectedGroup, null, 2)
-        await window.electronAPI.saveFileDialog({
-            defaultName: `${selectedGroup.name.replace(/\s+/g, '_')}_TestData.json`,
-            content
-        })
+        await safeInvoke(
+            () => window.electronAPI.saveFileDialog({
+                defaultName: `${selectedGroup.name.replace(/\s+/g, '_')}_TestData.json`,
+                content
+            }),
+            'Failed to save test data file'
+        )
     }
 
     const handleImport = async () => {
         if (!activeProjectId || !selectedGroupId || !window.electronAPI) return
-        const res = await window.electronAPI.selectFile()
-        if (res) {
-            const fileData = await window.electronAPI.readJsonFile({ filePath: res })
-            if (fileData.success && fileData.data) {
+        const filePath = await safeInvoke(
+            () => window.electronAPI.selectFile(),
+            'Failed to open file picker'
+        )
+        if (filePath) {
+            const fileData = await safeInvoke(
+                () => window.electronAPI.readJsonFile({ filePath }),
+                'Failed to read JSON file'
+            )
+            if (fileData?.success && fileData.data) {
                 const group = fileData.data as TestDataGroup
                 for (const entry of group.entries) {
                     await addTestDataEntry(activeProjectId, selectedGroupId, entry)

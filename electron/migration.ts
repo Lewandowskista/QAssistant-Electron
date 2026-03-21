@@ -9,6 +9,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { saveAllProjects } from './database'
+import { log } from './logger'
 
 /**
  * Runs the migration if needed.
@@ -26,12 +27,12 @@ export function migrateJsonToSqlite(projectsJsonPath: string): { migrated: boole
         const content = fs.readFileSync(projectsJsonPath, 'utf8')
         const parsed = JSON.parse(content)
         if (!Array.isArray(parsed)) {
-            console.warn('[migration] projects.json does not contain an array — skipping migration')
+            log.warn('[migration] projects.json does not contain an array — skipping migration')
             return { migrated: false, count: 0 }
         }
         projects = parsed
     } catch (e) {
-        console.error('[migration] Failed to read/parse projects.json:', e)
+        log.error('[migration] Failed to read/parse projects.json:', e)
         return { migrated: false, count: 0 }
     }
 
@@ -43,9 +44,9 @@ export function migrateJsonToSqlite(projectsJsonPath: string): { migrated: boole
 
     try {
         saveAllProjects(projects)
-        console.log(`[migration] Migrated ${projects.length} project(s) from projects.json to SQLite`)
+        log.info(`[migration] Migrated ${projects.length} project(s) from projects.json to SQLite`)
     } catch (e) {
-        console.error('[migration] Failed to write projects to SQLite:', e)
+        log.error('[migration] Failed to write projects to SQLite:', e)
         return { migrated: false, count: 0 }
     }
 
@@ -58,9 +59,9 @@ function renameLegacy(filePath: string): void {
     try {
         // Keep a backup in case the user needs to roll back
         fs.renameSync(filePath, migratedPath)
-        console.log(`[migration] Renamed ${path.basename(filePath)} to ${path.basename(migratedPath)}`)
+        log.info(`[migration] Renamed ${path.basename(filePath)} to ${path.basename(migratedPath)}`)
     } catch (e) {
         // Non-fatal: the migration already succeeded, just couldn't rename
-        console.warn('[migration] Could not rename legacy file (non-fatal):', e)
+        log.warn('[migration] Could not rename legacy file (non-fatal):', e)
     }
 }

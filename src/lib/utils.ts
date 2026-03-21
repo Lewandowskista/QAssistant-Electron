@@ -45,7 +45,7 @@ export function calculateRetestCount(executionStatuses: TestCaseStatus[]): numbe
  * Get flakiness score (0-100)
  * Based on how many times the result changed in recent executions
  */
-export function getFlakinesScore(executionStatuses: TestCaseStatus[], windowSize: number = 10): number {
+export function getFlakinessScore(executionStatuses: TestCaseStatus[], windowSize: number = 10): number {
   if (executionStatuses.length < 2) return 0
 
   const recent = executionStatuses.slice(-windowSize)

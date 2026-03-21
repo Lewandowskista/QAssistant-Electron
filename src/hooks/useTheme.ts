@@ -1,12 +1,12 @@
 import { useCallback } from 'react'
 import { useSettingsStore } from '@/store/useSettingsStore'
+import { applyTheme } from '@/lib/theme'
 
 type Theme = 'dark' | 'light'
 
 /** Apply the theme CSS class to the document root. */
 export function applyThemeClass(theme: Theme) {
-    document.documentElement.classList.toggle('light', theme === 'light')
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    applyTheme(theme)
 }
 
 export function useTheme() {

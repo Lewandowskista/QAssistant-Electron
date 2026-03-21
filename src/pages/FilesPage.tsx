@@ -126,13 +126,16 @@ export default function FilesPage() {
                             fileSizeBytes: res.attachment.fileSizeBytes
                         }
                         await addProjectFile(activeProjectId, newFile);
+                    } else if (!res.success) {
+                        toast.error(res.error || 'Failed to save screenshot')
                     }
                     return;
                 }
             }
             toast.info('No image in clipboard');
-        } catch (e: any) {
-            console.error('Paste failed', e);
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            toast.error(`Paste failed: ${msg}`)
         }
     }
 
@@ -203,6 +206,8 @@ export default function FilesPage() {
                                         fileSizeBytes: res.attachment.fileSizeBytes
                                     }
                                     await addProjectFile(activeProjectId, newFile)
+                                } else if (!res.success) {
+                                    toast.error(res.error || `Failed to attach ${webFile.path}`)
                                 }
                             }
                         }

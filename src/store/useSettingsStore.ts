@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { applyTheme } from '@/lib/theme'
 
 export interface AppSettings {
     theme: 'dark' | 'light'
@@ -52,7 +53,3 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     },
 }))
 
-function applyTheme(theme: 'dark' | 'light') {
-    document.documentElement.classList.toggle('light', theme === 'light')
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-}

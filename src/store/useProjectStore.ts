@@ -31,19 +31,7 @@ export type {
 }
 
 function generateId(): string {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID();
-    }
-    // Fallback for environments without crypto.randomUUID (should not occur in Electron).
-    // Uses Math.random which is NOT cryptographically secure - collision risk is low but non-zero.
-    console.warn('generateId: crypto.randomUUID unavailable, using Math.random fallback. IDs may collide under high load.')
-    let d = Date.now()
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = (d + Math.random() * 16) % 16 | 0
-        d = Math.floor(d / 16)
-        const v = c === 'x' ? r : (r & 0x3 | 0x8)
-        return v.toString(16)
-    })
+    return crypto.randomUUID()
 }
 
 /**
@@ -51,14 +39,34 @@ function generateId(): string {
  * better-sqlite3 is synchronous on the main-process side, so writes are
  * atomic and do not require debouncing for correctness. We still fire-and-
  * forget (no await at call sites) to keep the UI non-blocking.
+ * Returns a Promise<boolean> so callers can detect failures if needed.
  */
-const saveProjectsToDisk = (projects: Project[]) => {
-    if (window.electronAPI) {
-        window.electronAPI.writeProjectsFile(projects.map(sanitizeProjectForPersistence)).catch((error: unknown) => {
-            console.error('Failed to persist projects to SQLite:', error);
-        });
-    }
+const saveProjectsToDisk = (projects: Project[]): Promise<boolean> => {
+    if (!window.electronAPI) return Promise.resolve(false)
+    return window.electronAPI.writeProjectsFile(projects.map(sanitizeProjectForPersistence))
+        .then(() => true)
+        .catch((error: unknown) => {
+            console.error('Failed to persist projects to SQLite:', error)
+            toast.error('Failed to save — your changes may not have been written to disk.')
+            return false
+        })
 };
+
+/**
+ * Debounced variant of saveProjectsToDisk — used for high-frequency entity
+ * mutations (test data groups, API requests, runbooks, etc.) that do not yet
+ * have granular IPC handlers. The 300ms window coalesces rapid successive
+ * writes into a single disk flush. SQLite WAL mode guarantees atomicity, so
+ * skipping intermediate states is safe.
+ */
+let _debounceSaveTimer: ReturnType<typeof setTimeout> | null = null
+const debouncedSaveProjectsToDisk = (projects: Project[]): void => {
+    if (_debounceSaveTimer !== null) clearTimeout(_debounceSaveTimer)
+    _debounceSaveTimer = setTimeout(() => {
+        _debounceSaveTimer = null
+        saveProjectsToDisk(projects)
+    }, 300)
+}
 
 const persistNoteToDisk = async (projectId: string, note: Note) => {
     if (window.electronAPI?.upsertProjectNote) {
@@ -108,18 +116,94 @@ const persistCollaborationEventToDisk = async (projectId: string, event: Collabo
     saveProjectsToDisk(useProjectStore.getState().projects)
 }
 
+const persistTestPlanToDisk = async (projectId: string, plan: TestPlan) => {
+    if (window.electronAPI?.upsertProjectTestPlan) {
+        await window.electronAPI.upsertProjectTestPlan(projectId, plan)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const deleteTestPlanFromDisk = async (projectId: string, planId: string) => {
+    if (window.electronAPI?.deleteProjectTestPlan) {
+        await window.electronAPI.deleteProjectTestPlan(projectId, planId)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const persistEnvironmentToDisk = async (projectId: string, env: QaEnvironment) => {
+    if (window.electronAPI?.upsertProjectEnvironment) {
+        await window.electronAPI.upsertProjectEnvironment(projectId, env)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const deleteEnvironmentFromDisk = async (projectId: string, envId: string) => {
+    if (window.electronAPI?.deleteProjectEnvironment) {
+        await window.electronAPI.deleteProjectEnvironment(projectId, envId)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const persistChecklistToDisk = async (projectId: string, checklist: Checklist) => {
+    if (window.electronAPI?.upsertProjectChecklist) {
+        await window.electronAPI.upsertProjectChecklist(projectId, checklist)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const deleteChecklistFromDisk = async (projectId: string, checklistId: string) => {
+    if (window.electronAPI?.deleteProjectChecklist) {
+        await window.electronAPI.deleteProjectChecklist(projectId, checklistId)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const persistTestRunSessionToDisk = async (projectId: string, session: TestRunSession) => {
+    if (window.electronAPI?.upsertProjectTestRunSession) {
+        await window.electronAPI.upsertProjectTestRunSession(projectId, session)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const deleteTestRunSessionFromDisk = async (projectId: string, sessionId: string) => {
+    if (window.electronAPI?.deleteProjectTestRunSession) {
+        await window.electronAPI.deleteProjectTestRunSession(projectId, sessionId)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
 // Fire-and-forget sync push helpers — only enqueue if sync is configured
 function syncPushTaskCollab(projectId: string, taskId: string, collabState: string, activeHandoffId?: string | null) {
-    window.electronAPI?.syncPushTaskCollab?.({ projectId, taskId, collabState, activeHandoffId, updatedAt: Date.now() }).catch(() => {})
+    window.electronAPI?.syncPushTaskCollab?.({ projectId, taskId, collabState, activeHandoffId, updatedAt: Date.now() }).catch((err: unknown) => {
+        console.error('[sync] syncPushTaskCollab failed:', err)
+        toast.error('Sync push failed — task collaboration state may not have synced to the cloud.')
+    })
 }
 function syncPushHandoff(projectId: string, handoff: HandoffPacket) {
-    window.electronAPI?.syncPushHandoff?.({ projectId, handoff }).catch(() => {})
+    window.electronAPI?.syncPushHandoff?.({ projectId, handoff }).catch((err: unknown) => {
+        console.error('[sync] syncPushHandoff failed:', err)
+        toast.error('Sync push failed — handoff may not have synced to the cloud.')
+    })
 }
 function syncPushCollabEvent(projectId: string, event: CollaborationEvent) {
-    window.electronAPI?.syncPushCollabEvent?.({ projectId, event }).catch(() => {})
+    window.electronAPI?.syncPushCollabEvent?.({ projectId, event }).catch((err: unknown) => {
+        console.error('[sync] syncPushCollabEvent failed:', err)
+        toast.error('Sync push failed — collaboration event may not have synced to the cloud.')
+    })
 }
 function syncPushArtifactLink(projectId: string, link: ArtifactLink) {
-    window.electronAPI?.syncPushArtifactLink?.({ projectId, link }).catch(() => {})
+    window.electronAPI?.syncPushArtifactLink?.({ projectId, link }).catch((err: unknown) => {
+        console.error('[sync] syncPushArtifactLink failed:', err)
+        toast.error('Sync push failed — artifact link may not have synced to the cloud.')
+    })
 }
 
 export type TraceabilityResult = {
@@ -912,8 +996,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 artifactLinks: [{ id: linkId, createdAt: now, ...link }, ...(project.artifactLinks || [])]
             }
         })
-        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        if (window.electronAPI) debouncedSaveProjectsToDisk(updatedProjects)
         const newLink = updatedProjects.find(p => p.id === projectId)?.artifactLinks?.find(l => l.id === linkId)
         if (newLink) syncPushArtifactLink(projectId, newLink)
         return linkId
@@ -927,8 +1011,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 artifactLinks: (project.artifactLinks || []).filter((link) => link.id !== linkId)
             }
         })
-        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        if (window.electronAPI) debouncedSaveProjectsToDisk(updatedProjects)
     },
 
     linkPrToHandoff: async (projectId: string, handoffId: string, prRef: LinkedPrRef) => {
@@ -1191,11 +1275,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             updatedAt: Date.now()
         }
 
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {
                     if (tp.id === planId) {
-                        return { ...tp, testCases: [testCase, ...tp.testCases], updatedAt: Date.now() }
+                        return (persistedPlan = { ...tp, testCases: [testCase, ...tp.testCases], updatedAt: Date.now() })
                     }
                     return tp
                 })
@@ -1204,10 +1289,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             return p
         })
 
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     addTestPlan: async (projectId: string, name: string, description: string, isRegressionSuite: boolean = false, source: 'manual' | 'linear' | 'jira' = 'manual') => {
@@ -1230,27 +1315,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await persistTestPlanToDisk(projectId, plan)
+        }
         return id
     },
 
     updateTestPlan: async (projectId: string, planId: string, updates: Partial<TestPlan>) => {
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp =>
-                    tp.id === planId ? { ...tp, ...updates, updatedAt: Date.now() } : tp
+                    tp.id === planId ? (persistedPlan = { ...tp, ...updates, updatedAt: Date.now() }) : tp
                 )
                 return { ...p, testPlans }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     deleteTestPlan: async (projectId: string, planId: string) => {
@@ -1261,29 +1347,31 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await deleteTestPlanFromDisk(projectId, planId)
+        }
     },
 
     archiveTestPlan: async (projectId: string, planId: string, archive: boolean) => {
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp =>
-                    tp.id === planId ? { ...tp, isArchived: archive, updatedAt: Date.now() } : tp
+                    tp.id === planId ? (persistedPlan = { ...tp, isArchived: archive, updatedAt: Date.now() }) : tp
                 )
                 return { ...p, testPlans }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     resetTestPlanStatuses: async (projectId: string, planId: string) => {
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {
@@ -1294,7 +1382,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                             actualResult: '',
                             updatedAt: Date.now()
                         }))
-                        return { ...tp, testCases, updatedAt: Date.now() }
+                        return (persistedPlan = { ...tp, testCases, updatedAt: Date.now() })
                     }
                     return tp
                 })
@@ -1302,10 +1390,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     duplicateTestPlan: async (projectId: string, planId: string) => {
@@ -1340,13 +1428,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             return p
         })
 
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await persistTestPlanToDisk(projectId, newPlan)
+        }
     },
 
     batchAddTestCasesToPlan: async (projectId: string, planId: string, testCases: Omit<TestCase, 'id' | 'displayId' | 'updatedAt'>[]) => {
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {
@@ -1357,7 +1446,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                             displayId: `TC-${(tp.testCases.length + idx + 1)}`.padStart(6, '0'),
                             updatedAt: Date.now()
                         }))
-                        return { ...tp, testCases: [...newCases, ...tp.testCases], updatedAt: Date.now() }
+                        return (persistedPlan = { ...tp, testCases: [...newCases, ...tp.testCases], updatedAt: Date.now() })
                     }
                     return tp
                 })
@@ -1366,10 +1455,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             return p
         })
 
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     addTestCase: async (projectId: string, planId: string, data: Partial<TestCase>): Promise<string> => {
@@ -1390,11 +1479,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             sourceIssueId: data.sourceIssueId,
             updatedAt: Date.now()
         }
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {
                     if (tp.id === planId) {
-                        return { ...tp, testCases: [testCase, ...tp.testCases], updatedAt: Date.now() }
+                        return (persistedPlan = { ...tp, testCases: [testCase, ...tp.testCases], updatedAt: Date.now() })
                     }
                     return tp
                 })
@@ -1402,10 +1492,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
         return testCase.id
     },
 
@@ -1439,7 +1529,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                             }
                             return tc
                         })
-                        return { ...tp, testCases, updatedAt: Date.now() }
+                        return (persistedPlan = { ...tp, testCases, updatedAt: Date.now() })
                     }
                     return tp
                 })
@@ -1447,13 +1537,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     batchUpdateTestCases: async (projectId: string, planId: string, caseIds: string[], updates: Partial<TestCase>) => {
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {
@@ -1461,7 +1552,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                         const testCases = tp.testCases.map(tc =>
                             caseIds.includes(tc.id) ? { ...tc, ...updates, updatedAt: Date.now() } : tc
                         )
-                        return { ...tp, testCases, updatedAt: Date.now() }
+                        return (persistedPlan = { ...tp, testCases, updatedAt: Date.now() })
                     }
                     return tp
                 })
@@ -1469,19 +1560,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     batchDeleteTestCases: async (projectId: string, planId: string, caseIds: string[]) => {
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {
                     if (tp.id === planId) {
                         const testCases = tp.testCases.filter(tc => !caseIds.includes(tc.id))
-                        return { ...tp, testCases, updatedAt: Date.now() }
+                        return (persistedPlan = { ...tp, testCases, updatedAt: Date.now() })
                     }
                     return tp
                 })
@@ -1489,19 +1581,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     deleteTestCase: async (projectId: string, planId: string, caseId: string) => {
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {
                     if (tp.id === planId) {
                         const testCases = tp.testCases.filter(tc => tc.id !== caseId)
-                        return { ...tp, testCases, updatedAt: Date.now() }
+                        return (persistedPlan = { ...tp, testCases, updatedAt: Date.now() })
                     }
                     return tp
                 })
@@ -1509,10 +1602,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedPlan) {
+            await persistTestPlanToDisk(projectId, persistedPlan)
+        }
     },
 
     addEnvironment: async (projectId: string, name: string): Promise<string> => {
@@ -1542,25 +1635,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await persistEnvironmentToDisk(projectId, env)
+        }
         return env.id
     },
 
     updateEnvironment: async (projectId: string, envId: string, updates: Partial<QaEnvironment>) => {
+        let persistedEnv: QaEnvironment | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
-                const environments = (p.environments || []).map(e => e.id === envId ? { ...e, ...updates } : e)
+                const environments = (p.environments || []).map(e =>
+                    e.id === envId ? (persistedEnv = { ...e, ...updates }) : e
+                )
                 return { ...p, environments }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedEnv) {
+            await persistEnvironmentToDisk(projectId, persistedEnv)
+        }
     },
 
     deleteEnvironment: async (projectId: string, envId: string) => {
@@ -1575,27 +1671,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await deleteEnvironmentFromDisk(projectId, envId)
+        }
     },
 
     setEnvironmentDefault: async (projectId: string, envId: string) => {
+        let updatedEnvs: QaEnvironment[] = []
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
-                const environments = (p.environments || []).map(e => ({
-                    ...e,
-                    isDefault: e.id === envId
-                }))
-                return { ...p, environments }
+                updatedEnvs = (p.environments || []).map(e => ({ ...e, isDefault: e.id === envId }))
+                return { ...p, environments: updatedEnvs }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await Promise.all(updatedEnvs.map(e => persistEnvironmentToDisk(projectId, e)))
+        }
     },
 
     addTestExecution: async (projectId: string, execution: Omit<TestExecution, 'id' | 'executedAt'>) => {
@@ -1637,10 +1731,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             return p
         })
 
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            debouncedSaveProjectsToDisk(updatedProjects)
+        }
     },
 
     addTestRunSession: async (projectId: string, session: Omit<TestRunSession, 'id' | 'timestamp'>) => {
@@ -1676,10 +1770,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             return p
         })
 
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            // Persist the new session and update each affected test plan's status
+            await persistTestRunSessionToDisk(projectId, newSession)
+            const project = updatedProjects.find(p => p.id === projectId)
+            const affectedPlanIds = new Set(newSession.planExecutions.map(pe => pe.testPlanId))
+            const affectedPlans = (project?.testPlans || []).filter(tp => affectedPlanIds.has(tp.id))
+            await Promise.all(affectedPlans.map(tp => persistTestPlanToDisk(projectId, tp)))
+        }
     },
 
     deleteTestRunSession: async (projectId: string, sessionId: string) => {
@@ -1690,29 +1789,31 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await deleteTestRunSessionFromDisk(projectId, sessionId)
+        }
     },
 
     archiveTestRunSession: async (projectId: string, sessionId: string, archive: boolean) => {
+        let persistedSession: TestRunSession | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testRunSessions = (p.testRunSessions || []).map(s =>
-                    s.id === sessionId ? { ...s, isArchived: archive } : s
+                    s.id === sessionId ? (persistedSession = { ...s, isArchived: archive }) : s
                 )
                 return { ...p, testRunSessions }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedSession) {
+            await persistTestRunSessionToDisk(projectId, persistedSession)
+        }
     },
 
     deleteTestCaseExecution: async (projectId: string, sessionId: string, planExecutionId: string, caseExecutionId: string) => {
+        let persistedSession: TestRunSession | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testRunSessions = (p.testRunSessions || []).map(s => {
@@ -1726,7 +1827,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                             }
                             return pe
                         })
-                        return { ...s, planExecutions }
+                        return (persistedSession = { ...s, planExecutions })
                     }
                     return s
                 })
@@ -1734,10 +1835,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedSession) {
+            await persistTestRunSessionToDisk(projectId, persistedSession)
+        }
     },
 
     deleteLegacyExecution: async (projectId: string, executionId: string) => {
@@ -1748,10 +1849,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            debouncedSaveProjectsToDisk(updatedProjects)
+        }
     },
 
     clearExecutionHistory: async (projectId: string, testCaseId?: string) => {
@@ -1764,10 +1865,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            debouncedSaveProjectsToDisk(updatedProjects)
+        }
     },
 
     setActiveProject: (id: string) => {
@@ -1777,7 +1878,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     addTestDataGroup: async (projectId: string, name: string, category: string): Promise<string> => {
         const group: TestDataGroup = { id: generateId(), name, category, entries: [], createdAt: Date.now() }
         const projects = get().projects.map(p => p.id === projectId ? { ...p, testDataGroups: [...(p.testDataGroups || []), group] } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return group.id
     },
@@ -1785,12 +1886,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const projects = get().projects.map(p => p.id === projectId ? {
             ...p, testDataGroups: p.testDataGroups.map(g => g.id === groupId ? { ...g, ...updates } : g)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
     deleteTestDataGroup: async (projectId: string, groupId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, testDataGroups: p.testDataGroups.filter(g => g.id !== groupId) } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
     addTestDataEntry: async (projectId: string, groupId: string, data: Partial<TestDataEntry>): Promise<string> => {
@@ -1799,7 +1900,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const projects = get().projects.map(p => p.id === projectId ? {
             ...p, testDataGroups: p.testDataGroups.map(g => g.id === groupId ? { ...g, entries: [...g.entries, entry] } : g)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return id
     },
@@ -1815,85 +1916,89 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 return g
             })
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
     deleteTestDataEntry: async (projectId: string, groupId: string, entryId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? {
             ...p, testDataGroups: p.testDataGroups.map(g => g.id === groupId ? { ...g, entries: g.entries.filter(e => e.id !== entryId) } : g)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
     // file attachments at project-level
     addProjectFile: async (projectId: string, file: Attachment) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, files: [...(p.files || []), file] } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
     deleteProjectFile: async (projectId: string, fileId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, files: p.files.filter(f => f.id !== fileId) } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
     addChecklist: async (projectId: string, name: string, category: string) => {
         const checklist: Checklist = { id: generateId(), name, category, items: [], createdAt: Date.now(), updatedAt: Date.now() }
         const projects = get().projects.map(p => p.id === projectId ? { ...p, checklists: [...(p.checklists || []), checklist] } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
         set({ projects })
+        if (window.electronAPI) await persistChecklistToDisk(projectId, checklist)
         return checklist
     },
     updateChecklist: async (projectId: string, checklistId: string, updates: Partial<Checklist>) => {
-        const projects = get().projects.map(p => p.id === projectId ? { ...p, checklists: p.checklists.map(c => c.id === checklistId ? { ...c, ...updates, updatedAt: Date.now() } : c) } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        let persistedChecklist: Checklist | undefined
+        const projects = get().projects.map(p => p.id === projectId ? { ...p, checklists: p.checklists.map(c => c.id === checklistId ? (persistedChecklist = { ...c, ...updates, updatedAt: Date.now() }) : c) } : p)
         set({ projects })
+        if (window.electronAPI && persistedChecklist) await persistChecklistToDisk(projectId, persistedChecklist)
     },
     deleteChecklist: async (projectId: string, checklistId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, checklists: p.checklists.filter(c => c.id !== checklistId) } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
         set({ projects })
+        if (window.electronAPI) await deleteChecklistFromDisk(projectId, checklistId)
     },
     toggleChecklistItem: async (projectId: string, checklistId: string, itemId: string) => {
+        let persistedChecklist: Checklist | undefined
         const projects = get().projects.map(p => p.id === projectId ? {
-            ...p, checklists: p.checklists.map(c => c.id === checklistId ? { ...c, items: c.items.map(i => i.id === itemId ? { ...i, isChecked: !i.isChecked } : i) } : c)
+            ...p, checklists: p.checklists.map(c => c.id === checklistId ? (persistedChecklist = { ...c, items: c.items.map(i => i.id === itemId ? { ...i, isChecked: !i.isChecked } : i) }) : c)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
         set({ projects })
+        if (window.electronAPI && persistedChecklist) await persistChecklistToDisk(projectId, persistedChecklist)
     },
     addChecklistItem: async (projectId: string, checklistId: string, text: string) => {
         const item: ChecklistItem = { id: generateId(), text, isChecked: false }
+        let persistedChecklist: Checklist | undefined
         const projects = get().projects.map(p => p.id === projectId ? {
-            ...p, checklists: p.checklists.map(c => c.id === checklistId ? { ...c, items: [...c.items, item] } : c)
+            ...p, checklists: p.checklists.map(c => c.id === checklistId ? (persistedChecklist = { ...c, items: [...c.items, item] }) : c)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
         set({ projects })
+        if (window.electronAPI && persistedChecklist) await persistChecklistToDisk(projectId, persistedChecklist)
         return item.id
     },
     deleteChecklistItem: async (projectId: string, checklistId: string, itemId: string) => {
+        let persistedChecklist: Checklist | undefined
         const projects = get().projects.map(p => p.id === projectId ? {
-            ...p, checklists: p.checklists.map(c => c.id === checklistId ? { ...c, items: c.items.filter(i => i.id !== itemId) } : c)
+            ...p, checklists: p.checklists.map(c => c.id === checklistId ? (persistedChecklist = { ...c, items: c.items.filter(i => i.id !== itemId) }) : c)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
         set({ projects })
+        if (window.electronAPI && persistedChecklist) await persistChecklistToDisk(projectId, persistedChecklist)
     },
 
     addApiRequest: async (projectId: string, data: Partial<ApiRequest>) => {
         const req: ApiRequest = { id: generateId(), name: data.name || 'New Request', category: data.category || 'Custom', method: data.method || 'GET', url: data.url || '', headers: data.headers || '', body: data.body || '', createdAt: Date.now(), updatedAt: Date.now() }
         const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: [...(p.apiRequests || []), req] } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return req.id
     },
     updateApiRequest: async (projectId: string, requestId: string, updates: Partial<ApiRequest>) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: p.apiRequests.map(r => r.id === requestId ? { ...r, ...updates, updatedAt: Date.now() } : r) } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
     deleteApiRequest: async (projectId: string, requestId: string) => {
         const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: p.apiRequests.filter(r => r.id !== requestId) } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -1907,7 +2012,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             updatedAt: Date.now()
         }
         const projects = get().projects.map(p => p.id === projectId ? { ...p, runbooks: [...(p.runbooks || []), runbook] } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return runbook
     },
@@ -1916,7 +2021,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ...p,
             runbooks: (p.runbooks || []).map(r => r.id === runbookId ? { ...r, ...updates, updatedAt: Date.now() } : r)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
     deleteRunbook: async (projectId: string, runbookId: string) => {
@@ -1924,7 +2029,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ...p,
             runbooks: (p.runbooks || []).filter(r => r.id !== runbookId)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
     addRunbookStep: async (projectId: string, runbookId: string, title: string) => {
@@ -1945,7 +2050,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 return r
             })
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return id
     },
@@ -1963,7 +2068,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 return r
             })
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
     deleteRunbookStep: async (projectId: string, runbookId: string, stepId: string) => {
@@ -1980,7 +2085,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 return r
             })
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2002,7 +2107,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ...p,
             reportTemplates: [...(p.reportTemplates || []), newTemplate]
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return templateId
     },
@@ -2014,7 +2119,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 t.id === templateId ? { ...t, ...updates, updatedAt: Date.now() } : t
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2023,7 +2128,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ...p,
             reportTemplates: (p.reportTemplates || []).filter(t => t.id !== templateId)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2041,7 +2146,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 } : t
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2061,7 +2166,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ...p,
             accuracyTestSuites: [...(p.accuracyTestSuites || []), suite]
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return suite.id
     },
@@ -2073,7 +2178,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 s.id === suiteId ? { ...s, ...updates, updatedAt: Date.now() } : s
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2082,7 +2187,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ...p,
             accuracyTestSuites: (p.accuracyTestSuites || []).filter(s => s.id !== suiteId)
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2099,7 +2204,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 } : s
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return id
     },
@@ -2115,7 +2220,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 } : s
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2132,7 +2237,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 } : s
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return id
     },
@@ -2156,7 +2261,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 } : s
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2171,7 +2276,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 } : s
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2188,7 +2293,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 } : s
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
         return id
     },
@@ -2204,7 +2309,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 } : s
             )
         } : p)
-        if (window.electronAPI) saveProjectsToDisk(projects)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
         set({ projects })
     },
 
@@ -2219,7 +2324,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 ...(p.exploratorySessions || [])
             ]
         })
-        if (window.electronAPI) saveProjectsToDisk(updated)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(updated)
         set({ projects: updated })
         return id
     },
@@ -2229,7 +2334,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ...p,
             exploratorySessions: (p.exploratorySessions || []).map(s => s.id === sessionId ? { ...s, ...updates } : s)
         })
-        if (window.electronAPI) saveProjectsToDisk(updated)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(updated)
         set({ projects: updated })
     },
 
@@ -2242,7 +2347,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 observations: [...s.observations, { id, timestamp: Date.now(), ...obs }]
             })
         })
-        if (window.electronAPI) saveProjectsToDisk(updated)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(updated)
         set({ projects: updated })
         return id
     },
@@ -2252,7 +2357,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             ...p,
             exploratorySessions: (p.exploratorySessions || []).filter(s => s.id !== sessionId)
         })
-        if (window.electronAPI) saveProjectsToDisk(updated)
+        if (window.electronAPI) debouncedSaveProjectsToDisk(updated)
         set({ projects: updated })
     },
 }))

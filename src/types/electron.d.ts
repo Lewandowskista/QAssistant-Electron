@@ -45,6 +45,14 @@ export interface ElectronAPI {
     deleteProjectTask: (projectId: string, taskId: string) => Promise<boolean>;
     upsertProjectHandoff: (projectId: string, handoff: any) => Promise<boolean>;
     insertProjectCollaborationEvent: (projectId: string, event: any) => Promise<boolean>;
+    upsertProjectTestPlan: (projectId: string, plan: any) => Promise<boolean>;
+    deleteProjectTestPlan: (projectId: string, planId: string) => Promise<boolean>;
+    upsertProjectEnvironment: (projectId: string, env: any) => Promise<boolean>;
+    deleteProjectEnvironment: (projectId: string, envId: string) => Promise<boolean>;
+    upsertProjectChecklist: (projectId: string, checklist: any) => Promise<boolean>;
+    deleteProjectChecklist: (projectId: string, checklistId: string) => Promise<boolean>;
+    upsertProjectTestRunSession: (projectId: string, session: any) => Promise<boolean>;
+    deleteProjectTestRunSession: (projectId: string, sessionId: string) => Promise<boolean>;
     readSettingsFile: () => Promise<any>;
     writeSettingsFile: (data: any) => Promise<{ success: boolean; error?: string }>;
     recordPerformanceMetric: (name: string, value: number) => Promise<boolean>;

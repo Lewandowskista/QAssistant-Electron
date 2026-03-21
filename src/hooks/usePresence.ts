@@ -66,8 +66,19 @@ export function usePresence(taskId: string | undefined) {
                 const ch = sb.channel(channelName, {
                     config: { presence: { key: config!.userId! } }
                 })
+                // Guard: only register if still mounted to prevent orphaned entries
+                // when the component unmounts before the async getSupabase() resolves.
+                if (!mounted) return
                 channelRegistry.set(channelName, ch)
                 channelRef.current = ch
+            }
+
+            // Periodic sweep: remove channels that are stuck in a non-joined state
+            // (e.g. due to network loss) to prevent unbounded registry growth.
+            for (const [key, ch] of channelRegistry) {
+                if (ch.state !== 'joined' && ch.state !== 'joining') {
+                    channelRegistry.delete(key)
+                }
             }
 
             const ch = channelRef.current

@@ -35,6 +35,7 @@ import type { ArtifactLink, CollaborationEvent, HandoffPacket } from '../src/typ
 import type { WorkspaceInfo, WorkspaceInviteInfo, WorkspaceMember } from '../src/types/sync'
 import { appendFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
+import { log } from './logger'
 
 // ─── Credential keys ──────────────────────────────────────────────────────────
 const CRED_WORKSPACE_ID      = 'sync_workspace_id'
@@ -149,7 +150,7 @@ export async function initSync(): Promise<{ ok: boolean; status: SyncStatus }> {
     currentUserId = auth.user.id
     supabase = client
 
-    console.log(`[sync] initSync: user=${auth.user.email} workspace=${wsId}`)
+    log.info(`[sync] initSync: user=${auth.user.email} workspace=${wsId}`)
     setSyncStatus('connecting')
     notifyRenderer('sync-status-changed', getStatus())
 
@@ -271,7 +272,7 @@ function scheduleReconnect() {
     }
     const delay = RECONNECT_BACKOFF_MS[reconnectAttempts] ?? 30000
     reconnectAttempts++
-    console.log(`[sync] Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
+    log.info(`[sync] Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
     reconnectTimer = setTimeout(async () => {
         reconnectTimer = null
         // Guard: if teardownSync was called while waiting, abort
@@ -349,7 +350,7 @@ export async function createWorkspace(
     try {
         const auth = await initAuth()
         const client = await getAuthenticatedClient()
-        console.log('[sync] createWorkspace: auth.configured=', auth.configured, 'user=', auth.user?.email, 'client=', !!client)
+        log.info('[sync] createWorkspace: auth.configured=', auth.configured, 'user=', auth.user?.email, 'client=', !!client)
         if (!client || !auth.user) {
             return { ok: false, error: 'You must be signed in before creating a workspace' }
         }
@@ -361,7 +362,7 @@ export async function createWorkspace(
             p_member_email: memberEmail,
             p_member_display_name: memberDisplayName,
         }
-        console.log('[sync] createWorkspace: calling RPC with', JSON.stringify(rpcArgs))
+        log.info('[sync] createWorkspace: calling RPC with', JSON.stringify(rpcArgs))
 
         const t0 = Date.now()
         const { data, error } = await callWorkspaceRpc(
@@ -369,7 +370,7 @@ export async function createWorkspace(
             'create_workspace_with_owner',
             rpcArgs,
         )
-        console.log(`[sync] createWorkspace: RPC took ${Date.now() - t0}ms, data=`, JSON.stringify(data), 'error=', error?.message, 'code=', error?.code)
+        log.info(`[sync] createWorkspace: RPC took ${Date.now() - t0}ms, data=`, JSON.stringify(data), 'error=', error?.message, 'code=', error?.code)
 
         const workspaceRow = Array.isArray(data) ? data[0] : data
         const wsId = workspaceRow?.workspace_id ?? workspaceRow?.out_workspace_id
@@ -383,7 +384,7 @@ export async function createWorkspace(
         await saveWorkspaceSelection(wsId, auth.user.id)
         supabase = client
         currentUserId = auth.user.id
-        console.log('[sync] createWorkspace: success, workspaceId=', wsId)
+        log.info('[sync] createWorkspace: success, workspaceId=', wsId)
         return { ok: true, workspaceId: wsId, inviteCode: invCode }
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)

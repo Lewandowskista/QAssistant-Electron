@@ -1649,6 +1649,243 @@ export function insertProjectCollaborationEvent(projectId: string, event: any): 
     })()
 }
 
+// ─── Granular upsert/delete helpers for high-traffic entities ─────────────────
+
+export function upsertProjectTestPlan(projectId: string, plan: any): void {
+    const database = getDb()
+    const upsertPlan = database.prepare(`
+        INSERT OR REPLACE INTO test_plans (id, project_id, display_id, name, description, is_archived,
+            is_regression_suite, source, criticality, created_at, updated_at)
+        VALUES (@id, @project_id, @display_id, @name, @description, @is_archived,
+            @is_regression_suite, @source, @criticality, @created_at, @updated_at)
+    `)
+    const upsertCase = database.prepare(`
+        INSERT OR REPLACE INTO test_cases (id, test_plan_id, project_id, display_id, title,
+            pre_conditions, steps, test_data, expected_result, actual_result, priority, status,
+            sap_module, source_issue_id, tags_json, components_json, assigned_to,
+            estimated_minutes, test_type, linked_defect_ids_json, change_log_json, updated_at)
+        VALUES (@id, @test_plan_id, @project_id, @display_id, @title,
+            @pre_conditions, @steps, @test_data, @expected_result, @actual_result, @priority, @status,
+            @sap_module, @source_issue_id, @tags_json, @components_json, @assigned_to,
+            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json, @updated_at)
+    `)
+    const deleteStaleCases = database.prepare('DELETE FROM test_cases WHERE test_plan_id = ? AND project_id = ?')
+    const touchProject = database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
+
+    database.transaction(() => {
+        upsertPlan.run({
+            id: plan.id,
+            project_id: projectId,
+            display_id: plan.displayId,
+            name: plan.name,
+            description: plan.description ?? '',
+            is_archived: plan.isArchived ? 1 : 0,
+            is_regression_suite: plan.isRegressionSuite ? 1 : 0,
+            source: plan.source ?? null,
+            criticality: plan.criticality ?? null,
+            created_at: plan.createdAt,
+            updated_at: plan.updatedAt,
+        })
+        deleteStaleCases.run(plan.id, projectId)
+        for (const tc of plan.testCases ?? []) {
+            upsertCase.run({
+                id: tc.id,
+                test_plan_id: plan.id,
+                project_id: projectId,
+                display_id: tc.displayId,
+                title: tc.title,
+                pre_conditions: tc.preConditions ?? '',
+                steps: tc.steps ?? '',
+                test_data: tc.testData ?? '',
+                expected_result: tc.expectedResult ?? '',
+                actual_result: tc.actualResult ?? '',
+                priority: tc.priority ?? 'medium',
+                status: tc.status ?? 'not-run',
+                sap_module: tc.sapModule ?? null,
+                source_issue_id: tc.sourceIssueId ?? null,
+                tags_json: j(tc.tags),
+                components_json: j(tc.components),
+                assigned_to: tc.assignedTo ?? null,
+                estimated_minutes: tc.estimatedMinutes ?? null,
+                test_type: tc.testType ?? null,
+                linked_defect_ids_json: j(tc.linkedDefectIds),
+                change_log_json: j(tc.changeLog),
+                updated_at: tc.updatedAt,
+            })
+        }
+        touchProject.run(Date.now(), projectId)
+    })()
+}
+
+export function deleteProjectTestPlan(projectId: string, planId: string): void {
+    const database = getDb()
+    database.transaction(() => {
+        database.prepare('DELETE FROM test_plans WHERE project_id = ? AND id = ?').run(projectId, planId)
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
+export function upsertProjectEnvironment(projectId: string, env: any): void {
+    const database = getDb()
+    database.transaction(() => {
+        database.prepare(`
+            INSERT OR REPLACE INTO environments (id, project_id, name, type, color, is_default, created_at,
+                base_url, notes, health_check_url, hac_url, back_office_url, storefront_url,
+                solr_admin_url, occ_base_path, ignore_ssl_errors)
+            VALUES (@id, @project_id, @name, @type, @color, @is_default, @created_at,
+                @base_url, @notes, @health_check_url, @hac_url, @back_office_url, @storefront_url,
+                @solr_admin_url, @occ_base_path, @ignore_ssl_errors)
+        `).run({
+            id: env.id,
+            project_id: projectId,
+            name: env.name,
+            type: env.type ?? 'custom',
+            color: env.color ?? '#6366f1',
+            is_default: env.isDefault ? 1 : 0,
+            created_at: env.createdAt,
+            base_url: env.baseUrl ?? '',
+            notes: env.notes ?? '',
+            health_check_url: env.healthCheckUrl ?? '',
+            hac_url: env.hacUrl ?? '',
+            back_office_url: env.backOfficeUrl ?? '',
+            storefront_url: env.storefrontUrl ?? '',
+            solr_admin_url: env.solrAdminUrl ?? '',
+            occ_base_path: env.occBasePath ?? '',
+            ignore_ssl_errors: env.ignoreSslErrors ? 1 : 0,
+        })
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
+export function deleteProjectEnvironment(projectId: string, envId: string): void {
+    const database = getDb()
+    database.transaction(() => {
+        database.prepare('DELETE FROM environments WHERE project_id = ? AND id = ?').run(projectId, envId)
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
+export function upsertProjectChecklist(projectId: string, checklist: any): void {
+    const database = getDb()
+    const upsertList = database.prepare(`
+        INSERT OR REPLACE INTO checklists (id, project_id, name, category, created_at, updated_at)
+        VALUES (@id, @project_id, @name, @category, @created_at, @updated_at)
+    `)
+    const upsertItem = database.prepare(`
+        INSERT OR REPLACE INTO checklist_items (id, checklist_id, project_id, text, is_checked)
+        VALUES (@id, @checklist_id, @project_id, @text, @is_checked)
+    `)
+    const deleteStaleItems = database.prepare('DELETE FROM checklist_items WHERE checklist_id = ? AND project_id = ?')
+    const touchProject = database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
+
+    database.transaction(() => {
+        upsertList.run({
+            id: checklist.id,
+            project_id: projectId,
+            name: checklist.name,
+            category: checklist.category ?? '',
+            created_at: checklist.createdAt,
+            updated_at: checklist.updatedAt,
+        })
+        deleteStaleItems.run(checklist.id, projectId)
+        for (const item of checklist.items ?? []) {
+            upsertItem.run({
+                id: item.id,
+                checklist_id: checklist.id,
+                project_id: projectId,
+                text: item.text ?? '',
+                is_checked: item.isChecked ? 1 : 0,
+            })
+        }
+        touchProject.run(Date.now(), projectId)
+    })()
+}
+
+export function deleteProjectChecklist(projectId: string, checklistId: string): void {
+    const database = getDb()
+    database.transaction(() => {
+        database.prepare('DELETE FROM checklists WHERE project_id = ? AND id = ?').run(projectId, checklistId)
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
+export function upsertProjectTestRunSession(projectId: string, session: any): void {
+    const database = getDb()
+    const upsertSession = database.prepare(`
+        INSERT OR REPLACE INTO test_run_sessions (id, project_id, timestamp, is_archived, environment_id, environment_name)
+        VALUES (@id, @project_id, @timestamp, @is_archived, @environment_id, @environment_name)
+    `)
+    const upsertPlanExec = database.prepare(`
+        INSERT OR REPLACE INTO test_plan_executions (id, session_id, project_id, test_plan_id, snapshot_test_plan_name)
+        VALUES (@id, @session_id, @project_id, @test_plan_id, @snapshot_test_plan_name)
+    `)
+    const upsertCaseExec = database.prepare(`
+        INSERT OR REPLACE INTO test_case_executions (id, plan_execution_id, session_id, project_id, test_case_id,
+            result, actual_result, notes, snapshot_title, snapshot_pre_conditions, snapshot_steps,
+            snapshot_test_data, snapshot_expected_result, snapshot_priority, duration_seconds,
+            blocked_reason, environment_id, environment_name, attachments_json)
+        VALUES (@id, @plan_execution_id, @session_id, @project_id, @test_case_id,
+            @result, @actual_result, @notes, @snapshot_title, @snapshot_pre_conditions, @snapshot_steps,
+            @snapshot_test_data, @snapshot_expected_result, @snapshot_priority, @duration_seconds,
+            @blocked_reason, @environment_id, @environment_name, @attachments_json)
+    `)
+    const deleteStalePlanExecs = database.prepare('DELETE FROM test_plan_executions WHERE session_id = ? AND project_id = ?')
+    const touchProject = database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
+
+    database.transaction(() => {
+        upsertSession.run({
+            id: session.id,
+            project_id: projectId,
+            timestamp: session.timestamp,
+            is_archived: session.isArchived ? 1 : 0,
+            environment_id: session.environmentId ?? null,
+            environment_name: session.environmentName ?? null,
+        })
+        deleteStalePlanExecs.run(session.id, projectId)
+        for (const pe of session.planExecutions ?? []) {
+            upsertPlanExec.run({
+                id: pe.id,
+                session_id: session.id,
+                project_id: projectId,
+                test_plan_id: pe.testPlanId,
+                snapshot_test_plan_name: pe.snapshotTestPlanName ?? '',
+            })
+            for (const ce of pe.caseExecutions ?? []) {
+                upsertCaseExec.run({
+                    id: ce.id,
+                    plan_execution_id: pe.id,
+                    session_id: session.id,
+                    project_id: projectId,
+                    test_case_id: ce.testCaseId,
+                    result: ce.result ?? 'not-run',
+                    actual_result: ce.actualResult ?? '',
+                    notes: ce.notes ?? '',
+                    snapshot_title: ce.snapshotTitle ?? ce.snapshotTestCaseTitle ?? '',
+                    snapshot_pre_conditions: ce.snapshotPreConditions ?? null,
+                    snapshot_steps: ce.snapshotSteps ?? null,
+                    snapshot_test_data: ce.snapshotTestData ?? null,
+                    snapshot_expected_result: ce.snapshotExpectedResult ?? null,
+                    snapshot_priority: ce.snapshotPriority ?? null,
+                    duration_seconds: ce.durationSeconds ?? null,
+                    blocked_reason: ce.blockedReason ?? null,
+                    environment_id: ce.environmentId ?? null,
+                    environment_name: ce.environmentName ?? null,
+                    attachments_json: j(ce.attachments),
+                })
+            }
+        }
+        touchProject.run(Date.now(), projectId)
+    })()
+}
+
+export function deleteProjectTestRunSession(projectId: string, sessionId: string): void {
+    const database = getDb()
+    database.transaction(() => {
+        database.prepare('DELETE FROM test_run_sessions WHERE project_id = ? AND id = ?').run(projectId, sessionId)
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
 // ─── Write all projects (full upsert, mirrors old write-projects-file) ─────────
 // Uses a single transaction for atomicity.
 

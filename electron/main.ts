@@ -51,6 +51,14 @@ import {
     deleteProjectTask,
     upsertProjectHandoff,
     insertProjectCollaborationEvent,
+    upsertProjectTestPlan,
+    deleteProjectTestPlan,
+    upsertProjectEnvironment,
+    deleteProjectEnvironment,
+    upsertProjectChecklist,
+    deleteProjectChecklist,
+    upsertProjectTestRunSession,
+    deleteProjectTestRunSession,
 } from './database';
 import { migrateJsonToSqlite } from './migration';
 import {
@@ -97,6 +105,12 @@ import {
     recordRendererMetric,
     startTimer,
 } from './perf';
+import { registerProjectHandlers } from './ipc/project-handlers';
+import { registerAppHandlers } from './ipc/app-handlers';
+import { registerAiHandlers } from './ipc/ai-handlers';
+import { registerFileHandlers } from './ipc/file-handlers';
+import { registerSyncHandlers } from './ipc/sync-handlers';
+import { registerIntegrationHandlers } from './ipc/integration-handlers';
 // trayIconBase64 removed to use file-based icon
 // BOOTSTRAP: This self-executing function finds the REAL Electron API even if shadowed.
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -418,187 +432,6 @@ if (app) {
     }
 
     function setupIpc() {
-        ipcMain.handle('get-app-data-path', () => APP_DATA_DIR);
-        ipcMain.handle('read-projects-file', () => {
-            try {
-                return getAllProjects();
-            } catch (e) {
-                console.error('Error reading projects from SQLite:', e);
-                return [];
-            }
-        });
-        ipcMain.handle('write-projects-file', (_e: any, data: any) => {
-            const startedAt = startTimer();
-            try {
-                assertArray(data, 'projects');
-                incrementCounter('fullProjectWrites');
-                saveAllProjects(data);
-                measureMainMetric('lastFullProjectWriteMs', startedAt);
-                return true;
-            } catch (e) {
-                measureMainMetric('lastFullProjectWriteMs', startedAt);
-                console.error('Error writing projects to SQLite:', e);
-                return false;
-            }
-        });
-        ipcMain.handle('upsert-project-note', (_e: any, { projectId, note }: any) => {
-            try {
-                assertString(projectId, 'projectId', 200);
-                assertObject(note, 'note');
-                upsertProjectNote(projectId, note);
-                incrementCounter('granularNoteWrites');
-                return true;
-            } catch (e) {
-                console.error('Error writing note to SQLite:', e);
-                return false;
-            }
-        });
-        ipcMain.handle('delete-project-note', (_e: any, { projectId, noteId }: any) => {
-            try {
-                assertString(projectId, 'projectId', 200);
-                assertString(noteId, 'noteId', 200);
-                deleteProjectNote(projectId, noteId);
-                incrementCounter('granularNoteDeletes');
-                return true;
-            } catch (e) {
-                console.error('Error deleting note from SQLite:', e);
-                return false;
-            }
-        });
-        ipcMain.handle('upsert-project-task', (_e: any, { projectId, task }: any) => {
-            try {
-                assertString(projectId, 'projectId', 200);
-                assertObject(task, 'task');
-                upsertProjectTask(projectId, task);
-                incrementCounter('granularTaskWrites');
-                return true;
-            } catch (e) {
-                console.error('Error writing task to SQLite:', e);
-                return false;
-            }
-        });
-        ipcMain.handle('delete-project-task', (_e: any, { projectId, taskId }: any) => {
-            try {
-                assertString(projectId, 'projectId', 200);
-                assertString(taskId, 'taskId', 200);
-                deleteProjectTask(projectId, taskId);
-                incrementCounter('granularTaskDeletes');
-                return true;
-            } catch (e) {
-                console.error('Error deleting task from SQLite:', e);
-                return false;
-            }
-        });
-        ipcMain.handle('upsert-project-handoff', (_e: any, { projectId, handoff }: any) => {
-            try {
-                assertString(projectId, 'projectId', 200);
-                assertObject(handoff, 'handoff');
-                upsertProjectHandoff(projectId, handoff);
-                incrementCounter('granularHandoffWrites');
-                return true;
-            } catch (e) {
-                console.error('Error writing handoff to SQLite:', e);
-                return false;
-            }
-        });
-        ipcMain.handle('insert-project-collaboration-event', (_e: any, { projectId, event }: any) => {
-            try {
-                assertString(projectId, 'projectId', 200);
-                assertObject(event, 'event');
-                insertProjectCollaborationEvent(projectId, event);
-                incrementCounter('granularCollaborationEventWrites');
-                return true;
-            } catch (e) {
-                console.error('Error writing collaboration event to SQLite:', e);
-                return false;
-            }
-        });
-        ipcMain.handle('record-performance-metric', (_e: any, { name, value }: any) => {
-            try {
-                assertString(name, 'name', 100);
-                assertNumber(value, 'value', 0);
-                recordRendererMetric(name, value);
-                return true;
-            } catch {
-                return false;
-            }
-        });
-        ipcMain.handle('get-performance-metrics', () => getPerformanceSnapshot());
-        ipcMain.handle('read-settings-file', async () => {
-            try {
-                return await readSettings();
-                if (fs.existsSync(SETTINGS_FILE)) {
-                    const content = await fsp.readFile(SETTINGS_FILE, 'utf8');
-                    const parsed = JSON.parse(content);
-                    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-                        console.error('settings.json has unexpected shape — resetting to defaults.');
-                        return {};
-                    }
-                    return parsed;
-                }
-            } catch (e) {
-                console.error('Error reading settings file:', e);
-            }
-            return {};
-        });
-        ipcMain.handle('write-settings-file', async (_e: any, data: any) => {
-            try {
-                assertObject(data, 'settings');
-                await fsp.writeFile(SETTINGS_FILE, JSON.stringify(data, null, 2));
-                await syncCredentialStorageAcknowledgement();
-                return true;
-            } catch (e) {
-                console.error('Error writing settings file:', e);
-                return false;
-            }
-        });
-        ipcMain.handle('get-app-update-state', () => getAppUpdateState());
-        ipcMain.handle('check-app-update', async () => await checkForAppUpdate());
-        ipcMain.handle('download-app-update', async () => await downloadAppUpdate());
-        ipcMain.handle('install-app-update', () => {
-            installAppUpdate();
-            return true;
-        });
-        ipcMain.handle('dismiss-app-update', async (_e: any, version: unknown) => {
-            assertString(version, 'version', 100);
-            return await dismissAppUpdate(version);
-        });
-        ipcMain.handle('get-credential-storage-status', () => getCredentialStorageStatusSummary());
-        ipcMain.handle('secure-store-set', async (_e: any, key: any, value: any) => {
-            assertString(key, 'key', 500);
-            assertString(value, 'value', 100_000);
-            await setCredential(key, value);
-            return true;
-        });
-        ipcMain.handle('secure-store-get', async (_e: any, key: any) => {
-            assertString(key, 'key', 500);
-            return await getCredential(key);
-        });
-        ipcMain.handle('secure-store-delete', async (_e: any, key: any) => {
-            assertString(key, 'key', 500);
-            return await deleteCredential(key);
-        });
-        ipcMain.handle('secure-store-list', async () => await listCredentials());
-        ipcMain.handle('select-file', async (_e: any, filters?: Electron.FileFilter[]) => {
-            if (!mainWindow) return null;
-            const res = await dialog.showOpenDialog(mainWindow, {
-                properties: ['openFile'],
-                ...(filters && filters.length > 0 ? { filters } : {})
-            });
-            return res.canceled ? null : res.filePaths[0];
-        });
-        ipcMain.handle('open-url', async (_e: any, url: any) => { 
-            try { 
-                if (isValidExternalUrl(url)) {
-                    await shell.openExternal(url); 
-                    return { success: true }; 
-                } else {
-                    return { success: false, error: 'Invalid URL protocol' };
-                }
-            } catch (e: any) { 
-                return { success: false, error: e.message }; 
-            } 
-        });
         // Rate limiting: track last call time per AI channel (3s minimum between calls)
         const aiLastCall: Record<string, number> = {};
         function checkAiRateLimit(channel: string): { __isError: boolean; message: string } | null {
@@ -612,8 +445,6 @@ if (app) {
         }
 
         // Singleton GeminiService cache keyed by API key.
-        // Preserves preferredModel state across calls so the fallback learning persists
-        // within the session instead of resetting on every IPC invocation.
         let geminiServiceInstance: GeminiService | null = null;
         let geminiServiceKey: string | null = null;
         function getGeminiService(apiKey: string): GeminiService {
@@ -624,914 +455,144 @@ if (app) {
             return geminiServiceInstance;
         }
 
-        ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName, comments }: any) => {
-            const rateErr = checkAiRateLimit('ai-generate-cases'); if (rateErr) return rateErr;
-            assertString(apiKey, 'apiKey');
-            try {
-                return await getGeminiService(apiKey).generateTestCases(tasks, sourceName, project, designDoc, modelName, comments);
-            } catch (err: any) {
-                // Return a flat wrapper to the IPC boundary to safely cross context bridges without native cloning recursion
-                return { __isError: true, message: errMsg(err) };
-            }
-        });
-        ipcMain.handle('automation-api-start', async (_e: any, args: any) => {
-            assertAutomationArgs(args);
-            startServer(args.apiKey, args.port);
-            return { running: isServerRunning(), port: getServerPort() };
-        });
-        ipcMain.handle('automation-api-stop', () => stopServer());
-        ipcMain.handle('automation-api-restart', async (_e: any, args: any) => {
-            assertAutomationArgs(args);
-            stopServer();
-            startServer(args.apiKey, args.port);
-            return { running: isServerRunning(), port: getServerPort() };
-        });
-        ipcMain.handle('automation-api-status', () => ({ running: isServerRunning(), port: getServerPort() }));
-        ipcMain.handle('test-linear-connection', async (_e: any, { apiKey }: any) => await integrations.getLinearTeams(apiKey));
-        ipcMain.handle('test-jira-connection', async (_e: any, { domain, email, apiToken, token }: any) => await integrations.getJiraProjects(domain, email, apiToken || token));
-        ipcMain.handle('ccv2-get-environments', async (_e: any, { subscriptionCode, apiToken }: any) => await health.ccv2GetEnvironments(subscriptionCode, apiToken));
-        ipcMain.handle('ccv2-get-deployments', async (_e: any, { subscriptionCode, apiToken, environmentCode }: any) => await health.ccv2GetDeployments(subscriptionCode, apiToken, environmentCode));
-        ipcMain.handle('ccv2-get-build', async (_e: any, { subscriptionCode, apiToken, buildCode }: any) => await health.ccv2GetBuild(subscriptionCode, apiToken, buildCode));
-        ipcMain.handle('check-environments-health', async (_e: any, { environments }: any) => await health.checkEnvironmentsNow(environments));
-        ipcMain.handle('start-health-service', (_e: any, { environments, intervalMs }: any) => health.startHealthService(environments, intervalMs));
-        ipcMain.handle('stop-health-service', () => health.stopHealthService());
-
-        // File/Attachment Management
-        ipcMain.handle('copy-to-attachments', async (_e: any, sourcePath: string) => {
-            // We allow copying FROM anywhere (user selects file), but we validate destination in saveFile
-            return await saveFile(sourcePath);
-        });
-        ipcMain.handle('save-bytes-attachment', async (_e: any, { bytes, fileName }: any) => await saveBytes(bytes, fileName));
-        ipcMain.handle('delete-attachment', async (_e: any, payload: any) => {
-            const filePath = typeof payload === 'string' ? payload : payload?.filePath;
-            if (typeof filePath !== 'string') return { success: false, error: 'Invalid file path' };
-            if (isPathWithin(filePath, ATTACHMENTS_DIR)) {
-                const success = await deleteFile(filePath);
-                return success ? { success: true } : { success: false, error: 'Delete failed' };
-            }
-            console.warn('Blocked attempt to delete file outside attachments:', filePath);
-            return { success: false, error: 'Access denied' };
-        });
-        ipcMain.handle('read-attachment-preview', async (_e: any, payload: any) => {
-            const filePath = typeof payload === 'string' ? payload : payload?.filePath;
-            if (typeof filePath !== 'string') return { success: false, error: 'Invalid file path' };
-            if (!isPathWithin(filePath, ATTACHMENTS_DIR)) {
-                console.warn('Blocked attempt to read attachment preview outside attachments:', filePath);
-                return { success: false, error: 'Access denied' };
-            }
-
-            try {
-                if (!fs.existsSync(filePath)) {
-                    return { success: false, error: 'File not found' };
-                }
-
-                const buffer = await fsp.readFile(filePath);
-                const ext = path.extname(filePath).toLowerCase();
-                let mimeType = 'application/octet-stream';
-                switch (ext) {
-                    case '.png': mimeType = 'image/png'; break;
-                    case '.jpg':
-                    case '.jpeg': mimeType = 'image/jpeg'; break;
-                    case '.gif': mimeType = 'image/gif'; break;
-                    case '.bmp': mimeType = 'image/bmp'; break;
-                    case '.webp': mimeType = 'image/webp'; break;
-                    case '.svg': mimeType = 'image/svg+xml'; break;
-                }
-
-                return {
-                    success: true,
-                    dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`
-                };
-            } catch (e: any) {
-                return { success: false, error: e.message };
-            }
+        registerProjectHandlers(ipcMain, {
+            getAllProjects,
+            saveAllProjects,
+            upsertProjectNote,
+            deleteProjectNote,
+            upsertProjectTask,
+            deleteProjectTask,
+            upsertProjectHandoff,
+            insertProjectCollaborationEvent,
+            upsertProjectTestPlan,
+            deleteProjectTestPlan,
+            upsertProjectEnvironment,
+            deleteProjectEnvironment,
+            upsertProjectChecklist,
+            deleteProjectChecklist,
+            upsertProjectTestRunSession,
+            deleteProjectTestRunSession,
+            startTimer,
+            incrementCounter,
+            measureMainMetric,
+            assertArray,
+            assertString,
+            assertObject,
+            APP_DATA_DIR,
         });
 
-        // Attachment cleanup
-        ipcMain.handle('scan-orphaned-attachments', async (_e: any, { referencedPaths }: { referencedPaths: string[] }) => {
-            try {
-                if (!fs.existsSync(ATTACHMENTS_DIR)) return { orphaned: [], totalSize: 0 };
-                const referenced = new Set(referencedPaths.map(p => path.normalize(p)));
-                const files = await fsp.readdir(ATTACHMENTS_DIR);
-                const orphaned: { filePath: string; fileName: string; fileSizeBytes: number }[] = [];
-                let totalSize = 0;
-                for (const file of files) {
-                    const filePath = path.join(ATTACHMENTS_DIR, file);
-                    const stat = await fsp.stat(filePath).catch(() => null);
-                    if (!stat || !stat.isFile()) continue;
-                    if (!referenced.has(path.normalize(filePath))) {
-                        orphaned.push({ filePath, fileName: file, fileSizeBytes: stat.size });
-                        totalSize += stat.size;
-                    }
-                }
-                return { orphaned, totalSize };
-            } catch (e: unknown) {
-                return { __isError: true, message: errMsg(e) };
-            }
-        });
-        ipcMain.handle('delete-orphaned-attachments', async (_e: any, { filePaths }: { filePaths: string[] }) => {
-            let deleted = 0;
-            for (const filePath of filePaths) {
-                if (!isPathWithin(filePath, ATTACHMENTS_DIR)) continue;
-                const success = await deleteFile(filePath);
-                if (success) deleted++;
-            }
-            return { deleted };
-        });
-
-        // Bug Reporting
-        ipcMain.handle('generate-bug-report-task', async (_e: any, { task, environment, reporter, aiAnalysis }: any) => {
-            const md = bugReport.generateBugReportFromTask(task, environment, reporter, aiAnalysis);
-            const fileName = `BugReport_Task_${Date.now()}.md`;
-            return await saveBytes(new TextEncoder().encode(md), fileName);
-        });
-        ipcMain.handle('generate-bug-report-testcase', async (_e: any, { tc, testPlanName, environment, reporter, executions, aiAnalysis }: any) => {
-            const md = bugReport.generateBugReportFromTestCase(tc, testPlanName, environment, reporter, executions, aiAnalysis);
-            const fileName = `BugReport_TC_${Date.now()}.md`;
-            return await saveBytes(new TextEncoder().encode(md), fileName);
+        registerAppHandlers(ipcMain, {
+            recordRendererMetric,
+            getPerformanceSnapshot,
+            readSettings,
+            syncCredentialStorageAcknowledgement,
+            checkForAppUpdate,
+            getAppUpdateState,
+            downloadAppUpdate,
+            installAppUpdate,
+            dismissAppUpdate,
+            getCredentialStorageStatusSummary,
+            setCredential,
+            getCredential,
+            deleteCredential,
+            listCredentials,
+            authGetStatus,
+            authSignIn,
+            authSignOut,
+            authSignUp,
+            authRefreshProfile,
+            getAuthErrorStatus,
+            teardownSync,
+            USER_PROFILE_FILE,
+            SETTINGS_FILE,
+            fsp,
+            fs,
+            app,
+            assertString,
+            assertObject,
+            assertNumber,
         });
 
-        ipcMain.handle('read-json-file', async (_e: any, { filePath }: any) => {
-            try { 
-                if (!isPathWithin(filePath, APP_DATA_DIR) && !isPathWithin(filePath, ATTACHMENTS_DIR)) {
-                    return { success: false, error: 'Access denied: Path outside application data directory' };
-                }
-                const content = await fsp.readFile(filePath, 'utf8');
-                return { success: true, data: JSON.parse(content) }; 
-            }
-            catch (e: any) { return { success: false, error: e.message }; }
-        });
-        ipcMain.handle('open-file', (_e: any, { filePath }: any) => {
-            if (fs.existsSync(filePath)) {
-                if (!isPathWithin(filePath, APP_DATA_DIR) && !isPathWithin(filePath, ATTACHMENTS_DIR)) {
-                    console.warn('Blocked attempt to open file outside app data:', filePath);
-                    return;
-                }
-                shell.openPath(filePath);
-            }
-        });
-        ipcMain.handle('ai-list-models', async (_e: any, { apiKey }: any) => {
-            try {
-                assertString(apiKey, 'apiKey');
-                return await new GeminiService(apiKey).listAvailableModels();
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-analyze-issue', async (_e: any, { apiKey, task, comments, project, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-analyze-issue'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                return await getGeminiService(apiKey).analyzeIssue(task, comments, project, 0, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-analyze', async (_e: any, { apiKey, context, project, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-analyze'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                return await getGeminiService(apiKey).analyzeProject(context, project, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-criticality', async (_e: any, { apiKey, tasks, testPlans, executions, project, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-criticality'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                return await getGeminiService(apiKey).assessCriticality(tasks, testPlans, executions, project, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-test-run-suggestions', async (_e: any, { apiKey, testPlans, executions, project, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-test-run-suggestions'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                return await getGeminiService(apiKey).getTestRunSuggestions(testPlans, executions, project, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-smoke-subset', async (_e: any, { apiKey, candidates, doneTasks, project, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-smoke-subset'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                return await getGeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-chat', async (_e: any, { apiKey, userMessage, history, role, project, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-chat'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertString(userMessage, 'userMessage', 50_000);
-                return await getGeminiService(apiKey).chat(userMessage, history || [], role === 'dev' ? 'dev' : 'qa', project, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
+        registerAiHandlers(ipcMain, {
+            checkAiRateLimit,
+            getGeminiService,
+            accuracy,
+            errMsg,
+            assertString,
+            assertArray,
+            assertObject,
         });
 
-        // AI Accuracy Testing Handlers
-        ipcMain.handle('read-document-text', async (_e: any, { filePath }: any) => {
-            try {
-                assertString(filePath, 'filePath', 2000);
-                const text = await accuracy.readDocumentText(filePath);
-                const chunks = accuracy.chunkDocument(text, 'preview');
-                return { success: true, text, chunkCount: chunks.length };
-            }
-            catch (err: any) { return { success: false, error: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-accuracy-extract-claims', async (_e: any, { apiKey, agentResponse, modelName, expectedAnswer }: any) => {
-            const rateErr = checkAiRateLimit('ai-accuracy-extract-claims'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertString(agentResponse, 'agentResponse', 50_000);
-                return await getGeminiService(apiKey).extractClaims(agentResponse, modelName, expectedAnswer);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-accuracy-verify-claims', async (_e: any, { apiKey, claims, refChunks, modelName, expectedAnswer }: any) => {
-            const rateErr = checkAiRateLimit('ai-accuracy-verify-claims'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertArray(claims, 'claims', 200);
-                assertArray(refChunks, 'refChunks', 100);
-                return await getGeminiService(apiKey).verifyClaims(claims as any[], refChunks as any[], modelName, expectedAnswer);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-accuracy-score-dimensions', async (_e: any, { apiKey, question, agentResponse, expectedAnswer, claimVerdicts, refChunks, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-accuracy-score-dimensions'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertString(question, 'question', 10_000);
-                assertString(agentResponse, 'agentResponse', 50_000);
-                assertArray(claimVerdicts, 'claimVerdicts', 200);
-                assertArray(refChunks, 'refChunks', 100);
-                return await getGeminiService(apiKey).scoreDimensions(question, agentResponse, claimVerdicts as any[], refChunks as any[], modelName, expectedAnswer);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-        ipcMain.handle('ai-accuracy-rerank-chunks', async (_e: any, { apiKey, question, agentResponse, chunks, topK, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-accuracy-rerank-chunks'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertString(question, 'question', 10_000);
-                assertString(agentResponse, 'agentResponse', 50_000);
-                assertArray(chunks, 'chunks', 100);
-                return await getGeminiService(apiKey).rerankChunks(question, agentResponse, chunks as any[], topK ?? 20, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
+        registerFileHandlers(ipcMain, {
+            isValidExternalUrl,
+            isPathWithin,
+            saveFile,
+            saveBytes,
+            deleteFile,
+            report,
+            reportBuilder,
+            bugReport,
+            mainWindow,
+            dialog,
+            BrowserWindow,
+            shell,
+            ATTACHMENTS_DIR,
+            APP_DATA_DIR,
+            fsp,
+            fs,
+            path,
+            assertString,
+            assertObject,
+            assertArray,
+            errMsg,
         });
 
-        ipcMain.handle('ai-standup-summary', async (_e: any, { apiKey, metrics, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-standup-summary'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertObject(metrics, 'metrics');
-                return await getGeminiService(apiKey).generateStandupSummary(metrics, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
+        registerSyncHandlers(ipcMain, {
+            getSyncConfig,
+            getSyncStatus,
+            initSync,
+            createWorkspace,
+            joinWorkspace,
+            disconnectWorkspace,
+            getWorkspaceInfo,
+            getWorkspaceInvite,
+            rotateWorkspaceInvite,
+            triggerManualSync,
+            pushTaskCollab,
+            pushHandoff,
+            pushCollabEvent,
+            pushArtifactLink,
+            getTaskById,
+            getHandoffById,
+            assertString,
+            assertOptionalString,
+            assertNumber,
+            assertObject,
+            assertSyncTaskCollabArgs,
+            assertSyncHandoffArgs,
+            assertSyncCollabEventArgs,
+            assertSyncArtifactLinkArgs,
         });
 
-        ipcMain.handle('ai-generate-flexsearch', async (_e: any, { apiKey, naturalLanguageQuery, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-generate-flexsearch'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertString(naturalLanguageQuery, 'naturalLanguageQuery', 1000);
-                return await getGeminiService(apiKey).generateFlexSearch(naturalLanguageQuery, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-
-        ipcMain.handle('ai-find-duplicate-bugs', async (_e: any, { apiKey, newBugTitle, newBugDescription, newBugReproSteps, affectedComponents, existingBugs, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-find-duplicate-bugs'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertString(newBugTitle, 'newBugTitle', 500);
-                return await getGeminiService(apiKey).findDuplicateBugs(newBugTitle, newBugDescription || '', newBugReproSteps || '', affectedComponents || [], existingBugs || [], modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-
-        ipcMain.handle('ai-test-impact-analysis', async (_e: any, { apiKey, changedFiles, prTitle, prDescription, testCases, modelName }: any) => {
-            const rateErr = checkAiRateLimit('ai-test-impact-analysis'); if (rateErr) return rateErr;
-            try {
-                assertString(apiKey, 'apiKey');
-                assertArray(changedFiles, 'changedFiles', 200);
-                assertArray(testCases, 'testCases', 500);
-                return await getGeminiService(apiKey).analyzeTestImpact(changedFiles, prTitle || '', prDescription || '', testCases, modelName);
-            }
-            catch (err: any) { return { __isError: true, message: errMsg(err) }; }
-        });
-
-        // Report Handlers
-        ipcMain.handle('generate-test-cases-csv', (_e: any, { project: p }: any) => report.generateTestCasesCsv(p));
-        ipcMain.handle('generate-executions-csv', (_e: any, { project: p }: any) => report.generateExecutionsCsv(p));
-        ipcMain.handle('generate-test-summary-markdown', (_e: any, { project: p, filterPlanIds, aiResult }: any) => report.generateTestSummaryMarkdown(p, filterPlanIds, aiResult));
-        ipcMain.handle('export-test-summary-pdf', async (_e: any, { project: p, filterPlanIds, aiResult }: any) => {
-            if (!mainWindow) return { success: false, error: 'No main window' };
-            const html = report.generateTestSummaryHtml(p, filterPlanIds, aiResult);
-            const res = await dialog.showSaveDialog(mainWindow, { defaultPath: `${p.name.replace(/\s+/g, '-')}-test-summary.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
-            if (res.canceled) return { success: false };
-            const printWindow = new BrowserWindow({ show: false });
-            await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-            const data = await printWindow.webContents.printToPDF({ printBackground: true, pageSize: 'A4' });
-            await fsp.writeFile(res.filePath!, data);
-            printWindow.close();
-            return { success: true, path: res.filePath };
-        });
-
-        // Report Builder Handlers (M1: Custom Report Templates)
-        ipcMain.handle('generate-custom-report', async (_e: any, { project: p, template }: any) => {
-            try {
-                assertObject(p, 'project');
-                assertObject(template, 'template');
-                assertString(template.name as string, 'template.name', 500);
-                assertArray(template.sections, 'template.sections', 100);
-                const html = reportBuilder.generateCustomReport(p as any, template as any);
-                return { success: true, html };
-            } catch (err: any) {
-                return { success: false, error: errMsg(err) };
-            }
-        });
-
-        ipcMain.handle('export-custom-report-pdf', async (_e: any, { project: p, template }: any) => {
-            try {
-                if (!mainWindow) return { success: false, error: 'No main window' };
-                assertObject(p, 'project');
-                assertObject(template, 'template');
-                assertString(template.name as string, 'template.name', 500);
-                assertArray(template.sections, 'template.sections', 100);
-                const html = reportBuilder.generateCustomReport(p as any, template as any);
-                const res = await dialog.showSaveDialog(mainWindow, {
-                    defaultPath: `${(p.name as string).replace(/\s+/g, '-')}-${(template.name as string).replace(/\s+/g, '-')}.pdf`,
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                });
-                if (res.canceled) return { success: false };
-                const printWindow = new BrowserWindow({ show: false });
-                await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-                const data = await printWindow.webContents.printToPDF({ printBackground: true, pageSize: 'A4' });
-                await fsp.writeFile(res.filePath!, data);
-                printWindow.close();
-                return { success: true, path: res.filePath };
-            } catch (err: any) {
-                return { success: false, error: errMsg(err) };
-            }
-        });
-
-        // File/CSV Handlers
-        ipcMain.handle('read-csv-file', async (_e: any, { filePath }: any) => {
-            try {
-                assertString(filePath, 'filePath', 1000);
-                const resolvedPath = path.resolve(filePath);
-                const ext = path.extname(resolvedPath).toLowerCase();
-                const ALLOWED_EXTENSIONS = ['.csv', '.txt', '.tsv'];
-                if (!ALLOWED_EXTENSIONS.includes(ext)) {
-                    return { success: false, error: `File type '${ext}' is not allowed. Only CSV/TXT/TSV files may be imported.` };
-                }
-                const content = fs.readFileSync(resolvedPath, 'utf8');
-                // If it looks like a design doc (not strictly CSV), just return the raw string
-                if (!content.includes(',') && content.split('\n').length > 5) return content;
-                const { headers, rows } = report.parseCsvString(content);
-                const mappings = report.autoDetectCsvMappings(headers);
-                return { success: true, headers, rows, mappings, content }; // return content too for design doc legacy
-            } catch (e: any) { return { success: false, error: e.message }; }
-        });
-        ipcMain.handle('save-file-dialog', async (_e: any, { defaultName, content }: any) => {
-            if (!mainWindow) return { success: false };
-            const res = await dialog.showSaveDialog(mainWindow, { defaultPath: defaultName });
-            if (res.canceled) return { success: false };
-            if (!res.filePath) return { success: false, error: 'No file path selected.' };
-            await fsp.writeFile(res.filePath, content);
-            return { success: true, path: res.filePath };
-        });
-
-        ipcMain.handle('import-test-results', async (_e: any, { filePath }: any) => {
-            try {
-                assertString(filePath, 'filePath', 2000);
-                const resolvedPath = path.resolve(filePath);
-                const ext = path.extname(resolvedPath).toLowerCase();
-                if (!['.xml', '.json'].includes(ext)) {
-                    return { success: false, error: `Unsupported file type '${ext}'. Use JUnit XML (.xml) or Playwright JSON (.json).` };
-                }
-                const content = await fsp.readFile(resolvedPath, 'utf8');
-
-                if (ext === '.xml') {
-                    // Parse JUnit XML — minimal regex-based parser (no dependencies)
-                    const suites: any[] = [];
-                    const suiteRe = /<testsuite([^>]*)>([\s\S]*?)<\/testsuite>/g;
-                    const caseRe = /<testcase([^>]*)>([\s\S]*?)<\/testcase>|<testcase([^>]*)\/>/g;
-                    const attrRe = /(\w+)="([^"]*)"/g;
-
-                    const parseAttrs = (str: string) => {
-                        const attrs: Record<string, string> = {};
-                        let m;
-                        while ((m = attrRe.exec(str)) !== null) attrs[m[1]] = m[2];
-                        attrRe.lastIndex = 0;
-                        return attrs;
-                    };
-
-                    let sm;
-                    while ((sm = suiteRe.exec(content)) !== null) {
-                        const suiteAttrs = parseAttrs(sm[1]);
-                        const body = sm[2];
-                        const cases: any[] = [];
-                        let cm;
-                        while ((cm = caseRe.exec(body)) !== null) {
-                            const cAttrs = parseAttrs(cm[1] || cm[3] || '');
-                            const cBody = cm[2] || '';
-                            let result: string = 'passed';
-                            let failureMsg = '';
-                            if (/<failure/i.test(cBody)) { result = 'failed'; const fm = cBody.match(/<failure[^>]*>([\s\S]*?)<\/failure>/i); failureMsg = fm ? fm[1].trim().substring(0, 500) : ''; }
-                            else if (/<error/i.test(cBody)) { result = 'failed'; const em = cBody.match(/<error[^>]*>([\s\S]*?)<\/error>/i); failureMsg = em ? em[1].trim().substring(0, 500) : ''; }
-                            else if (/<skipped/i.test(cBody)) result = 'skipped';
-                            const durationSeconds = cAttrs.time ? parseFloat(cAttrs.time) : undefined;
-                            cases.push({ externalId: cAttrs.classname ? `${cAttrs.classname}.${cAttrs.name}` : cAttrs.name, title: cAttrs.name || 'Unnamed', result, actualResult: failureMsg, durationSeconds });
-                        }
-                        suites.push({ name: suiteAttrs.name || 'Imported Suite', cases });
-                    }
-                    return { success: true, format: 'junit', suites };
-                } else {
-                    // Parse Playwright JSON report
-                    let pw: any;
-                    try { pw = JSON.parse(content); } catch { return { success: false, error: 'Invalid JSON file.' }; }
-                    // Playwright report has: { suites: [{ title, specs: [{ title, tests: [{ results: [{ status, duration, error }] }] }] }] }
-                    const suites: any[] = [];
-                    const flattenSuites = (node: any, parentTitle = '') => {
-                        if (!node) return;
-                        const title = parentTitle ? `${parentTitle} > ${node.title}` : (node.title || '');
-                        if (node.specs && Array.isArray(node.specs)) {
-                            const cases: any[] = [];
-                            for (const spec of node.specs) {
-                                const specTitle = spec.title || 'Unnamed';
-                                let result: string = 'passed';
-                                let actualResult = '';
-                                let durationSeconds: number | undefined;
-                                if (spec.tests && spec.tests.length > 0) {
-                                    const test = spec.tests[0];
-                                    if (test.results && test.results.length > 0) {
-                                        const res = test.results[0];
-                                        const st = (res.status || '').toLowerCase();
-                                        result = st === 'passed' ? 'passed' : st === 'skipped' ? 'skipped' : 'failed';
-                                        if (res.error?.message) actualResult = res.error.message.substring(0, 500);
-                                        if (res.duration) durationSeconds = res.duration / 1000;
-                                    }
-                                }
-                                cases.push({ externalId: `${title}.${specTitle}`, title: specTitle, result, actualResult, durationSeconds });
-                            }
-                            if (cases.length > 0) suites.push({ name: title || 'Imported Suite', cases });
-                        }
-                        if (node.suites && Array.isArray(node.suites)) {
-                            for (const s of node.suites) flattenSuites(s, title);
-                        }
-                    };
-                    const rootSuites = pw.suites || (Array.isArray(pw) ? pw : [pw]);
-                    for (const s of rootSuites) flattenSuites(s);
-                    return { success: true, format: 'playwright', suites };
-                }
-            } catch (e: any) {
-                return { success: false, error: e.message };
-            }
-        });
-
-        // Integration Handlers
-        ipcMain.handle('sync-linear', async (_e: any, { apiKey, teamKey, connectionId }: any) => {
-            assertString(apiKey, 'apiKey'); assertString(teamKey, 'teamKey'); assertString(connectionId, 'connectionId');
-            return integrations.fetchLinearIssues(apiKey, teamKey, connectionId);
-        });
-        ipcMain.handle('get-linear-comments', async (_e: any, { apiKey, issueId }: any) => {
-            assertString(apiKey, 'apiKey'); assertString(issueId, 'issueId');
-            return integrations.getLinearComments(apiKey, issueId);
-        });
-        ipcMain.handle('add-linear-comment', async (_e: any, { apiKey, issueId, body }: any) => {
-            assertString(apiKey, 'apiKey'); assertString(issueId, 'issueId'); assertString(body, 'body', 50_000);
-            await integrations.addLinearComment(apiKey, issueId, body); return { success: true };
-        });
-        ipcMain.handle('get-linear-workflow-states', async (_e: any, { apiKey, teamId }: any) => {
-            assertString(apiKey, 'apiKey'); assertString(teamId, 'teamId');
-            return integrations.getLinearWorkflowStates(apiKey, teamId);
-        });
-        ipcMain.handle('update-linear-status', async (_e: any, { apiKey, issueId, stateId }: any) => {
-            assertString(apiKey, 'apiKey'); assertString(issueId, 'issueId'); assertString(stateId, 'stateId');
-            await integrations.updateLinearIssueStatus(apiKey, issueId, stateId); return { success: true };
-        });
-        ipcMain.handle('get-linear-history', async (_e: any, { apiKey, issueId }: any) => {
-            assertString(apiKey, 'apiKey'); assertString(issueId, 'issueId');
-            return integrations.getLinearIssueHistory(apiKey, issueId);
-        });
-        ipcMain.handle('create-linear-issue', async (_e: any, { apiKey, teamId, title, description, priority }: any) => {
-            assertString(apiKey, 'apiKey'); assertString(teamId, 'teamId'); assertString(title, 'title', 500);
-            return integrations.createLinearIssue(apiKey, teamId, title, description, priority);
-        });
-
-        ipcMain.handle('sync-jira', async (_e: any, { domain, email, apiKey, projectKey, connectionId }: any) => {
-            assertString(domain, 'domain'); assertString(email, 'email'); assertString(apiKey, 'apiKey');
-            assertString(projectKey, 'projectKey'); assertString(connectionId, 'connectionId');
-            return integrations.fetchJiraIssues(domain, email, apiKey, projectKey, connectionId);
-        });
-        ipcMain.handle('get-jira-comments', async (_e: any, { domain, email, apiKey, issueKey }: any) => {
-            assertString(domain, 'domain'); assertString(email, 'email'); assertString(apiKey, 'apiKey'); assertString(issueKey, 'issueKey');
-            return integrations.getJiraComments(domain, email, apiKey, issueKey);
-        });
-        ipcMain.handle('add-jira-comment', async (_e: any, { domain, email, apiKey, issueKey, body }: any) => {
-            assertString(domain, 'domain'); assertString(email, 'email'); assertString(apiKey, 'apiKey');
-            assertString(issueKey, 'issueKey'); assertString(body, 'body', 50_000);
-            await integrations.addJiraComment(domain, email, apiKey, issueKey, body); return { success: true };
-        });
-        ipcMain.handle('transition-jira-issue', async (_e: any, { domain, email, apiKey, issueKey, transitionName }: any) => {
-            assertString(domain, 'domain'); assertString(email, 'email'); assertString(apiKey, 'apiKey');
-            assertString(issueKey, 'issueKey'); assertString(transitionName, 'transitionName');
-            await integrations.transitionJiraIssue(domain, email, apiKey, issueKey, transitionName); return { success: true };
-        });
-        ipcMain.handle('get-jira-history', async (_e: any, { domain, email, apiKey, issueKey }: any) => {
-            assertString(domain, 'domain'); assertString(email, 'email'); assertString(apiKey, 'apiKey'); assertString(issueKey, 'issueKey');
-            return integrations.getJiraIssueHistory(domain, email, apiKey, issueKey);
-        });
-        ipcMain.handle('get-jira-statuses', async (_e: any, { domain, email, apiKey, projectKey }: any) => {
-            assertString(domain, 'domain'); assertString(email, 'email'); assertString(apiKey, 'apiKey'); assertString(projectKey, 'projectKey');
-            return integrations.getJiraStatuses(domain, email, apiKey, projectKey);
-        });
-        ipcMain.handle('create-jira-issue', async (_e: any, { domain, email, apiKey, projectKey, title, description, issueTypeName }: any) => {
-            assertString(domain, 'domain'); assertString(email, 'email'); assertString(apiKey, 'apiKey');
-            assertString(projectKey, 'projectKey'); assertString(title, 'title', 500);
-            return integrations.createJiraIssue(domain, email, apiKey, projectKey, title, description, issueTypeName);
-        });
-
-        // SAP HAC Handlers
-        const sapHacInstances = new Map<string, any>();
-        const getSapHac = (baseUrl: string, ignoreSsl = false) => {
-            if (!sapHacInstances.has(baseUrl)) {
-                // Evict oldest entry when cache is full to prevent unbounded growth
-                if (sapHacInstances.size >= MAX_SAP_HAC_INSTANCES) {
-                    const oldestKey = sapHacInstances.keys().next().value;
-                    if (typeof oldestKey === 'string') {
-                        sapHacInstances.delete(oldestKey);
-                    }
-                }
-                sapHacInstances.set(baseUrl, new SapHacService(baseUrl, ignoreSsl));
-            }
-            return sapHacInstances.get(baseUrl);
-        };
-
-        ipcMain.handle('sap-hac-login', async (_e: any, { baseUrl, user, pass, ignoreSsl }: any) => {
-            assertString(baseUrl, 'baseUrl', 500);
-            assertString(user, 'user', 200);
-            assertString(pass, 'pass', 500);
-            try {
-                const svc = getSapHac(baseUrl, ignoreSsl);
-                const success = await svc.login(user, pass);
-                return success ? { success: true } : { success: false, error: 'Login failed' };
-            } catch (e: any) {
-                return { success: false, error: e.message || String(e) };
-            }
-        });
-        ipcMain.handle('sap-hac-get-cronjobs', async (_e: any, { baseUrl }: any) => {
-            assertString(baseUrl, 'baseUrl', 500);
-            try {
-                const data = await getSapHac(baseUrl).getCronJobs();
-                return { success: true, data };
-            } catch (e: any) {
-                return { success: false, error: e.message || String(e) };
-            }
-        });
-        ipcMain.handle('sap-hac-flexible-search', async (_e: any, { baseUrl, query, max }: any) => {
-            assertString(baseUrl, 'baseUrl', 500);
-            assertString(query, 'query', 50_000);
-            try {
-                const data = await getSapHac(baseUrl).runFlexibleSearch(query, max);
-                return { success: !data.Error, data, error: data.Error || undefined };
-            } catch (e: any) {
-                return { success: false, error: e.message || String(e) };
-            }
-        });
-        ipcMain.handle('sap-hac-import-impex', async (_e: any, { baseUrl, script, enableCode }: any) => {
-            assertString(baseUrl, 'baseUrl', 500);
-            assertString(script, 'script', 500_000);
-            try {
-                const data = await getSapHac(baseUrl).importImpEx(script, enableCode);
-                return { success: data.Success, data, error: data.Success ? undefined : data.Log };
-            } catch (e: any) {
-                return { success: false, error: e.message || String(e) };
-            }
-        });
-        ipcMain.handle('sap-hac-get-catalog-versions', async (_e: any, { baseUrl }: any) => {
-            assertString(baseUrl, 'baseUrl', 500);
-            try {
-                const data = await getSapHac(baseUrl).getCatalogVersions();
-                return { success: true, data };
-            } catch (e: any) {
-                return { success: false, error: e.message || String(e) };
-            }
-        });
-        ipcMain.handle('sap-hac-get-catalog-ids', async (_e: any, { baseUrl }: any) => {
-            assertString(baseUrl, 'baseUrl', 500);
-            try {
-                const data = await getSapHac(baseUrl).getCatalogIds();
-                return { success: true, data };
-            } catch (e: any) {
-                return { success: false, error: e.message || String(e) };
-            }
-        });
-        ipcMain.handle('sap-hac-get-catalog-sync-diff', async (_e: any, { baseUrl, catalogId, maxMissing }: any) => {
-            assertString(baseUrl, 'baseUrl', 500);
-            assertString(catalogId, 'catalogId', 500);
-            try {
-                const data = await getSapHac(baseUrl).getCatalogSyncDiff(catalogId, maxMissing);
-                return { success: true, data };
-            } catch (e: any) {
-                return { success: false, error: e.message || String(e) };
-            }
-        });
-
-        // User Profile
-        ipcMain.handle('read-user-profile', async () => {
-            try {
-                if (fs.existsSync(USER_PROFILE_FILE)) {
-                    const content = await fsp.readFile(USER_PROFILE_FILE, 'utf8');
-                    return JSON.parse(content);
-                }
-            } catch (e) {
-                console.error('Error reading user profile:', e);
-            }
-            return null;
-        });
-        ipcMain.handle('write-user-profile', async (_e: any, data: any) => {
-            try {
-                assertObject(data, 'userProfile');
-                await fsp.writeFile(USER_PROFILE_FILE, JSON.stringify(data, null, 2));
-                return true;
-            } catch (e) {
-                console.error('Error writing user profile:', e);
-                return false;
-            }
-        });
-
-        // Primary Supabase Auth
-        ipcMain.handle('auth-get-status', async () => {
-            try {
-                return await authGetStatus();
-            } catch (e: any) {
-                return getAuthErrorStatus(e.message);
-            }
-        });
-        ipcMain.handle('auth-sign-in', async (_e: any, { email, password }: any) => {
-            try {
-                assertString(email, 'email', 200);
-                assertString(password, 'password', 200);
-                return await authSignIn(email, password);
-            } catch (e: any) {
-                return getAuthErrorStatus(e.message);
-            }
-        });
-        ipcMain.handle('auth-sign-up', async (_e: any, { email, password, displayName }: any) => {
-            try {
-                assertString(email, 'email', 200);
-                assertString(password, 'password', 200);
-                assertString(displayName, 'displayName', 100);
-                return await authSignUp(email, password, displayName);
-            } catch (e: any) {
-                return getAuthErrorStatus(e.message);
-            }
-        });
-        ipcMain.handle('auth-sign-out', async () => {
-            try {
-                // Tear down sync first (while session is still valid) so the
-                // realtime channel can be cleanly removed before the token is invalidated.
-                await teardownSync();
-                const status = await authSignOut();
-                return status;
-            } catch (e: any) {
-                return getAuthErrorStatus(e.message);
-            }
-        });
-        ipcMain.handle('auth-refresh-profile', async () => {
-            try {
-                return await authRefreshProfile();
-            } catch (e: any) {
-                return getAuthErrorStatus(e.message);
-            }
-        });
-
-        // OAuth
-        ipcMain.handle('oauth-start', async (_e: any, { provider }: any) => {
-            try {
-                assertString(provider, 'provider', 20);
-                // Determine the current server port (default 5248)
-                let settings: any = {};
-                try {
-                    if (fs.existsSync(SETTINGS_FILE)) {
-                        settings = JSON.parse(await fsp.readFile(SETTINGS_FILE, 'utf8'));
-                    }
-                } catch { /* use default port */ }
-                const port = parseInt(settings.automationPort || '5248', 10);
-                if (!isServerRunning()) {
-                    startServer(crypto.randomBytes(32).toString('hex'), port);
-                }
-                const url = oauth.generateAuthUrl(provider as any, port);
-                await shell.openExternal(url);
-                return { success: true };
-            } catch (e: any) {
-                return { success: false, error: e.message };
-            }
-        });
-        ipcMain.handle('oauth-logout', async (_e: any, { provider }: any) => {
-            try {
-                assertString(provider, 'provider', 20);
-                await oauth.revokeTokens(provider as any);
-                return { success: true };
-            } catch (e: any) {
-                return { success: false, error: e.message };
-            }
-        });
-        ipcMain.handle('oauth-get-status', async (_e: any, { provider }: any) => {
-            try {
-                assertString(provider, 'provider', 20);
-                const connected = await oauth.isConnected(provider as any);
-                return { connected };
-            } catch {
-                return { connected: false };
-            }
-        });
-
-        // GitHub Integration
-        ipcMain.handle('github-check-scope', async () => {
-            try { return await github.checkTokenScope(); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-repos', async (_e: any, { forceRefresh }: any = {}) => {
-            try { return await github.getRepos(!!forceRefresh); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-pull-requests', async (_e: any, { owner, repo, state, forceRefresh }: any) => {
-            try { return await github.getPullRequests(owner, repo, state, !!forceRefresh); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-pr-detail', async (_e: any, { owner, repo, prNumber }: any) => {
-            try { return await github.getPrDetail(owner, repo, prNumber); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-pr-reviews', async (_e: any, { owner, repo, prNumber }: any) => {
-            try { return await github.getPrReviews(owner, repo, prNumber); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-pr-check-status', async (_e: any, { owner, repo, ref }: any) => {
-            try { return await github.getPrCheckStatus(owner, repo, ref); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-commits', async (_e: any, { owner, repo, branch, forceRefresh }: any) => {
-            try { return await github.getCommits(owner, repo, branch, !!forceRefresh); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-branches', async (_e: any, { owner, repo, forceRefresh }: any) => {
-            try { return await github.getBranches(owner, repo, !!forceRefresh); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-review-requests', async (_e: any, { forceRefresh }: any = {}) => {
-            try { return await github.getReviewRequests(!!forceRefresh); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-my-open-prs', async (_e: any, { forceRefresh }: any = {}) => {
-            try { return await github.getMyOpenPrs(!!forceRefresh); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-workflow-runs', async (_e: any, { owner, repo, forceRefresh }: any) => {
-            try { return await github.getWorkflowRuns(owner, repo, !!forceRefresh); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-deployments', async (_e: any, { owner, repo, forceRefresh }: any) => {
-            try { return await github.getDeployments(owner, repo, !!forceRefresh); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-rerun-workflow', async (_e: any, { owner, repo, runId }: any) => {
-            try { return await github.rerunWorkflow(owner, repo, runId); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-pr-comments', async (_e: any, { owner, repo, prNumber }: any) => {
-            try { return await github.getPrComments(owner, repo, prNumber); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-workflow-jobs', async (_e: any, { owner, repo, runId }: any) => {
-            try { return await github.getWorkflowJobs(owner, repo, runId); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-get-workflows-list', async (_e: any, { owner, repo }: any) => {
-            try { return await github.getWorkflowsList(owner, repo); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-        ipcMain.handle('github-dispatch-workflow', async (_e: any, { owner, repo, workflowId, ref }: any) => {
-            try { return await github.dispatchWorkflow(owner, repo, workflowId, ref); }
-            catch (e: any) { return { __isError: true, message: e.message }; }
-        });
-
-        ipcMain.handle('get-system-info', () => ({
-            platform: process.platform,
-            arch: process.arch,
-            nodeVersion: process.versions.node,
-            electronVersion: process.versions.electron,
-            appVersion: app.getVersion()
-        }));
-        ipcMain.handle('get-app-version', () => app.getVersion());
-        ipcMain.handle('is-minimized-to-tray', async () => {
-            try {
-                if (fs.existsSync(SETTINGS_FILE)) {
-                    const content = await fsp.readFile(SETTINGS_FILE, 'utf8');
-                    const settings = JSON.parse(content);
-                    return !!settings.minimizeToTray;
-                }
-            } catch (e) {
-                console.error('Error reading settings for tray check:', e);
-            }
-            return false;
-        });
-
-        // ── Cloud Sync (Phase 2) ──────────────────────────────────────────────
-        ipcMain.handle('sync-get-config', async () => {
-            try { return await getSyncConfig(); }
-            catch (e: any) { return { configured: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-get-status', () => getSyncStatus());
-        ipcMain.handle('sync-init', async () => {
-            try { return await initSync(); }
-            catch (e: any) { return { ok: false, status: 'error', error: e.message }; }
-        });
-        ipcMain.handle('sync-create-workspace', async (_e: any, { workspaceName, displayName }: any) => {
-            try {
-                assertString(workspaceName, 'workspaceName', 200);
-                if (displayName !== undefined && displayName !== null) assertString(displayName, 'displayName', 100);
-                return await createWorkspace(workspaceName, displayName);
-            } catch (e: any) { return { ok: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-join-workspace', async (_e: any, { inviteCode, displayName }: any) => {
-            try {
-                assertString(inviteCode, 'inviteCode', 64);
-                if (displayName !== undefined && displayName !== null) assertString(displayName, 'displayName', 100);
-                return await joinWorkspace(inviteCode, displayName);
-            } catch (e: any) { return { ok: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-disconnect', async () => {
-            try { await disconnectWorkspace(); return { ok: true }; }
-            catch (e: any) { return { ok: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-get-workspace-info', async () => {
-            try { return await getWorkspaceInfo(); }
-            catch (e: any) { return { workspaceId: null, error: e.message }; }
-        });
-        ipcMain.handle('sync-get-workspace-invite', async () => {
-            try { return await getWorkspaceInvite(); }
-            catch (e: any) { return { ok: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-rotate-workspace-invite', async () => {
-            try { return await rotateWorkspaceInvite(); }
-            catch (e: any) { return { ok: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-manual', async () => {
-            try { return await triggerManualSync(); }
-            catch (e: any) { return { ok: false, error: e.message }; }
-        });
-
-        // Granular sync push handlers — called by the renderer after collaborative mutations
-        ipcMain.handle('sync-push-task-collab', (_e: any, args: any) => {
-            try {
-                assertSyncTaskCollabArgs(args);
-                const { projectId, taskId, collabState, activeHandoffId, updatedAt } = args;
-                pushTaskCollab(projectId, taskId, collabState, activeHandoffId ?? null, updatedAt ?? Date.now());
-                return { ok: true };
-            } catch (e: any) { return { ok: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-push-handoff', (_e: any, args: any) => {
-            try {
-                assertSyncHandoffArgs(args);
-                const { projectId, handoff } = args;
-                pushHandoff(projectId, handoff);
-                return { ok: true };
-            } catch (e: any) { return { ok: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-push-collab-event', (_e: any, args: any) => {
-            try {
-                assertSyncCollabEventArgs(args);
-                const { projectId, event } = args;
-                pushCollabEvent(projectId, event);
-                return { ok: true };
-            } catch (e: any) { return { ok: false, error: e.message }; }
-        });
-        ipcMain.handle('sync-push-artifact-link', (_e: any, args: any) => {
-            try {
-                assertSyncArtifactLinkArgs(args);
-                const { projectId, link } = args;
-                pushArtifactLink(projectId, link);
-                return { ok: true };
-            } catch (e: any) { return { ok: false, error: e.message }; }
-        });
-
-        // Granular DB queries for post-sync targeted refresh (Improvement 5)
-        ipcMain.handle('get-task-by-id', (_e: any, taskId: string) => {
-            try {
-                assertString(taskId, 'taskId', 200);
-                return getTaskById(taskId);
-            } catch { return null; }
-        });
-        ipcMain.handle('get-handoff-by-id', (_e: any, handoffId: string) => {
-            try {
-                assertString(handoffId, 'handoffId', 200);
-                return getHandoffById(handoffId);
-            } catch { return null; }
+        registerIntegrationHandlers(ipcMain, {
+            integrations,
+            health,
+            oauth,
+            github,
+            SapHacService,
+            MAX_SAP_HAC_INSTANCES,
+            isServerRunning,
+            startServer,
+            crypto,
+            SETTINGS_FILE,
+            fsp,
+            fs,
+            shell,
+            assertString,
+            errMsg,
+            assertAutomationArgs,
+            getServerPort,
+            stopServer,
         });
     }
 

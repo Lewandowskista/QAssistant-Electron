@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
+import { log } from './logger'
 
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
 const MODEL_3_FLASH = 'gemini-3-flash';
@@ -147,13 +148,13 @@ export class GeminiService {
                 const result = await model.generateContent(prompt);
 
                 if (modelName !== this.preferredModel) {
-                    console.log(`Gemini switching preferred model to ${modelName} after successful response`);
+                    log.info(`Gemini switching preferred model to ${modelName} after successful response`);
                     this.preferredModel = modelName;
                 }
 
                 const usage = result.response.usageMetadata;
                 if (usage) {
-                    console.log(`[Gemini] ${modelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`);
+                    log.info(`[Gemini] ${modelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`);
                 }
 
                 return result.response.text();
@@ -942,13 +943,13 @@ export class GeminiService {
                 const result = await chatSession.sendMessage(requestPayload)
 
                 if (currentModelName !== this.preferredModel) {
-                    console.log(`Gemini switching preferred model to ${currentModelName} after successful response`)
+                    log.info(`Gemini switching preferred model to ${currentModelName} after successful response`)
                     this.preferredModel = currentModelName
                 }
 
                 const usage = result.response.usageMetadata
                 if (usage) {
-                    console.log(`[Gemini] ${currentModelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`)
+                    log.info(`[Gemini] ${currentModelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`)
                 }
 
                 return result.response.text()

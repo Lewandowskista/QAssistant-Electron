@@ -21,6 +21,7 @@ import type { UserRole, AuthProvider } from "@/types/user"
 import { useConfirm } from "@/components/ConfirmDialog"
 import { toast } from "sonner"
 import { sanitizeProjectForPersistence } from "@/lib/projectSanitization"
+import { safeInvoke } from "@/lib/safeInvoke"
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 type StatusState = { msg: string; ok: boolean } | null
@@ -284,9 +285,12 @@ export default function SettingsPage() {
     const handleOAuthConnect = async (provider: AuthProvider) => {
         setOauthConnecting(provider)
         flash(setOauthStatus, `Opening ${provider === 'github' ? 'GitHub' : 'Linear'} authorization in your browser...`, true, 8000)
-        const result = await window.electronAPI.oauthStart(provider)
+        const result = await safeInvoke(
+            () => window.electronAPI.oauthStart(provider),
+            'Failed to start authorization'
+        )
         setOauthConnecting(null)
-        if (!result.success) {
+        if (result && !result.success) {
             flash(setOauthStatus, result.error || 'Failed to start authorization', false)
         }
     }
@@ -295,7 +299,10 @@ export default function SettingsPage() {
         const name = provider === 'github' ? 'GitHub' : 'Linear'
         const confirmed = await confirmDialog(`Disconnect ${name}`, { description: `Remove your ${name} identity from QAssistant?`, destructive: true })
         if (!confirmed) return
-        await window.electronAPI.oauthLogout(provider)
+        await safeInvoke(
+            () => window.electronAPI.oauthLogout(provider),
+            `Failed to disconnect ${name}`
+        )
         await removeIdentity(provider)
         flash(setOauthStatus, `${name} identity removed.`, true)
     }

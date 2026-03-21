@@ -6,10 +6,40 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import bodyParser from 'body-parser'
 import * as oauth from './oauth'
+import { log } from './logger'
 import { enrichHandoffCompleteness, getReleaseQueue, PROJECT_SCHEMA_VERSION } from '../src/lib/collaboration'
 import { getAllProjects, getProjectById, getProjectSummaries, saveAllProjects } from './database'
 
 const server = express()
+
+// ── In-memory rate limiter — 100 requests per minute per IP ─────────────────
+// No external deps needed for a desktop app; entries are evicted lazily.
+const _rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX = 100
+
+function rateLimiter(req: any, res: any, next: any) {
+    const ip: string = req.ip ?? req.socket?.remoteAddress ?? 'unknown'
+    const now = Date.now()
+    let entry = _rateLimitMap.get(ip)
+    if (!entry || now >= entry.resetAt) {
+        entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
+        _rateLimitMap.set(ip, entry)
+    }
+    entry.count++
+    if (entry.count > RATE_LIMIT_MAX) {
+        const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
+        res.set('Retry-After', String(retryAfter))
+        return res.status(429).json({ error: 'Too many requests. Please slow down.' })
+    }
+    // Lazy eviction: clear stale entries once the map grows large
+    if (_rateLimitMap.size > 500) {
+        for (const [key, val] of _rateLimitMap) {
+            if (now >= val.resetAt) _rateLimitMap.delete(key)
+        }
+    }
+    next()
+}
 
 // CORS: allow only the Electron renderer (origin is 'null' for file:// / custom
 // protocols) and the exact port the server is bound to. The regex below is kept
@@ -60,7 +90,7 @@ export function isServerRunning(): boolean {
 export function startServer(apiToken: string, port: number = 3030) {
     // Prevent double-start (e.g. called from both IPC handler and app.whenReady)
     if (serverInstance) {
-        console.log('[QAssistant] API server already running, skipping restart.')
+        log.info('[QAssistant] API server already running, skipping restart.')
         return
     }
     authToken = apiToken
@@ -98,6 +128,9 @@ export function startServer(apiToken: string, port: number = 3030) {
     const writeProjects = (projects: any[]): void => {
         saveAllProjects(projects)
     }
+
+    // ── Rate limiting (applied before all routes, including /health) ──────
+    server.use(rateLimiter)
 
     // ── Public health endpoint (no auth) ───────────────────────────────────
     server.get('/health', (_req: Request, res: Response) => {
@@ -591,7 +624,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     const tryListen = (p: number) => {
         const instance = server.listen(p, () => {
-            console.log(`[QAssistant] Automation API running on port ${p}`)
+            log.info(`[QAssistant] Automation API running on port ${p}`)
             currentPort = p
             serverInstance = instance
 
@@ -625,7 +658,7 @@ export function stopServer() {
         }
         openSockets.clear()
         serverInstance.close(() => {
-            console.log('[QAssistant] Automation API stopped.')
+            log.info('[QAssistant] Automation API stopped.')
         })
         serverInstance = null
         currentPort = requestedPort

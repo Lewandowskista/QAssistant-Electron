@@ -1,6 +1,7 @@
 // cspell:ignore unstarted duedate issuetype
 import { getCredential } from './credentialService';
 import { getAllProjects } from './database';
+import { log } from './logger';
 
 // ── Status / Priority Mapping ────────────────────────────────────────────────
 
@@ -317,7 +318,7 @@ export async function updateLinearIssueStatus(apiKey: string, issueId: string, s
 }
 
 export async function getLinearIssueHistory(apiKey: string, issueId: string): Promise<any[]> {
-    console.log(`[Linear] Fetching history for issue ${issueId}`);
+    log.info(`[Linear] Fetching history for issue ${issueId}`);
     const query = `
     query($issueId: String!) {
         issue(id: $issueId) {
@@ -341,7 +342,7 @@ export async function getLinearIssueHistory(apiKey: string, issueId: string): Pr
     try {
         const result = await linearGraphQL(apiKey, query, { issueId })
         const nodes = result.data?.issue?.history?.nodes || []
-        console.log(`[Linear] Found ${nodes.length} history nodes`);
+        log.info(`[Linear] Found ${nodes.length} history nodes`);
 
         const entries: any[] = []
         for (const node of nodes) {
@@ -355,7 +356,7 @@ export async function getLinearIssueHistory(apiKey: string, issueId: string): Pr
 
                 // If it's a known non-user actor, try to be more specific
                 if (actor.__typename !== 'User') {
-                    console.log(`[Linear] Non-user actor detected: ${actor.__typename}`, actor);
+                    log.info(`[Linear] Non-user actor detected: ${actor.__typename}`, actor);
                 }
             }
 
@@ -590,7 +591,7 @@ export async function transitionJiraIssue(domain: string, email: string, apiKey:
 }
 
 export async function getJiraIssueHistory(domain: string, email: string, apiKey: string, issueKey: string): Promise<any[]> {
-    console.log(`[Jira] Fetching history for issue ${issueKey}`);
+    log.info(`[Jira] Fetching history for issue ${issueKey}`);
     const auth = Buffer.from(`${email}:${apiKey}`).toString('base64')
     const base = getJiraBaseUrl(domain)
     const url = `${base}/rest/api/3/issue/${issueKey}?expand=changelog&fields=summary`
@@ -610,7 +611,7 @@ export async function getJiraIssueHistory(domain: string, email: string, apiKey:
         const entries: any[] = []
 
         if (data.changelog && data.changelog.histories) {
-            console.log(`[Jira] Found ${data.changelog.histories.length} history events`);
+            log.info(`[Jira] Found ${data.changelog.histories.length} history events`);
             for (const history of data.changelog.histories) {
                 const author = history.author?.displayName || 'Unknown'
                 const timestamp = new Date(history.created).getTime()

@@ -8,6 +8,8 @@ import { useProjectStore } from '@/store/useProjectStore'
 import { Button } from '@/components/ui/button'
 import { Plus, Trash2, Download, Copy, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { safeInvoke } from '@/lib/safeInvoke'
 
 const generateSectionId = () => `section-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 
@@ -167,51 +169,35 @@ export default function ReportBuilderPage() {
   const handleExportReport = async () => {
     if (!selectedTemplate) return
     const format = selectedTemplate.format || 'html'
-    try {
-      if (format === 'pdf') {
-        const result = await window.electronAPI.exportCustomReportPdf({
-          project,
-          template: selectedTemplate
-        })
-        if (!result.success) {
-          alert(`Export failed: ${result.error || 'Unknown error'}`)
-        }
-      } else if (format === 'html') {
-        const result = await window.electronAPI.generateCustomReport({
-          project,
-          template: selectedTemplate
-        })
-        if (result.success && result.html) {
-          const res = await window.electronAPI.saveFileDialog({
-            defaultName: `${project.name.replace(/\s+/g, '-')}-${selectedTemplate.name.replace(/\s+/g, '-')}.html`,
-            content: result.html
-          })
-          if (!res.success) {
-            alert(`Save failed: ${res.error || 'Unknown error'}`)
-          }
-        } else {
-          alert(`Report generation failed: ${result.error || 'Unknown error'}`)
-        }
-      } else if (format === 'markdown') {
-        const result = await window.electronAPI.generateCustomReport({
-          project,
-          template: selectedTemplate
-        })
-        if (result.success && result.html) {
-          const res = await window.electronAPI.saveFileDialog({
-            defaultName: `${project.name.replace(/\s+/g, '-')}-${selectedTemplate.name.replace(/\s+/g, '-')}.md`,
-            content: result.html
-          })
-          if (!res.success) {
-            alert(`Save failed: ${res.error || 'Unknown error'}`)
-          }
-        } else {
-          alert(`Report generation failed: ${result.error || 'Unknown error'}`)
-        }
+    if (format === 'pdf') {
+      const result = await safeInvoke(
+        () => window.electronAPI.exportCustomReportPdf({ project, template: selectedTemplate }),
+        'Export failed'
+      )
+      if (result && !result.success) {
+        toast.error(`Export failed: ${result.error || 'Unknown error'}`)
       }
-    } catch (error) {
-      console.error('Export failed:', error)
-      alert(`Export error: ${String(error)}`)
+    } else if (format === 'html' || format === 'markdown') {
+      const ext = format === 'html' ? 'html' : 'md'
+      const result = await safeInvoke(
+        () => window.electronAPI.generateCustomReport({ project, template: selectedTemplate }),
+        'Report generation failed'
+      )
+      if (!result) return
+      if (result.success && result.html) {
+        const res = await safeInvoke(
+          () => window.electronAPI.saveFileDialog({
+            defaultName: `${project.name.replace(/\s+/g, '-')}-${selectedTemplate.name.replace(/\s+/g, '-')}.${ext}`,
+            content: result.html!
+          }),
+          'Save failed'
+        )
+        if (res && !res.success) {
+          toast.error(`Save failed: ${res.error || 'Unknown error'}`)
+        }
+      } else if (result) {
+        toast.error(`Report generation failed: ${result.error || 'Unknown error'}`)
+      }
     }
   }
 
