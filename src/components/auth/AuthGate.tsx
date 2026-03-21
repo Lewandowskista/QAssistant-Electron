@@ -165,7 +165,10 @@ export function AuthGate() {
 }
 
 function AuthShell({ icon, title, subtitle, children }: { icon: React.ReactNode; title: string; subtitle: string; children?: React.ReactNode }) {
-    const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().includes('MAC'))
+    const [isMac, setIsMac] = useState(() => {
+        if (typeof navigator === 'undefined') return false
+        return navigator.userAgent.toUpperCase().includes('MAC')
+    })
     const [isMaximized, setIsMaximized] = useState(false)
 
     useEffect(() => {
