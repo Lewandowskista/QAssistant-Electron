@@ -1,5 +1,5 @@
 import { useUserStore } from '@/store/useUserStore'
-import { Lock } from 'lucide-react'
+import { Loader2, Lock } from 'lucide-react'
 import type { UserRole } from '@/types/user'
 
 interface Props {
@@ -16,7 +16,17 @@ interface Props {
  * stored locally and the user controls their own machine.
  */
 export function RequireRole({ role, children }: Props) {
+    const isLoaded = useUserStore(s => s.isLoaded)
     const activeRole = useUserStore(s => s.profile?.activeRole ?? 'qa')
+
+    if (!isLoaded) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center bg-surface-overlay gap-4 text-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-qa-purple" />
+                <p className="text-sm text-qa-text-muted">Loading your role…</p>
+            </div>
+        )
+    }
 
     if (activeRole !== role) {
         const roleName = role === 'dev' ? 'Developer' : 'QA Engineer'

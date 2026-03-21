@@ -1,5 +1,5 @@
 // cspell:ignore youtu
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import {
     DndContext,
     DragEndEvent,
@@ -41,12 +41,14 @@ import { TaskBoardSummary } from "@/components/tasks/TaskBoardSummary"
 import { TaskFilterBar } from "@/components/tasks/TaskFilterBar"
 import { TaskCard } from "@/components/tasks/TaskCard"
 import { TaskColumn } from "@/components/tasks/TaskColumn"
-import { TaskDetailsSidebar } from "@/components/tasks/TaskDetailsSidebar"
-import { NewTaskModal } from "@/components/tasks/NewTaskModal"
-import { TaskTriageView } from "@/components/tasks/TaskTriageView"
-import AnalysisResultDialog from "@/components/tasks/AnalysisResultDialog"
-import { Project, Task, useProjectStore } from "@/store/useProjectStore"
+import { Task, useActiveProject, useActiveProjectId, useProjectStore } from "@/store/useProjectStore"
 import type { AnalysisEntry } from "@/types/project"
+import { useShallow } from "zustand/react/shallow"
+
+const TaskDetailsSidebar = lazy(() => import("@/components/tasks/TaskDetailsSidebar").then((module) => ({ default: module.TaskDetailsSidebar })))
+const NewTaskModal = lazy(() => import("@/components/tasks/NewTaskModal").then((module) => ({ default: module.NewTaskModal })))
+const TaskTriageView = lazy(() => import("@/components/tasks/TaskTriageView").then((module) => ({ default: module.TaskTriageView })))
+const AnalysisResultDialog = lazy(() => import("@/components/tasks/AnalysisResultDialog"))
 
 const FILTER_STORAGE_PREFIX = "qassistant:taskFilters:"
 const BOARD_STORAGE_PREFIX = "qassistant:taskBoardMode:"
@@ -96,14 +98,14 @@ function loadJson<T>(key: string, fallback: T): T {
 
 export default function TasksPage() {
     const api = window.electronAPI
-    const projects = useProjectStore((state) => state.projects)
-    const activeProjectId = useProjectStore((state) => state.activeProjectId)
-    const addTask = useProjectStore((state) => state.addTask)
-    const deleteTask = useProjectStore((state) => state.deleteTask)
-    const moveTask = useProjectStore((state) => state.moveTask)
-    const updateProject = useProjectStore((state) => state.updateProject)
-
-    const activeProject = useMemo(() => projects.find((project: Project) => project.id === activeProjectId), [projects, activeProjectId])
+    const activeProject = useActiveProject()
+    const activeProjectId = useActiveProjectId()
+    const { addTask, deleteTask, moveTask, updateProject } = useProjectStore(useShallow((state) => ({
+        addTask: state.addTask,
+        deleteTask: state.deleteTask,
+        moveTask: state.moveTask,
+        updateProject: state.updateProject,
+    })))
     const tasks = useMemo(() => activeProject?.tasks || [], [activeProject?.tasks])
 
     const [activeTask, setActiveTask] = useState<Task | null>(null)
@@ -696,12 +698,14 @@ export default function TasksPage() {
                             </div>
                         ) : boardMode === "triage" ? (
                             <div className="h-full overflow-y-auto custom-scrollbar">
-                                <TaskTriageView
-                                    sections={triageSections}
-                                    selectedTaskId={detailsId}
-                                    onSelectTask={setDetailsId}
-                                    onAnalyzeTask={handleAnalyzeIssue}
-                                />
+                                <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-[#6B7280]">Loading triage view...</div>}>
+                                    <TaskTriageView
+                                        sections={triageSections}
+                                        selectedTaskId={detailsId}
+                                        onSelectTask={setDetailsId}
+                                        onAnalyzeTask={handleAnalyzeIssue}
+                                    />
+                                </Suspense>
                             </div>
                         ) : (
                             <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
@@ -740,52 +744,56 @@ export default function TasksPage() {
                     </div>
                 </div>
 
-                <TaskDetailsSidebar
-                    selectedTask={selectedTask}
-                    activeProject={activeProject}
-                    currentColumns={currentColumns}
-                    onClose={() => setDetailsId(null)}
-                    onUpdateTask={handleUpdateTask}
-                    onAnalyze={handleAnalyzeIssue}
-                    isAnalyzing={isLoading}
-                    onGenerateBugReport={async () => {
-                        if (!activeProject || !selectedTask) return
-                        try {
-                            const environment = activeProject.environments.find((entry) => entry.isDefault) || activeProject.environments[0]
-                            const result = await api.generateBugReportTask({
-                                task: selectedTask,
-                                environment,
-                                reporter: "QA Assistant",
-                                aiAnalysis: selectedTask.analysisHistory?.[0]?.fullResult
+                <Suspense fallback={null}>
+                    <TaskDetailsSidebar
+                        selectedTask={selectedTask}
+                        activeProject={activeProject}
+                        currentColumns={currentColumns}
+                        onClose={() => setDetailsId(null)}
+                        onUpdateTask={handleUpdateTask}
+                        onAnalyze={handleAnalyzeIssue}
+                        isAnalyzing={isLoading}
+                        onGenerateBugReport={async () => {
+                            if (!activeProject || !selectedTask) return
+                            try {
+                                const environment = activeProject.environments.find((entry) => entry.isDefault) || activeProject.environments[0]
+                                const result = await api.generateBugReportTask({
+                                    task: selectedTask,
+                                    environment,
+                                    reporter: "QA Assistant",
+                                    aiAnalysis: selectedTask.analysisHistory?.[0]?.fullResult
+                                })
+                                if (!result.success) throw new Error(result.error)
+                                toast.success("Bug report generated and saved to attachments.")
+                                if (result.attachment?.filePath) await api.openFile({ filePath: result.attachment.filePath })
+                            } catch (error) {
+                                toast.error(error instanceof Error ? error.message : String(error))
+                            }
+                        }}
+                        onDelete={() => setTaskToDelete(selectedTask)}
+                        onDeleteAnalysis={async (entry) => {
+                            if (!activeProjectId || !selectedTask) return
+                            const updatedHistory = (selectedTask.analysisHistory || []).filter((history: AnalysisEntry) => history.timestamp !== entry.timestamp)
+                            await updateProject(activeProjectId, {
+                                tasks: tasks.map((task: Task) => task.id === selectedTask.id ? { ...task, analysisHistory: updatedHistory } : task)
                             })
-                            if (!result.success) throw new Error(result.error)
-                            toast.success("Bug report generated and saved to attachments.")
-                            if (result.attachment?.filePath) await api.openFile({ filePath: result.attachment.filePath })
-                        } catch (error) {
-                            toast.error(error instanceof Error ? error.message : String(error))
-                        }
-                    }}
-                    onDelete={() => setTaskToDelete(selectedTask)}
-                    onDeleteAnalysis={async (entry) => {
-                        if (!activeProjectId || !selectedTask) return
-                        const updatedHistory = (selectedTask.analysisHistory || []).filter((history: AnalysisEntry) => history.timestamp !== entry.timestamp)
-                        await updateProject(activeProjectId, {
-                            tasks: tasks.map((task: Task) => task.id === selectedTask.id ? { ...task, analysisHistory: updatedHistory } : task)
-                        })
-                        toast.success("Analysis deleted")
-                    }}
-                    api={api}
-                />
+                            toast.success("Analysis deleted")
+                        }}
+                        api={api}
+                    />
+                </Suspense>
             </div>
 
-            <NewTaskModal
-                isOpen={isNewTaskModalOpen}
-                onOpenChange={setIsNewTaskModalOpen}
-                activeProject={activeProject}
-                currentColumns={currentColumns}
-                onConfirm={handleConfirmAddTask}
-                initialStatus={newTaskStatus}
-            />
+            <Suspense fallback={null}>
+                <NewTaskModal
+                    isOpen={isNewTaskModalOpen}
+                    onOpenChange={setIsNewTaskModalOpen}
+                    activeProject={activeProject}
+                    currentColumns={currentColumns}
+                    onConfirm={handleConfirmAddTask}
+                    initialStatus={newTaskStatus}
+                />
+            </Suspense>
 
             <ConfirmDialog
                 open={!!taskToDelete}
@@ -797,13 +805,15 @@ export default function TasksPage() {
                 onConfirm={() => { if (activeProjectId && taskToDelete) deleteTask(activeProjectId, taskToDelete.id) }}
             />
 
-            <AnalysisResultDialog
-                open={isAnalysisDialogOpen}
-                onOpenChange={setIsAnalysisDialogOpen}
-                result={currentAnalysisResult}
-                taskTitle={taskBeingAnalyzed?.title || "Issue Analysis"}
-                projectId={activeProjectId || undefined}
-            />
+            <Suspense fallback={null}>
+                <AnalysisResultDialog
+                    open={isAnalysisDialogOpen}
+                    onOpenChange={setIsAnalysisDialogOpen}
+                    result={currentAnalysisResult}
+                    taskTitle={taskBeingAnalyzed?.title || "Issue Analysis"}
+                    projectId={activeProjectId || undefined}
+                />
+            </Suspense>
 
             <>
                 <div className={cn("fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity duration-200", isShortcutModalOpen ? "opacity-100" : "pointer-events-none opacity-0")} onClick={() => setIsShortcutModalOpen(false)} />

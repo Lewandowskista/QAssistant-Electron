@@ -5,6 +5,7 @@ export type CloudSyncStatus = 'disconnected' | 'connecting' | 'connected' | 'syn
 export type SyncConfig = {
     configured: boolean
     url?: string
+    anonKey?: string
     workspaceId?: string
     userId?: string
     email?: string
@@ -21,8 +22,17 @@ export type WorkspaceMember = {
 export type WorkspaceInfo = {
     workspaceId: string | null
     workspaceName?: string
-    inviteCode?: string
+    currentUserRole?: string
+    canManageInvite?: boolean
+    inviteCodeExpiresAt?: string | null
+    inviteCodeRotatedAt?: string | null
     members?: WorkspaceMember[]
+}
+
+export type WorkspaceInviteInfo = {
+    inviteCode: string
+    inviteCodeExpiresAt?: string | null
+    inviteCodeRotatedAt?: string | null
 }
 
 export type SyncStatusPayload = {
@@ -49,21 +59,13 @@ export type SyncMutationFailedPayload = {
 }
 
 export type SyncCreateWorkspaceArgs = {
-    supabaseUrl: string
-    supabaseAnonKey: string
-    userEmail: string
-    userPassword: string
     workspaceName: string
-    displayName: string
+    displayName?: string
 }
 
 export type SyncJoinWorkspaceArgs = {
-    supabaseUrl: string
-    supabaseAnonKey: string
-    userEmail: string
-    userPassword: string
     inviteCode: string
-    displayName: string
+    displayName?: string
 }
 
 export type SyncPushTaskCollabArgs = {

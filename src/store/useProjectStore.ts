@@ -14,6 +14,9 @@ import {
 } from '../types/project'
 import { demoProject } from '@/data/demoProject'
 import { enrichHandoffCompleteness, migrateLegacyExecutionsToSessions, PROJECT_SCHEMA_VERSION } from '@/lib/collaboration'
+import { measureAsync } from '@/lib/perf'
+import { sanitizeEnvironmentForPersistence, sanitizeProjectForPersistence } from '@/lib/projectSanitization'
+import { getSyncActorIdentity, registerProjectSyncBridge } from './syncProjectBridge'
 
 export type {
     Project, Task, TestCase, TestExecution, TestRunSession,
@@ -51,11 +54,59 @@ function generateId(): string {
  */
 const saveProjectsToDisk = (projects: Project[]) => {
     if (window.electronAPI) {
-        window.electronAPI.writeProjectsFile(projects).catch((error: unknown) => {
+        window.electronAPI.writeProjectsFile(projects.map(sanitizeProjectForPersistence)).catch((error: unknown) => {
             console.error('Failed to persist projects to SQLite:', error);
         });
     }
 };
+
+const persistNoteToDisk = async (projectId: string, note: Note) => {
+    if (window.electronAPI?.upsertProjectNote) {
+        await window.electronAPI.upsertProjectNote(projectId, note)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const deleteNoteFromDisk = async (projectId: string, noteId: string) => {
+    if (window.electronAPI?.deleteProjectNote) {
+        await window.electronAPI.deleteProjectNote(projectId, noteId)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const persistTaskToDisk = async (projectId: string, task: Task) => {
+    if (window.electronAPI?.upsertProjectTask) {
+        await window.electronAPI.upsertProjectTask(projectId, task)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const deleteTaskFromDisk = async (projectId: string, taskId: string) => {
+    if (window.electronAPI?.deleteProjectTask) {
+        await window.electronAPI.deleteProjectTask(projectId, taskId)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const persistHandoffToDisk = async (projectId: string, handoff: HandoffPacket) => {
+    if (window.electronAPI?.upsertProjectHandoff) {
+        await window.electronAPI.upsertProjectHandoff(projectId, handoff)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
+const persistCollaborationEventToDisk = async (projectId: string, event: CollaborationEvent) => {
+    if (window.electronAPI?.insertProjectCollaborationEvent) {
+        await window.electronAPI.insertProjectCollaborationEvent(projectId, event)
+        return
+    }
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
 
 // Fire-and-forget sync push helpers — only enqueue if sync is configured
 function syncPushTaskCollab(projectId: string, taskId: string, collabState: string, activeHandoffId?: string | null) {
@@ -131,7 +182,7 @@ function normalizeProject(project: any): Project {
                 components: testCase.components || [],
             })),
         })),
-        environments: project.environments || [],
+        environments: (project.environments || []).map((environment: QaEnvironment) => sanitizeEnvironmentForPersistence(environment)),
         testExecutions: project.testExecutions || [],
         files: (project.files || []).map((f: any) => ({
             id: f.id,
@@ -247,7 +298,7 @@ async function triggerCollaborationWebhook(
     }
 }
 
-interface ProjectState {
+export interface ProjectState {
     projects: Project[]
     activeProjectId: string | null
     initialized: boolean
@@ -396,7 +447,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
 
         try {
-            const rawProjects = await window.electronAPI.readProjectsFile()
+            const rawProjects = await measureAsync('projectLoadMs', () => window.electronAPI.readProjectsFile())
             const projects = (rawProjects || []).map((p: any) => normalizeProject(p))
 
             set({
@@ -536,27 +587,28 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await persistNoteToDisk(projectId, newNote)
+        }
         return newNote
     },
 
     updateNote: async (projectId: string, noteId: string, updates: Partial<Note>) => {
+        let persistedNote: Note | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const notes = p.notes.map(n =>
-                    n.id === noteId ? { ...n, ...updates, updatedAt: Date.now() } : n
+                    n.id === noteId ? (persistedNote = { ...n, ...updates, updatedAt: Date.now() }) : n
                 )
                 return { ...p, notes }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedNote) {
+            await persistNoteToDisk(projectId, persistedNote)
+        }
     },
 
     deleteNote: async (projectId: string, noteId: string) => {
@@ -567,43 +619,45 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await deleteNoteFromDisk(projectId, noteId)
+        }
     },
 
     // Attachments --------------------------------------------------------
     addAttachmentToNote: async (projectId: string, noteId: string, attachment: Attachment) => {
+        let persistedNote: Note | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const notes = p.notes.map(n =>
-                    n.id === noteId ? { ...n, attachments: [...n.attachments, attachment], updatedAt: Date.now() } : n
+                    n.id === noteId ? (persistedNote = { ...n, attachments: [...n.attachments, attachment], updatedAt: Date.now() }) : n
                 )
                 return { ...p, notes }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedNote) {
+            await persistNoteToDisk(projectId, persistedNote)
+        }
     },
 
     removeAttachmentFromNote: async (projectId: string, noteId: string, attachmentId: string) => {
+        let persistedNote: Note | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const notes = p.notes.map(n =>
-                    n.id === noteId ? { ...n, attachments: n.attachments.filter(a => a.id !== attachmentId), updatedAt: Date.now() } : n
+                    n.id === noteId ? (persistedNote = { ...n, attachments: n.attachments.filter(a => a.id !== attachmentId), updatedAt: Date.now() }) : n
                 )
                 return { ...p, notes }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedNote) {
+            await persistNoteToDisk(projectId, persistedNote)
+        }
     },
 
     // convenience helper that copies file and attaches to note
@@ -653,33 +707,36 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await persistTaskToDisk(projectId, task)
+        }
         return task.id
     },
 
     updateTask: async (projectId: string, taskId: string, updates: Partial<Task>) => {
+        let persistedTask: Task | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const tasks = p.tasks.map(t =>
-                    t.id === taskId ? normalizeTask({ ...t, ...updates, updatedAt: Date.now() }) : t
+                    t.id === taskId ? (persistedTask = normalizeTask({ ...t, ...updates, updatedAt: Date.now() })) : t
                 )
                 return { ...p, tasks }
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedTask) {
+            await persistTaskToDisk(projectId, persistedTask)
+        }
     },
 
     createHandoffPacket: async (projectId: string, taskId: string, data: Partial<HandoffPacket> & Pick<HandoffPacket, 'type' | 'createdByRole'>) => {
         const now = Date.now()
         const handoffId = generateId()
+        let persistedTask: Task | undefined
+        let createdEvent: CollaborationEvent | undefined
+        let createdPacket: HandoffPacket | undefined
         const updatedProjects = get().projects.map((project) => {
             if (project.id !== projectId) return project
             const task = project.tasks.find((item) => item.id === taskId)
@@ -727,46 +784,49 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 isComplete: completeness.isComplete,
                 missingFields: completeness.missingFields,
             }
+            createdPacket = packet
+            createdEvent = {
+                id: generateId(),
+                taskId,
+                handoffId,
+                eventType: 'handoff_created' as const,
+                actorRole: data.createdByRole,
+                timestamp: now,
+                title: `Created ${data.type.replace('_', ' ')}`,
+                details: packet.summary
+            }
             return {
                 ...project,
-                tasks: project.tasks.map((item) => item.id === taskId ? normalizeTask({
+                tasks: project.tasks.map((item) => item.id === taskId ? (persistedTask = normalizeTask({
                     ...item,
                     activeHandoffId: handoffId,
                     collabState: item.collabState === 'closed' ? 'draft' : item.collabState || 'draft',
                     lastCollabUpdatedAt: now,
                     updatedAt: now
-                }) : item),
+                })) : item),
                 handoffPackets: [packet, ...(project.handoffPackets || [])],
-                collaborationEvents: [{
-                    id: generateId(),
-                    taskId,
-                    handoffId,
-                    eventType: 'handoff_created' as const,
-                    actorRole: data.createdByRole,
-                    timestamp: now,
-                    title: `Created ${data.type.replace('_', ' ')}`,
-                    details: packet.summary
-                }, ...(project.collaborationEvents || [])]
+                collaborationEvents: [createdEvent, ...(project.collaborationEvents || [])]
             }
         })
-        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            if (createdPacket) await persistHandoffToDisk(projectId, createdPacket)
+            if (persistedTask) await persistTaskToDisk(projectId, persistedTask)
+            if (createdEvent) await persistCollaborationEventToDisk(projectId, createdEvent)
+        }
         // Push new handoff, task collab state, and creation event to cloud
-        const createdProject = updatedProjects.find(p => p.id === projectId)
-        const createdPacket = createdProject?.handoffPackets?.find(p => p.id === handoffId)
-        const createdTask = createdProject?.tasks.find(t => t.id === taskId)
-        const createdEvent = createdProject?.collaborationEvents?.[0]
         if (createdPacket) syncPushHandoff(projectId, createdPacket)
-        if (createdTask) syncPushTaskCollab(projectId, taskId, createdTask.collabState || 'draft', createdTask.activeHandoffId)
+        if (persistedTask) syncPushTaskCollab(projectId, taskId, persistedTask.collabState || 'draft', persistedTask.activeHandoffId)
         if (createdEvent) syncPushCollabEvent(projectId, createdEvent)
         return handoffId
     },
 
     updateHandoffPacket: async (projectId: string, handoffId: string, updates: Partial<HandoffPacket>) => {
+        let updatedPacket: HandoffPacket | undefined
         const updatedProjects = get().projects.map((project) => {
             if (project.id !== projectId) return project
             const handoffPackets = (project.handoffPackets || []).map((packet) =>
-                packet.id === handoffId ? {
+                packet.id === handoffId ? (updatedPacket = {
                     ...packet,
                     ...updates,
                     ...enrichHandoffCompleteness({
@@ -774,14 +834,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                         ...updates,
                     }),
                     updatedAt: Date.now(),
-                } : packet
+                }) : packet
             )
             return { ...project, handoffPackets }
         })
-        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
-        const updatedProject = updatedProjects.find(p => p.id === projectId)
-        const updatedPacket = updatedProject?.handoffPackets?.find(p => p.id === handoffId)
+        if (window.electronAPI && updatedPacket) {
+            await persistHandoffToDisk(projectId, updatedPacket)
+        }
         if (updatedPacket) syncPushHandoff(projectId, updatedPacket)
     },
 
@@ -794,38 +854,42 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     acknowledgeHandoff: async (projectId: string, handoffId: string, actorRole: CollaborationActorRole = 'dev') => {
         const now = Date.now()
+        let ackHandoff: HandoffPacket | undefined
+        let ackTask: Task | undefined
+        let ackEvent: CollaborationEvent | undefined
         const updatedProjects = get().projects.map((project) => {
             if (project.id !== projectId) return project
             const handoff = (project.handoffPackets || []).find((packet) => packet.id === handoffId)
             if (!handoff) return project
+            ackEvent = {
+                id: generateId(),
+                taskId: handoff.taskId,
+                handoffId,
+                eventType: 'handoff_acknowledged' as const,
+                actorRole,
+                timestamp: now,
+                title: 'Handoff acknowledged'
+            }
             return {
                 ...project,
                 handoffPackets: (project.handoffPackets || []).map((packet) =>
-                    packet.id === handoffId ? { ...packet, acknowledgedAt: now, updatedAt: now } : packet
+                    packet.id === handoffId ? (ackHandoff = { ...packet, acknowledgedAt: now, updatedAt: now }) : packet
                 ),
-                tasks: project.tasks.map((task) => task.id === handoff.taskId ? normalizeTask({
+                tasks: project.tasks.map((task) => task.id === handoff.taskId ? (ackTask = normalizeTask({
                     ...task,
                     collabState: 'dev_acknowledged',
                     lastCollabUpdatedAt: now,
                     updatedAt: now
-                }) : task),
-                collaborationEvents: [{
-                    id: generateId(),
-                    taskId: handoff.taskId,
-                    handoffId,
-                    eventType: 'handoff_acknowledged' as const,
-                    actorRole,
-                    timestamp: now,
-                    title: 'Handoff acknowledged'
-                }, ...(project.collaborationEvents || [])]
+                })) : task),
+                collaborationEvents: [ackEvent, ...(project.collaborationEvents || [])]
             }
         })
-        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
-        const ackProject = updatedProjects.find(p => p.id === projectId)
-        const ackHandoff = ackProject?.handoffPackets?.find(p => p.id === handoffId)
-        const ackTask = ackHandoff ? ackProject?.tasks.find(t => t.id === ackHandoff.taskId) : undefined
-        const ackEvent = ackProject?.collaborationEvents?.[0]
+        if (window.electronAPI) {
+            if (ackHandoff) await persistHandoffToDisk(projectId, ackHandoff)
+            if (ackTask) await persistTaskToDisk(projectId, ackTask)
+            if (ackEvent) await persistCollaborationEventToDisk(projectId, ackEvent)
+        }
         if (ackTask) syncPushTaskCollab(projectId, ackTask.id, ackTask.collabState || 'draft', ackTask.activeHandoffId)
         if (ackEvent) syncPushCollabEvent(projectId, ackEvent)
     },
@@ -872,6 +936,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         let notificationProject: Project | undefined
         let notificationTask: Task | undefined
         let notificationHandoff: HandoffPacket | undefined
+        let persistedHandoff: HandoffPacket | undefined
+        let persistedEvent: CollaborationEvent | undefined
         const updatedProjects = get().projects.map((project) => {
             if (project.id !== projectId) return project
             const handoff = (project.handoffPackets || []).find((packet) => packet.id === handoffId)
@@ -882,40 +948,43 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             notificationProject = project
             notificationTask = project.tasks.find((task) => task.id === handoff.taskId)
             notificationHandoff = { ...handoff, linkedPrs }
+            persistedEvent = {
+                id: generateId(),
+                taskId: handoff.taskId,
+                handoffId,
+                eventType: 'pr_linked' as const,
+                actorRole: 'dev' as const,
+                timestamp: now,
+                title: `Linked PR #${prRef.prNumber}`,
+                details: prRef.repoFullName
+            }
             return {
                 ...project,
                 handoffPackets: (project.handoffPackets || []).map((packet) =>
-                    packet.id === handoffId ? { ...packet, linkedPrs, updatedAt: now } : packet
+                    packet.id === handoffId ? (persistedHandoff = { ...packet, linkedPrs, updatedAt: now }) : packet
                 ),
-                collaborationEvents: [{
-                    id: generateId(),
-                    taskId: handoff.taskId,
-                    handoffId,
-                    eventType: 'pr_linked' as const,
-                    actorRole: 'dev' as const,
-                    timestamp: now,
-                    title: `Linked PR #${prRef.prNumber}`,
-                    details: prRef.repoFullName
-                }, ...(project.collaborationEvents || [])]
+                collaborationEvents: [persistedEvent, ...(project.collaborationEvents || [])]
             }
         })
-        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            if (persistedHandoff) await persistHandoffToDisk(projectId, persistedHandoff)
+            if (persistedEvent) await persistCollaborationEventToDisk(projectId, persistedEvent)
+        }
         await triggerCollaborationWebhook('pr_linked', notificationProject, notificationTask, notificationHandoff)
     },
 
     addCollaborationEvent: async (projectId: string, event: Omit<CollaborationEvent, 'id' | 'timestamp'> & Partial<Pick<CollaborationEvent, 'timestamp'>>) => {
         const eventId = generateId()
-        // Attach the current user's identity from sync config if available
-        const syncConfig = (await import('./useSyncStore').catch(() => null))
-            ?.useSyncStore?.getState()?.config
-        const actorUserId = event.actorUserId ?? syncConfig?.userId ?? undefined
-        const actorDisplayName = event.actorDisplayName ?? syncConfig?.displayName ?? undefined
+        const syncIdentity = getSyncActorIdentity()
+        const actorUserId = event.actorUserId ?? syncIdentity.userId
+        const actorDisplayName = event.actorDisplayName ?? syncIdentity.displayName
+        let newEvent: CollaborationEvent | undefined
         const updatedProjects = get().projects.map((project) => {
             if (project.id !== projectId) return project
             return {
                 ...project,
-                collaborationEvents: [{
+                collaborationEvents: [newEvent = {
                     id: eventId,
                     timestamp: event.timestamp || Date.now(),
                     actorUserId,
@@ -924,9 +993,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 }, ...(project.collaborationEvents || [])]
             }
         })
-        if (window.electronAPI) saveProjectsToDisk(updatedProjects)
         set({ projects: updatedProjects })
-        const newEvent = updatedProjects.find(p => p.id === projectId)?.collaborationEvents?.[0]
+        if (window.electronAPI && newEvent) {
+            await persistCollaborationEventToDisk(projectId, newEvent)
+        }
         if (newEvent) syncPushCollabEvent(projectId, newEvent)
         return eventId
     },
@@ -1053,13 +1123,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI) {
+            await deleteTaskFromDisk(projectId, taskId)
+        }
     },
 
     moveTask: async (projectId: string, taskId: string, status: TaskStatus, overId?: string) => {
+        let persistedTask: Task | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const tasks = [...p.tasks]
@@ -1067,7 +1138,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 if (activeIndex === -1) return p
 
                 const oldTask = tasks[activeIndex]
-                const newTask = { ...oldTask, status, updatedAt: Date.now() }
+                const newTask = persistedTask = normalizeTask({ ...oldTask, status, updatedAt: Date.now() })
 
                 if (overId && overId !== taskId) {
                     const overIndex = tasks.findIndex(t => t.id === overId)
@@ -1089,10 +1160,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
             return p
         })
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
-        }
         set({ projects: updatedProjects })
+        if (window.electronAPI && persistedTask) {
+            await persistTaskToDisk(projectId, persistedTask)
+        }
     },
 
     generateTestCaseFromTask: async (projectId: string, taskId: string, planId: string) => {
@@ -2185,3 +2256,20 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         set({ projects: updated })
     },
 }))
+
+registerProjectSyncBridge({
+    loadProjects: () => useProjectStore.getState().loadProjects(),
+    mergeRemoteTask: (task) => useProjectStore.getState().mergeRemoteTask(task),
+    mergeRemoteHandoff: (handoff) => useProjectStore.getState().mergeRemoteHandoff(handoff),
+})
+
+export function useActiveProjectId() {
+    return useProjectStore((state) => state.activeProjectId)
+}
+
+export function useActiveProject() {
+    return useProjectStore((state) => {
+        if (!state.activeProjectId) return null
+        return state.projects.find((project) => project.id === state.activeProjectId) ?? null
+    })
+}

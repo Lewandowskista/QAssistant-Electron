@@ -6,6 +6,7 @@ export interface AppSettings {
     sapCommerceContext: boolean
     minimizeToTray: boolean
     autoCheckForUpdates: boolean
+    allowInsecureCredentialStorage?: boolean
     deferredVersion?: string
     lastUpdateCheckAt?: number
     [key: string]: unknown

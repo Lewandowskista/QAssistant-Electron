@@ -1,5 +1,5 @@
 import { useState, useRef } from "react"
-import { useProjectStore } from "@/store/useProjectStore"
+import { useActiveProject, useProjectStore } from "@/store/useProjectStore"
 import { AccuracyEvalRun } from "@/types/project"
 import { SegmentedControl } from "@/components/ui/segmented-control"
 import { Button } from "@/components/ui/button"
@@ -15,15 +15,17 @@ import { toast } from "sonner"
 type PanelTab = 'setup' | 'results' | 'history'
 
 export default function AIAccuracyPanel() {
-    const {
-        projects, activeProjectId,
-        addAccuracySuite, updateAccuracySuite,
-        addAccuracyRefDoc, removeAccuracyRefDoc,
-        addAccuracyQaPair, batchAddAccuracyQaPairs, removeAccuracyQaPair,
-        addAccuracyEvalRun, updateAccuracyEvalRun
-    } = useProjectStore()
-
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
+    const activeProjectId = useProjectStore((state) => state.activeProjectId)
+    const addAccuracySuite = useProjectStore((state) => state.addAccuracySuite)
+    const updateAccuracySuite = useProjectStore((state) => state.updateAccuracySuite)
+    const addAccuracyRefDoc = useProjectStore((state) => state.addAccuracyRefDoc)
+    const removeAccuracyRefDoc = useProjectStore((state) => state.removeAccuracyRefDoc)
+    const addAccuracyQaPair = useProjectStore((state) => state.addAccuracyQaPair)
+    const batchAddAccuracyQaPairs = useProjectStore((state) => state.batchAddAccuracyQaPairs)
+    const removeAccuracyQaPair = useProjectStore((state) => state.removeAccuracyQaPair)
+    const addAccuracyEvalRun = useProjectStore((state) => state.addAccuracyEvalRun)
+    const updateAccuracyEvalRun = useProjectStore((state) => state.updateAccuracyEvalRun)
     const suites = activeProject?.accuracyTestSuites ?? []
 
     const [activeSuiteId, setActiveSuiteId] = useState<string | null>(suites[0]?.id ?? null)

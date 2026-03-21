@@ -43,6 +43,7 @@ type Ccv2Deployment = {
 }
 
 type Ccv2Build = Record<string, unknown>
+type CredentialStorageStatus = Awaited<ReturnType<typeof window.electronAPI.getCredentialStorageStatus>>
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error)
@@ -105,6 +106,7 @@ export default function SapPage() {
     const [ccv2BuildCode, setCcv2BuildCode] = useState("")
     const [ccv2BuildInfo, setCcv2BuildInfo] = useState<Ccv2Build | null>(null)
     const [ccv2Loading, setCcv2Loading] = useState(false)
+    const [credentialStatus, setCredentialStatus] = useState<CredentialStorageStatus | null>(null)
 
     const selectedEnv = environments.find(env => env.id === selectedEnvId) || null
 
@@ -117,6 +119,10 @@ export default function SapPage() {
             setSelectedEnvId(defaultEnv.id)
         }
     }, [environments, selectedEnvId])
+
+    useEffect(() => {
+        api.getCredentialStorageStatus?.().then(setCredentialStatus).catch(() => {})
+    }, [api])
 
     useEffect(() => {
         let cancelled = false
@@ -212,6 +218,13 @@ export default function SapPage() {
     const handleConnect = async () => {
         if (!targetBaseUrl || !hacUser.trim() || !hacPass.trim()) {
             toast.error("Enter the HAC URL, username, and password before connecting.")
+            return
+        }
+
+        const status = await api.getCredentialStorageStatus?.()
+        setCredentialStatus(status ?? null)
+        if (status?.canPersistSecrets === false) {
+            toast.error("HAC credentials cannot be stored until insecure plaintext storage is explicitly allowed in Settings.")
             return
         }
 
@@ -393,6 +406,13 @@ export default function SapPage() {
     const fetchCcv2Envs = async () => {
         if (!ccv2Sub.trim() || !ccv2Token.trim()) return
 
+        const status = await api.getCredentialStorageStatus?.()
+        setCredentialStatus(status ?? null)
+        if (status?.canPersistSecrets === false) {
+            toast.error("CCV2 credentials cannot be stored until insecure plaintext storage is explicitly allowed in Settings.")
+            return
+        }
+
         setCcv2Loading(true)
         try {
             const data = await api.ccv2GetEnvironments({ subscriptionCode: ccv2Sub.trim(), apiToken: ccv2Token.trim() })
@@ -472,6 +492,15 @@ export default function SapPage() {
                         { id: "Ccv2", label: "CCV2 Deployments", icon: Globe },
                     ]}
                 />
+
+                {credentialStatus?.canPersistSecrets === false && (
+                    <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-start gap-3">
+                        <AlertTriangle className="h-4 w-4 text-yellow-300 mt-0.5 shrink-0" />
+                        <p className="text-xs text-yellow-200 leading-relaxed">
+                            SAP and CCV2 credentials cannot be stored on this device until insecure plaintext storage is explicitly allowed in Settings.
+                        </p>
+                    </div>
+                )}
 
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-4">

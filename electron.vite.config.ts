@@ -75,6 +75,14 @@ export default defineConfig({
           if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return
           if (warning.message.includes("Can't resolve original location of error")) return
           warn(warning)
+        },
+        output: {
+          manualChunks(id) {
+            if (id.includes('@tiptap') || id.includes('prosemirror')) return 'editor'
+            if (id.includes('recharts') || id.includes('d3-')) return 'charts'
+            if (id.includes('@supabase')) return 'supabase'
+            if (id.includes('@radix-ui') || id.includes('cmdk')) return 'ui-vendor'
+          }
         }
       }
     },

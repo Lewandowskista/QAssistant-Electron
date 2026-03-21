@@ -11,7 +11,7 @@ import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts"
-import { useProjectStore } from "@/store/useProjectStore"
+import { useActiveProject } from "@/store/useProjectStore"
 
 const COLORS = {
     passed: "#10B981",
@@ -69,8 +69,7 @@ function ChartFrame({ id }: { id: string }) {
 }
 
 export function PassRateTrendChart() {
-    const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
 
     const data = useMemo(() => {
         const sessions = [...(activeProject?.testRunSessions || [])]
@@ -127,8 +126,7 @@ export function PassRateTrendChart() {
 }
 
 export function DefectDensityChart() {
-    const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
 
     const data = useMemo(() => {
         const moduleMap = new Map<string, { total: number; failed: number }>()
@@ -206,8 +204,7 @@ const DONUT_COLORS: Record<string, string> = {
 }
 
 export function TestStatusDonut() {
-    const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
 
     const data = useMemo(() => {
         const counts: Record<string, number> = {}
@@ -273,8 +270,7 @@ export function TestStatusDonut() {
 }
 
 export function ExecutionVelocityChart() {
-    const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
 
     const data = useMemo(() => {
         const sessions = [...(activeProject?.testRunSessions || [])]
@@ -322,8 +318,7 @@ export function ExecutionVelocityChart() {
 }
 
 export function TestBurndownChart() {
-    const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
 
     const data = useMemo(() => {
         if (!activeProject) return []

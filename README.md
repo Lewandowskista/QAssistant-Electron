@@ -64,6 +64,11 @@ npm run version:bump:logical
 
 `version:next` prints the recommended next semantic version based on commits since the latest `v*` release tag. `version:bump:logical` applies that recommended version to `package.json` and `package-lock.json`. The release workflow then verifies that the pushed tag matches the repo version.
 
+### Supabase cloud sync setup
+
+For a brand-new Supabase project, use the guided bootstrap in `SUPABASE_SETUP.md`.
+`SUPABASE_SCHEMA.sql` is the canonical schema bootstrap file for new projects.
+
 ### First-run options
 
 When you open QAssistant with no projects:

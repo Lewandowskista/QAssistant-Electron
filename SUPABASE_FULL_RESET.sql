@@ -1,7 +1,7 @@
--- ── QAssistant — Canonical fresh-project Supabase bootstrap ───────────────────
--- This is the only SQL file you should run on a brand-new Supabase project.
--- It recreates the full QAssistant schema from scratch in one pass.
--- For step-by-step operator guidance, see SUPABASE_SETUP.md.
+-- ── QAssistant — Destructive Supabase reset + rebuild ─────────────────────────
+-- Use this only for an existing QAssistant Supabase project that you want to
+-- wipe and recreate from scratch. For a brand-new Supabase project, run
+-- SUPABASE_SCHEMA.sql instead. See SUPABASE_SETUP.md for the recommended flow.
 
 -- ── 1. Drop all RPC functions ─────────────────────────────────────────────────
 DROP FUNCTION IF EXISTS create_workspace_with_owner(TEXT, TEXT, TEXT) CASCADE;

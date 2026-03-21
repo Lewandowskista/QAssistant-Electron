@@ -7,7 +7,7 @@ import type { Request, Response } from 'express'
 import bodyParser from 'body-parser'
 import * as oauth from './oauth'
 import { enrichHandoffCompleteness, getReleaseQueue, PROJECT_SCHEMA_VERSION } from '../src/lib/collaboration'
-import { getAllProjects, saveAllProjects } from './database'
+import { getAllProjects, getProjectById, getProjectSummaries, saveAllProjects } from './database'
 
 const server = express()
 
@@ -80,6 +80,21 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     }
 
+    const readProject = (projectId: string): any | null => {
+        try {
+            const project = getProjectById(projectId)
+            if (!project) return null
+            return {
+                ...project,
+                schemaVersion: project.schemaVersion || PROJECT_SCHEMA_VERSION,
+                handoffPackets: (project.handoffPackets || []).map((packet: any) => enrichHandoffCompleteness(packet)),
+            }
+        } catch (e) {
+            console.warn('[AutomationAPI] Failed to read project from SQLite:', e)
+            return null
+        }
+    }
+
     const writeProjects = (projects: any[]): void => {
         saveAllProjects(projects)
     }
@@ -142,15 +157,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/projects ── list all projects ──────────────────────────────
     server.get('/api/projects', async (_req: any, res: any) => {
         try {
-            const projects = readProjects()
-            res.json(projects.map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                description: p.description,
-                testPlanCount: p.testPlans?.length || 0,
-                testCaseCount: p.testPlans?.flatMap((tp: any) => tp.testCases || []).length || 0,
-                testExecutionCount: p.testExecutions?.length || 0
-            })))
+            res.json(getProjectSummaries())
         } catch (e: any) {
             res.status(500).json({ error: 'Failed to read project data.', detail: e.message })
         }
@@ -159,8 +166,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/projects/:id ── single project detail ───────────────────────
     server.get('/api/projects/:id', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
-            const project = projects.find((p: any) => p.id === req.params.id)
+            const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
             res.json(project)
         } catch (e: any) {
@@ -170,8 +176,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     server.get('/api/projects/:id/release-readiness', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
-            const project = projects.find((item: any) => item.id === req.params.id)
+            const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
 
             const queue = getReleaseQueue(project)
@@ -191,8 +196,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     server.get('/api/projects/:id/retest-queue', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
-            const project = projects.find((item: any) => item.id === req.params.id)
+            const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
 
             const queue = getReleaseQueue(project)
@@ -209,8 +213,7 @@ export function startServer(apiToken: string, port: number = 3030) {
 
     server.get('/api/projects/:id/traceability', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
-            const project = projects.find((item: any) => item.id === req.params.id)
+            const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
 
             const tasks = (project.tasks || []).map((task: any) => {
@@ -503,8 +506,7 @@ export function startServer(apiToken: string, port: number = 3030) {
     // ── GET /api/projects/:id/quality-gate ── CI/CD quality gate evaluation ──
     server.get('/api/projects/:id/quality-gate', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
-            const project = projects.find((item: any) => item.id === req.params.id)
+            const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
 
             const allTestCases: any[] = (project.testPlans || []).flatMap((tp: any) => tp.testCases || [])

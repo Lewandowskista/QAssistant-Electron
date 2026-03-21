@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { X, Cloud, Users, KeyRound, Eye, EyeOff } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { X, Cloud, Users, KeyRound, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/useAuthStore'
 import { useSyncStore } from '@/store/useSyncStore'
 
 interface SyncSetupDialogProps {
@@ -11,27 +12,39 @@ interface SyncSetupDialogProps {
 
 type Mode = 'choose' | 'create' | 'join'
 
-const DEFAULT_SUPABASE_URL = ''
-const DEFAULT_ANON_KEY = ''
-
 export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
+    const auth = useAuthStore(s => s.auth)
     const [mode, setMode] = useState<Mode>('choose')
-    const [supabaseUrl, setSupabaseUrl] = useState(DEFAULT_SUPABASE_URL)
-    const [supabaseAnonKey, setSupabaseAnonKey] = useState(DEFAULT_ANON_KEY)
-    const [email, setEmail] = useState('')
-    const [password, setPassword] = useState('')
-    const [showPassword, setShowPassword] = useState(false)
     const [workspaceName, setWorkspaceName] = useState('')
-    const [displayName, setDisplayName] = useState('')
     const [inviteCode, setInviteCode] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [successInfo, setSuccessInfo] = useState<{ inviteCode?: string; workspaceName?: string } | null>(null)
 
-    const { createWorkspace, joinWorkspace } = useSyncStore()
+    const {
+        config,
+        status,
+        workspaceInfo,
+        workspaceInvite,
+        createWorkspace,
+        joinWorkspace,
+        disconnect,
+        loadWorkspaceInfo,
+        loadWorkspaceInvite,
+        rotateWorkspaceInvite,
+        manualSync,
+    } = useSyncStore()
+
+    useEffect(() => {
+        if (open && config?.configured) {
+            loadWorkspaceInfo().catch(() => {})
+        }
+    }, [open, config?.configured, loadWorkspaceInfo])
 
     function reset() {
         setMode('choose')
+        setWorkspaceName('')
+        setInviteCode('')
         setError(null)
         setSuccessInfo(null)
         setLoading(false)
@@ -42,17 +55,16 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
         onClose()
     }
 
+    const isConnectedWorkspace = !!config?.configured
+    const isOwner = !!workspaceInfo?.canManageInvite
+    const inviteMeta = workspaceInvite ?? null
+
     async function handleCreate() {
         setError(null)
         setLoading(true)
         try {
             const result = await createWorkspace({
-                supabaseUrl: supabaseUrl.trim(),
-                supabaseAnonKey: supabaseAnonKey.trim(),
-                userEmail: email.trim(),
-                userPassword: password,
                 workspaceName: workspaceName.trim(),
-                displayName: displayName.trim(),
             })
             if (result.ok) {
                 setSuccessInfo({ inviteCode: result.inviteCode })
@@ -71,12 +83,7 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
         setLoading(true)
         try {
             const result = await joinWorkspace({
-                supabaseUrl: supabaseUrl.trim(),
-                supabaseAnonKey: supabaseAnonKey.trim(),
-                userEmail: email.trim(),
-                userPassword: password,
                 inviteCode: inviteCode.trim().toUpperCase(),
-                displayName: displayName.trim(),
             })
             if (result.ok) {
                 setSuccessInfo({ workspaceName: result.workspaceName })
@@ -90,79 +97,82 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
         }
     }
 
-    const supabaseFields = (
-        <div className="space-y-3">
-            <p className="text-xs text-[#6B7280] font-semibold uppercase tracking-wider">Supabase Project</p>
-            <div>
-                <label className="block text-xs text-[#9CA3AF] mb-1">Project URL</label>
-                <input
-                    className="w-full bg-[#1A1A2E] border border-[#2D2D44] rounded-lg px-3 py-2 text-sm text-[#E2E8F0] placeholder-[#4B5563] focus:outline-none focus:border-[#A78BFA] transition-colors"
-                    placeholder="https://xxxx.supabase.co"
-                    value={supabaseUrl}
-                    onChange={e => setSupabaseUrl(e.target.value)}
-                    spellCheck={false}
-                />
-            </div>
-            <div>
-                <label className="block text-xs text-[#9CA3AF] mb-1">Anon / Public Key</label>
-                <input
-                    className="w-full bg-[#1A1A2E] border border-[#2D2D44] rounded-lg px-3 py-2 text-sm text-[#E2E8F0] placeholder-[#4B5563] focus:outline-none focus:border-[#A78BFA] transition-colors font-mono text-xs"
-                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                    value={supabaseAnonKey}
-                    onChange={e => setSupabaseAnonKey(e.target.value)}
-                    spellCheck={false}
-                />
-            </div>
-        </div>
-    )
+    async function handleRevealInvite() {
+        setError(null)
+        setLoading(true)
+        try {
+            const result = await loadWorkspaceInvite()
+            if (!result.ok) setError(result.error ?? 'Could not load invite code')
+        } finally {
+            setLoading(false)
+        }
+    }
 
-    const accountFields = (
+    async function handleRotateInvite() {
+        setError(null)
+        setLoading(true)
+        try {
+            const result = await rotateWorkspaceInvite()
+            if (!result.ok) {
+                setError(result.error ?? 'Could not rotate invite code')
+                return
+            }
+            navigator.clipboard.writeText((useSyncStore.getState().workspaceInvite?.inviteCode) ?? '').catch(() => {})
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    async function handleManualSync() {
+        setError(null)
+        setLoading(true)
+        try {
+            const result = await manualSync()
+            if (!result.ok) setError(result.error ?? 'Manual sync failed')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    async function handleDisconnect() {
+        setError(null)
+        setLoading(true)
+        try {
+            await disconnect()
+            handleClose()
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    function formatInviteDate(value?: string | null) {
+        if (!value) return 'Not set'
+        const date = new Date(value)
+        return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+    }
+
+    const accountSummary = (
         <div className="space-y-3">
-            <p className="text-xs text-[#6B7280] font-semibold uppercase tracking-wider">Your Account</p>
-            <div>
-                <label className="block text-xs text-[#9CA3AF] mb-1">Email</label>
-                <input
-                    className="w-full bg-[#1A1A2E] border border-[#2D2D44] rounded-lg px-3 py-2 text-sm text-[#E2E8F0] placeholder-[#4B5563] focus:outline-none focus:border-[#A78BFA] transition-colors"
-                    placeholder="you@example.com"
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                />
-            </div>
-            <div>
-                <label className="block text-xs text-[#9CA3AF] mb-1">Password</label>
-                <div className="relative">
-                    <input
-                        className="w-full bg-[#1A1A2E] border border-[#2D2D44] rounded-lg px-3 py-2 pr-9 text-sm text-[#E2E8F0] placeholder-[#4B5563] focus:outline-none focus:border-[#A78BFA] transition-colors"
-                        placeholder="••••••••"
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                    />
-                    <button
-                        type="button"
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#9CA3AF]"
-                        onClick={() => setShowPassword(v => !v)}
-                    >
-                        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    </button>
+            <p className="text-xs text-[#6B7280] font-semibold uppercase tracking-wider">Signed-In Account</p>
+            <div className="rounded-xl border border-[#2D2D44] bg-[#161625] p-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#A78BFA]/10 flex items-center justify-center shrink-0">
+                        <User className="h-4 w-4 text-[#A78BFA]" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-[#E2E8F0]">{auth.user?.displayName ?? 'Signed-in user'}</p>
+                        <p className="text-xs text-[#9CA3AF] mt-1">{auth.user?.email ?? 'Email unavailable'}</p>
+                    </div>
                 </div>
-            </div>
-            <div>
-                <label className="block text-xs text-[#9CA3AF] mb-1">Display Name</label>
-                <input
-                    className="w-full bg-[#1A1A2E] border border-[#2D2D44] rounded-lg px-3 py-2 text-sm text-[#E2E8F0] placeholder-[#4B5563] focus:outline-none focus:border-[#A78BFA] transition-colors"
-                    placeholder="Your name (visible to teammates)"
-                    value={displayName}
-                    onChange={e => setDisplayName(e.target.value)}
-                />
+                {auth.usingOfflineSession && (
+                    <p className="mt-3 text-xs text-amber-300">Using a cached offline session. Cloud calls may fail until network access is restored.</p>
+                )}
             </div>
         </div>
     )
 
     return (
         <>
-            {/* Backdrop */}
             <div
                 className={cn(
                     'fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity duration-200',
@@ -170,7 +180,6 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                 )}
                 onClick={handleClose}
             />
-            {/* Dialog */}
             <div
                 className={cn(
                     'fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 transition-all duration-200',
@@ -178,14 +187,13 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                 )}
             >
                 <div className="app-panel w-[480px] max-h-[90vh] overflow-y-auto">
-                    {/* Header */}
                     <div className="flex items-center gap-3 p-5 pb-4 border-b border-[#2D2D44]">
                         <div className="w-9 h-9 rounded-xl bg-[#A78BFA]/10 flex items-center justify-center shrink-0">
                             <Cloud className="h-4.5 w-4.5 text-[#A78BFA]" />
                         </div>
                         <div>
                             <p className="text-sm font-bold text-[#E2E8F0]">Cloud Sync Setup</p>
-                            <p className="text-xs text-[#6B7280]">Connect your team for real-time collaboration</p>
+                            <p className="text-xs text-[#6B7280]">Manage workspace sync with your signed-in Supabase account</p>
                         </div>
                         <button
                             onClick={handleClose}
@@ -196,14 +204,72 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                     </div>
 
                     <div className="p-5 space-y-5">
-                        {/* Mode: choose */}
-                        {mode === 'choose' && (
+                        {isConnectedWorkspace && !successInfo && (
+                            <div className="space-y-4">
+                                <div className="rounded-xl border border-[#2D2D44] bg-[#161625] p-4 space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-[#E2E8F0]">{workspaceInfo?.workspaceName || 'Connected Workspace'}</p>
+                                            <p className="text-xs text-[#6B7280] mt-1">
+                                                Role: <span className="text-[#9CA3AF]">{workspaceInfo?.currentUserRole || 'member'}</span>
+                                            </p>
+                                        </div>
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
+                                            {status}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-[#9CA3AF]">Members: {workspaceInfo?.members?.length ?? 0}</p>
+                                    {workspaceInfo?.inviteCodeExpiresAt && (
+                                        <p className="text-xs text-[#6B7280]">Invite expires: {formatInviteDate(workspaceInfo.inviteCodeExpiresAt)}</p>
+                                    )}
+                                </div>
+
+                                {isOwner && (
+                                    <div className="rounded-xl border border-[#2D2D44] bg-[#161625] p-4 space-y-3">
+                                        <p className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Owner Invite Controls</p>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" onClick={handleRevealInvite} disabled={loading} className="h-9 px-4 font-bold bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13]">
+                                                Reveal Invite
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={handleRotateInvite} disabled={loading} className="h-9 px-4 border-[#2D2D44] text-[#E2E8F0]">
+                                                Rotate Invite
+                                            </Button>
+                                        </div>
+                                        {inviteMeta && (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 p-3 rounded-lg bg-[#1A1A2E] border border-[#2D2D44]">
+                                                    <span className="flex-1 font-mono text-sm font-bold text-[#A78BFA] tracking-widest text-center break-all">
+                                                        {inviteMeta.inviteCode}
+                                                    </span>
+                                                    <button
+                                                        className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors px-2 py-1 rounded border border-[#2D2D44] hover:border-[#4B5563]"
+                                                        onClick={() => navigator.clipboard.writeText(inviteMeta.inviteCode)}
+                                                    >
+                                                        Copy
+                                                    </button>
+                                                </div>
+                                                <p className="text-[11px] text-[#6B7280]">
+                                                    Rotated: {formatInviteDate(inviteMeta.inviteCodeRotatedAt)} · Expires: {formatInviteDate(inviteMeta.inviteCodeExpiresAt)}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {!isOwner && (
+                                    <div className="rounded-xl border border-[#2D2D44] bg-[#161625] p-4">
+                                        <p className="text-xs text-[#9CA3AF]">Invite codes are only visible to workspace owners.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {!isConnectedWorkspace && mode === 'choose' && (
                             <>
                                 <p className="text-xs text-[#9CA3AF] leading-relaxed">
-                                    Cloud sync requires a Supabase project. Run the{' '}
-                                    <code className="text-[#A78BFA] bg-[#1A1A2E] px-1 rounded">SUPABASE_SCHEMA.sql</code>{' '}
-                                    file in your project's SQL Editor first, then choose an option below.
+                                    Cloud sync requires a fresh Supabase project bootstrapped with <code className="text-[#A78BFA] bg-[#1A1A2E] px-1 rounded">SUPABASE_SCHEMA.sql</code>. Follow the repo guide in <code className="text-[#A78BFA] bg-[#1A1A2E] px-1 rounded">SUPABASE_SETUP.md</code> before creating or joining a workspace.
                                 </p>
+                                {accountSummary}
                                 <div className="grid grid-cols-2 gap-3">
                                     <button
                                         onClick={() => setMode('create')}
@@ -233,10 +299,9 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                             </>
                         )}
 
-                        {/* Mode: create */}
-                        {mode === 'create' && !successInfo && (
+                        {!isConnectedWorkspace && mode === 'create' && !successInfo && (
                             <>
-                                {supabaseFields}
+                                {accountSummary}
                                 <div className="space-y-3">
                                     <p className="text-xs text-[#6B7280] font-semibold uppercase tracking-wider">Workspace</p>
                                     <div>
@@ -249,32 +314,28 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                         />
                                     </div>
                                 </div>
-                                {accountFields}
                             </>
                         )}
 
-                        {/* Mode: join */}
-                        {mode === 'join' && !successInfo && (
+                        {!isConnectedWorkspace && mode === 'join' && !successInfo && (
                             <>
-                                {supabaseFields}
+                                {accountSummary}
                                 <div className="space-y-3">
                                     <p className="text-xs text-[#6B7280] font-semibold uppercase tracking-wider">Invite Code</p>
                                     <div>
                                         <label className="block text-xs text-[#9CA3AF] mb-1">Invite Code</label>
                                         <input
                                             className="w-full bg-[#1A1A2E] border border-[#2D2D44] rounded-lg px-3 py-2 text-sm text-[#E2E8F0] placeholder-[#4B5563] focus:outline-none focus:border-[#A78BFA] transition-colors font-mono tracking-widest"
-                                            placeholder="XXXX-XXXX"
+                                            placeholder="Paste invite code"
                                             value={inviteCode}
                                             onChange={e => setInviteCode(e.target.value)}
-                                            maxLength={9}
+                                            maxLength={64}
                                         />
                                     </div>
                                 </div>
-                                {accountFields}
                             </>
                         )}
 
-                        {/* Success state */}
                         {successInfo && (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
@@ -293,7 +354,7 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                     <div>
                                         <p className="text-xs text-[#9CA3AF] mb-2">Share this invite code with your teammate:</p>
                                         <div className="flex items-center gap-2 p-3 rounded-lg bg-[#1A1A2E] border border-[#2D2D44]">
-                                            <span className="flex-1 font-mono text-lg font-bold text-[#A78BFA] tracking-widest text-center">
+                                            <span className="flex-1 font-mono text-lg font-bold text-[#A78BFA] tracking-widest text-center break-all">
                                                 {successInfo.inviteCode}
                                             </span>
                                             <button
@@ -308,25 +369,37 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                             </div>
                         )}
 
-                        {/* Error */}
                         {error && (
                             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
                                 {error}
                             </div>
                         )}
 
-                        {/* Footer actions */}
                         <div className="flex items-center gap-3 pt-1">
-                            {mode !== 'choose' && !successInfo && (
+                            {!isConnectedWorkspace && mode !== 'choose' && !successInfo && (
                                 <button
                                     onClick={() => { setMode('choose'); setError(null) }}
                                     className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                                 >
-                                    ← Back
+                                    Back
                                 </button>
                             )}
                             <div className="flex-1" />
-                            {successInfo ? (
+                            {isConnectedWorkspace && !successInfo ? (
+                                <>
+                                    <Button variant="ghost" size="sm" onClick={handleDisconnect} className="h-9 px-4 text-red-300 hover:text-red-200 font-semibold">
+                                        Disconnect
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        onClick={handleManualSync}
+                                        disabled={loading}
+                                        className="h-9 px-5 font-bold bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] disabled:opacity-50"
+                                    >
+                                        {loading ? 'Syncing...' : 'Sync Now'}
+                                    </Button>
+                                </>
+                            ) : successInfo ? (
                                 <Button
                                     size="sm"
                                     onClick={handleClose}
@@ -342,10 +415,10 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                     <Button
                                         size="sm"
                                         onClick={handleCreate}
-                                        disabled={loading || !supabaseUrl || !supabaseAnonKey || !email || !password || !workspaceName || !displayName}
+                                        disabled={loading || !workspaceName.trim() || auth.status !== 'signed_in'}
                                         className="h-9 px-5 font-bold bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] disabled:opacity-50"
                                     >
-                                        {loading ? 'Creating…' : 'Create Workspace'}
+                                        {loading ? 'Creating...' : 'Create Workspace'}
                                     </Button>
                                 </>
                             ) : mode === 'join' ? (
@@ -356,15 +429,15 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                     <Button
                                         size="sm"
                                         onClick={handleJoin}
-                                        disabled={loading || !supabaseUrl || !supabaseAnonKey || !email || !password || !inviteCode || !displayName}
+                                        disabled={loading || !inviteCode.trim() || auth.status !== 'signed_in'}
                                         className="h-9 px-5 font-bold bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] disabled:opacity-50"
                                     >
-                                        {loading ? 'Joining…' : 'Join Workspace'}
+                                        {loading ? 'Joining...' : 'Join Workspace'}
                                     </Button>
                                 </>
                             ) : (
                                 <Button variant="ghost" size="sm" onClick={handleClose} className="h-9 px-4 text-[#9CA3AF] hover:text-[#E2E8F0] font-semibold">
-                                    Cancel
+                                    Close
                                 </Button>
                             )}
                         </div>

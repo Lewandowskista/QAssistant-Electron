@@ -282,8 +282,6 @@ export type QaEnvironment = {
     solrAdminUrl: string
     occBasePath: string
     ignoreSslErrors: boolean
-    username?: string
-    password?: string
 }
 
 export type TestDataEntry = {

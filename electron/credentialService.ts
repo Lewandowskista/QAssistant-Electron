@@ -23,6 +23,55 @@ export const SERVICE_NAME = 'QAssistant'
 // Fallback in-memory store for local dev when keytar isn't installed.
 const fallbackStore: Record<string, string> = {}
 let storagePath: string | null = null
+let plaintextFallbackAllowed = false
+
+export type CredentialStorageStatus = {
+    mode: 'keychain' | 'safeStorage' | 'plaintext'
+    encrypted: boolean
+    acknowledged: boolean
+    requiresAcknowledgement: boolean
+    canPersistSecrets: boolean
+}
+
+type SetCredentialOptions = {
+    allowInsecureImport?: boolean
+}
+
+export function setPlaintextFallbackAllowed(allowed: boolean): void {
+    plaintextFallbackAllowed = allowed
+}
+
+export function isPlaintextFallbackAllowed(): boolean {
+    return plaintextFallbackAllowed
+}
+
+export function getCredentialStorageStatus(): CredentialStorageStatus {
+    if (KEYTAR_AVAILABLE) {
+        return {
+            mode: 'keychain',
+            encrypted: true,
+            acknowledged: true,
+            requiresAcknowledgement: false,
+            canPersistSecrets: true,
+        }
+    }
+    if (safeStorage.isEncryptionAvailable()) {
+        return {
+            mode: 'safeStorage',
+            encrypted: true,
+            acknowledged: true,
+            requiresAcknowledgement: false,
+            canPersistSecrets: true,
+        }
+    }
+    return {
+        mode: 'plaintext',
+        encrypted: false,
+        acknowledged: plaintextFallbackAllowed,
+        requiresAcknowledgement: true,
+        canPersistSecrets: plaintextFallbackAllowed,
+    }
+}
 
 export function initCredentials(path: string): void {
     storagePath = path
@@ -62,13 +111,21 @@ async function saveToFile(): Promise<void> {
     }
 }
 
-export async function setCredential(account: string, secret: string): Promise<void> {
+export async function setCredential(account: string, secret: string, options: SetCredentialOptions = {}): Promise<void> {
+    const status = getCredentialStorageStatus()
+    if (status.mode === 'plaintext' && !status.canPersistSecrets && !options.allowInsecureImport) {
+        throw new Error('Credential storage is unavailable until insecure plaintext storage is explicitly allowed in Settings.')
+    }
     if (KEYTAR_AVAILABLE && keytar && typeof keytar.setPassword === 'function') {
         await keytar.setPassword(SERVICE_NAME, account, secret)
         return
     }
     fallbackStore[account] = secret
     await saveToFile()
+}
+
+export async function importLegacyCredential(account: string, secret: string): Promise<void> {
+    await setCredential(account, secret, { allowInsecureImport: true })
 }
 
 export async function getCredential(account: string): Promise<string | null> {

@@ -1,5 +1,6 @@
 // cspell:ignore unstarted duedate issuetype
 import { getCredential } from './credentialService';
+import { getAllProjects } from './database';
 
 // ── Status / Priority Mapping ────────────────────────────────────────────────
 
@@ -28,6 +29,79 @@ function cleanDescription(raw?: string | null): string {
 function getJiraBaseUrl(domain: string): string {
     const normalized = domain.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '')
     return normalized.includes('.') ? `https://${normalized}` : `https://${normalized}.atlassian.net`
+}
+
+function getAllowedJiraHosts(projectId?: string, connectionId?: string): Set<string> {
+    const hosts = new Set<string>(['api.media.atlassian.com'])
+    const projects = getAllProjects()
+
+    const matchingProject = projectId
+        ? projects.find(project => project.id === projectId)
+        : projects.find(project => (project.jiraConnections ?? []).some(connection => connection.id === connectionId))
+
+    const matchingConnection = (matchingProject?.jiraConnections ?? []).find(connection => !connectionId || connection.id === connectionId)
+    if (matchingConnection?.domain) {
+        hosts.add(new URL(getJiraBaseUrl(matchingConnection.domain)).hostname.toLowerCase())
+    }
+
+    return hosts
+}
+
+function isAllowedLinearHost(hostname: string): boolean {
+    return hostname === 'linear.app' || hostname.endsWith('.linear.app')
+}
+
+function assertTrustedMediaUrl(url: string, source: string, projectId?: string, connectionId?: string): URL {
+    const parsed = new URL(url)
+    if (!['https:', 'http:'].includes(parsed.protocol)) {
+        throw new Error(`Blocked media URL with unsupported protocol: ${parsed.protocol}`)
+    }
+
+    const hostname = parsed.hostname.toLowerCase()
+    if (source === 'jira') {
+        const allowedHosts = getAllowedJiraHosts(projectId, connectionId)
+        if (!allowedHosts.has(hostname)) {
+            throw new Error(`Blocked Jira media fetch to untrusted host: ${hostname}`)
+        }
+        return parsed
+    }
+
+    if (source === 'linear') {
+        if (!isAllowedLinearHost(hostname)) {
+            throw new Error(`Blocked Linear media fetch to untrusted host: ${hostname}`)
+        }
+        return parsed
+    }
+
+    throw new Error(`Unsupported media source: ${source}`)
+}
+
+async function fetchTrustedMedia(url: URL, headers: Record<string, string>): Promise<Response> {
+    let current = url
+
+    for (let redirectCount = 0; redirectCount < 5; redirectCount++) {
+        const res = await fetch(current, {
+            headers,
+            signal: AbortSignal.timeout(API_TIMEOUT_MS),
+            redirect: 'manual',
+        })
+
+        if (res.status >= 300 && res.status < 400) {
+            const location = res.headers.get('location')
+            if (!location) throw new Error('Media redirect missing location header')
+
+            const nextUrl = new URL(location, current)
+            if (nextUrl.hostname.toLowerCase() !== current.hostname.toLowerCase()) {
+                throw new Error(`Blocked cross-host media redirect from ${current.hostname} to ${nextUrl.hostname}`)
+            }
+            current = nextUrl
+            continue
+        }
+
+        return res
+    }
+
+    throw new Error('Too many media redirects')
 }
 
 // ── Linear API ────────────────────────────────────────────────────────────────
@@ -648,6 +722,7 @@ export async function createJiraIssue(domain: string, email: string, apiKey: str
  * Fetch media content with appropriate authentication based on source
  */
 export async function fetchAuthenticatedMedia(url: string, source: string, connectionId?: string, projectId?: string): Promise<{ data: Buffer, mimeType: string }> {
+    const trustedUrl = assertTrustedMediaUrl(url, source, projectId, connectionId)
     const headers: Record<string, string> = {};
     const projectPrefix = projectId ? `project:${projectId}:` : '';
 
@@ -681,7 +756,7 @@ export async function fetchAuthenticatedMedia(url: string, source: string, conne
         }
     }
 
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(API_TIMEOUT_MS) });
+    const res = await fetchTrustedMedia(trustedUrl, headers);
     if (!res.ok) throw new Error(`Media fetch failed: ${res.status} ${res.statusText}`);
 
     const arrayBuffer = await res.arrayBuffer();

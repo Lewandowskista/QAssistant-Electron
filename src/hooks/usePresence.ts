@@ -34,11 +34,8 @@ async function getSupabase() {
     try {
         const { createClient } = await import('@supabase/supabase-js')
         const config = useSyncStore.getState().config
-        if (!config?.configured || !config.url) return null
-        // Retrieve the anon key from secure storage via IPC
-        const anonKey = await window.electronAPI?.secureStoreGet?.('sync_supabase_anon_key')
-        if (!anonKey) return null
-        supabaseClient = createClient(config.url, anonKey, {
+        if (!config?.configured || !config.url || !config.anonKey) return null
+        supabaseClient = createClient(config.url, config.anonKey, {
             realtime: { params: { eventsPerSecond: 2 } }
         })
         return supabaseClient

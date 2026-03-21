@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useProjectStore } from "@/store/useProjectStore"
+import { useActiveProject } from "@/store/useProjectStore"
 import type { TestCase } from "@/types/project"
 import { cn } from "@/lib/utils"
 import { ExternalLink, Download, Search, Info } from "lucide-react"
@@ -17,8 +17,7 @@ interface CoverageCell {
 }
 
 export default function CoverageMatrix() {
-    const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
     const [viewMode, setViewMode] = useState<ViewMode>('issue')
     const [searchQuery, setSearchQuery] = useState("")
     const [hoveredCell, setHoveredCell] = useState<{ row: string; col: string } | null>(null)

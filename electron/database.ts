@@ -9,6 +9,7 @@
  */
 
 import type { Attachment, Note, Project, Task, TestCase, TestPlan } from '../src/types/project'
+import { importLegacyCredential, getCredentialStorageStatus } from './credentialService'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Database = require('better-sqlite3')
@@ -17,7 +18,7 @@ type DB = ReturnType<typeof Database>
 let db: DB | null = null
 
 // ─── Schema version ──────────────────────────────────────────────────────────
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -273,6 +274,11 @@ function createSchema(): void {
         );
         CREATE INDEX IF NOT EXISTS idx_environments_project ON environments(project_id);
 
+        CREATE TABLE IF NOT EXISTS secret_migration_state (
+            key TEXT PRIMARY KEY,
+            migrated_at INTEGER NOT NULL
+        );
+
         -- Project-level file attachments
         CREATE TABLE IF NOT EXISTS project_files (
             id              TEXT PRIMARY KEY,
@@ -478,6 +484,7 @@ function createSchema(): void {
         -- Pending sync mutations (persisted so they survive app restarts)
         CREATE TABLE IF NOT EXISTS sync_pending_queue (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            workspace_id TEXT,
             table_name   TEXT NOT NULL,
             op           TEXT NOT NULL,
             row_id       TEXT NOT NULL,
@@ -485,19 +492,122 @@ function createSchema(): void {
             retry_count  INTEGER NOT NULL DEFAULT 0,
             enqueued_at  INTEGER NOT NULL
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_queue_dedup ON sync_pending_queue(table_name, row_id);
+        CREATE TABLE IF NOT EXISTS sync_pending_queue_quarantine (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            workspace_id   TEXT,
+            table_name     TEXT NOT NULL,
+            op             TEXT NOT NULL,
+            row_id         TEXT NOT NULL,
+            payload_json   TEXT NOT NULL,
+            retry_count    INTEGER NOT NULL DEFAULT 0,
+            enqueued_at    INTEGER NOT NULL,
+            reason         TEXT NOT NULL,
+            quarantined_at INTEGER NOT NULL
+        );
     `)
 }
 
 // ─── Migrations ───────────────────────────────────────────────────────────────
+
+function hasColumn(database: DB, tableName: string, columnName: string): boolean {
+    const columns = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
+    return columns.some(column => column.name === columnName)
+}
+
+function migrateSyncQueueWorkspaceScope(database: DB): void {
+    if (!hasColumn(database, 'sync_pending_queue', 'workspace_id')) {
+        database.exec('ALTER TABLE sync_pending_queue ADD COLUMN workspace_id TEXT')
+    }
+
+    database.exec(`
+        CREATE TABLE IF NOT EXISTS sync_pending_queue_quarantine (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            workspace_id   TEXT,
+            table_name     TEXT NOT NULL,
+            op             TEXT NOT NULL,
+            row_id         TEXT NOT NULL,
+            payload_json   TEXT NOT NULL,
+            retry_count    INTEGER NOT NULL DEFAULT 0,
+            enqueued_at    INTEGER NOT NULL,
+            reason         TEXT NOT NULL,
+            quarantined_at INTEGER NOT NULL
+        );
+    `)
+
+    const rows = database.prepare(`
+        SELECT id, workspace_id, table_name, op, row_id, payload_json, retry_count, enqueued_at
+        FROM sync_pending_queue
+        ORDER BY id
+    `).all() as Array<{
+        id: number
+        workspace_id: string | null
+        table_name: string
+        op: string
+        row_id: string
+        payload_json: string
+        retry_count: number
+        enqueued_at: number
+    }>
+
+    const updateWorkspace = database.prepare('UPDATE sync_pending_queue SET workspace_id = ? WHERE id = ?')
+    const quarantine = database.prepare(`
+        INSERT INTO sync_pending_queue_quarantine (
+            workspace_id, table_name, op, row_id, payload_json, retry_count, enqueued_at, reason, quarantined_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const deleteQueued = database.prepare('DELETE FROM sync_pending_queue WHERE id = ?')
+
+    const tx = database.transaction(() => {
+        for (const row of rows) {
+            if (row.workspace_id) continue
+
+            let workspaceId: string | null = null
+            try {
+                const payload = JSON.parse(row.payload_json) as { workspace_id?: unknown }
+                workspaceId = typeof payload.workspace_id === 'string' && payload.workspace_id.trim()
+                    ? payload.workspace_id
+                    : null
+            } catch {
+                workspaceId = null
+            }
+
+            if (workspaceId) {
+                updateWorkspace.run(workspaceId, row.id)
+                continue
+            }
+
+            quarantine.run(
+                null,
+                row.table_name,
+                row.op,
+                row.row_id,
+                row.payload_json,
+                row.retry_count,
+                row.enqueued_at,
+                'missing_workspace_id',
+                Date.now(),
+            )
+            deleteQueued.run(row.id)
+        }
+    })
+    tx()
+
+    database.exec(`
+        DROP INDEX IF EXISTS idx_sync_queue_dedup;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_queue_dedup ON sync_pending_queue(workspace_id, table_name, row_id);
+        CREATE INDEX IF NOT EXISTS idx_sync_queue_workspace ON sync_pending_queue(workspace_id);
+    `)
+}
 
 function runMigrations(): void {
     const database = getDb()
     const row = database.prepare('SELECT version FROM schema_version LIMIT 1').get() as { version: number } | undefined
     const currentVersion = row?.version ?? 0
 
+    // This migration is idempotent and also repairs partially upgraded installs.
+    migrateSyncQueueWorkspaceScope(database)
+
     if (currentVersion < SCHEMA_VERSION) {
-        // Future migrations go here as: if (currentVersion < N) { ... }
         database.prepare('DELETE FROM schema_version').run()
         database.prepare('INSERT INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION)
     }
@@ -517,6 +627,52 @@ function p<T>(v: string | null | undefined): T | undefined {
 
 function bool(v: number | null | undefined): boolean {
     return v === 1
+}
+
+export async function migrateLegacyEnvironmentSecretsToSecureStore(): Promise<{ migrated: number; skipped: number }> {
+    const database = getDb()
+    const alreadyMigrated = database
+        .prepare('SELECT 1 FROM secret_migration_state WHERE key = ?')
+        .get('environment_credentials_v1') as { 1: number } | undefined
+
+    if (alreadyMigrated) {
+        return { migrated: 0, skipped: 0 }
+    }
+
+    const storageStatus = getCredentialStorageStatus()
+    const rows = database.prepare(`
+        SELECT id, username, password
+        FROM environments
+        WHERE username IS NOT NULL OR password IS NOT NULL
+        ORDER BY rowid
+    `).all() as Array<{ id: string; username: string | null; password: string | null }>
+
+    let migrated = 0
+    let skipped = 0
+    const clearSecrets = database.prepare('UPDATE environments SET username = NULL, password = NULL WHERE id = ?')
+    const markMigrated = database.prepare('INSERT OR REPLACE INTO secret_migration_state (key, migrated_at) VALUES (?, ?)')
+
+    for (const row of rows) {
+        try {
+            if (row.username) await importLegacyCredential(`Env_${row.id}_Username`, row.username)
+            if (row.password) await importLegacyCredential(`Env_${row.id}_Password`, row.password)
+            clearSecrets.run(row.id)
+            migrated++
+        } catch (error) {
+            skipped++
+            console.warn('[db] Failed to migrate legacy environment secrets:', {
+                environmentId: row.id,
+                mode: storageStatus.mode,
+                error,
+            })
+        }
+    }
+
+    if (skipped === 0) {
+        markMigrated.run('environment_credentials_v1', Date.now())
+    }
+
+    return { migrated, skipped }
 }
 
 // ─── Project row ↔ Project object ─────────────────────────────────────────────
@@ -666,6 +822,50 @@ type NoteAttachmentRow = {
     file_size_bytes: number | null
 }
 
+type HandoffRow = {
+    id: string
+    task_id: string
+    type: string
+    created_by_role: string
+    created_at: number
+    updated_at: number
+    summary: string
+    repro_steps: string
+    expected_result: string
+    actual_result: string
+    environment_id: string | null
+    environment_name: string | null
+    severity: string | null
+    branch_name: string | null
+    release_version: string | null
+    reproducibility: string | null
+    frequency: string | null
+    linked_test_case_ids_json: string | null
+    linked_execution_refs_json: string | null
+    linked_note_ids_json: string | null
+    linked_file_ids_json: string | null
+    linked_prs_json: string | null
+    developer_response: string | null
+    qa_verification_notes: string | null
+    resolution_summary: string | null
+    acknowledged_at: number | null
+    completed_at: number | null
+    is_complete: number | null
+    missing_fields_json: string | null
+}
+
+type CollaborationEventRow = {
+    id: string
+    task_id: string
+    handoff_id: string | null
+    event_type: string
+    actor_role: string
+    timestamp: number
+    title: string
+    details: string | null
+    metadata_json: string | null
+}
+
 type TestPlanRow = {
     id: string
     display_id: string
@@ -700,6 +900,253 @@ type TestCaseRow = {
     linked_defect_ids_json: string | null
     change_log_json: string | null
     updated_at: number
+}
+
+function rowToHandoff(row: HandoffRow): any {
+    return {
+        id: row.id, taskId: row.task_id, type: row.type,
+        createdByRole: row.created_by_role, createdAt: row.created_at, updatedAt: row.updated_at,
+        summary: row.summary, reproSteps: row.repro_steps,
+        expectedResult: row.expected_result, actualResult: row.actual_result,
+        environmentId: row.environment_id ?? undefined, environmentName: row.environment_name ?? undefined,
+        severity: row.severity ?? undefined, branchName: row.branch_name ?? undefined,
+        releaseVersion: row.release_version ?? undefined,
+        reproducibility: row.reproducibility ?? undefined, frequency: row.frequency ?? undefined,
+        linkedTestCaseIds: p<string[]>(row.linked_test_case_ids_json) ?? [],
+        linkedExecutionRefs: p(row.linked_execution_refs_json) ?? [],
+        linkedNoteIds: p<string[]>(row.linked_note_ids_json) ?? [],
+        linkedFileIds: p<string[]>(row.linked_file_ids_json) ?? [],
+        linkedPrs: p(row.linked_prs_json) ?? [],
+        developerResponse: row.developer_response ?? undefined,
+        qaVerificationNotes: row.qa_verification_notes ?? undefined,
+        resolutionSummary: row.resolution_summary ?? undefined,
+        acknowledgedAt: row.acknowledged_at ?? undefined,
+        completedAt: row.completed_at ?? undefined,
+        isComplete: bool(row.is_complete),
+        missingFields: p<string[]>(row.missing_fields_json) ?? undefined,
+    }
+}
+
+function rowToCollaborationEvent(row: CollaborationEventRow): any {
+    return {
+        id: row.id,
+        taskId: row.task_id,
+        handoffId: row.handoff_id ?? undefined,
+        eventType: row.event_type,
+        actorRole: row.actor_role,
+        timestamp: row.timestamp,
+        title: row.title,
+        details: row.details ?? undefined,
+        metadata: p(row.metadata_json),
+    }
+}
+
+function hydrateProject(projectRow: ProjectRow): Project {
+    const database = getDb()
+    const proj = rowToProject(projectRow)
+    const pid = projectRow.id
+
+    const taskRows = database.prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY rowid').all(pid) as TaskRow[]
+    proj.tasks = taskRows.map(rowToTask)
+
+    const noteRows = database.prepare('SELECT * FROM notes WHERE project_id = ? ORDER BY rowid').all(pid) as NoteRow[]
+    proj.notes = noteRows.map((n): Note => {
+        const attachRows = database.prepare('SELECT * FROM note_attachments WHERE note_id = ?').all(n.id) as NoteAttachmentRow[]
+        return {
+            id: n.id,
+            title: n.title,
+            content: n.content,
+            updatedAt: n.updated_at,
+            attachments: attachRows.map((a): Attachment => ({
+                id: a.id, fileName: a.file_name, filePath: a.file_path,
+                mimeType: a.mime_type ?? undefined, fileSizeBytes: a.file_size_bytes ?? undefined
+            }))
+        }
+    })
+
+    const planRows = database.prepare('SELECT * FROM test_plans WHERE project_id = ? ORDER BY rowid').all(pid) as TestPlanRow[]
+    proj.testPlans = planRows.map((plan): TestPlan => {
+        const caseRows = database.prepare('SELECT * FROM test_cases WHERE test_plan_id = ? ORDER BY rowid').all(plan.id) as TestCaseRow[]
+        return {
+            id: plan.id,
+            displayId: plan.display_id,
+            name: plan.name,
+            description: plan.description,
+            isArchived: bool(plan.is_archived),
+            isRegressionSuite: bool(plan.is_regression_suite),
+            source: plan.source ?? undefined,
+            criticality: plan.criticality ?? undefined,
+            createdAt: plan.created_at,
+            updatedAt: plan.updated_at,
+            testCases: caseRows.map((tc): TestCase => ({
+                id: tc.id,
+                displayId: tc.display_id,
+                title: tc.title,
+                preConditions: tc.pre_conditions,
+                steps: tc.steps,
+                testData: tc.test_data,
+                expectedResult: tc.expected_result,
+                actualResult: tc.actual_result,
+                priority: tc.priority,
+                status: tc.status,
+                sapModule: tc.sap_module ?? undefined,
+                sourceIssueId: tc.source_issue_id ?? undefined,
+                tags: p<string[]>(tc.tags_json) ?? [],
+                components: p<string[]>(tc.components_json) ?? [],
+                assignedTo: tc.assigned_to ?? undefined,
+                estimatedMinutes: tc.estimated_minutes ?? undefined,
+                testType: tc.test_type ?? undefined,
+                linkedDefectIds: p<string[]>(tc.linked_defect_ids_json) ?? [],
+                changeLog: p(tc.change_log_json) ?? [],
+                updatedAt: tc.updated_at,
+            })),
+        }
+    })
+
+    const sessionRows = database.prepare('SELECT * FROM test_run_sessions WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.testRunSessions = sessionRows.map((sess: any) => {
+        const planExecRows = database.prepare('SELECT * FROM test_plan_executions WHERE session_id = ? ORDER BY rowid').all(sess.id) as any[]
+        return {
+            id: sess.id,
+            timestamp: sess.timestamp,
+            isArchived: bool(sess.is_archived),
+            environmentId: sess.environment_id ?? undefined,
+            environmentName: sess.environment_name ?? undefined,
+            planExecutions: planExecRows.map((pe: any) => {
+                const caseExecRows = database.prepare('SELECT * FROM test_case_executions WHERE plan_execution_id = ? ORDER BY rowid').all(pe.id) as any[]
+                return {
+                    id: pe.id,
+                    testPlanId: pe.test_plan_id,
+                    snapshotTestPlanName: pe.snapshot_test_plan_name,
+                    caseExecutions: caseExecRows.map((ce: any) => ({
+                        id: ce.id, testCaseId: ce.test_case_id, result: ce.result,
+                        actualResult: ce.actual_result, notes: ce.notes, snapshotTitle: ce.snapshot_title,
+                        snapshotPreConditions: ce.snapshot_pre_conditions ?? undefined,
+                        snapshotSteps: ce.snapshot_steps ?? undefined,
+                        snapshotTestData: ce.snapshot_test_data ?? undefined,
+                        snapshotExpectedResult: ce.snapshot_expected_result ?? undefined,
+                        snapshotPriority: ce.snapshot_priority ?? undefined,
+                        durationSeconds: ce.duration_seconds ?? undefined,
+                        blockedReason: ce.blocked_reason ?? undefined,
+                        environmentId: ce.environment_id ?? undefined,
+                        environmentName: ce.environment_name ?? undefined,
+                        attachments: p(ce.attachments_json) ?? [],
+                    })),
+                }
+            }),
+        }
+    })
+
+    const legacyExecRows = database.prepare('SELECT * FROM test_executions_legacy WHERE project_id = ? ORDER BY executed_at DESC').all(pid) as any[]
+    proj.testExecutions = legacyExecRows.map((e: any) => ({
+        id: e.id, testCaseId: e.test_case_id, testPlanId: e.test_plan_id,
+        result: e.result, actualResult: e.actual_result, notes: e.notes,
+        executedAt: e.executed_at, snapshotTitle: e.snapshot_title,
+        snapshotPreConditions: e.snapshot_pre_conditions ?? undefined,
+        snapshotSteps: e.snapshot_steps ?? undefined,
+        snapshotTestData: e.snapshot_test_data ?? undefined,
+        snapshotExpectedResult: e.snapshot_expected_result ?? undefined,
+        snapshotPriority: e.snapshot_priority ?? undefined,
+        durationSeconds: e.duration_seconds ?? undefined,
+        blockedReason: e.blocked_reason ?? undefined,
+        environmentId: e.environment_id ?? undefined,
+        environmentName: e.environment_name ?? undefined,
+    }))
+
+    const envRows = database.prepare('SELECT * FROM environments WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.environments = envRows.map((e: any) => ({
+        id: e.id, name: e.name, type: e.type, color: e.color,
+        isDefault: bool(e.is_default), createdAt: e.created_at,
+        baseUrl: e.base_url, notes: e.notes, healthCheckUrl: e.health_check_url,
+        hacUrl: e.hac_url, backOfficeUrl: e.back_office_url, storefrontUrl: e.storefront_url,
+        solrAdminUrl: e.solr_admin_url, occBasePath: e.occ_base_path,
+        ignoreSslErrors: bool(e.ignore_ssl_errors),
+    }))
+
+    const fileRows = database.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.files = fileRows.map((f: any) => ({
+        id: f.id, fileName: f.file_name, filePath: f.file_path,
+        mimeType: f.mime_type ?? undefined, fileSizeBytes: f.file_size_bytes ?? undefined,
+    }))
+
+    const tdgRows = database.prepare('SELECT * FROM test_data_groups WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.testDataGroups = tdgRows.map((g: any) => {
+        const entryRows = database.prepare('SELECT * FROM test_data_entries WHERE group_id = ? ORDER BY rowid').all(g.id) as any[]
+        return {
+            id: g.id, name: g.name, category: g.category, createdAt: g.created_at,
+            entries: entryRows.map((e: any) => ({
+                id: e.id, key: e.key, value: e.value, description: e.description,
+                tags: e.tags, environment: e.environment,
+            })),
+        }
+    })
+
+    const checklistRows = database.prepare('SELECT * FROM checklists WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.checklists = checklistRows.map((cl: any) => {
+        const itemRows = database.prepare('SELECT * FROM checklist_items WHERE checklist_id = ? ORDER BY rowid').all(cl.id) as any[]
+        return {
+            id: cl.id, name: cl.name, category: cl.category, createdAt: cl.created_at, updatedAt: cl.updated_at,
+            items: itemRows.map((i: any) => ({ id: i.id, text: i.text, isChecked: bool(i.is_checked) }))
+        }
+    })
+
+    const apiReqRows = database.prepare('SELECT * FROM api_requests WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.apiRequests = apiReqRows.map((r: any) => ({
+        id: r.id, name: r.name, category: r.category, method: r.method,
+        url: r.url, headers: r.headers, body: r.body, createdAt: r.created_at, updatedAt: r.updated_at,
+    }))
+
+    const runbookRows = database.prepare('SELECT * FROM runbooks WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.runbooks = runbookRows.map((rb: any) => {
+        const stepRows = database.prepare('SELECT * FROM runbook_steps WHERE runbook_id = ? ORDER BY ord').all(rb.id) as any[]
+        return {
+            id: rb.id, name: rb.name, description: rb.description ?? undefined,
+            category: rb.category, createdAt: rb.created_at, updatedAt: rb.updated_at,
+            steps: stepRows.map((s: any) => ({
+                id: s.id, title: s.title, description: s.description ?? undefined,
+                status: s.status, order: s.ord, updatedAt: s.updated_at,
+            }))
+        }
+    })
+
+    const handoffRows = database.prepare('SELECT * FROM handoff_packets WHERE project_id = ? ORDER BY rowid').all(pid) as HandoffRow[]
+    proj.handoffPackets = handoffRows.map(rowToHandoff)
+
+    const linkRows = database.prepare('SELECT * FROM artifact_links WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.artifactLinks = linkRows.map((l: any) => ({
+        id: l.id, sourceType: l.source_type, sourceId: l.source_id,
+        targetType: l.target_type, targetId: l.target_id,
+        label: l.label, createdAt: l.created_at,
+    }))
+
+    const eventRows = database.prepare('SELECT * FROM collaboration_events WHERE project_id = ? ORDER BY timestamp').all(pid) as CollaborationEventRow[]
+    proj.collaborationEvents = eventRows.map(rowToCollaborationEvent)
+
+    const expRows = database.prepare('SELECT * FROM exploratory_sessions WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.exploratorySessions = expRows.map((sess: any) => {
+        const obsRows = database.prepare('SELECT * FROM exploratory_observations WHERE session_id = ? ORDER BY timestamp').all(sess.id) as any[]
+        return {
+            id: sess.id, charter: sess.charter, timebox: sess.timebox,
+            tester: sess.tester, startedAt: sess.started_at,
+            completedAt: sess.completed_at ?? undefined, notes: sess.notes,
+            discoveredBugIds: p<string[]>(sess.discovered_bug_ids_json) ?? [],
+            observations: obsRows.map((o: any) => ({
+                id: o.id, timestamp: o.timestamp, type: o.type,
+                description: o.description, severity: o.severity ?? undefined,
+            })),
+        }
+    })
+
+    const accuracyRows = database.prepare('SELECT * FROM accuracy_test_suites WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
+    proj.accuracyTestSuites = accuracyRows.map((s: any) => ({
+        id: s.id, name: s.name, createdAt: s.created_at, updatedAt: s.updated_at,
+        highAccuracyMode: bool(s.high_accuracy_mode),
+        referenceDocuments: p(s.reference_docs_json) ?? [],
+        qaPairs: p(s.qa_pairs_json) ?? [],
+        evalRuns: p(s.eval_runs_json) ?? [],
+    }))
+
+    return proj
 }
 
 // ─── Read all projects (full denormalised document, mirrors old JSON shape) ────
@@ -844,7 +1291,6 @@ export function getAllProjects(): Project[] {
             backOfficeUrl: e.back_office_url, storefrontUrl: e.storefront_url,
             solrAdminUrl: e.solr_admin_url, occBasePath: e.occ_base_path,
             ignoreSslErrors: bool(e.ignore_ssl_errors),
-            username: e.username ?? undefined, password: e.password ?? undefined,
         }))
 
         // project files
@@ -974,6 +1420,235 @@ export function getAllProjects(): Project[] {
     })
 }
 
+export function getProjectById(projectId: string): Project | null {
+    const database = getDb()
+    const row = database.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as ProjectRow | undefined
+    return row ? hydrateProject(row) : null
+}
+
+export function getProjectSummaries(): Array<{
+    id: string
+    name: string
+    description?: string
+    testPlanCount: number
+    testCaseCount: number
+    testExecutionCount: number
+}> {
+    const database = getDb()
+    return (database.prepare(`
+        SELECT
+            p.id as id,
+            p.name as name,
+            p.description as description,
+            COUNT(DISTINCT tp.id) as testPlanCount,
+            COUNT(DISTINCT tc.id) as testCaseCount,
+            COUNT(DISTINCT te.id) as testExecutionCount
+        FROM projects p
+        LEFT JOIN test_plans tp ON tp.project_id = p.id
+        LEFT JOIN test_cases tc ON tc.project_id = p.id
+        LEFT JOIN test_executions_legacy te ON te.project_id = p.id
+        GROUP BY p.id, p.name, p.description
+        ORDER BY p.rowid
+    `).all() as any[]).map((row) => ({
+        id: row.id,
+        name: row.name,
+        description: row.description ?? undefined,
+        testPlanCount: Number(row.testPlanCount ?? 0),
+        testCaseCount: Number(row.testCaseCount ?? 0),
+        testExecutionCount: Number(row.testExecutionCount ?? 0),
+    }))
+}
+
+export function upsertProjectNote(projectId: string, note: Note): void {
+    const database = getDb()
+    const upsertNote = database.prepare(`
+        INSERT INTO notes (id, project_id, title, content, updated_at)
+        VALUES (@id, @project_id, @title, @content, @updated_at)
+        ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            content = excluded.content,
+            updated_at = excluded.updated_at
+    `)
+    const deleteAttachments = database.prepare('DELETE FROM note_attachments WHERE note_id = ?')
+    const insertAttachment = database.prepare(`
+        INSERT OR REPLACE INTO note_attachments (id, note_id, project_id, file_name, file_path, mime_type, file_size_bytes)
+        VALUES (@id, @note_id, @project_id, @file_name, @file_path, @mime_type, @file_size_bytes)
+    `)
+    const touchProject = database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
+
+    database.transaction(() => {
+        upsertNote.run({
+            id: note.id,
+            project_id: projectId,
+            title: note.title ?? '',
+            content: note.content ?? '',
+            updated_at: note.updatedAt,
+        })
+        deleteAttachments.run(note.id)
+        for (const attachment of note.attachments ?? []) {
+            insertAttachment.run({
+                id: attachment.id,
+                note_id: note.id,
+                project_id: projectId,
+                file_name: attachment.fileName,
+                file_path: attachment.filePath,
+                mime_type: attachment.mimeType ?? null,
+                file_size_bytes: attachment.fileSizeBytes ?? null,
+            })
+        }
+        touchProject.run(Date.now(), projectId)
+    })()
+}
+
+export function deleteProjectNote(projectId: string, noteId: string): void {
+    const database = getDb()
+    database.transaction(() => {
+        database.prepare('DELETE FROM notes WHERE project_id = ? AND id = ?').run(projectId, noteId)
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
+export function upsertProjectTask(projectId: string, task: Task): void {
+    const database = getDb()
+    const stmt = database.prepare(`
+        INSERT OR REPLACE INTO tasks (id, project_id, title, description, status, priority, severity,
+            acceptance_criteria, version, source_issue_id, external_id, ticket_url, issue_type,
+            raw_description, assignee, labels, components_json, due_date, source, connection_id,
+            attachment_urls_json, analysis_history_json, linked_test_case_id, linked_defect_ids_json,
+            collab_state, active_handoff_id, last_collab_updated_at, reproducibility, frequency,
+            affected_environments_json, sprint_json, created_at, updated_at)
+        VALUES (@id, @project_id, @title, @description, @status, @priority, @severity,
+            @acceptance_criteria, @version, @source_issue_id, @external_id, @ticket_url, @issue_type,
+            @raw_description, @assignee, @labels, @components_json, @due_date, @source, @connection_id,
+            @attachment_urls_json, @analysis_history_json, @linked_test_case_id, @linked_defect_ids_json,
+            @collab_state, @active_handoff_id, @last_collab_updated_at, @reproducibility, @frequency,
+            @affected_environments_json, @sprint_json, @created_at, @updated_at)
+    `)
+    database.transaction(() => {
+        stmt.run({
+            id: task.id,
+            project_id: projectId,
+            title: task.title,
+            description: task.description ?? '',
+            status: task.status ?? 'todo',
+            priority: task.priority ?? 'medium',
+            severity: task.severity ?? null,
+            acceptance_criteria: task.acceptanceCriteria ?? null,
+            version: task.version ?? null,
+            source_issue_id: task.sourceIssueId ?? null,
+            external_id: task.externalId ?? null,
+            ticket_url: task.ticketUrl ?? null,
+            issue_type: task.issueType ?? null,
+            raw_description: task.rawDescription ?? null,
+            assignee: task.assignee ?? null,
+            labels: task.labels ?? null,
+            components_json: j(task.components ?? []),
+            due_date: task.dueDate ?? null,
+            source: task.source ?? null,
+            connection_id: task.connectionId ?? null,
+            attachment_urls_json: j(task.attachmentUrls),
+            analysis_history_json: j(task.analysisHistory ?? []),
+            linked_test_case_id: task.linkedTestCaseId ?? null,
+            linked_defect_ids_json: j(task.linkedDefectIds ?? []),
+            collab_state: task.collabState ?? 'draft',
+            active_handoff_id: task.activeHandoffId ?? null,
+            last_collab_updated_at: task.lastCollabUpdatedAt ?? null,
+            reproducibility: task.reproducibility ?? null,
+            frequency: task.frequency ?? null,
+            affected_environments_json: j(task.affectedEnvironments),
+            sprint_json: j(task.sprint),
+            created_at: task.createdAt,
+            updated_at: task.updatedAt,
+        })
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
+export function deleteProjectTask(projectId: string, taskId: string): void {
+    const database = getDb()
+    database.transaction(() => {
+        database.prepare('DELETE FROM tasks WHERE project_id = ? AND id = ?').run(projectId, taskId)
+        database.prepare('DELETE FROM handoff_packets WHERE project_id = ? AND task_id = ?').run(projectId, taskId)
+        database.prepare('DELETE FROM collaboration_events WHERE project_id = ? AND task_id = ?').run(projectId, taskId)
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
+export function upsertProjectHandoff(projectId: string, handoff: any): void {
+    const database = getDb()
+    const stmt = database.prepare(`
+        INSERT OR REPLACE INTO handoff_packets (id, project_id, task_id, type, created_by_role, created_at, updated_at,
+            summary, repro_steps, expected_result, actual_result, environment_id, environment_name,
+            severity, branch_name, release_version, reproducibility, frequency,
+            linked_test_case_ids_json, linked_execution_refs_json, linked_note_ids_json, linked_file_ids_json, linked_prs_json,
+            developer_response, qa_verification_notes, resolution_summary,
+            acknowledged_at, completed_at, is_complete, missing_fields_json)
+        VALUES (@id, @project_id, @task_id, @type, @created_by_role, @created_at, @updated_at,
+            @summary, @repro_steps, @expected_result, @actual_result, @environment_id, @environment_name,
+            @severity, @branch_name, @release_version, @reproducibility, @frequency,
+            @linked_test_case_ids_json, @linked_execution_refs_json, @linked_note_ids_json, @linked_file_ids_json, @linked_prs_json,
+            @developer_response, @qa_verification_notes, @resolution_summary,
+            @acknowledged_at, @completed_at, @is_complete, @missing_fields_json)
+    `)
+    database.transaction(() => {
+        stmt.run({
+            id: handoff.id,
+            project_id: projectId,
+            task_id: handoff.taskId,
+            type: handoff.type ?? 'bug_handoff',
+            created_by_role: handoff.createdByRole ?? 'qa',
+            created_at: handoff.createdAt,
+            updated_at: handoff.updatedAt,
+            summary: handoff.summary ?? '',
+            repro_steps: handoff.reproSteps ?? '',
+            expected_result: handoff.expectedResult ?? '',
+            actual_result: handoff.actualResult ?? '',
+            environment_id: handoff.environmentId ?? null,
+            environment_name: handoff.environmentName ?? null,
+            severity: handoff.severity ?? null,
+            branch_name: handoff.branchName ?? null,
+            release_version: handoff.releaseVersion ?? null,
+            reproducibility: handoff.reproducibility ?? null,
+            frequency: handoff.frequency ?? null,
+            linked_test_case_ids_json: j(handoff.linkedTestCaseIds ?? []),
+            linked_execution_refs_json: j(handoff.linkedExecutionRefs ?? []),
+            linked_note_ids_json: j(handoff.linkedNoteIds ?? []),
+            linked_file_ids_json: j(handoff.linkedFileIds ?? []),
+            linked_prs_json: j(handoff.linkedPrs ?? []),
+            developer_response: handoff.developerResponse ?? null,
+            qa_verification_notes: handoff.qaVerificationNotes ?? null,
+            resolution_summary: handoff.resolutionSummary ?? null,
+            acknowledged_at: handoff.acknowledgedAt ?? null,
+            completed_at: handoff.completedAt ?? null,
+            is_complete: handoff.isComplete ? 1 : 0,
+            missing_fields_json: j(handoff.missingFields),
+        })
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
+export function insertProjectCollaborationEvent(projectId: string, event: any): void {
+    const database = getDb()
+    database.transaction(() => {
+        database.prepare(`
+            INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            event.id,
+            projectId,
+            event.taskId,
+            event.handoffId ?? null,
+            event.eventType,
+            event.actorRole,
+            event.timestamp,
+            event.title ?? '',
+            event.details ?? null,
+            j(event.metadata),
+        )
+        database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
+    })()
+}
+
 // ─── Write all projects (full upsert, mirrors old write-projects-file) ─────────
 // Uses a single transaction for atomicity.
 
@@ -1091,10 +1766,10 @@ export function saveAllProjects(projects: any[]): void {
     const insertEnv = database.prepare(`
         INSERT OR REPLACE INTO environments (id, project_id, name, type, color, is_default, created_at,
             base_url, notes, health_check_url, hac_url, back_office_url, storefront_url,
-            solr_admin_url, occ_base_path, ignore_ssl_errors, username, password)
+            solr_admin_url, occ_base_path, ignore_ssl_errors)
         VALUES (@id, @project_id, @name, @type, @color, @is_default, @created_at,
             @base_url, @notes, @health_check_url, @hac_url, @back_office_url, @storefront_url,
-            @solr_admin_url, @occ_base_path, @ignore_ssl_errors, @username, @password)
+            @solr_admin_url, @occ_base_path, @ignore_ssl_errors)
     `)
 
     const insertFile = database.prepare(`
@@ -1389,7 +2064,6 @@ export function saveAllProjects(projects: any[]): void {
                     storefront_url: env.storefrontUrl ?? '', solr_admin_url: env.solrAdminUrl ?? '',
                     occ_base_path: env.occBasePath ?? '',
                     ignore_ssl_errors: env.ignoreSslErrors ? 1 : 0,
-                    username: env.username ?? null, password: env.password ?? null,
                 })
             }
 
@@ -1691,27 +2365,39 @@ export function getHandoffById(handoffId: string): any | null {
 
 // ─── Persistent mutation queue helpers (used by sync.ts) ──────────────────────
 
-export function enqueueSyncMutation(tableName: string, op: string, rowId: string, payload: Record<string, unknown>): void {
+export function enqueueSyncMutation(workspaceId: string, tableName: string, op: string, rowId: string, payload: Record<string, unknown>): void {
     const database = getDb()
-    // DELETE + INSERT to implement dedup (last-write-wins for same table+row_id)
-    database.prepare('DELETE FROM sync_pending_queue WHERE table_name = ? AND row_id = ?').run(tableName, rowId)
+    // DELETE + INSERT to implement dedup (last-write-wins for same workspace+table+row_id)
+    database.prepare('DELETE FROM sync_pending_queue WHERE workspace_id = ? AND table_name = ? AND row_id = ?').run(workspaceId, tableName, rowId)
     database.prepare(
-        'INSERT INTO sync_pending_queue (table_name, op, row_id, payload_json, retry_count, enqueued_at) VALUES (?, ?, ?, ?, 0, ?)'
-    ).run(tableName, op, rowId, JSON.stringify(payload), Date.now())
+        'INSERT INTO sync_pending_queue (workspace_id, table_name, op, row_id, payload_json, retry_count, enqueued_at) VALUES (?, ?, ?, ?, ?, 0, ?)'
+    ).run(workspaceId, tableName, op, rowId, JSON.stringify(payload), Date.now())
 }
 
-export function loadSyncPendingQueue(): Array<{ id: number; table_name: string; op: string; row_id: string; payload: Record<string, unknown>; retry_count: number; enqueued_at: number }> {
+export function loadSyncPendingQueue(workspaceId: string): Array<{ id: number; workspace_id: string | null; table_name: string; op: string; row_id: string; payload: Record<string, unknown>; payload_json: string; retry_count: number; enqueued_at: number }> {
     const database = getDb()
-    const rows = database.prepare('SELECT * FROM sync_pending_queue ORDER BY id').all() as any[]
+    const rows = database.prepare('SELECT * FROM sync_pending_queue WHERE workspace_id = ? ORDER BY id').all(workspaceId) as any[]
     return rows.map(r => ({
         id: r.id,
+        workspace_id: r.workspace_id ?? null,
         table_name: r.table_name,
         op: r.op,
         row_id: r.row_id,
         payload: JSON.parse(r.payload_json),
+        payload_json: r.payload_json,
         retry_count: r.retry_count,
         enqueued_at: r.enqueued_at,
     }))
+}
+
+export function countSyncPendingQueue(workspaceId?: string | null): number {
+    const database = getDb()
+    if (workspaceId) {
+        const row = database.prepare('SELECT COUNT(*) as cnt FROM sync_pending_queue WHERE workspace_id = ?').get(workspaceId) as { cnt: number }
+        return row.cnt
+    }
+    const row = database.prepare('SELECT COUNT(*) as cnt FROM sync_pending_queue').get() as { cnt: number }
+    return row.cnt
 }
 
 export function removeSyncMutation(id: number): void {
@@ -1724,7 +2410,51 @@ export function incrementSyncMutationRetry(id: number): void {
     database.prepare('UPDATE sync_pending_queue SET retry_count = retry_count + 1 WHERE id = ?').run(id)
 }
 
-export function clearSyncPendingQueue(): void {
+export function clearSyncPendingQueue(workspaceId?: string | null): void {
     const database = getDb()
+    if (workspaceId) {
+        database.prepare('DELETE FROM sync_pending_queue WHERE workspace_id = ?').run(workspaceId)
+        return
+    }
     database.prepare('DELETE FROM sync_pending_queue').run()
+}
+
+export function quarantineSyncPendingQueue(workspaceId: string, reason: string): number {
+    const database = getDb()
+    const rows = database.prepare('SELECT * FROM sync_pending_queue WHERE workspace_id = ? ORDER BY id').all(workspaceId) as Array<{
+        workspace_id: string | null
+        table_name: string
+        op: string
+        row_id: string
+        payload_json: string
+        retry_count: number
+        enqueued_at: number
+    }>
+
+    const insertQuarantine = database.prepare(`
+        INSERT INTO sync_pending_queue_quarantine (
+            workspace_id, table_name, op, row_id, payload_json, retry_count, enqueued_at, reason, quarantined_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const deleteQueued = database.prepare('DELETE FROM sync_pending_queue WHERE workspace_id = ?')
+
+    const tx = database.transaction(() => {
+        for (const row of rows) {
+            insertQuarantine.run(
+                row.workspace_id,
+                row.table_name,
+                row.op,
+                row.row_id,
+                row.payload_json,
+                row.retry_count,
+                row.enqueued_at,
+                reason,
+                Date.now(),
+            )
+        }
+        deleteQueued.run(workspaceId)
+    })
+    tx()
+
+    return rows.length
 }

@@ -7,7 +7,7 @@ interface HealthEntry {
     lastChecked: string;
     latencyMs?: number;
 }
-import { Plus, Trash2, Save, Activity, Server, ShieldCheck, Globe, Database, Key, StickyNote, Star, Bug, Monitor, Lock, Unlock } from "lucide-react"
+import { Plus, Trash2, Save, Activity, Server, ShieldCheck, Globe, Database, Key, StickyNote, Star, Bug, Monitor, Lock, Unlock, AlertTriangle } from "lucide-react"
 import { BugReportDialog } from "@/components/BugReportDialog"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -38,6 +38,13 @@ const ENV_TYPES: { id: EnvironmentType; label: string }[] = [
     { id: 'custom', label: 'Custom' },
 ]
 
+type EditableEnvironment = QaEnvironment & {
+    username?: string
+    password?: string
+}
+
+type CredentialStorageStatus = Awaited<ReturnType<typeof window.electronAPI.getCredentialStorageStatus>>
+
 export default function EnvironmentsPage() {
     const api = window.electronAPI
     const { projects, activeProjectId, addEnvironment, updateEnvironment, deleteEnvironment, setEnvironmentDefault } = useProjectStore()
@@ -45,7 +52,7 @@ export default function EnvironmentsPage() {
     const environments = activeProject?.environments || []
 
     const [selectedEnvId, setSelectedEnvId] = useState<string | null>(environments.length > 0 ? (environments.find(e => e.isDefault)?.id || environments[0].id) : null)
-    const [localEnv, setLocalEnv] = useState<QaEnvironment | null>(null)
+    const [localEnv, setLocalEnv] = useState<EditableEnvironment | null>(null)
     const [healthStatuses, setHealthStatuses] = useState<Record<string, HealthEntry>>({})
     const [bugDialogOpen, setBugDialogOpen] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
@@ -53,6 +60,7 @@ export default function EnvironmentsPage() {
     const [newEnvName, setNewEnvName] = useState("")
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [envToDelete, setEnvToDelete] = useState<string | null>(null)
+    const [credentialStatus, setCredentialStatus] = useState<CredentialStorageStatus | null>(null)
 
     const selectedEnv = environments.find(e => e.id === selectedEnvId)
 
@@ -69,6 +77,10 @@ export default function EnvironmentsPage() {
         load()
     }, [selectedEnvId, environments])
 
+    useEffect(() => {
+        api.getCredentialStorageStatus?.().then(setCredentialStatus).catch(() => {})
+    }, [api])
+
     const handleAdd = () => {
         setNewEnvName("")
         setIsAddModalOpen(true)
@@ -83,6 +95,12 @@ export default function EnvironmentsPage() {
 
     const handleSave = async () => {
         if (!activeProjectId || !localEnv) return
+        const status = await api.getCredentialStorageStatus?.()
+        setCredentialStatus(status ?? null)
+        if (status?.canPersistSecrets === false && ((localEnv.username || '').trim() || (localEnv.password || '').trim())) {
+            setTestStatus("Credential storage is blocked until insecure plaintext storage is explicitly allowed in Settings.")
+            return
+        }
         
         // Save to project store (exclude credentials from plain JSON)
         const { username, password, ...envData } = localEnv
@@ -241,6 +259,14 @@ export default function EnvironmentsPage() {
             <main className="flex-1 overflow-y-auto custom-scrollbar bg-[#0F0F13]">
                 {localEnv ? (
                     <div className="max-w-4xl mx-auto p-10 space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
+                        {credentialStatus?.canPersistSecrets === false && (
+                            <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-start gap-3">
+                                <AlertTriangle className="h-4 w-4 text-yellow-300 mt-0.5 shrink-0" />
+                                <p className="text-xs text-yellow-200 leading-relaxed">
+                                    Environment credentials cannot be saved on this device until insecure plaintext storage is explicitly allowed in Settings.
+                                </p>
+                            </div>
+                        )}
                         <header className="flex items-start justify-between gap-4 flex-wrap">
                             <div className="flex items-center gap-4 min-w-0">
                                 <div className="w-14 h-14 rounded-2xl bg-[#1A1A24] border border-[#2A2A3A] flex items-center justify-center shadow-2xl shrink-0">

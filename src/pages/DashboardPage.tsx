@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, useEffect, type ReactNode } from "react"
-import { useProjectStore } from "@/store/useProjectStore"
+import { lazy, Suspense, useState, useMemo, useCallback, useEffect, type ReactNode } from "react"
+import { useActiveProject, useProjectStore } from "@/store/useProjectStore"
 import {
     LayoutDashboard,
     CheckSquare,
@@ -35,16 +35,19 @@ import {
 } from "@/components/ui/select"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader } from "@/components/ui/page-header"
-import {
-    PassRateTrendChart,
-    DefectDensityChart,
-    TestStatusDonut,
-    ExecutionVelocityChart,
-    TestBurndownChart
-} from "@/components/DashboardCharts"
-import { Project, Task, TestPlan, Note, Checklist } from "@/types/project"
+import { Task, TestPlan, Note, Checklist } from "@/types/project"
 import { getCollaborationMetrics, getReleaseQueue } from "@/lib/collaboration"
 import WelcomeScreen from "@/components/WelcomeScreen"
+
+const PassRateTrendChart = lazy(() => import("@/components/DashboardCharts").then((module) => ({ default: module.PassRateTrendChart })))
+const DefectDensityChart = lazy(() => import("@/components/DashboardCharts").then((module) => ({ default: module.DefectDensityChart })))
+const TestStatusDonut = lazy(() => import("@/components/DashboardCharts").then((module) => ({ default: module.TestStatusDonut })))
+const ExecutionVelocityChart = lazy(() => import("@/components/DashboardCharts").then((module) => ({ default: module.ExecutionVelocityChart })))
+const TestBurndownChart = lazy(() => import("@/components/DashboardCharts").then((module) => ({ default: module.TestBurndownChart })))
+
+function ChartFallback() {
+    return <div className="flex h-full items-center justify-center text-[11px] text-[#6B7280] italic">Loading chart...</div>
+}
 
 type MetricCardProps = {
     icon: LucideIcon
@@ -124,8 +127,10 @@ function MetricsSection({ eyebrow, title, description, children }: MetricSection
 }
 
 export default function DashboardPage() {
-    const { projects, activeProjectId, seedDemoProject } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId) as Project | undefined
+    const activeProject = useActiveProject()
+    const activeProjectId = useProjectStore((state) => state.activeProjectId)
+    const projects = useProjectStore((state) => state.projects)
+    const seedDemoProject = useProjectStore((state) => state.seedDemoProject)
     const [selectedSprint, setSelectedSprint] = useState<string>('all')
     const [standupOpen, setStandupOpen] = useState(false)
     const [standupSummary, setStandupSummary] = useState<string | null>(null)
@@ -403,6 +408,10 @@ export default function DashboardPage() {
         return <WelcomeScreen onLoadDemo={seedDemoProject} />
     }
 
+    if (!activeProject) {
+        return null
+    }
+
     // Empty project — guide the user to create their first task and test plan
     if (tasks.length === 0 && testPlans.length === 0) {
         return (
@@ -676,7 +685,9 @@ export default function DashboardPage() {
                  <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[320px]">
                     <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">TEST STATUS HUB</p>
                     <div className="flex-1 w-full min-h-0">
-                        <TestStatusDonut />
+                        <Suspense fallback={<ChartFallback />}>
+                            <TestStatusDonut />
+                        </Suspense>
                     </div>
                 </div>
 
@@ -684,7 +695,9 @@ export default function DashboardPage() {
                 <div className="lg:col-span-2 bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[320px]">
                     <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">PASS RATE TREND (LAST 12 RUNS)</p>
                     <div className="flex-1 w-full min-h-0">
-                        <PassRateTrendChart />
+                        <Suspense fallback={<ChartFallback />}>
+                            <PassRateTrendChart />
+                        </Suspense>
                     </div>
                 </div>
             </div>
@@ -694,7 +707,9 @@ export default function DashboardPage() {
                 <div className="bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[280px]">
                     <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">SPRINT TEST BURNDOWN</p>
                     <div className="flex-1 w-full min-h-0">
-                        <TestBurndownChart />
+                        <Suspense fallback={<ChartFallback />}>
+                            <TestBurndownChart />
+                        </Suspense>
                     </div>
                 </div>
             )}
@@ -704,7 +719,9 @@ export default function DashboardPage() {
                 <div className="lg:col-span-2 bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[320px]">
                     <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">DEFECT DENSITY BY SAP MODULE</p>
                     <div className="flex-1 w-full min-h-0">
-                        <DefectDensityChart />
+                        <Suspense fallback={<ChartFallback />}>
+                            <DefectDensityChart />
+                        </Suspense>
                     </div>
                 </div>
 
@@ -898,7 +915,9 @@ export default function DashboardPage() {
                 <div className="lg:col-span-2 bg-[#13131A] border border-[#2A2A3A] rounded-xl p-5 shadow-sm flex flex-col h-[280px]">
                     <p className="text-[10px] font-bold text-[#6B7280] tracking-[0.15em] uppercase mb-4">EXECUTION VELOCITY (LAST 30 DAYS)</p>
                     <div className="flex-1 w-full min-h-0">
-                        <ExecutionVelocityChart />
+                        <Suspense fallback={<ChartFallback />}>
+                            <ExecutionVelocityChart />
+                        </Suspense>
                     </div>
                 </div>
 

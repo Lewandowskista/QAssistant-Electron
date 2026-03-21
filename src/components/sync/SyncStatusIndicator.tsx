@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Cloud, CloudOff, RefreshCw, AlertTriangle, Wifi, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useSyncStore, CloudSyncStatus } from '@/store/useSyncStore'
+import { useSyncStore } from '@/store/useSyncStore'
+import type { CloudSyncStatus } from '@/types/sync'
 import { SyncSetupDialog } from './SyncSetupDialog'
 
 const STATUS_CONFIG: Record<CloudSyncStatus, {
@@ -49,11 +50,9 @@ export function SyncStatusIndicator() {
         loadConfig,
         setStatusFromIpc,
         reloadProjectsAfterSync,
-        manualSync,
     } = useSyncStore()
 
     const [setupOpen, setSetupOpen] = useState(false)
-    const [syncing, setSyncing] = useState(false)
     const prevErrorRef = useRef<string | null>(null)
     const lastToastRef = useRef<number>(0)
     const relativeTime = useRelativeTime(lastSyncedAt)
@@ -101,14 +100,8 @@ export function SyncStatusIndicator() {
         prevErrorRef.current = error
     }, [error])
 
-    async function handleManualSync() {
-        setSyncing(true)
-        await manualSync()
-        setSyncing(false)
-    }
-
     const cfg = STATUS_CONFIG[status]
-    const Icon = syncing ? RefreshCw : cfg.icon
+    const Icon = cfg.icon
     const isConfigured = config?.configured
 
     if (!isLoaded) return null
@@ -116,10 +109,10 @@ export function SyncStatusIndicator() {
     return (
         <>
             <button
-                onClick={() => isConfigured ? handleManualSync() : setSetupOpen(true)}
+                onClick={() => setSetupOpen(true)}
                 title={
                     isConfigured
-                        ? `${cfg.label}${pendingCount > 0 ? ` · ${pendingCount} pending` : ''}${error ? `\nError: ${error}` : ''}\nClick to sync now`
+                        ? `${cfg.label}${pendingCount > 0 ? ` · ${pendingCount} pending` : ''}${error ? `\nError: ${error}` : ''}\nClick to manage workspace`
                         : 'Set up cloud sync'
                 }
                 className={cn(
@@ -131,7 +124,7 @@ export function SyncStatusIndicator() {
                     <Icon className={cn(
                         'h-3.5 w-3.5 transition-colors',
                         cfg.color,
-                        (syncing || status === 'syncing') && 'animate-spin',
+                        status === 'syncing' && 'animate-spin',
                     )} />
                 </div>
                 <div className="flex flex-col min-w-0 flex-1">

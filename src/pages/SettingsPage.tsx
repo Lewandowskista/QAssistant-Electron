@@ -13,15 +13,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useProjectStore } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
+import { useAuthStore } from "@/store/useAuthStore"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { LinearConnection, JiraConnection } from "@/types/project"
 import type { AppUpdateState } from "@/types/update"
 import type { UserRole, AuthProvider } from "@/types/user"
 import { useConfirm } from "@/components/ConfirmDialog"
 import { toast } from "sonner"
+import { sanitizeProjectForPersistence } from "@/lib/projectSanitization"
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 type StatusState = { msg: string; ok: boolean } | null
+type CredentialStorageStatus = Awaited<ReturnType<typeof window.electronAPI.getCredentialStorageStatus>>
 
 function StatusBanner({ s }: { s: StatusState }) {
     if (!s) return null
@@ -155,6 +158,7 @@ export default function SettingsPage() {
     const [appVersion, setAppVersion] = useState('')
     const [dataPath, setDataPath] = useState('')
     const [sysInfo, setSysInfo] = useState<any>(null)
+    const [perfMetrics, setPerfMetrics] = useState<{ main: Record<string, number>; renderer: Record<string, number>; counters: Record<string, number> } | null>(null)
     const [activeSection, setActiveSection] = useState<string | null>(null)
     const { theme, toggleTheme } = useTheme()
 
@@ -212,11 +216,14 @@ export default function SettingsPage() {
 
     // ── User / Identity ───────────────────────────────────────────────────────
     const { profile, isLoaded: userLoaded, loadProfile, setRole, addIdentity, removeIdentity } = useUserStore()
+    const auth = useAuthStore(s => s.auth)
+    const signOut = useAuthStore(s => s.signOut)
     const [oauthConnecting, setOauthConnecting] = useState<AuthProvider | null>(null)
     const [oauthStatus, setOauthStatus] = useState<StatusState>(null)
 
     // ── Credential storage status ─────────────────────────────────────────────
-    const [credStorageEncrypted, setCredStorageEncrypted] = useState<boolean | null>(null)
+    const [credStorageStatus, setCredStorageStatus] = useState<CredentialStorageStatus | null>(null)
+    const [allowInsecureCredentialStorage, setAllowInsecureCredentialStorage] = useState(false)
 
     // ── Orphaned attachments ──────────────────────────────────────────────────
     type OrphanEntry = { filePath: string; fileName: string; fileSizeBytes: number }
@@ -255,7 +262,7 @@ export default function SettingsPage() {
     // ── Load user profile + OAuth listener ───────────────────────────────────
     useEffect(() => {
         if (!userLoaded) loadProfile()
-        api.getCredentialStorageStatus?.().then(s => setCredStorageEncrypted(s.encrypted))
+        api.getCredentialStorageStatus?.().then(s => setCredStorageStatus(s))
     }, [])
 
     useEffect(() => {
@@ -293,6 +300,16 @@ export default function SettingsPage() {
         flash(setOauthStatus, `${name} identity removed.`, true)
     }
 
+    const handleSupabaseSignOut = async () => {
+        const confirmed = await confirmDialog('Sign out', {
+            description: 'Sign out of the Supabase-backed desktop session? Local projects stay on disk.',
+            destructive: true,
+        })
+        if (!confirmed) return
+        await signOut()
+        // AppAuthBoundary detects the signed_out status and shows AuthGate automatically
+    }
+
     // ── Load ──────────────────────────────────────────────────────────────────
     useEffect(() => {
         const load = async () => {
@@ -300,13 +317,14 @@ export default function SettingsPage() {
             setSapContext(!!settings.sapCommerceContext)
             setMinimizeToTray(!!settings.minimizeToTray)
             setAutoCheckForUpdates(settings.autoCheckForUpdates !== false)
+            setAllowInsecureCredentialStorage(settings.allowInsecureCredentialStorage === true)
             setApiEnabled(!!settings.automationApiEnabled)
             setApiPort(settings.automationPort || '5248')
             setWebhooks(settings.webhooks || [])
 
             const projectPrefix = activeProject ? `project:${activeProject.id}:` : ''
 
-            const [storedKey, storedGemini, storedCcv2Sub, storedCcv2Token, ver, path, info, updateState] = await Promise.all([
+            const [storedKey, storedGemini, storedCcv2Sub, storedCcv2Token, ver, path, info, updateState, perfSnapshot] = await Promise.all([
                 activeProject ? api.secureStoreGet(`${projectPrefix}automation_api_key`) : Promise.resolve(null),
                 activeProject ? api.secureStoreGet(`${projectPrefix}gemini_api_key`) : Promise.resolve(null),
                 activeProject ? api.secureStoreGet(`${projectPrefix}ccv2_subscription_code`) : Promise.resolve(null),
@@ -315,6 +333,7 @@ export default function SettingsPage() {
                 api.getAppDataPath(),
                 api.getSystemInfo(),
                 api.getAppUpdateState(),
+                api.getPerformanceMetrics?.() ?? Promise.resolve(null),
             ])
             if (storedKey) setApiKey(storedKey)
             if (storedGemini) setGeminiKey(storedGemini)
@@ -325,6 +344,13 @@ export default function SettingsPage() {
             setDataPath(path || '')
             setSysInfo(info)
             setAppUpdateState(updateState)
+            if (perfSnapshot) {
+                setPerfMetrics({
+                    main: perfSnapshot.main || {},
+                    renderer: perfSnapshot.renderer || {},
+                    counters: perfSnapshot.counters || {},
+                })
+            }
         }
         load()
     }, [activeProjectId, activeProject?.geminiModel])
@@ -351,6 +377,21 @@ export default function SettingsPage() {
     const saveSetting = useCallback(async (patch: Record<string, unknown>) => {
         await saveSettingsStore(patch)
     }, [saveSettingsStore])
+
+    const refreshCredentialStorageStatus = useCallback(async () => {
+        const status = await api.getCredentialStorageStatus?.()
+        if (status) setCredStorageStatus(status)
+        return status
+    }, [api])
+
+    const ensureCredentialWritesAllowed = useCallback(async (setStatus: (s: StatusState) => void, blockedMessage?: string) => {
+        const status = await refreshCredentialStorageStatus()
+        if (status?.canPersistSecrets === false) {
+            flash(setStatus, blockedMessage || 'Credential storage is blocked until insecure plaintext storage is explicitly allowed in Settings.', false, 6000)
+            return false
+        }
+        return true
+    }, [refreshCredentialStorageStatus])
 
     const flash = (set: (s: StatusState) => void, msg: string, ok: boolean, ms = 3000) => {
         set({ msg, ok })
@@ -415,6 +456,7 @@ export default function SettingsPage() {
     }
 
     const handleRegenerateKey = async () => {
+        if (!(await ensureCredentialWritesAllowed(setAutomationStatus, 'Automation API keys cannot be saved until insecure plaintext storage is explicitly allowed in Settings.'))) return
         const newKey = crypto.randomUUID().replace(/-/g, '')
         const prefix = activeProject ? `project:${activeProject.id}:` : ''
         await api.secureStoreSet(`${prefix}automation_api_key`, newKey)
@@ -470,6 +512,7 @@ export default function SettingsPage() {
         if (!label.trim() || !teamId.trim()) { flash(setLinearStatus, 'Label and Team ID are required.', false); return }
         if (!editId && !key.trim()) { flash(setLinearStatus, 'API Key is required for a new connection.', false); return }
         if (!activeProject) return
+        if (key.trim() && !(await ensureCredentialWritesAllowed(setLinearStatus, 'Linear API keys cannot be saved until insecure plaintext storage is explicitly allowed in Settings.'))) return
 
         let conns = [...linearConns]
         if (!editId) {
@@ -526,6 +569,7 @@ export default function SettingsPage() {
         }
         if (!editId && !apiToken.trim()) { flash(setJiraStatus, 'API Token is required for a new connection.', false); return }
         if (!activeProject) return
+        if (apiToken.trim() && !(await ensureCredentialWritesAllowed(setJiraStatus, 'Jira API tokens cannot be saved until insecure plaintext storage is explicitly allowed in Settings.'))) return
 
         let conns = [...jiraConns]
         if (!editId) {
@@ -570,6 +614,7 @@ export default function SettingsPage() {
     // ── CCv2 ─────────────────────────────────────────────────────────────────
     const saveCcv2 = async () => {
         if (!ccv2Sub.trim() || !ccv2Token.trim()) { flash(setCcv2Status, 'Fill in both Subscription Code and API Token.', false); return }
+        if (!(await ensureCredentialWritesAllowed(setCcv2Status, 'CCV2 credentials cannot be saved until insecure plaintext storage is explicitly allowed in Settings.'))) return
         const prefix = activeProject ? `project:${activeProject.id}:` : ''
         await api.secureStoreSet(`${prefix}ccv2_subscription_code`, ccv2Sub.trim())
         await api.secureStoreSet(`${prefix}ccv2_api_token`, ccv2Token.trim())
@@ -599,6 +644,7 @@ export default function SettingsPage() {
     // ── Gemini ────────────────────────────────────────────────────────────────
     const saveGemini = async () => {
         if (!geminiKey.trim()) { flash(setGeminiStatus, 'Enter your API key.', false); return }
+        if (!(await ensureCredentialWritesAllowed(setGeminiStatus, 'Gemini API keys cannot be saved until insecure plaintext storage is explicitly allowed in Settings.'))) return
         const prefix = activeProject ? `project:${activeProject.id}:` : ''
         await api.secureStoreSet(`${prefix}gemini_api_key`, geminiKey.trim())
         if (activeProject) {
@@ -641,9 +687,9 @@ export default function SettingsPage() {
     // ── Project sharing ───────────────────────────────────────────────────────
     const exportProject = async () => {
         if (!activeProject) { flash(setShareStatus, 'No project selected.', false); return }
-        const content = JSON.stringify({ ...activeProject, linearConnections: activeProject.linearConnections, jiraConnections: activeProject.jiraConnections }, null, 2)
+        const content = JSON.stringify(sanitizeProjectForPersistence(activeProject), null, 2)
         await api.saveFileDialog({ defaultName: `${activeProject.name.replace(/\s+/g, '_')}_export.json`, content })
-        flash(setShareStatus, 'Project exported. Credentials are not included and must be re-entered on the target machine.', true, 6000)
+        flash(setShareStatus, 'Project exported. Environment passwords, API keys, and tokens were stripped and must be re-entered on the target machine.', true, 6000)
     }
 
     const importProjectFromFile = async () => {
@@ -653,7 +699,7 @@ export default function SettingsPage() {
             const res = await api.readJsonFile(filePath)
             if (res.success && res.data) {
                 await importProject(res.data)
-                flash(setShareStatus, 'Project imported successfully.', true)
+                flash(setShareStatus, 'Project imported successfully. Embedded environment credentials were stripped for safety.', true)
             } else {
                 flash(setShareStatus, `Import failed: ${res.error || 'Invalid file format'}`, false)
             }
@@ -681,12 +727,30 @@ export default function SettingsPage() {
             </div>
 
             {/* Credential encryption warning */}
-            {credStorageEncrypted === false && (
+            {credStorageStatus?.encrypted === false && (
                 <div className="flex-none mx-8 mt-4 flex items-start gap-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
                     <AlertTriangle className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
-                    <p className="text-xs text-yellow-300 leading-relaxed">
-                        <span className="font-bold">Credentials are stored unencrypted.</span> Your OS keyring and Electron safeStorage are both unavailable on this system. API keys and tokens are written to disk in plaintext. Consider running the app with a full desktop session (e.g. a running D-Bus/Keychain service) to enable encryption.
-                    </p>
+                    <div className="flex-1 space-y-3">
+                        <p className="text-xs text-yellow-300 leading-relaxed">
+                            <span className="font-bold">Credentials are stored unencrypted.</span> Your OS keyring and Electron safeStorage are both unavailable on this system. API keys and tokens can only be written to disk in plaintext.
+                        </p>
+                        <div className="flex items-center justify-between gap-4">
+                            <p className="text-[11px] text-yellow-200/90 leading-relaxed">
+                                {credStorageStatus?.acknowledged
+                                    ? 'Plaintext fallback is currently allowed on this device. Secret fields remain in a degraded security mode.'
+                                    : 'Plaintext fallback is blocked until you explicitly allow this degraded mode.'}
+                            </p>
+                            <Toggle
+                                on={allowInsecureCredentialStorage}
+                                onToggle={async () => {
+                                    const next = !allowInsecureCredentialStorage
+                                    setAllowInsecureCredentialStorage(next)
+                                    await saveSetting({ allowInsecureCredentialStorage: next })
+                                    await refreshCredentialStorageStatus()
+                                }}
+                            />
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -695,6 +759,19 @@ export default function SettingsPage() {
 
                 {/* ── ACCOUNT & IDENTITY ───────────────────────────────────── */}
                 <Sec id="account" title="Account & Identity" icon={<User className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                    <SectionLabel>Supabase Session</SectionLabel>
+                    <div className="flex items-center justify-between rounded-xl border border-[#2A2A3A] bg-[#0F0F13] px-4 py-3">
+                        <div>
+                            <p className="text-sm font-semibold text-[#E2E8F0]">{auth.user?.displayName ?? 'Signed-in user'}</p>
+                            <p className="text-xs text-[#6B7280] mt-1">
+                                {auth.user?.email ?? 'Email unavailable'} · {auth.usingOfflineSession ? 'offline cached session' : 'verified session'}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={handleSupabaseSignOut}>
+                            <LogOut className="h-3.5 w-3.5 mr-1" />Sign Out
+                        </Button>
+                    </div>
+
                     <SectionLabel>Role</SectionLabel>
                     <div className="flex items-center gap-3">
                         {(['qa', 'dev'] as UserRole[]).map(r => (
@@ -1101,7 +1178,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 {/* ── PROJECT SHARING ──────────────────────────────────────── */}
                 <Sec id="sharing" title="Project Sharing" icon={<Upload className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
                     <SectionLabel>Export / Import</SectionLabel>
-                    <p className="text-xs text-[#6B7280] mb-4">Export the current project to a JSON file to share with teammates, or import a project from a shared file. Credentials are never exported — they must be re-entered on the receiving machine.</p>
+                    <p className="text-xs text-[#6B7280] mb-4">Export the current project to a JSON file to share with teammates, or import a project from a shared file. Environment usernames/passwords, API keys, and tokens are stripped during export and import and must be re-entered on the receiving machine.</p>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" className="h-9 border-[#2A2A3A] text-[#9CA3AF] font-bold gap-2" onClick={exportProject} disabled={!activeProject}>
                             <Download className="h-3.5 w-3.5" />Export Project…
@@ -1403,6 +1480,28 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             </div>
                         ))}
                     </div>
+                    {perfMetrics && (
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                            {[
+                                { label: 'App Ready', value: perfMetrics.main.appWhenReadyMs, unit: 'ms' },
+                                { label: 'Window Ready', value: perfMetrics.main.windowReadyToShowMs, unit: 'ms' },
+                                { label: 'Deferred Startup', value: perfMetrics.main.deferredStartupMs, unit: 'ms' },
+                                { label: 'Project Load', value: perfMetrics.renderer.projectLoadMs, unit: 'ms' },
+                                { label: 'Sync Init', value: perfMetrics.renderer.syncInitMs, unit: 'ms' },
+                                { label: 'Full Project Writes', value: perfMetrics.counters.fullProjectWrites, unit: '' },
+                                { label: 'Granular Note Writes', value: perfMetrics.counters.granularNoteWrites, unit: '' },
+                                { label: 'Granular Task Writes', value: perfMetrics.counters.granularTaskWrites, unit: '' },
+                                { label: 'Granular Handoff Writes', value: perfMetrics.counters.granularHandoffWrites, unit: '' },
+                            ].filter(item => item.value !== undefined).map(item => (
+                                <div key={item.label} className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3">
+                                    <p className="text-[10px] font-bold uppercase text-[#6B7280]">{item.label}</p>
+                                    <p className="text-sm font-semibold text-[#E2E8F0] mt-0.5">
+                                        {typeof item.value === 'number' ? Math.round(item.value * 100) / 100 : item.value}{item.unit ? ` ${item.unit}` : ''}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                     {dataPath && (
                         <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3 mb-4">
                             <p className="text-[10px] font-bold uppercase text-[#6B7280] mb-1">Data Storage Path</p>

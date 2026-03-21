@@ -34,7 +34,11 @@
       "Bash(grep -E \"\\\\.ts$\")",
       "Bash(grep -r \"schema\\\\|version\" c:UsersStefanEleCloneQAssistant-Electronsrclibcollaboration --include=*.ts)",
       "Bash(grep \"\\\\.ts$\")",
-      "Bash(grep -i \"incomplete\\\\|partial\\\\|phase\\\\|todo\\\\|deprecated\\\\|stub\" c:UsersStefanEleCloneQAssistant-ElectronsrcpagesReportBuilderPage.tsx --include=*.tsx)"
+      "Bash(grep -i \"incomplete\\\\|partial\\\\|phase\\\\|todo\\\\|deprecated\\\\|stub\" c:UsersStefanEleCloneQAssistant-ElectronsrcpagesReportBuilderPage.tsx --include=*.tsx)",
+      "Bash(gh run:*)",
+      "Bash(find /c/Users/Stefan/EleClone/QAssistant-Electron/electron -type f -name *.ts)",
+      "Bash(find c:/Users/Stefan/EleClone/QAssistant-Electron -type f \\\\\\(-name *.sql -o -name *schema* -o -name *migration* \\\\\\))",
+      "Bash(grep -c \"out_workspace_id\" out/main/chunks/*.js)"
     ]
   }
 }

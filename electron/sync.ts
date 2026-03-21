@@ -19,29 +19,25 @@
  *      tasks (collab fields), handoff_packets, artifact_links, collaboration_events
  */
 
-import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js'
+import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js'
 import { getCredential, setCredential, deleteCredential } from './credentialService'
+import { getAuthenticatedClient, getAuthStatus, initAuth } from './auth'
 import {
     getDb,
+    countSyncPendingQueue,
     enqueueSyncMutation,
+    quarantineSyncPendingQueue,
     loadSyncPendingQueue,
     removeSyncMutation,
     incrementSyncMutationRetry,
 } from './database'
 import type { ArtifactLink, CollaborationEvent, HandoffPacket } from '../src/types/project'
-import type { WorkspaceInfo, WorkspaceMember } from '../src/types/sync'
+import type { WorkspaceInfo, WorkspaceInviteInfo, WorkspaceMember } from '../src/types/sync'
 import { appendFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
 // ─── Credential keys ──────────────────────────────────────────────────────────
-const CRED_SUPABASE_URL      = 'sync_supabase_url'
-const CRED_SUPABASE_ANON_KEY = 'sync_supabase_anon_key'
 const CRED_WORKSPACE_ID      = 'sync_workspace_id'
-const CRED_ACCESS_TOKEN      = 'sync_access_token'
-const CRED_REFRESH_TOKEN     = 'sync_refresh_token'
-const CRED_USER_ID           = 'sync_user_id'
-const CRED_USER_EMAIL        = 'sync_user_email'
-const CRED_USER_DISPLAY_NAME = 'sync_user_display_name'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -72,8 +68,13 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null
 const RETRY_BACKOFF_MS = [2000, 5000, 15000, 30000, 60000]
 const MAX_MUTATION_RETRIES = 5
 
-// Flush debounce
+// Flush debounce + mutex
 let flushTimer: ReturnType<typeof setTimeout> | null = null
+let flushInProgress = false
+let autoSyncInProgress = false
+
+const PULL_TIMEOUT_MS = 20_000
+const CONNECTION_TEST_TIMEOUT_MS = 8_000
 
 // ─── Init / teardown ──────────────────────────────────────────────────────────
 
@@ -86,13 +87,14 @@ export function setSyncLogDir(dir: string) {
 }
 
 /** Append a permanently-failed mutation to a dead-letter log for later review. */
-function writeDeadLetter(mutation: { id: number; table_name: string; op: string; row_id: string; payload_json: string; retry_count: number }): void {
+function writeDeadLetter(mutation: { id: number; workspace_id: string | null; table_name: string; op: string; row_id: string; payload_json: string; retry_count: number }): void {
     if (!syncLogDir) return
     try {
         mkdirSync(syncLogDir, { recursive: true })
         const logPath = join(syncLogDir, 'sync_dead_letters.jsonl')
         const entry = JSON.stringify({
             droppedAt: new Date().toISOString(),
+            workspaceId: mutation.workspace_id,
             table: mutation.table_name,
             op: mutation.op,
             rowId: mutation.row_id,
@@ -110,63 +112,55 @@ function notifyRenderer(channel: string, data: unknown) {
 }
 
 export async function initSync(): Promise<{ ok: boolean; status: SyncStatus }> {
-    const url     = await getCredential(CRED_SUPABASE_URL)
-    const anonKey = await getCredential(CRED_SUPABASE_ANON_KEY)
-    const wsId    = await getCredential(CRED_WORKSPACE_ID)
-    const accessToken  = await getCredential(CRED_ACCESS_TOKEN)
-    const refreshToken = await getCredential(CRED_REFRESH_TOKEN)
+    // Cancel any in-flight reconnect attempt before re-initialising
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
 
-    if (!url || !anonKey || !wsId) {
+    const wsId = await getCredential(CRED_WORKSPACE_ID)
+    const auth = await initAuth()
+    const client = await getAuthenticatedClient()
+
+    if (!auth.configured) {
+        console.warn('[sync] initSync: Supabase not configured')
         setSyncStatus('disconnected')
+        notifyRenderer('sync-status-changed', getStatus())
+        return { ok: false, status: syncStatus }
+    }
+    if (!auth.user) {
+        console.warn('[sync] initSync: No authenticated user')
+        setSyncStatus('disconnected')
+        notifyRenderer('sync-status-changed', getStatus())
+        return { ok: false, status: syncStatus }
+    }
+    if (!wsId) {
+        console.warn('[sync] initSync: No workspace ID stored')
+        setSyncStatus('disconnected')
+        notifyRenderer('sync-status-changed', getStatus())
+        return { ok: false, status: syncStatus }
+    }
+    if (!client) {
+        console.warn('[sync] initSync: Could not get authenticated Supabase client (session may have expired)')
+        setSyncStatus('error')
+        lastSyncError = 'Session expired — please sign out and sign back in.'
+        notifyRenderer('sync-status-changed', getStatus())
         return { ok: false, status: syncStatus }
     }
 
     currentWorkspaceId = wsId
-    currentUserId = await getCredential(CRED_USER_ID)
+    currentUserId = auth.user.id
+    supabase = client
 
-    supabase = createClient(url, anonKey, {
-        auth: {
-            autoRefreshToken: true,
-            persistSession: false,
-        }
-    })
-
+    console.log(`[sync] initSync: user=${auth.user.email} workspace=${wsId}`)
     setSyncStatus('connecting')
-
-    // Restore session from credentials
-    if (accessToken && refreshToken) {
-        const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-        })
-        if (error) {
-            console.warn('[sync] Could not restore session:', error.message)
-            setSyncStatus('error')
-            lastSyncError = error.message
-            notifyRenderer('sync-status-changed', getStatus())
-            return { ok: false, status: syncStatus }
-        }
-
-        // Keep tokens fresh
-        supabase.auth.onAuthStateChange(async (event, session) => {
-            if (session) {
-                await setCredential(CRED_ACCESS_TOKEN, session.access_token)
-                await setCredential(CRED_REFRESH_TOKEN, session.refresh_token ?? '')
-                currentUserId = session.user.id
-                await setCredential(CRED_USER_ID, session.user.id)
-            }
-            if (event === 'SIGNED_OUT') {
-                setSyncStatus('disconnected')
-                notifyRenderer('sync-status-changed', getStatus())
-            }
-        })
-    }
-
-    setSyncStatus('connected')
     notifyRenderer('sync-status-changed', getStatus())
 
-    // Pull all remote changes since last sync, then subscribe to real-time
+    // Pull all remote changes, then subscribe to real-time
     await performInitialPull()
+
+    if (syncStatus === 'error') {
+        // Pull failed — scheduleReconnect() already queued; don't start auto-sync yet
+        return { ok: false, status: syncStatus }
+    }
+
     subscribeRealtime()
 
     // Flush any persisted pending mutations (from before crash/restart)
@@ -175,24 +169,37 @@ export async function initSync(): Promise<{ ok: boolean; status: SyncStatus }> {
     // Start auto-sync (periodic pull + focus handler)
     startAutoSync()
 
-    // Reset reconnect state on successful init
+    // Clear reconnect state on successful init
     reconnectAttempts = 0
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
 
     return { ok: true, status: syncStatus }
 }
 
 export async function teardownSync() {
+    // Cancel all timers first so no callbacks fire after teardown
     stopAutoSync()
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null }
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-    if (realtimeChannel) {
-        await supabase?.removeChannel(realtimeChannel)
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+
+    // Remove realtime channel with a 3s cap — broken channels must not block sign-out
+    if (realtimeChannel && supabase) {
+        const ch = realtimeChannel
         realtimeChannel = null
+        await Promise.race([
+            supabase.removeChannel(ch),
+            new Promise<void>(resolve => setTimeout(resolve, 3000)),
+        ]).catch(() => {})
     }
+    realtimeChannel = null
     supabase = null
     currentWorkspaceId = null
+    currentUserId = null
+    flushInProgress = false
+    autoSyncInProgress = false
+    reconnectAttempts = 0
     setSyncStatus('disconnected')
+    notifyRenderer('sync-status-changed', getStatus())
 }
 
 function setSyncStatus(s: SyncStatus) {
@@ -205,10 +212,28 @@ function setSyncStatus(s: SyncStatus) {
 function startAutoSync() {
     stopAutoSync()
     autoSyncInterval = setInterval(async () => {
-        if (syncStatus === 'connected' || syncStatus === 'syncing') {
+        // Skip if another auto-sync tick is already running
+        if (autoSyncInProgress) return
+        // Only run if connected or in error (allow self-recovery), and workspace is set
+        if (!currentWorkspaceId) return
+        if (syncStatus !== 'connected' && syncStatus !== 'syncing' && syncStatus !== 'error') return
+        autoSyncInProgress = true
+        try {
+            // Refresh the client each tick — the token may have been silently refreshed
+            const freshClient = await getAuthenticatedClient()
+            if (!freshClient) {
+                console.warn('[sync] Auto-sync: no authenticated client, skipping tick')
+                autoSyncInProgress = false
+                return
+            }
+            supabase = freshClient
             await performInitialPull()
             await flushPendingMutations()
             notifyRenderer('sync-members-updated', null)
+        } catch (e) {
+            console.warn('[sync] Auto-sync tick failed:', e)
+        } finally {
+            autoSyncInProgress = false
         }
     }, AUTO_SYNC_INTERVAL_MS)
 }
@@ -219,10 +244,18 @@ function stopAutoSync() {
 
 /** Called by main.ts when the BrowserWindow gains focus */
 export async function onAppFocused() {
-    if (!supabase || !currentWorkspaceId) return
-    if (syncStatus === 'connected' || syncStatus === 'syncing') {
-        await performInitialPull()
-        await flushPendingMutations()
+    if (!currentWorkspaceId) return
+    if (autoSyncInProgress || flushInProgress) return
+    if (syncStatus === 'connected' || syncStatus === 'syncing' || syncStatus === 'error') {
+        try {
+            const freshClient = await getAuthenticatedClient()
+            if (!freshClient) return
+            supabase = freshClient
+            await performInitialPull()
+            await flushPendingMutations()
+        } catch (e) {
+            console.warn('[sync] onAppFocused sync failed:', e)
+        }
     }
 }
 
@@ -240,25 +273,47 @@ function scheduleReconnect() {
     reconnectAttempts++
     console.log(`[sync] Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
     reconnectTimer = setTimeout(async () => {
-        // Full re-init to re-establish session + subscriptions
+        reconnectTimer = null
+        // Guard: if teardownSync was called while waiting, abort
+        if (!currentWorkspaceId) return
+
+        // Refresh the auth client — the token may have expired while we were waiting
+        const freshClient = await getAuthenticatedClient()
+        if (!freshClient) {
+            console.warn('[sync] Reconnect aborted: could not get authenticated client')
+            setSyncStatus('error')
+            lastSyncError = 'Session expired. Please sign out and sign back in.'
+            notifyRenderer('sync-status-changed', getStatus())
+            return
+        }
+        supabase = freshClient
+
+        // Reset mutexes in case they were stuck from the failed attempt
+        flushInProgress = false
+        autoSyncInProgress = false
+
         if (realtimeChannel) {
-            await supabase?.removeChannel(realtimeChannel)
+            await supabase.removeChannel(realtimeChannel).catch(() => {})
             realtimeChannel = null
         }
-        await performInitialPull()
-        subscribeRealtime()
-        await flushPendingMutations()
+        try {
+            await performInitialPull()
+            if (syncStatus !== 'error') {
+                subscribeRealtime()
+                await flushPendingMutations()
+            }
+        } catch (e) {
+            console.warn('[sync] Reconnect attempt failed:', e)
+        }
     }, delay)
 }
 
 // ─── Status ───────────────────────────────────────────────────────────────────
 
 export function getStatus() {
-    const db = getDb()
     let pendingCount = 0
     try {
-        const row = db.prepare('SELECT COUNT(*) as cnt FROM sync_pending_queue').get() as { cnt: number }
-        pendingCount = row.cnt
+        pendingCount = countSyncPendingQueue(currentWorkspaceId)
     } catch { /* db may not be init */ }
     return {
         status: syncStatus,
@@ -270,113 +325,123 @@ export function getStatus() {
     }
 }
 
-async function signInOrSignUp(
+type RpcResult<T> = { data: T; error: { message?: string; code?: string } | null }
+
+async function callWorkspaceRpc<T>(
     client: SupabaseClient,
-    userEmail: string,
-    userPassword: string,
-): Promise<{ userId: string; accessToken: string; refreshToken: string }> {
-    const { data: signUpData, error: signUpError } = await client.auth.signUp({
-        email: userEmail,
-        password: userPassword,
-    })
-
-    if (signUpError && !signUpError.message.includes('already registered')) {
-        throw new Error(signUpError.message)
-    }
-
-    if (signUpData?.session) {
-        return {
-            userId: signUpData.session.user.id,
-            accessToken: signUpData.session.access_token,
-            refreshToken: signUpData.session.refresh_token ?? '',
-        }
-    }
-
-    const { data: signInData, error: signInError } = await client.auth.signInWithPassword({
-        email: userEmail,
-        password: userPassword,
-    })
-    if (signInError || !signInData.session) {
-        throw new Error(signInError?.message ?? 'Sign-in failed')
-    }
-
-    return {
-        userId: signInData.session.user.id,
-        accessToken: signInData.session.access_token,
-        refreshToken: signInData.session.refresh_token ?? '',
-    }
+    rpcName: 'create_workspace_with_owner' | 'join_workspace_by_invite',
+    rpcArgs: Record<string, string>,
+    timeoutMs = 30_000,
+): Promise<RpcResult<T>> {
+    return await withTimeout<RpcResult<T>>(
+        Promise.resolve(client.rpc(rpcName, rpcArgs) as PromiseLike<RpcResult<T>>),
+        timeoutMs,
+        `${rpcName} RPC timed out after ${timeoutMs}ms`,
+    )
 }
 
 // ─── Workspace management ─────────────────────────────────────────────────────
 
 export async function createWorkspace(
-    supabaseUrl: string,
-    supabaseAnonKey: string,
-    userEmail: string,
-    userPassword: string,
     workspaceName: string,
-    displayName: string,
+    displayName?: string,
 ): Promise<{ ok: boolean; workspaceId?: string; inviteCode?: string; error?: string }> {
     try {
-        const client = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } })
-        const { userId, accessToken, refreshToken } = await signInOrSignUp(client, userEmail, userPassword)
-        const { data, error } = await client.rpc('create_workspace_with_owner', {
-            workspace_name: workspaceName.trim(),
-            member_email: userEmail.trim(),
-            member_display_name: displayName.trim(),
-        })
-
-        const workspaceRow = Array.isArray(data) ? data[0] : data
-        if (error || !workspaceRow?.workspace_id || !workspaceRow?.invite_code) {
-            return { ok: false, error: error?.message ?? 'Could not create workspace' }
+        const auth = await initAuth()
+        const client = await getAuthenticatedClient()
+        console.log('[sync] createWorkspace: auth.configured=', auth.configured, 'user=', auth.user?.email, 'client=', !!client)
+        if (!client || !auth.user) {
+            return { ok: false, error: 'You must be signed in before creating a workspace' }
         }
 
-        await saveCloudCredentials(supabaseUrl, supabaseAnonKey, workspaceRow.workspace_id, userId, userEmail, displayName, accessToken, refreshToken)
-        return { ok: true, workspaceId: workspaceRow.workspace_id, inviteCode: workspaceRow.invite_code }
+        const memberEmail = auth.user.email ?? ''
+        const memberDisplayName = displayName?.trim() || auth.user.displayName || auth.user.email?.split('@')[0] || 'User'
+        const rpcArgs = {
+            p_workspace_name: workspaceName.trim(),
+            p_member_email: memberEmail,
+            p_member_display_name: memberDisplayName,
+        }
+        console.log('[sync] createWorkspace: calling RPC with', JSON.stringify(rpcArgs))
+
+        const t0 = Date.now()
+        const { data, error } = await callWorkspaceRpc(
+            client,
+            'create_workspace_with_owner',
+            rpcArgs,
+        )
+        console.log(`[sync] createWorkspace: RPC took ${Date.now() - t0}ms, data=`, JSON.stringify(data), 'error=', error?.message, 'code=', error?.code)
+
+        const workspaceRow = Array.isArray(data) ? data[0] : data
+        const wsId = workspaceRow?.workspace_id ?? workspaceRow?.out_workspace_id
+        const invCode = workspaceRow?.invite_code ?? workspaceRow?.out_invite_code
+        if (error || !wsId || !invCode) {
+            const msg = error?.message ?? (data === null ? 'RPC returned no data — schema may not be applied in Supabase' : 'Could not create workspace')
+            console.error('[sync] createWorkspace failed:', msg, '| raw data:', JSON.stringify(data))
+            return { ok: false, error: msg }
+        }
+
+        await saveWorkspaceSelection(wsId, auth.user.id)
+        supabase = client
+        currentUserId = auth.user.id
+        console.log('[sync] createWorkspace: success, workspaceId=', wsId)
+        return { ok: true, workspaceId: wsId, inviteCode: invCode }
     } catch (e: unknown) {
-        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error('[sync] createWorkspace exception:', msg)
+        return { ok: false, error: msg }
     }
 }
 
 export async function joinWorkspace(
-    supabaseUrl: string,
-    supabaseAnonKey: string,
-    userEmail: string,
-    userPassword: string,
     inviteCode: string,
-    displayName: string,
+    displayName?: string,
 ): Promise<{ ok: boolean; workspaceId?: string; workspaceName?: string; error?: string }> {
     try {
-        const client = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } })
-        const { userId, accessToken, refreshToken } = await signInOrSignUp(client, userEmail, userPassword)
-        const { data, error } = await client.rpc('join_workspace_by_invite', {
-            invite_code_input: inviteCode.trim().toUpperCase(),
-            member_email: userEmail.trim(),
-            member_display_name: displayName.trim(),
-        })
+        const auth = await initAuth()
+        const client = await getAuthenticatedClient()
+        if (!client || !auth.user) {
+            return { ok: false, error: 'You must be signed in before joining a workspace' }
+        }
+        const memberEmail = auth.user.email ?? ''
+        const memberDisplayName = displayName?.trim() || auth.user.displayName || auth.user.email?.split('@')[0] || 'User'
+        const rpcArgs = {
+            p_invite_code: inviteCode.trim().toUpperCase(),
+            p_member_email: memberEmail,
+            p_member_display_name: memberDisplayName,
+        }
+        const { data, error } = await callWorkspaceRpc(
+            client,
+            'join_workspace_by_invite',
+            rpcArgs,
+        )
 
         const workspaceRow = Array.isArray(data) ? data[0] : data
-        if (error || !workspaceRow?.workspace_id || !workspaceRow?.workspace_name) {
+        const wsId = workspaceRow?.workspace_id ?? workspaceRow?.out_workspace_id
+        const wsName = workspaceRow?.workspace_name ?? workspaceRow?.out_workspace_name
+        if (error || !wsId || !wsName) {
+            console.error('[sync] joinWorkspace RPC error:', error?.message, 'data:', JSON.stringify(data))
             return { ok: false, error: error?.message ?? 'Invalid invite code' }
         }
 
-        await saveCloudCredentials(supabaseUrl, supabaseAnonKey, workspaceRow.workspace_id, userId, userEmail, displayName, accessToken, refreshToken)
-        return { ok: true, workspaceId: workspaceRow.workspace_id, workspaceName: workspaceRow.workspace_name }
+        await saveWorkspaceSelection(wsId, auth.user.id)
+        supabase = client
+        currentUserId = auth.user.id
+        return { ok: true, workspaceId: wsId, workspaceName: wsName }
     } catch (e: unknown) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
 }
 
 export async function disconnectWorkspace(): Promise<void> {
+    const workspaceToDisconnect = currentWorkspaceId
     await teardownSync()
-    await deleteCredential(CRED_SUPABASE_URL)
-    await deleteCredential(CRED_SUPABASE_ANON_KEY)
+    if (workspaceToDisconnect) {
+        const quarantined = quarantineSyncPendingQueue(workspaceToDisconnect, 'workspace_disconnected')
+        if (quarantined > 0) {
+            console.warn(`[sync] Quarantined ${quarantined} pending mutation(s) for disconnected workspace ${workspaceToDisconnect}`)
+        }
+    }
     await deleteCredential(CRED_WORKSPACE_ID)
-    await deleteCredential(CRED_ACCESS_TOKEN)
-    await deleteCredential(CRED_REFRESH_TOKEN)
-    await deleteCredential(CRED_USER_ID)
-    await deleteCredential(CRED_USER_EMAIL)
-    await deleteCredential(CRED_USER_DISPLAY_NAME)
     currentWorkspaceId = null
     currentUserId = null
     notifyRenderer('sync-status-changed', getStatus())
@@ -384,36 +449,74 @@ export async function disconnectWorkspace(): Promise<void> {
 
 export async function getWorkspaceInfo(): Promise<WorkspaceInfo> {
     if (!supabase || !currentWorkspaceId) return { workspaceId: null }
+    const authUserId = currentUserId ?? getAuthStatus().user?.id ?? null
     const { data } = await supabase
         .from('workspaces')
-        .select('id, name, invite_code')
+        .select('id, name, invite_code_expires_at, invite_code_rotated_at')
         .eq('id', currentWorkspaceId)
         .single()
     const { data: members } = await supabase
         .from('workspace_members')
         .select('user_id, email, display_name, role')
         .eq('workspace_id', currentWorkspaceId)
+    const currentMember = (members ?? []).find((member: any) => member.user_id === authUserId)
     return {
         workspaceId: currentWorkspaceId,
         workspaceName: data?.name,
-        inviteCode: data?.invite_code,
+        currentUserRole: currentMember?.role,
+        canManageInvite: currentMember?.role === 'owner',
+        inviteCodeExpiresAt: data?.invite_code_expires_at ?? null,
+        inviteCodeRotatedAt: data?.invite_code_rotated_at ?? null,
         members: (members ?? []) as WorkspaceMember[],
     }
 }
 
-async function saveCloudCredentials(
-    url: string, anonKey: string, workspaceId: string,
-    userId: string, email: string, displayName: string,
-    accessToken: string, refreshToken: string,
-) {
-    await setCredential(CRED_SUPABASE_URL, url)
-    await setCredential(CRED_SUPABASE_ANON_KEY, anonKey)
+function mapInviteRow(data: any): WorkspaceInviteInfo | null {
+    const inviteRow = Array.isArray(data) ? data[0] : data
+    if (!inviteRow?.invite_code) return null
+    return {
+        inviteCode: inviteRow.invite_code,
+        inviteCodeExpiresAt: inviteRow.invite_code_expires_at ?? null,
+        inviteCodeRotatedAt: inviteRow.invite_code_rotated_at ?? null,
+    }
+}
+
+export async function getWorkspaceInvite(): Promise<{ ok: boolean; invite?: WorkspaceInviteInfo; error?: string }> {
+    if (!supabase || !currentWorkspaceId) {
+        return { ok: false, error: 'Not connected to a workspace' }
+    }
+    const { data, error } = await supabase.rpc('get_workspace_invite_code', {
+        workspace_id_input: currentWorkspaceId,
+    })
+    const invite = mapInviteRow(data)
+    if (error || !invite) {
+        return { ok: false, error: error?.message ?? 'Invite code unavailable' }
+    }
+    return { ok: true, invite }
+}
+
+export async function rotateWorkspaceInvite(): Promise<{ ok: boolean; invite?: WorkspaceInviteInfo; error?: string }> {
+    if (!supabase || !currentWorkspaceId) {
+        return { ok: false, error: 'Not connected to a workspace' }
+    }
+    const { data, error } = await supabase.rpc('rotate_workspace_invite_code', {
+        workspace_id_input: currentWorkspaceId,
+    })
+    const invite = mapInviteRow(data)
+    if (error || !invite) {
+        return { ok: false, error: error?.message ?? 'Could not rotate invite code' }
+    }
+    return { ok: true, invite }
+}
+
+async function saveWorkspaceSelection(workspaceId: string, userId: string) {
+    if (currentWorkspaceId && currentWorkspaceId !== workspaceId) {
+        const quarantined = quarantineSyncPendingQueue(currentWorkspaceId, 'workspace_switched')
+        if (quarantined > 0) {
+            console.warn(`[sync] Quarantined ${quarantined} pending mutation(s) while switching workspaces`)
+        }
+    }
     await setCredential(CRED_WORKSPACE_ID, workspaceId)
-    await setCredential(CRED_USER_ID, userId)
-    await setCredential(CRED_USER_EMAIL, email)
-    await setCredential(CRED_USER_DISPLAY_NAME, displayName)
-    await setCredential(CRED_ACCESS_TOKEN, accessToken)
-    await setCredential(CRED_REFRESH_TOKEN, refreshToken)
     currentWorkspaceId = workspaceId
     currentUserId = userId
 }
@@ -422,50 +525,86 @@ async function saveCloudCredentials(
 
 // ─── Pull: remote → local ─────────────────────────────────────────────────────
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+        promise.then(v => { clearTimeout(t); resolve(v) }, e => { clearTimeout(t); reject(e) })
+    })
+}
+
+/** Lightweight PostgREST ping — fetches at most 1 row from workspace_members.
+ *  This goes through the same network path as the real pull queries, so if it
+ *  succeeds we know PostgREST is reachable and the JWT is accepted. */
+async function testConnection(): Promise<void> {
+    if (!supabase || !currentWorkspaceId) throw new Error('Not initialised')
+
+    const { error } = await withTimeout(
+        supabase
+            .from('workspace_members')
+            .select('user_id', { count: 'exact', head: true })
+            .eq('workspace_id', currentWorkspaceId)
+            .limit(1),
+        CONNECTION_TEST_TIMEOUT_MS,
+        'Connection test',
+    )
+
+    if (error) {
+        throw new Error(`Supabase connection error: ${error.message} (${error.code})`)
+    }
+}
+
 async function performInitialPull() {
     if (!supabase || !currentWorkspaceId) return
 
+    const wsId = currentWorkspaceId
     setSyncStatus('syncing')
     notifyRenderer('sync-status-changed', getStatus())
 
     try {
-        const { data: tasks } = await supabase
-            .from('sync_tasks')
-            .select('*')
-            .eq('workspace_id', currentWorkspaceId)
+        // Verify the session and workspace exist before launching parallel queries.
+        await testConnection()
 
-        if (tasks) applyRemoteTasks(tasks)
+        const [tasksRes, handoffsRes, eventsRes, linksRes] = await withTimeout(
+            Promise.all([
+                supabase.from('sync_tasks').select('*').eq('workspace_id', wsId),
+                supabase.from('sync_handoffs').select('*').eq('workspace_id', wsId),
+                supabase.from('sync_collab_events').select('*').eq('workspace_id', wsId),
+                supabase.from('sync_artifact_links').select('*').eq('workspace_id', wsId),
+            ]),
+            PULL_TIMEOUT_MS,
+            'Sync pull',
+        )
 
-        const { data: handoffs } = await supabase
-            .from('sync_handoffs')
-            .select('*')
-            .eq('workspace_id', currentWorkspaceId)
+        // Bail out if workspace changed while we were awaiting
+        if (currentWorkspaceId !== wsId) return
 
-        if (handoffs) applyRemoteHandoffs(handoffs)
+        // Surface any per-table Supabase errors
+        for (const [res, name] of [
+            [tasksRes, 'sync_tasks'],
+            [handoffsRes, 'sync_handoffs'],
+            [eventsRes, 'sync_collab_events'],
+            [linksRes, 'sync_artifact_links'],
+        ] as const) {
+            if (res.error) {
+                throw new Error(`${name}: ${res.error.message} (code: ${res.error.code})`)
+            }
+        }
 
-        const { data: events } = await supabase
-            .from('sync_collab_events')
-            .select('*')
-            .eq('workspace_id', currentWorkspaceId)
-
-        if (events) applyRemoteCollabEvents(events)
-
-        const { data: links } = await supabase
-            .from('sync_artifact_links')
-            .select('*')
-            .eq('workspace_id', currentWorkspaceId)
-
-        if (links) applyRemoteArtifactLinks(links)
+        if (tasksRes.data) applyRemoteTasks(tasksRes.data)
+        if (handoffsRes.data) applyRemoteHandoffs(handoffsRes.data)
+        if (eventsRes.data) applyRemoteCollabEvents(eventsRes.data)
+        if (linksRes.data) applyRemoteArtifactLinks(linksRes.data)
 
         lastSyncedAt = Date.now()
         setSyncStatus('connected')
         notifyRenderer('sync-status-changed', getStatus())
         notifyRenderer('sync-data-updated', null)
     } catch (e: any) {
-        console.error('[sync] Initial pull failed:', e)
-        setSyncStatus('error')
+        console.error('[sync] Initial pull failed:', e.message)
         lastSyncError = e.message
+        setSyncStatus('error')
         notifyRenderer('sync-status-changed', getStatus())
+        scheduleReconnect()
     }
 }
 
@@ -486,10 +625,12 @@ function subscribeRealtime() {
             table: 'sync_tasks',
             filter: `workspace_id=eq.${currentWorkspaceId}`,
         }, (payload) => {
-            if (payload.new && (payload.new as any).updated_by !== currentUserId) {
-                applyRemoteTasks([payload.new as any])
-                notifyRenderer('sync-data-updated', { table: 'tasks', id: (payload.new as any).task_id })
-            }
+            try {
+                if (payload.new && (payload.new as any).updated_by !== currentUserId) {
+                    applyRemoteTasks([payload.new as any])
+                    notifyRenderer('sync-data-updated', { table: 'tasks', id: (payload.new as any).task_id })
+                }
+            } catch (e) { console.warn('[sync] realtime task handler error:', e) }
         })
         .on('postgres_changes', {
             event: '*',
@@ -497,10 +638,12 @@ function subscribeRealtime() {
             table: 'sync_handoffs',
             filter: `workspace_id=eq.${currentWorkspaceId}`,
         }, (payload) => {
-            if (payload.new && (payload.new as any).updated_by !== currentUserId) {
-                applyRemoteHandoffs([payload.new as any])
-                notifyRenderer('sync-data-updated', { table: 'handoffs', id: (payload.new as any).handoff_id })
-            }
+            try {
+                if (payload.new && (payload.new as any).updated_by !== currentUserId) {
+                    applyRemoteHandoffs([payload.new as any])
+                    notifyRenderer('sync-data-updated', { table: 'handoffs', id: (payload.new as any).handoff_id })
+                }
+            } catch (e) { console.warn('[sync] realtime handoff handler error:', e) }
         })
         .on('postgres_changes', {
             event: 'INSERT',
@@ -508,10 +651,12 @@ function subscribeRealtime() {
             table: 'sync_collab_events',
             filter: `workspace_id=eq.${currentWorkspaceId}`,
         }, (payload) => {
-            if (payload.new && (payload.new as any).actor_user_id !== currentUserId) {
-                applyRemoteCollabEvents([payload.new as any])
-                notifyRenderer('sync-data-updated', { table: 'collab_events', id: (payload.new as any).event_id })
-            }
+            try {
+                if (payload.new && (payload.new as any).actor_user_id !== currentUserId) {
+                    applyRemoteCollabEvents([payload.new as any])
+                    notifyRenderer('sync-data-updated', { table: 'collab_events', id: (payload.new as any).event_id })
+                }
+            } catch (e) { console.warn('[sync] realtime collab_events handler error:', e) }
         })
         .on('postgres_changes', {
             event: '*',
@@ -519,10 +664,12 @@ function subscribeRealtime() {
             table: 'sync_artifact_links',
             filter: `workspace_id=eq.${currentWorkspaceId}`,
         }, (payload) => {
-            if (payload.new && (payload.new as any).created_by !== currentUserId) {
-                applyRemoteArtifactLinks([payload.new as any])
-                notifyRenderer('sync-data-updated', { table: 'artifact_links', id: (payload.new as any).link_id })
-            }
+            try {
+                if (payload.new && (payload.new as any).created_by !== currentUserId) {
+                    applyRemoteArtifactLinks([payload.new as any])
+                    notifyRenderer('sync-data-updated', { table: 'artifact_links', id: (payload.new as any).link_id })
+                }
+            } catch (e) { console.warn('[sync] realtime artifact_links handler error:', e) }
         })
         .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
@@ -802,7 +949,7 @@ function enqueue(mutation: { table: string; op: string; rowId: string; payload: 
     if (!currentWorkspaceId) return // Not in a workspace — skip cloud push
 
     try {
-        enqueueSyncMutation(mutation.table, mutation.op, mutation.rowId, mutation.payload)
+        enqueueSyncMutation(currentWorkspaceId, mutation.table, mutation.op, mutation.rowId, mutation.payload)
     } catch (e) {
         console.error('[sync] Failed to persist mutation to queue:', e)
     }
@@ -816,15 +963,22 @@ function enqueue(mutation: { table: string; op: string; rowId: string; payload: 
 
 export async function flushPendingMutations() {
     if (!supabase || !currentWorkspaceId) return
+    // Mutex: prevent concurrent flushes
+    if (flushInProgress) return
+    flushInProgress = true
 
     let pending: ReturnType<typeof loadSyncPendingQueue>
     try {
-        pending = loadSyncPendingQueue()
+        pending = loadSyncPendingQueue(currentWorkspaceId)
     } catch (e) {
         console.error('[sync] Could not load pending queue:', e)
+        flushInProgress = false
         return
     }
-    if (pending.length === 0) return
+    if (pending.length === 0) {
+        flushInProgress = false
+        return
+    }
 
     setSyncStatus('syncing')
     notifyRenderer('sync-status-changed', getStatus())
@@ -834,6 +988,11 @@ export async function flushPendingMutations() {
 
     for (const mutation of pending) {
         try {
+            if (mutation.workspace_id !== currentWorkspaceId) {
+                console.warn(`[sync] Skipping queued mutation for mismatched workspace ${mutation.workspace_id ?? 'unknown'} while connected to ${currentWorkspaceId}`)
+                removeSyncMutation(mutation.id)
+                continue
+            }
             if (mutation.op === 'upsert') {
                 // Conflict detection (Improvement 9): check remote updated_at before upserting
                 const remoteupdatedAt = await fetchRemoteUpdatedAt(mutation.table, mutation.row_id)
@@ -849,7 +1008,7 @@ export async function flushPendingMutations() {
 
                 const { error } = await supabase
                     .from(mutation.table)
-                    .upsert(mutation.payload as any, { onConflict: getPkColumn(mutation.table) })
+                    .upsert(mutation.payload as any, { onConflict: getConflictColumns(mutation.table) })
                 if (error) throw error
             } else if (mutation.op === 'delete') {
                 const { error } = await supabase
@@ -888,6 +1047,8 @@ export async function flushPendingMutations() {
         setSyncStatus('connected')
         notifyRenderer('sync-status-changed', getStatus())
     }
+
+    flushInProgress = false
 }
 
 function scheduleRetry() {
@@ -895,7 +1056,7 @@ function scheduleRetry() {
 
     // Get current max retry count from queue to pick backoff
     let pending: ReturnType<typeof loadSyncPendingQueue> = []
-    try { pending = loadSyncPendingQueue() } catch { /* ignore */ }
+    try { pending = currentWorkspaceId ? loadSyncPendingQueue(currentWorkspaceId) : [] } catch { /* ignore */ }
     const maxRetries = pending.reduce((m, p) => Math.max(m, p.retry_count), 0)
     const delay = RETRY_BACKOFF_MS[Math.min(maxRetries, RETRY_BACKOFF_MS.length - 1)]
 
@@ -955,6 +1116,17 @@ function getPkColumn(table: string): string {
     }
 }
 
+/** Returns the full composite conflict target for Supabase upsert (workspace_id + row PK). */
+function getConflictColumns(table: string): string {
+    switch (table) {
+        case 'sync_tasks':          return 'workspace_id,task_id'
+        case 'sync_handoffs':       return 'workspace_id,handoff_id'
+        case 'sync_collab_events':  return 'workspace_id,event_id'
+        case 'sync_artifact_links': return 'workspace_id,link_id'
+        default:                    return 'id'
+    }
+}
+
 /** Manual full sync — re-pull and re-push everything */
 export async function triggerManualSync(): Promise<{ ok: boolean; error?: string }> {
     if (!supabase || !currentWorkspaceId) {
@@ -973,22 +1145,21 @@ export async function triggerManualSync(): Promise<{ ok: boolean; error?: string
 export async function getSyncConfig(): Promise<{
     configured: boolean
     url?: string
+    anonKey?: string
     workspaceId?: string
     userId?: string
     email?: string
     displayName?: string
 }> {
-    const url = await getCredential(CRED_SUPABASE_URL)
+    const auth = getAuthStatus()
     const wsId = await getCredential(CRED_WORKSPACE_ID)
-    const userId = await getCredential(CRED_USER_ID)
-    const email = await getCredential(CRED_USER_EMAIL)
-    const displayName = await getCredential(CRED_USER_DISPLAY_NAME)
     return {
-        configured: !!(url && wsId),
-        url: url ?? undefined,
+        configured: !!(auth.configured && wsId),
+        url: auth.supabaseUrl ?? undefined,
+        anonKey: auth.supabaseAnonKey ?? undefined,
         workspaceId: wsId ?? undefined,
-        userId: userId ?? undefined,
-        email: email ?? undefined,
-        displayName: displayName ?? undefined,
+        userId: auth.user?.id ?? undefined,
+        email: auth.user?.email ?? undefined,
+        displayName: auth.user?.displayName ?? undefined,
     }
 }

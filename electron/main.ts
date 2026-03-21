@@ -23,20 +23,53 @@ import * as crypto from 'node:crypto';
     } catch { /* ignore */ }
 })()
 
-import { setCredential, getCredential, deleteCredential, listCredentials, initCredentials, isKeychainAvailable } from './credentialService';
+import {
+    setCredential,
+    getCredential,
+    deleteCredential,
+    listCredentials,
+    initCredentials,
+    getCredentialStorageStatus as getCredentialStorageStatusSummary,
+    setPlaintextFallbackAllowed,
+} from './credentialService';
 import * as oauth from './oauth';
 import * as github from './github';
 import { assertString, assertArray, assertObject, assertOptionalString, assertNumber } from './ipc-validation';
 import { AI_RATE_LIMIT_MS, MAX_SAP_HAC_INSTANCES } from './constants';
 import { initFileStorage } from './fileStorage';
-import { initDatabase, getAllProjects, saveAllProjects, closeDatabase, getTaskById, getHandoffById } from './database';
+import {
+    initDatabase,
+    getAllProjects,
+    saveAllProjects,
+    closeDatabase,
+    getTaskById,
+    getHandoffById,
+    migrateLegacyEnvironmentSecretsToSecureStore,
+    upsertProjectNote,
+    deleteProjectNote,
+    upsertProjectTask,
+    deleteProjectTask,
+    upsertProjectHandoff,
+    insertProjectCollaborationEvent,
+} from './database';
 import { migrateJsonToSqlite } from './migration';
 import {
     initSync, teardownSync, getStatus as getSyncStatus, getSyncConfig,
-    createWorkspace, joinWorkspace, disconnectWorkspace, getWorkspaceInfo,
+    createWorkspace, joinWorkspace, disconnectWorkspace, getWorkspaceInfo, getWorkspaceInvite, rotateWorkspaceInvite,
     triggerManualSync, setSyncWindowSender, setSyncLogDir, onAppFocused,
     pushTaskCollab, pushHandoff, pushCollabEvent, pushArtifactLink,
 } from './sync';
+import {
+    authGetStatus,
+    authRefreshProfile,
+    getAuthErrorStatus,
+    authSignIn,
+    authSignOut,
+    authSignUp,
+    configureAuthIo,
+    initAuth,
+    setAuthWindowSender,
+} from './auth';
 import { GeminiService } from './gemini';
 import { startServer, stopServer, setOAuthCompleteCallback, getServerPort, isServerRunning } from './server';
 import { startReminderService } from './reminders';
@@ -57,6 +90,13 @@ import {
     initAppUpdater,
     installAppUpdate,
 } from './appUpdater';
+import {
+    getPerformanceSnapshot,
+    incrementCounter,
+    measureMainMetric,
+    recordRendererMetric,
+    startTimer,
+} from './perf';
 // trayIconBase64 removed to use file-based icon
 // BOOTSTRAP: This self-executing function finds the REAL Electron API even if shadowed.
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -94,11 +134,12 @@ const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, protocol } = ele
 
 if (protocol) {
     protocol.registerSchemesAsPrivileged([
-        { scheme: 'q-media', privileges: { secure: true, standard: true, supportFetchAPI: true, bypassCSP: true, stream: true, corsEnabled: true } }
+        { scheme: 'q-media', privileges: { secure: true, standard: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
     ]);
 }
 
 if (app) {
+    const appBootStartedAt = startTimer();
     const _cacheRunId = `${Date.now().toString(36)}-${process.pid}-${Math.floor(Math.random() * 0x100000).toString(36)}`;
     const _chromiumCacheRoot = path.join(os.tmpdir(), 'qassistant-chrome-cache');
     const _runCacheDir = path.join(_chromiumCacheRoot, _cacheRunId);
@@ -119,6 +160,9 @@ if (app) {
     let UPDATER_DATA_DIR = '';
     let tray: any = null;
     let USER_PROFILE_FILE = '';
+    let stopReminderService = () => {};
+    let deferredStartupStarted = false;
+    let startDeferredServices = () => {};
 
     const isMac = process.platform === 'darwin';
     const appUserModelId = 'com.lewandowskista.qassistant';
@@ -157,6 +201,7 @@ if (app) {
     }
 
     function createWindow() {
+        const windowCreateStartedAt = startTimer();
         const windowIcon = !isMac ? resolveWindowIconPath() : undefined;
 
         mainWindow = new BrowserWindow({
@@ -205,9 +250,11 @@ if (app) {
 
         mainWindow.once('ready-to-show', () => {
             if (mainWindow) {
+                measureMainMetric('windowReadyToShowMs', windowCreateStartedAt);
                 mainWindow.show();
                 mainWindow.webContents.send('window-maximized-status', mainWindow.isMaximized());
                 mainWindow.webContents.send(getAppUpdateEventChannel(), getAppUpdateState());
+                startDeferredServices();
             }
         });
 
@@ -288,6 +335,26 @@ if (app) {
         return String(err);
     }
 
+    async function readSettings(): Promise<Record<string, unknown>> {
+        try {
+            if (!SETTINGS_FILE || !fs.existsSync(SETTINGS_FILE)) return {};
+            const content = await fsp.readFile(SETTINGS_FILE, 'utf8');
+            const parsed = JSON.parse(content);
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                return parsed as Record<string, unknown>;
+            }
+            console.error('settings.json has unexpected shape â€” resetting to defaults.');
+        } catch (error) {
+            console.warn('[settings] Failed to read settings:', error);
+        }
+        return {};
+    }
+
+    async function syncCredentialStorageAcknowledgement(): Promise<void> {
+        const settings = await readSettings();
+        setPlaintextFallbackAllowed(settings.allowInsecureCredentialStorage === true);
+    }
+
     function assertAutomationArgs(args: unknown) {
         assertObject(args, 'automationArgs');
         const payload = args as Record<string, unknown>;
@@ -361,17 +428,105 @@ if (app) {
             }
         });
         ipcMain.handle('write-projects-file', (_e: any, data: any) => {
+            const startedAt = startTimer();
             try {
                 assertArray(data, 'projects');
+                incrementCounter('fullProjectWrites');
                 saveAllProjects(data);
+                measureMainMetric('lastFullProjectWriteMs', startedAt);
                 return true;
             } catch (e) {
+                measureMainMetric('lastFullProjectWriteMs', startedAt);
                 console.error('Error writing projects to SQLite:', e);
                 return false;
             }
         });
+        ipcMain.handle('upsert-project-note', (_e: any, { projectId, note }: any) => {
+            try {
+                assertString(projectId, 'projectId', 200);
+                assertObject(note, 'note');
+                upsertProjectNote(projectId, note);
+                incrementCounter('granularNoteWrites');
+                return true;
+            } catch (e) {
+                console.error('Error writing note to SQLite:', e);
+                return false;
+            }
+        });
+        ipcMain.handle('delete-project-note', (_e: any, { projectId, noteId }: any) => {
+            try {
+                assertString(projectId, 'projectId', 200);
+                assertString(noteId, 'noteId', 200);
+                deleteProjectNote(projectId, noteId);
+                incrementCounter('granularNoteDeletes');
+                return true;
+            } catch (e) {
+                console.error('Error deleting note from SQLite:', e);
+                return false;
+            }
+        });
+        ipcMain.handle('upsert-project-task', (_e: any, { projectId, task }: any) => {
+            try {
+                assertString(projectId, 'projectId', 200);
+                assertObject(task, 'task');
+                upsertProjectTask(projectId, task);
+                incrementCounter('granularTaskWrites');
+                return true;
+            } catch (e) {
+                console.error('Error writing task to SQLite:', e);
+                return false;
+            }
+        });
+        ipcMain.handle('delete-project-task', (_e: any, { projectId, taskId }: any) => {
+            try {
+                assertString(projectId, 'projectId', 200);
+                assertString(taskId, 'taskId', 200);
+                deleteProjectTask(projectId, taskId);
+                incrementCounter('granularTaskDeletes');
+                return true;
+            } catch (e) {
+                console.error('Error deleting task from SQLite:', e);
+                return false;
+            }
+        });
+        ipcMain.handle('upsert-project-handoff', (_e: any, { projectId, handoff }: any) => {
+            try {
+                assertString(projectId, 'projectId', 200);
+                assertObject(handoff, 'handoff');
+                upsertProjectHandoff(projectId, handoff);
+                incrementCounter('granularHandoffWrites');
+                return true;
+            } catch (e) {
+                console.error('Error writing handoff to SQLite:', e);
+                return false;
+            }
+        });
+        ipcMain.handle('insert-project-collaboration-event', (_e: any, { projectId, event }: any) => {
+            try {
+                assertString(projectId, 'projectId', 200);
+                assertObject(event, 'event');
+                insertProjectCollaborationEvent(projectId, event);
+                incrementCounter('granularCollaborationEventWrites');
+                return true;
+            } catch (e) {
+                console.error('Error writing collaboration event to SQLite:', e);
+                return false;
+            }
+        });
+        ipcMain.handle('record-performance-metric', (_e: any, { name, value }: any) => {
+            try {
+                assertString(name, 'name', 100);
+                assertNumber(value, 'value', 0);
+                recordRendererMetric(name, value);
+                return true;
+            } catch {
+                return false;
+            }
+        });
+        ipcMain.handle('get-performance-metrics', () => getPerformanceSnapshot());
         ipcMain.handle('read-settings-file', async () => {
             try {
+                return await readSettings();
                 if (fs.existsSync(SETTINGS_FILE)) {
                     const content = await fsp.readFile(SETTINGS_FILE, 'utf8');
                     const parsed = JSON.parse(content);
@@ -390,6 +545,7 @@ if (app) {
             try {
                 assertObject(data, 'settings');
                 await fsp.writeFile(SETTINGS_FILE, JSON.stringify(data, null, 2));
+                await syncCredentialStorageAcknowledgement();
                 return true;
             } catch (e) {
                 console.error('Error writing settings file:', e);
@@ -407,12 +563,7 @@ if (app) {
             assertString(version, 'version', 100);
             return await dismissAppUpdate(version);
         });
-        ipcMain.handle('get-credential-storage-status', () => {
-            const { safeStorage } = electron;
-            if (isKeychainAvailable()) return { mode: 'keychain', encrypted: true };
-            if (safeStorage.isEncryptionAvailable()) return { mode: 'safeStorage', encrypted: true };
-            return { mode: 'plaintext', encrypted: false };
-        });
+        ipcMain.handle('get-credential-storage-status', () => getCredentialStorageStatusSummary());
         ipcMain.handle('secure-store-set', async (_e: any, key: any, value: any) => {
             assertString(key, 'key', 500);
             assertString(value, 'value', 100_000);
@@ -485,13 +636,15 @@ if (app) {
         });
         ipcMain.handle('automation-api-start', async (_e: any, args: any) => {
             assertAutomationArgs(args);
-            return startServer(args.apiKey, args.port);
+            startServer(args.apiKey, args.port);
+            return { running: isServerRunning(), port: getServerPort() };
         });
         ipcMain.handle('automation-api-stop', () => stopServer());
         ipcMain.handle('automation-api-restart', async (_e: any, args: any) => {
             assertAutomationArgs(args);
             stopServer();
-            return startServer(args.apiKey, args.port);
+            startServer(args.apiKey, args.port);
+            return { running: isServerRunning(), port: getServerPort() };
         });
         ipcMain.handle('automation-api-status', () => ({ running: isServerRunning(), port: getServerPort() }));
         ipcMain.handle('test-linear-connection', async (_e: any, { apiKey }: any) => await integrations.getLinearTeams(apiKey));
@@ -1110,6 +1263,52 @@ if (app) {
             }
         });
 
+        // Primary Supabase Auth
+        ipcMain.handle('auth-get-status', async () => {
+            try {
+                return await authGetStatus();
+            } catch (e: any) {
+                return getAuthErrorStatus(e.message);
+            }
+        });
+        ipcMain.handle('auth-sign-in', async (_e: any, { email, password }: any) => {
+            try {
+                assertString(email, 'email', 200);
+                assertString(password, 'password', 200);
+                return await authSignIn(email, password);
+            } catch (e: any) {
+                return getAuthErrorStatus(e.message);
+            }
+        });
+        ipcMain.handle('auth-sign-up', async (_e: any, { email, password, displayName }: any) => {
+            try {
+                assertString(email, 'email', 200);
+                assertString(password, 'password', 200);
+                assertString(displayName, 'displayName', 100);
+                return await authSignUp(email, password, displayName);
+            } catch (e: any) {
+                return getAuthErrorStatus(e.message);
+            }
+        });
+        ipcMain.handle('auth-sign-out', async () => {
+            try {
+                // Tear down sync first (while session is still valid) so the
+                // realtime channel can be cleanly removed before the token is invalidated.
+                await teardownSync();
+                const status = await authSignOut();
+                return status;
+            } catch (e: any) {
+                return getAuthErrorStatus(e.message);
+            }
+        });
+        ipcMain.handle('auth-refresh-profile', async () => {
+            try {
+                return await authRefreshProfile();
+            } catch (e: any) {
+                return getAuthErrorStatus(e.message);
+            }
+        });
+
         // OAuth
         ipcMain.handle('oauth-start', async (_e: any, { provider }: any) => {
             try {
@@ -1122,6 +1321,9 @@ if (app) {
                     }
                 } catch { /* use default port */ }
                 const port = parseInt(settings.automationPort || '5248', 10);
+                if (!isServerRunning()) {
+                    startServer(crypto.randomBytes(32).toString('hex'), port);
+                }
                 const url = oauth.generateAuthUrl(provider as any, port);
                 await shell.openExternal(url);
                 return { success: true };
@@ -1249,26 +1451,18 @@ if (app) {
             try { return await initSync(); }
             catch (e: any) { return { ok: false, status: 'error', error: e.message }; }
         });
-        ipcMain.handle('sync-create-workspace', async (_e: any, { supabaseUrl, supabaseAnonKey, userEmail, userPassword, workspaceName, displayName }: any) => {
+        ipcMain.handle('sync-create-workspace', async (_e: any, { workspaceName, displayName }: any) => {
             try {
-                assertString(supabaseUrl, 'supabaseUrl', 500);
-                assertString(supabaseAnonKey, 'supabaseAnonKey', 500);
-                assertString(userEmail, 'userEmail', 200);
-                assertString(userPassword, 'userPassword', 200);
                 assertString(workspaceName, 'workspaceName', 200);
-                assertString(displayName, 'displayName', 100);
-                return await createWorkspace(supabaseUrl, supabaseAnonKey, userEmail, userPassword, workspaceName, displayName);
+                if (displayName !== undefined && displayName !== null) assertString(displayName, 'displayName', 100);
+                return await createWorkspace(workspaceName, displayName);
             } catch (e: any) { return { ok: false, error: e.message }; }
         });
-        ipcMain.handle('sync-join-workspace', async (_e: any, { supabaseUrl, supabaseAnonKey, userEmail, userPassword, inviteCode, displayName }: any) => {
+        ipcMain.handle('sync-join-workspace', async (_e: any, { inviteCode, displayName }: any) => {
             try {
-                assertString(supabaseUrl, 'supabaseUrl', 500);
-                assertString(supabaseAnonKey, 'supabaseAnonKey', 500);
-                assertString(userEmail, 'userEmail', 200);
-                assertString(userPassword, 'userPassword', 200);
-                assertString(inviteCode, 'inviteCode', 20);
-                assertString(displayName, 'displayName', 100);
-                return await joinWorkspace(supabaseUrl, supabaseAnonKey, userEmail, userPassword, inviteCode, displayName);
+                assertString(inviteCode, 'inviteCode', 64);
+                if (displayName !== undefined && displayName !== null) assertString(displayName, 'displayName', 100);
+                return await joinWorkspace(inviteCode, displayName);
             } catch (e: any) { return { ok: false, error: e.message }; }
         });
         ipcMain.handle('sync-disconnect', async () => {
@@ -1278,6 +1472,14 @@ if (app) {
         ipcMain.handle('sync-get-workspace-info', async () => {
             try { return await getWorkspaceInfo(); }
             catch (e: any) { return { workspaceId: null, error: e.message }; }
+        });
+        ipcMain.handle('sync-get-workspace-invite', async () => {
+            try { return await getWorkspaceInvite(); }
+            catch (e: any) { return { ok: false, error: e.message }; }
+        });
+        ipcMain.handle('sync-rotate-workspace-invite', async () => {
+            try { return await rotateWorkspaceInvite(); }
+            catch (e: any) { return { ok: false, error: e.message }; }
         });
         ipcMain.handle('sync-manual', async () => {
             try { return await triggerManualSync(); }
@@ -1373,6 +1575,7 @@ if (app) {
     }
 
     app.whenReady().then(async () => {
+        measureMainMetric('appWhenReadyMs', appBootStartedAt);
         if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
             app.setAppUserModelId(appUserModelId);
         }
@@ -1412,7 +1615,9 @@ if (app) {
                     });
                 } catch (e) {
                     console.error('[q-media] Failed to fetch:', e);
-                    return new Response(null, { status: 500 });
+                    const message = e instanceof Error ? e.message : String(e);
+                    const status = message.startsWith('Blocked') ? 403 : 500;
+                    return new Response(null, { status });
                 }
             });
         }
@@ -1429,50 +1634,91 @@ if (app) {
         if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
         if (!fs.existsSync(UPDATER_DATA_DIR)) fs.mkdirSync(UPDATER_DATA_DIR, { recursive: true });
 
+        initCredentials(CREDENTIALS_FILE);
+        await syncCredentialStorageAcknowledgement();
+
         // Initialise SQLite database (must happen before setupIpc)
         const DB_FILE = path.join(APP_DATA_DIR, 'qassistant.db');
         initDatabase(DB_FILE);
+        migrateLegacyEnvironmentSecretsToSecureStore().catch(error => {
+            console.warn('[db] Legacy environment secret migration failed:', error);
+        });
 
         // One-time migration: import projects.json into SQLite if it exists and DB is empty
         migrateJsonToSqlite(PROJECTS_FILE);
 
         initFileStorage(ATTACHMENTS_DIR);
-        initCredentials(CREDENTIALS_FILE);
 
         // Wire sync → renderer notifications
         setSyncWindowSender((channel: string, ...args: any[]) => {
             mainWindow?.webContents.send(channel, ...args);
         });
         setSyncLogDir(APP_DATA_DIR);
-
-        setupIpc();
-        initAppUpdater({
-            getMainWindow: () => mainWindow,
-            readSettings: async () => {
-                try {
-                    if (!fs.existsSync(SETTINGS_FILE)) return {};
-                    const content = await fsp.readFile(SETTINGS_FILE, 'utf8');
-                    const parsed = JSON.parse(content);
-                    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : {};
-                } catch (error) {
-                    console.warn('[updater] Failed to read settings:', error);
-                    return {};
-                }
-            },
+        setAuthWindowSender((channel: string, ...args: any[]) => {
+            mainWindow?.webContents.send(channel, ...args);
+        });
+        configureAuthIo({
+            readSettings: async () => await readSettings(),
             writeSettings: async (next) => {
                 await fsp.writeFile(SETTINGS_FILE, JSON.stringify(next, null, 2));
+                await syncCredentialStorageAcknowledgement();
             },
-            updaterDataDir: UPDATER_DATA_DIR,
         });
+
+        setupIpc();
         // Notify renderer when OAuth completes via the Express callback route
         setOAuthCompleteCallback((provider, userInfo) => {
             mainWindow?.webContents.send('oauth-complete', { provider, userInfo });
         });
 
-        // Auto-init cloud sync if credentials are already stored
-        initSync().catch(e => console.warn('[sync] Auto-init failed:', e));
-        // Auto-start the server so the OAuth /auth/callback endpoint is always available
-        startServer(crypto.randomBytes(32).toString('hex'), 5248);
+        startDeferredServices = () => {
+            if (deferredStartupStarted) return;
+            deferredStartupStarted = true;
+
+            setTimeout(async () => {
+                const deferredStartedAt = startTimer();
+                try {
+                    initAppUpdater({
+                        getMainWindow: () => mainWindow,
+                        readSettings: async () => await readSettings(),
+                        writeSettings: async (next) => {
+                            await fsp.writeFile(SETTINGS_FILE, JSON.stringify(next, null, 2));
+                            await syncCredentialStorageAcknowledgement();
+                        },
+                        updaterDataDir: UPDATER_DATA_DIR,
+                    });
+                } catch (e) {
+                    console.warn('[startup] Deferred updater init failed:', e);
+                }
+
+                try {
+                    await initAuth();
+                } catch (e) {
+                    console.warn('[auth] Deferred auto-init failed:', e);
+                }
+
+                try {
+                    const settings = await readSettings();
+                    if (settings.automationApiEnabled === true) {
+                        const configuredPort = typeof settings.automationPort === 'string'
+                            ? parseInt(settings.automationPort, 10)
+                            : 5248;
+                        startServer(crypto.randomBytes(32).toString('hex'), Number.isFinite(configuredPort) ? configuredPort : 5248);
+                    }
+                } catch (e) {
+                    console.warn('[startup] Deferred automation server start failed:', e);
+                }
+
+                try {
+                    stopReminderService = startReminderService();
+                } catch (e) {
+                    console.warn('[startup] Deferred reminder service failed:', e);
+                }
+
+                measureMainMetric('deferredStartupMs', deferredStartedAt);
+            }, 750);
+        };
+
         createWindow();
         createTray();
 
@@ -1510,7 +1756,6 @@ if (app) {
             Menu.setApplicationMenu(null);
         }
 
-        const stopReminderService = startReminderService();
         app.on('before-quit', () => {
             (app as any).isQuiting = true;
             stopReminderService();

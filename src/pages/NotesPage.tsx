@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { lazy, Suspense, useState, useEffect, useRef } from "react"
 import { NOTE_TITLE_DEBOUNCE_MS, NOTE_CONTENT_DEBOUNCE_MS } from "@/lib/constants"
 import { useProjectStore } from "@/store/useProjectStore"
 import { Plus, Trash2, Paperclip, ExternalLink, StickyNote, Code, PanelRightClose, PanelRightOpen, Search } from "lucide-react"
@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
-import { RichTextEditor } from "@/components/editor/RichTextEditor"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/ConfirmDialog"
+
+const RichTextEditor = lazy(() => import("@/components/editor/RichTextEditor").then((module) => ({ default: module.RichTextEditor })))
 
 export default function NotesPage() {
     const { projects, activeProjectId, addNote, updateNote, deleteNote, removeAttachmentFromNote, attachFileToNote, linkArtifact } = useProjectStore()
@@ -247,10 +248,12 @@ export default function NotesPage() {
                                     spellCheck={false}
                                 />
                             ) : (
-                            <RichTextEditor
-                                content={contentState}
-                                onChange={(content) => setContentState(content)}
-                            />
+                                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-[#6B7280]">Loading editor...</div>}>
+                                    <RichTextEditor
+                                        content={contentState}
+                                        onChange={(content) => setContentState(content)}
+                                    />
+                                </Suspense>
                             )}
                             <aside className={cn(
                                 "border-l border-[#2A2A3A] bg-[#13131A]/30 flex flex-col transition-all duration-300 overflow-hidden",

@@ -6,7 +6,7 @@
  * interface. Helps developers understand test coverage before and after fixes.
  */
 import { useMemo } from 'react'
-import { useProjectStore } from '@/store/useProjectStore'
+import { useActiveProject } from '@/store/useProjectStore'
 import { FlaskConical, CheckCircle2, XCircle, Ban, SkipForward, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TestPlan, TestCaseStatus } from '@/types/project'
@@ -118,8 +118,7 @@ function PlanCard({ plan }: { plan: TestPlan }) {
 }
 
 export function DevTestPlanSummary() {
-    const { projects, activeProjectId } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
     const plans = useMemo(() =>
         (activeProject?.testPlans ?? []).filter(p => !p.isArchived),
         [activeProject?.testPlans]

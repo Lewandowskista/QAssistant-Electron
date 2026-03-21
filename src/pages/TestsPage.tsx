@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react"
-import { useProjectStore } from "@/store/useProjectStore"
+import { lazy, Suspense, useState, useMemo, useEffect } from "react"
+import { useActiveProject, useActiveProjectId, useProjectStore } from "@/store/useProjectStore"
 import { TestPlan, TestCase, TestCaseStatus } from "@/types/project"
 import {
     Plus,
@@ -36,21 +36,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import TestPlanDialog from "@/components/TestPlanDialog"
-import TestCaseDialog from "@/components/TestCaseDialog"
-import TestRunDialog from "@/components/TestRunDialog"
-import SingleTestRunDialog from "@/components/SingleTestRunDialog"
 import TestPlanCard from "@/components/TestPlanCard"
-import TaskSelectionDialog from "@/components/TaskSelectionDialog"
 import FormattedText from "@/components/FormattedText"
-import { CsvImportDialog } from "@/components/CsvImportDialog"
 import TestRunSessionCard from "@/components/TestRunSessionCard"
-import CoverageMatrix from "@/components/CoverageMatrix"
 import { toast } from "sonner"
 import { SubtabBar } from "@/components/ui/subtab-bar"
 import { SegmentedControl } from "@/components/ui/segmented-control"
-import AIAccuracyPanel from "@/components/ai-accuracy/AIAccuracyPanel"
-import { TestResultImportDialog } from "@/components/TestResultImportDialog"
 
 type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder' | 'RiskMatrix' | 'AIAccuracy'
 
@@ -59,21 +50,30 @@ import { sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTasksForQaAi, 
 import { computeRiskScores } from '@/lib/riskPrioritization'
 import { AiSetupPrompt } from '@/components/ui/AiSetupPrompt'
 import { useUserStore } from '@/store/useUserStore'
-import { DevTestPlanSummary } from '@/components/sync/DevTestPlanSummary'
+import { useShallow } from "zustand/react/shallow"
+
+const AIAccuracyPanel = lazy(() => import("@/components/ai-accuracy/AIAccuracyPanel"))
+const TestPlanDialog = lazy(() => import("@/components/TestPlanDialog"))
+const TestCaseDialog = lazy(() => import("@/components/TestCaseDialog"))
+const TestRunDialog = lazy(() => import("@/components/TestRunDialog"))
+const SingleTestRunDialog = lazy(() => import("@/components/SingleTestRunDialog"))
+const TaskSelectionDialog = lazy(() => import("@/components/TaskSelectionDialog"))
+const CsvImportDialog = lazy(() => import("@/components/CsvImportDialog").then((module) => ({ default: module.CsvImportDialog })))
+const CoverageMatrix = lazy(() => import("@/components/CoverageMatrix"))
+const TestResultImportDialog = lazy(() => import("@/components/TestResultImportDialog").then((module) => ({ default: module.TestResultImportDialog })))
+const DevTestPlanSummary = lazy(() => import("@/components/sync/DevTestPlanSummary").then((module) => ({ default: module.DevTestPlanSummary })))
 
 export default function TestsPage() {
     const api = window.electronAPI;
     const activeRole = useUserStore(s => s.profile?.activeRole ?? 'qa')
-    const {
-        projects,
-        activeProjectId,
-        addTestCase,
-        addTestPlan,
-        batchAddTestCasesToPlan,
-        deleteLegacyExecution
-    } = useProjectStore()
-
-    const activeProject = projects.find(p => p.id === activeProjectId)
+    const activeProject = useActiveProject()
+    const activeProjectId = useActiveProjectId()
+    const { addTestCase, addTestPlan, batchAddTestCasesToPlan, deleteLegacyExecution } = useProjectStore(useShallow((state) => ({
+        addTestCase: state.addTestCase,
+        addTestPlan: state.addTestPlan,
+        batchAddTestCasesToPlan: state.batchAddTestCasesToPlan,
+        deleteLegacyExecution: state.deleteLegacyExecution,
+    })))
     const testPlans = activeProject?.testPlans || []
     const projectExecutions = activeProject?.testExecutions || []
     const projectRunSessions = [...(activeProject?.testRunSessions || [])].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
@@ -522,7 +522,11 @@ export default function TestsPage() {
     }
 
     if (activeRole === 'dev') {
-        return <DevTestPlanSummary />
+        return (
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-[#6B7280]">Loading test summary...</div>}>
+                <DevTestPlanSummary />
+            </Suspense>
+        )
     }
 
     return (
@@ -1038,7 +1042,9 @@ export default function TestsPage() {
 
                     {
                         activeSubTab === 'CoverageMatrix' && (
-                            <CoverageMatrix />
+                            <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-[#6B7280]">Loading coverage matrix...</div>}>
+                                <CoverageMatrix />
+                            </Suspense>
                         )
                     }
 
@@ -1343,49 +1349,53 @@ export default function TestsPage() {
 
                     {activeSubTab === 'AIAccuracy' && (
                         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                            <AIAccuracyPanel />
+                            <Suspense fallback={<div className="flex-1 flex items-center justify-center text-xs text-[#6B7280]">Loading accuracy tools...</div>}>
+                                <AIAccuracyPanel />
+                            </Suspense>
                         </div>
                     )}
                 </div>
 
-                <TestPlanDialog
-                    open={planDialogOpen}
-                    onOpenChange={setPlanDialogOpen}
-                    editingPlan={editingPlan}
-                />
-                <TestCaseDialog
-                    open={caseDialogOpen}
-                    onOpenChange={setCaseDialogOpen}
-                    activePlan={activePlanForCase}
-                    editingCase={editingCase}
-                />
-                <TestRunDialog
-                    open={runDialogOpen}
-                    onOpenChange={setRunDialogOpen}
-                    activePlan={activePlanForCase}
-                />
-                <TaskSelectionDialog
-                    open={ctxDialogOpen}
-                    onOpenChange={setCtxDialogOpen}
-                    selectedTaskIds={selectedTaskIds}
-                    onSelectionChange={setSelectedTaskIds}
-                    sourceFilter={source}
-                />
-                <SingleTestRunDialog
-                    open={singleRunDialogOpen}
-                    onOpenChange={setSingleRunDialogOpen}
-                    plan={activePlanForCase}
-                    testCase={activeCaseForRun}
-                />
-                <CsvImportDialog
-                    open={importDialogOpen}
-                    onOpenChange={setImportDialogOpen}
-                    onImport={handleImportedData}
-                />
-                <TestResultImportDialog
-                    open={importResultsDialogOpen}
-                    onOpenChange={setImportResultsDialogOpen}
-                />
+                <Suspense fallback={null}>
+                    <TestPlanDialog
+                        open={planDialogOpen}
+                        onOpenChange={setPlanDialogOpen}
+                        editingPlan={editingPlan}
+                    />
+                    <TestCaseDialog
+                        open={caseDialogOpen}
+                        onOpenChange={setCaseDialogOpen}
+                        activePlan={activePlanForCase}
+                        editingCase={editingCase}
+                    />
+                    <TestRunDialog
+                        open={runDialogOpen}
+                        onOpenChange={setRunDialogOpen}
+                        activePlan={activePlanForCase}
+                    />
+                    <TaskSelectionDialog
+                        open={ctxDialogOpen}
+                        onOpenChange={setCtxDialogOpen}
+                        selectedTaskIds={selectedTaskIds}
+                        onSelectionChange={setSelectedTaskIds}
+                        sourceFilter={source}
+                    />
+                    <SingleTestRunDialog
+                        open={singleRunDialogOpen}
+                        onOpenChange={setSingleRunDialogOpen}
+                        plan={activePlanForCase}
+                        testCase={activeCaseForRun}
+                    />
+                    <CsvImportDialog
+                        open={importDialogOpen}
+                        onOpenChange={setImportDialogOpen}
+                        onImport={handleImportedData}
+                    />
+                    <TestResultImportDialog
+                        open={importResultsDialogOpen}
+                        onOpenChange={setImportResultsDialogOpen}
+                    />
+                </Suspense>
             </div>
         </>
     )

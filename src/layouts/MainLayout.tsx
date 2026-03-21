@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3, ClipboardCheck, Activity, Compass } from "lucide-react"
+import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3, ClipboardCheck, Activity, Compass, Loader2 } from "lucide-react"
 import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
@@ -218,6 +218,17 @@ export default function MainLayout() {
             ]
         }
     ]
+
+    if (!userLoaded) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span>Loading your workspace…</span>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <>

@@ -1,5 +1,6 @@
 import { Project, TestCase, Attachment } from './project';
 import { UserProfile } from './user';
+import { AuthStatus } from './auth';
 import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem, GitHubComment, GitHubWorkflowJob, GitHubWorkflow } from './github';
 import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
 import { CronJobEntry, FlexibleSearchResult, ImpExResult } from '@/lib/sapHac';
@@ -16,6 +17,7 @@ import {
     SyncPushHandoffArgs,
     SyncPushTaskCollabArgs,
     SyncStatusPayload,
+    WorkspaceInviteInfo,
     WorkspaceInfo,
 } from './sync';
 
@@ -37,8 +39,21 @@ export interface ElectronAPI {
     getAppDataPath: () => Promise<string>;
     readProjectsFile: () => Promise<Project[]>;
     writeProjectsFile: (data: Project[]) => Promise<{ success: boolean; error?: string }>;
+    upsertProjectNote: (projectId: string, note: any) => Promise<boolean>;
+    deleteProjectNote: (projectId: string, noteId: string) => Promise<boolean>;
+    upsertProjectTask: (projectId: string, task: any) => Promise<boolean>;
+    deleteProjectTask: (projectId: string, taskId: string) => Promise<boolean>;
+    upsertProjectHandoff: (projectId: string, handoff: any) => Promise<boolean>;
+    insertProjectCollaborationEvent: (projectId: string, event: any) => Promise<boolean>;
     readSettingsFile: () => Promise<any>;
     writeSettingsFile: (data: any) => Promise<{ success: boolean; error?: string }>;
+    recordPerformanceMetric: (name: string, value: number) => Promise<boolean>;
+    getPerformanceMetrics: () => Promise<{
+        appStartedAt: number;
+        main: Record<string, number>;
+        renderer: Record<string, number>;
+        counters: Record<string, number>;
+    }>;
     getAppUpdateState: () => Promise<AppUpdateState>;
     checkForAppUpdate: () => Promise<AppUpdateState>;
     downloadAppUpdate: () => Promise<AppUpdateState>;
@@ -47,7 +62,13 @@ export interface ElectronAPI {
     readJsonFile: (args: { filePath: string } | string) => Promise<{ success: boolean; data?: any; error?: string }>;
     
     // Credentials
-    getCredentialStorageStatus: () => Promise<{ mode: 'keychain' | 'safeStorage' | 'plaintext'; encrypted: boolean }>;
+    getCredentialStorageStatus: () => Promise<{
+        mode: 'keychain' | 'safeStorage' | 'plaintext';
+        encrypted: boolean;
+        acknowledged: boolean;
+        requiresAcknowledgement: boolean;
+        canPersistSecrets: boolean;
+    }>;
     scanOrphanedAttachments: (referencedPaths: string[]) => Promise<{ orphaned: { filePath: string; fileName: string; fileSizeBytes: number }[]; totalSize: number }>;
     deleteOrphanedAttachments: (filePaths: string[]) => Promise<{ deleted: number }>;
     secureStoreSet: (key: string, value: string) => Promise<{ success: boolean; error?: string }>;
@@ -127,6 +148,14 @@ export interface ElectronAPI {
     readUserProfile: () => Promise<UserProfile | null>;
     writeUserProfile: (data: UserProfile) => Promise<boolean>;
 
+    // Primary auth
+    authGetStatus: () => Promise<AuthStatus>;
+    authSignIn: (args: { email: string; password: string }) => Promise<AuthStatus>;
+    authSignUp: (args: { email: string; password: string; displayName: string }) => Promise<AuthStatus>;
+    authSignOut: () => Promise<AuthStatus>;
+    authRefreshProfile: () => Promise<AuthStatus>;
+    onAuthStatusChanged: (callback: (status: AuthStatus) => void) => () => void;
+
     // OAuth
     oauthStart: (provider: string) => Promise<{ success: boolean; error?: string }>;
     oauthLogout: (provider: string) => Promise<{ success: boolean; error?: string }>;
@@ -186,6 +215,8 @@ export interface ElectronAPI {
     syncJoinWorkspace: (args: SyncJoinWorkspaceArgs) => Promise<{ ok: boolean; workspaceId?: string; workspaceName?: string; error?: string }>;
     syncDisconnect: () => Promise<{ ok: boolean; error?: string }>;
     syncGetWorkspaceInfo: () => Promise<WorkspaceInfo>;
+    syncGetWorkspaceInvite: () => Promise<{ ok: boolean; invite?: WorkspaceInviteInfo; error?: string }>;
+    syncRotateWorkspaceInvite: () => Promise<{ ok: boolean; invite?: WorkspaceInviteInfo; error?: string }>;
     syncManual: () => Promise<{ ok: boolean; error?: string }>;
     onSyncStatusChanged: (callback: (status: SyncStatusPayload) => void) => () => void;
     onSyncDataUpdated: (callback: (data: SyncDataUpdatedPayload) => void) => () => void;

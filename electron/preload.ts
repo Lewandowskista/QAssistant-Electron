@@ -51,8 +51,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppDataPath: () => ipcRenderer.invoke('get-app-data-path'),
   readProjectsFile: () => ipcRenderer.invoke('read-projects-file'),
   writeProjectsFile: (data: any) => ipcRenderer.invoke('write-projects-file', data),
+  upsertProjectNote: (projectId: string, note: any) => ipcRenderer.invoke('upsert-project-note', { projectId, note }),
+  deleteProjectNote: (projectId: string, noteId: string) => ipcRenderer.invoke('delete-project-note', { projectId, noteId }),
+  upsertProjectTask: (projectId: string, task: any) => ipcRenderer.invoke('upsert-project-task', { projectId, task }),
+  deleteProjectTask: (projectId: string, taskId: string) => ipcRenderer.invoke('delete-project-task', { projectId, taskId }),
+  upsertProjectHandoff: (projectId: string, handoff: any) => ipcRenderer.invoke('upsert-project-handoff', { projectId, handoff }),
+  insertProjectCollaborationEvent: (projectId: string, event: any) => ipcRenderer.invoke('insert-project-collaboration-event', { projectId, event }),
   readSettingsFile: () => ipcRenderer.invoke('read-settings-file'),
   writeSettingsFile: (data: any) => ipcRenderer.invoke('write-settings-file', data),
+  recordPerformanceMetric: (name: string, value: number) => ipcRenderer.invoke('record-performance-metric', { name, value }),
+  getPerformanceMetrics: () => ipcRenderer.invoke('get-performance-metrics'),
   getAppUpdateState: () => ipcRenderer.invoke('get-app-update-state'),
   checkForAppUpdate: () => ipcRenderer.invoke('check-app-update'),
   downloadAppUpdate: () => ipcRenderer.invoke('download-app-update'),
@@ -143,6 +151,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readUserProfile: () => ipcRenderer.invoke('read-user-profile'),
   writeUserProfile: (data: any) => ipcRenderer.invoke('write-user-profile', data),
 
+  // Primary auth
+  authGetStatus: () => ipcRenderer.invoke('auth-get-status'),
+  authSignIn: (args: any) => ipcRenderer.invoke('auth-sign-in', args),
+  authSignUp: (args: any) => ipcRenderer.invoke('auth-sign-up', args),
+  authSignOut: () => ipcRenderer.invoke('auth-sign-out'),
+  authRefreshProfile: () => ipcRenderer.invoke('auth-refresh-profile'),
+  onAuthStatusChanged: (callback: (status: any) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('auth-status-changed', listener);
+    return () => ipcRenderer.removeListener('auth-status-changed', listener);
+  },
+
   // OAuth
   oauthStart: (provider: string) => ipcRenderer.invoke('oauth-start', { provider }),
   oauthLogout: (provider: string) => ipcRenderer.invoke('oauth-logout', { provider }),
@@ -191,6 +211,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncJoinWorkspace: (args: any) => ipcRenderer.invoke('sync-join-workspace', args),
   syncDisconnect: () => ipcRenderer.invoke('sync-disconnect'),
   syncGetWorkspaceInfo: () => ipcRenderer.invoke('sync-get-workspace-info'),
+  syncGetWorkspaceInvite: () => ipcRenderer.invoke('sync-get-workspace-invite'),
+  syncRotateWorkspaceInvite: () => ipcRenderer.invoke('sync-rotate-workspace-invite'),
   syncManual: () => ipcRenderer.invoke('sync-manual'),
   onSyncStatusChanged: (callback: (status: any) => void) => {
     const listener = (_event: any, data: any) => callback(data);
