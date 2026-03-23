@@ -478,17 +478,32 @@ export default function TasksPage() {
         toast.success("Updated")
     }
 
-    const handleCopyReference = async (taskId: string) => {
+    const handleCopyReference = useCallback(async (taskId: string) => {
         const task = tasks.find((entry) => entry.id === taskId)
         if (!task) return
         await navigator.clipboard.writeText(task.sourceIssueId || task.externalId || task.title)
         toast.success("Task reference copied")
-    }
+    }, [tasks])
 
-    const openExternalTask = (taskId: string) => {
+    const openExternalTask = useCallback((taskId: string) => {
         const task = tasks.find((entry) => entry.id === taskId)
         if (task?.ticketUrl) api.openUrl(task.ticketUrl)
-    }
+    }, [tasks, api])
+
+    const handleAddTask = useCallback((status?: string) => {
+        setNewTaskStatus(status || "todo")
+        setIsNewTaskModalOpen(true)
+    }, [])
+
+    const handleFilterColumn = useCallback((status: string) => {
+        setFilters((current) => ({ ...current, status }))
+    }, [])
+
+    const handleAnalyzeTaskById = useCallback((taskId: string) => {
+        const task = tasks.find((entry) => entry.id === taskId)
+        if (task) handleAnalyzeIssue(task)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tasks])
 
     const clearFilters = () => setFilters(() => ({ ...DEFAULT_TASK_FILTERS, source: sourceMode }))
 
@@ -720,14 +735,11 @@ export default function TasksPage() {
                                                 selectedTaskId={detailsId}
                                                 setSelectedTaskId={setDetailsId}
                                                 sourceMode={effectiveSource}
-                                                onAddTask={(status) => { setNewTaskStatus(status || "todo"); setIsNewTaskModalOpen(true) }}
-                                                onAnalyzeTask={(taskId) => {
-                                                    const task = tasks.find((entry) => entry.id === taskId)
-                                                    if (task) handleAnalyzeIssue(task)
-                                                }}
+                                                onAddTask={handleAddTask}
+                                                onAnalyzeTask={handleAnalyzeTaskById}
                                                 onOpenExternal={openExternalTask}
                                                 onCopyReference={handleCopyReference}
-                                                onFilterColumn={(status) => setFilters((current) => ({ ...current, status }))}
+                                                onFilterColumn={handleFilterColumn}
                                                 dragDisabled={sortMode !== "manual"}
                                                 sortMode={sortMode}
                                             />

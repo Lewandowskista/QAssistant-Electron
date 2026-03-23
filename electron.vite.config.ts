@@ -36,6 +36,8 @@ export default defineConfig({
       'process.env.LINEAR_CLIENT_SECRET': JSON.stringify(env['LINEAR_CLIENT_SECRET'] || ''),
     },
     build: {
+      minify: true,
+      sourcemap: false,
       lib: {
         entry: resolve(__dirname, 'electron/main.ts'),
         formats: ['cjs']
@@ -52,6 +54,8 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
+      minify: true,
+      sourcemap: false,
       lib: {
         entry: resolve(__dirname, 'electron/preload.ts'),
         formats: ['cjs']
@@ -67,6 +71,8 @@ export default defineConfig({
   renderer: {
     root: resolve(__dirname, 'src'),
     build: {
+      minify: 'esbuild',
+      sourcemap: false,
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/index.html')
@@ -82,6 +88,8 @@ export default defineConfig({
             if (id.includes('recharts') || id.includes('d3-')) return 'charts'
             if (id.includes('@supabase')) return 'supabase'
             if (id.includes('@radix-ui') || id.includes('cmdk')) return 'ui-vendor'
+            if (id.includes('lucide-react')) return 'icons'
+            if (id.includes('@google/generative-ai')) return 'ai-sdk'
           }
         }
       }

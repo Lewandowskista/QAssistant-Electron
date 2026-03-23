@@ -154,16 +154,6 @@ if (protocol) {
 
 if (app) {
     const appBootStartedAt = startTimer();
-    const _cacheRunId = `${Date.now().toString(36)}-${process.pid}-${Math.floor(Math.random() * 0x100000).toString(36)}`;
-    const _chromiumCacheRoot = path.join(os.tmpdir(), 'qassistant-chrome-cache');
-    const _runCacheDir = path.join(_chromiumCacheRoot, _cacheRunId);
-
-    try {
-        if (!fs.existsSync(_chromiumCacheRoot)) fs.mkdirSync(_chromiumCacheRoot, { recursive: true });
-    } catch (e) {
-        console.warn('Could not prepare Chromium cache root directory:', e);
-    }
-
     let mainWindow: any = null;
     let wasFullscreenBeforeHide = false;
     let APP_DATA_DIR = '';
@@ -228,7 +218,7 @@ if (app) {
             trafficLightPosition: isMac ? { x: 10, y: 14 } : undefined,
             webPreferences: {
                 preload: path.join(__dirname, '../preload/preload.js'),
-                additionalArguments: [`--disk-cache-dir=${_runCacheDir}`],
+
                 contextIsolation: true,
                 nodeIntegration: false,
                 sandbox: true
@@ -698,19 +688,7 @@ if (app) {
         initCredentials(CREDENTIALS_FILE);
         await syncCredentialStorageAcknowledgement();
 
-        // Initialise SQLite database (must happen before setupIpc)
-        const DB_FILE = path.join(APP_DATA_DIR, 'qassistant.db');
-        initDatabase(DB_FILE);
-        migrateLegacyEnvironmentSecretsToSecureStore().catch(error => {
-            console.warn('[db] Legacy environment secret migration failed:', error);
-        });
-
-        // One-time migration: import projects.json into SQLite if it exists and DB is empty
-        migrateJsonToSqlite(PROJECTS_FILE);
-
-        initFileStorage(ATTACHMENTS_DIR);
-
-        // Wire sync → renderer notifications
+        // Wire sync/auth → renderer notifications (safe to do before window exists)
         setSyncWindowSender((channel: string, ...args: any[]) => {
             mainWindow?.webContents.send(channel, ...args);
         });
@@ -726,10 +704,36 @@ if (app) {
             },
         });
 
-        setupIpc();
-        // Notify renderer when OAuth completes via the Express callback route
-        setOAuthCompleteCallback((provider, userInfo) => {
-            mainWindow?.webContents.send('oauth-complete', { provider, userInfo });
+        // Create the window immediately — DB init is deferred below so the
+        // window can start rendering while the database opens in the background.
+        createWindow();
+        createTray();
+
+        // Defer DB init + IPC setup to the next event loop tick so Chromium
+        // can begin loading the renderer HTML before we block on SQLite.
+        setImmediate(async () => {
+            const DB_FILE = path.join(APP_DATA_DIR, 'qassistant.db');
+            initDatabase(DB_FILE);
+            migrateLegacyEnvironmentSecretsToSecureStore().catch(error => {
+                console.warn('[db] Legacy environment secret migration failed:', error);
+            });
+
+            // One-time migration: import projects.json into SQLite if it exists and DB is empty
+            migrateJsonToSqlite(PROJECTS_FILE);
+
+            initFileStorage(ATTACHMENTS_DIR);
+
+            setupIpc();
+
+            // Notify renderer when OAuth completes via the Express callback route
+            setOAuthCompleteCallback((provider, userInfo) => {
+                mainWindow?.webContents.send('oauth-complete', { provider, userInfo });
+            });
+
+            // Signal renderer that IPC handlers and database are ready.
+            // MainLayout listens for this and retries loadProjects() if the initial
+            // call returned empty (because DB wasn't ready yet).
+            mainWindow?.webContents.send('ipc-ready');
         });
 
         startDeferredServices = () => {
@@ -780,9 +784,6 @@ if (app) {
             }, 750);
         };
 
-        createWindow();
-        createTray();
-
         if (isMac) {
             const appMenu = Menu.buildFromTemplate([
                 {
@@ -817,11 +818,21 @@ if (app) {
             Menu.setApplicationMenu(null);
         }
 
-        app.on('before-quit', () => {
+        app.on('before-quit', (event) => {
             (app as any).isQuiting = true;
             stopReminderService();
             teardownSync().catch(() => {});
-            closeDatabase();
+            // Ask renderer to flush any debounced pending save before closing the DB
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                event.preventDefault();
+                mainWindow.webContents.send('flush-pending-save');
+                setTimeout(() => {
+                    closeDatabase();
+                    app.exit(0);
+                }, 150);
+            } else {
+                closeDatabase();
+            }
         });
     });
 

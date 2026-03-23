@@ -250,4 +250,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('sync-mutation-failed', listener);
     return () => ipcRenderer.removeListener('sync-mutation-failed', listener);
   },
+  onFlushPendingSave: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('flush-pending-save', listener);
+    return () => ipcRenderer.removeListener('flush-pending-save', listener);
+  },
+  onIpcReady: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.once('ipc-ready', listener);
+    return () => ipcRenderer.removeListener('ipc-ready', listener);
+  },
 });

@@ -8,10 +8,6 @@ import FontFamily from '@tiptap/extension-font-family'
 import { FontSize } from '@/lib/editor-utils'
 import { EditorToolbar } from './EditorToolbar'
 
-// Import fonts
-import "@fontsource/inter"
-import "@fontsource/poppins"
-import "@fontsource/roboto-mono"
 
 interface RichTextEditorProps {
     content: string

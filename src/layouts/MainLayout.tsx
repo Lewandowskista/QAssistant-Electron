@@ -4,6 +4,7 @@ import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
+import { useShallow } from "zustand/react/shallow"
 import { useUserStore } from "@/store/useUserStore"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { ProjectDialog } from "@/components/ProjectDialog"
@@ -29,7 +30,11 @@ export default function MainLayout() {
     const navigate = useNavigate()
     
     // Use fine-grained selectors to prevent unnecessary re-renders
-    const projects = useProjectStore(state => state.projects)
+    // Only subscribe to the fields the sidebar actually needs — task/note/test mutations
+    // won't re-render MainLayout since they don't affect id/name/color/environments.
+    const projectSummaries = useProjectStore(
+        useShallow(state => state.projects.map(p => ({ id: p.id, name: p.name, color: p.color })))
+    )
     const activeProjectId = useProjectStore(state => state.activeProjectId)
     const loadProjects = useProjectStore(state => state.loadProjects)
     const setActiveProject = useProjectStore(state => state.setActiveProject)
@@ -37,9 +42,13 @@ export default function MainLayout() {
     const setEnvironmentDefault = useProjectStore(state => state.setEnvironmentDefault)
     const seedDemoProject = useProjectStore(state => state.seedDemoProject)
 
-    const activeProject = projects.find(p => p.id === activeProjectId)
-    const environments = activeProject?.environments || []
-    const defaultEnv = environments.find(e => e.isDefault) || environments[0]
+    const { environments, defaultEnv } = useProjectStore(
+        useShallow(state => {
+            const p = state.projects.find(e => e.id === state.activeProjectId)
+            const envs = p?.environments || []
+            return { environments: envs, defaultEnv: envs.find(e => e.isDefault) || envs[0] }
+        })
+    )
 
     const { profile: userProfile, isLoaded: userLoaded, loadProfile } = useUserStore()
     const activeRole = userProfile?.activeRole ?? 'qa'
@@ -50,6 +59,7 @@ export default function MainLayout() {
     const currentTheme = useSettingsStore(s => s.settings.theme)
     const isPinnedStore = useSettingsStore(s => s.settings.alwaysOnTop)
     const isSapActive = useSettingsStore(s => s.settings.sapCommerceContext)
+    const reduceVisualEffects = useSettingsStore(s => s.settings.reduceVisualEffects ?? false)
 
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editingProject, setEditingProject] = useState<Project | undefined>(undefined)
@@ -82,6 +92,12 @@ export default function MainLayout() {
             const removeMaxListener = api.onMaximizedStatus?.((status: boolean) => setIsMaximized(status))
             const removeSettingsListener = api.onOpenSettings?.(() => setSettingsOpen(true))
 
+            // If DB init was deferred past first render, retry loadProjects once IPC is ready
+            const removeIpcReadyListener = api.onIpcReady?.(() => {
+                const { projects: ps } = useProjectStore.getState()
+                if (ps.length === 0) loadProjects()
+            })
+
             const handleOpenDialog = () => {
                 setEditingProject(undefined)
                 setDialogOpen(true)
@@ -97,6 +113,7 @@ export default function MainLayout() {
                 removeTaskListener?.()
                 removeMaxListener?.()
                 removeSettingsListener?.()
+                removeIpcReadyListener?.()
                 window.removeEventListener('open-project-dialog', handleOpenDialog)
             }
         }
@@ -234,20 +251,20 @@ export default function MainLayout() {
         <>
         <div className={cn(
             "app-shell flex selection:bg-primary/20",
-            isMac && "backdrop-blur-xl"
+            isMac && !reduceVisualEffects && "backdrop-blur-xl"
         )}>
             {/* 1. PROJECTS SIDEBAR (200px) */}
             <aside
                 aria-label="Projects"
                 className={cn(
                 "app-sidebar w-[220px] shrink-0",
-                isMac && "pt-8 backdrop-blur-md"
+                isMac && !reduceVisualEffects && "pt-8 backdrop-blur-md"
             )}>
                 <div className="h-12 flex items-center px-4 border-b app-divider app-section-label">
                     Projects
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
-                    {projects.map((project) => (
+                    {projectSummaries.map((project) => (
                         <div key={project.id} className="group relative">
                             <button
                                 onClick={() => setActiveProject(project.id)}
@@ -269,7 +286,7 @@ export default function MainLayout() {
                                         <button className="rounded-lg p-1.5 hover:bg-panel text-muted-ui hover:text-foreground"><MoreVertical className="h-3 w-3" /></button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-36">
-                                        <DropdownMenuItem onClick={() => { setEditingProject(project); setDialogOpen(true); }}>
+                                        <DropdownMenuItem onClick={() => { setEditingProject(useProjectStore.getState().projects.find(p => p.id === project.id)); setDialogOpen(true); }}>
                                             <Edit2 className="mr-2 h-3 w-3" /> Edit
                                         </DropdownMenuItem>
                                         <DropdownMenuItem className="text-red-400" onClick={async () => {
@@ -293,7 +310,7 @@ export default function MainLayout() {
                         <Plus className="h-4 w-4" />
                         New Project
                     </Button>
-                    {projects.length === 0 && (
+                    {projectSummaries.length === 0 && (
                         <Button
                             variant="ghost"
                             className="w-full justify-start gap-3 h-10 rounded-xl text-sm text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300"
@@ -311,7 +328,7 @@ export default function MainLayout() {
                 aria-label="Navigation"
                 className={cn(
                     "app-sidebar transition-all duration-300 shrink-0",
-                    isMac && "pt-8 backdrop-blur-md",
+                    isMac && !reduceVisualEffects && "pt-8 backdrop-blur-md",
                     toolsCollapsed ? "w-0 overflow-hidden opacity-0" : "w-[220px]"
                 )}
             >
@@ -425,7 +442,7 @@ export default function MainLayout() {
                         </div>
                         <div className="w-px h-5 bg-border mx-1 shrink-0" />
                         <span className="text-sm font-medium text-muted-ui truncate min-w-0">
-                            {activeProject?.name || "QAssistant"}
+                            {projectSummaries.find(p => p.id === activeProjectId)?.name || "QAssistant"}
                         </span>
                     </div>
 

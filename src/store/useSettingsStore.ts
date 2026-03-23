@@ -7,6 +7,7 @@ export interface AppSettings {
     sapCommerceContext: boolean
     minimizeToTray: boolean
     autoCheckForUpdates: boolean
+    reduceVisualEffects?: boolean
     allowInsecureCredentialStorage?: boolean
     deferredVersion?: string
     lastUpdateCheckAt?: number
@@ -19,6 +20,7 @@ const DEFAULTS: AppSettings = {
     sapCommerceContext: false,
     minimizeToTray: false,
     autoCheckForUpdates: true,
+    reduceVisualEffects: false,
 }
 
 interface SettingsState {

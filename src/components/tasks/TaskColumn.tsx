@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { memo, useState } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { ChevronDown, ChevronUp, Filter, Plus } from "lucide-react"
@@ -25,7 +25,7 @@ interface TaskColumnProps {
     sortMode: TaskSortMode
 }
 
-export function TaskColumn({
+export const TaskColumn = memo(function TaskColumn({
     col,
     tasksInColumn,
     selectedTaskId,
@@ -119,4 +119,4 @@ export function TaskColumn({
             )}
         </div>
     )
-}
+})

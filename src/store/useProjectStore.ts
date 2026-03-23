@@ -530,6 +530,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             return
         }
 
+        // Register a one-time flush listener so any pending debounced save is flushed
+        // synchronously when the main process sends 'flush-pending-save' before quitting
+        if (window.electronAPI.onFlushPendingSave) {
+            window.electronAPI.onFlushPendingSave(() => {
+                if (_debounceSaveTimer !== null) {
+                    clearTimeout(_debounceSaveTimer)
+                    _debounceSaveTimer = null
+                    saveProjectsToDisk(useProjectStore.getState().projects)
+                }
+            })
+        }
+
         try {
             const rawProjects = await measureAsync('projectLoadMs', () => window.electronAPI.readProjectsFile())
             const projects = (rawProjects || []).map((p: any) => normalizeProject(p))

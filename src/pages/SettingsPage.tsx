@@ -166,6 +166,7 @@ export default function SettingsPage() {
     // ── Global settings state ─────────────────────────────────────────────────
     const [sapContext, setSapContext] = useState(false)
     const [minimizeToTray, setMinimizeToTray] = useState(false)
+    const [reduceVisualEffects, setReduceVisualEffects] = useState(false)
     const [autoCheckForUpdates, setAutoCheckForUpdates] = useState(true)
     const [appUpdateState, setAppUpdateState] = useState<AppUpdateState>({ status: 'idle', currentVersion: '' })
 
@@ -323,6 +324,7 @@ export default function SettingsPage() {
             const settings = await api.readSettingsFile()
             setSapContext(!!settings.sapCommerceContext)
             setMinimizeToTray(!!settings.minimizeToTray)
+            setReduceVisualEffects(!!settings.reduceVisualEffects)
             setAutoCheckForUpdates(settings.autoCheckForUpdates !== false)
             setAllowInsecureCredentialStorage(settings.allowInsecureCredentialStorage === true)
             setApiEnabled(!!settings.automationApiEnabled)
@@ -878,6 +880,16 @@ export default function SettingsPage() {
                             <p className="text-xs text-[#6B7280] mt-0.5">Switch between dark and light interface theme.</p>
                         </div>
                         <Toggle on={theme === 'light'} onToggle={toggleTheme} />
+                    </div>
+                    <div className="flex items-center justify-between mt-4">
+                        <div>
+                            <p className="text-sm font-semibold text-[#E2E8F0]">Reduce Visual Effects</p>
+                            <p className="text-xs text-[#6B7280] mt-0.5">Disables backdrop blur on sidebars. Recommended for Mac Intel to reduce GPU load and UI jank.</p>
+                        </div>
+                        <Toggle on={reduceVisualEffects} onToggle={async () => {
+                            const next = !reduceVisualEffects; setReduceVisualEffects(next)
+                            await saveSetting({ reduceVisualEffects: next })
+                        }} />
                     </div>
                 </Sec>
 
