@@ -5,6 +5,9 @@ import { Activity, CheckCircle2, XCircle, GitPullRequest, Paperclip, StickyNote,
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { CollaborationEvent, CollaborationEventType } from "@/types/project"
+import type { WorkspaceMember } from "@/types/sync"
+
+const EMPTY_MEMBERS: WorkspaceMember[] = []
 
 const EVENT_CONFIG: Record<CollaborationEventType, { icon: typeof Activity; color: string; label: string }> = {
     handoff_created:      { icon: Package,      color: "text-[#A78BFA]", label: "Handoff Created" },
@@ -67,7 +70,7 @@ function MemberAvatar({ userId, displayName, size = 'sm' }: { userId?: string; d
 export default function ActivityFeedPage() {
     const { projects, activeProjectId } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
-    const members = useSyncStore(s => s.workspaceInfo?.members ?? [])
+    const members = useSyncStore(s => s.workspaceInfo?.members ?? EMPTY_MEMBERS)
     const isConnected = useSyncStore(s => s.config?.configured)
 
     const [roleFilter, setRoleFilter] = useState<RoleFilter>("all")

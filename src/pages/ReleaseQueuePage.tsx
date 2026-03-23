@@ -6,6 +6,9 @@ import { getCollaborationMetrics, getReleaseQueue, type ReleaseQueueItem } from 
 import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import type { WorkspaceMember } from '@/types/sync'
+
+const EMPTY_MEMBERS: WorkspaceMember[] = []
 
 function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
     return (
@@ -53,7 +56,7 @@ export default function ReleaseQueuePage() {
     const projects = useProjectStore((state) => state.projects)
     const activeProjectId = useProjectStore((state) => state.activeProjectId)
     const activeProject = projects.find((project) => project.id === activeProjectId)
-    const members = useSyncStore(s => s.workspaceInfo?.members ?? [])
+    const members = useSyncStore(s => s.workspaceInfo?.members ?? EMPTY_MEMBERS)
     const isConnected = useSyncStore(s => s.config?.configured)
 
     const queue = useMemo(() => activeProject ? getReleaseQueue(activeProject) : null, [activeProject])

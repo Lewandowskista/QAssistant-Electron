@@ -1,6 +1,7 @@
 import { CollaborationEvent } from '@/types/project'
 import { useSyncStore } from '@/store/useSyncStore'
 import { cn } from '@/lib/utils'
+import type { WorkspaceMember } from '@/types/sync'
 
 interface CollaborationTimelineProps {
     events: CollaborationEvent[]
@@ -10,6 +11,8 @@ const AVATAR_COLORS = [
     'bg-violet-500', 'bg-blue-500', 'bg-emerald-500',
     'bg-amber-500', 'bg-rose-500', 'bg-cyan-500',
 ]
+const EMPTY_MEMBERS: WorkspaceMember[] = []
+
 function colorForId(id: string): string {
     let h = 0
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
@@ -20,7 +23,7 @@ function initials(name: string): string {
 }
 
 export function CollaborationTimeline({ events }: CollaborationTimelineProps) {
-    const members = useSyncStore(s => s.workspaceInfo?.members ?? [])
+    const members = useSyncStore(s => s.workspaceInfo?.members ?? EMPTY_MEMBERS)
     const memberMap = new Map(members.map(m => [m.user_id, m.display_name]))
 
     if (events.length === 0) {

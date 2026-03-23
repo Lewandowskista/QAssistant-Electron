@@ -212,6 +212,7 @@ export interface ElectronAPI {
     getAppVersion: () => Promise<string>;
     getSystemInfo: () => Promise<{ platform: string; arch: string; nodeVersion: string; electronVersion: string; appVersion: string }>;
     onAppUpdateStatus: (callback: (state: AppUpdateState) => void) => () => void;
+    onIpcReady: (callback: () => void) => () => void;
     isMinimizedToTray: () => Promise<boolean>;
     appQuit: () => void;
 

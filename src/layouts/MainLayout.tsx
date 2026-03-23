@@ -2,9 +2,8 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3, ClipboardCheck, Activity, Compass, Loader2 } from "lucide-react"
 import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
-import { useShallow } from "zustand/react/shallow"
 import { useUserStore } from "@/store/useUserStore"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { ProjectDialog } from "@/components/ProjectDialog"
@@ -25,6 +24,8 @@ import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
 import { SyncStatusIndicator } from "@/components/sync/SyncStatusIndicator"
 import { useConfirm } from "@/components/ConfirmDialog"
 
+const EMPTY_ENVIRONMENTS: Project["environments"] = []
+
 export default function MainLayout() {
     const location = useLocation()
     const navigate = useNavigate()
@@ -32,9 +33,7 @@ export default function MainLayout() {
     // Use fine-grained selectors to prevent unnecessary re-renders
     // Only subscribe to the fields the sidebar actually needs — task/note/test mutations
     // won't re-render MainLayout since they don't affect id/name/color/environments.
-    const projectSummaries = useProjectStore(
-        useShallow(state => state.projects.map(p => ({ id: p.id, name: p.name, color: p.color })))
-    )
+    const projects = useProjectStore(state => state.projects)
     const activeProjectId = useProjectStore(state => state.activeProjectId)
     const loadProjects = useProjectStore(state => state.loadProjects)
     const setActiveProject = useProjectStore(state => state.setActiveProject)
@@ -42,12 +41,18 @@ export default function MainLayout() {
     const setEnvironmentDefault = useProjectStore(state => state.setEnvironmentDefault)
     const seedDemoProject = useProjectStore(state => state.seedDemoProject)
 
-    const { environments, defaultEnv } = useProjectStore(
-        useShallow(state => {
-            const p = state.projects.find(e => e.id === state.activeProjectId)
-            const envs = p?.environments || []
-            return { environments: envs, defaultEnv: envs.find(e => e.isDefault) || envs[0] }
-        })
+    const projectSummaries = useMemo(
+        () => projects.map(project => ({ id: project.id, name: project.name, color: project.color })),
+        [projects]
+    )
+    const activeProject = useMemo(
+        () => projects.find(project => project.id === activeProjectId) ?? null,
+        [projects, activeProjectId]
+    )
+    const environments = activeProject?.environments ?? EMPTY_ENVIRONMENTS
+    const defaultEnv = useMemo(
+        () => environments.find(environment => environment.isDefault) ?? environments[0],
+        [environments]
     )
 
     const { profile: userProfile, isLoaded: userLoaded, loadProfile } = useUserStore()

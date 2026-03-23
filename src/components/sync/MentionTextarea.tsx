@@ -6,6 +6,7 @@
 import { useRef, useState, useEffect, KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { useSyncStore } from '@/store/useSyncStore'
+import type { WorkspaceMember } from '@/types/sync'
 
 interface MentionTextareaProps {
     value: string
@@ -24,6 +25,8 @@ const AVATAR_COLORS = [
     'bg-violet-500', 'bg-blue-500', 'bg-emerald-500',
     'bg-amber-500', 'bg-rose-500', 'bg-cyan-500',
 ]
+const EMPTY_MEMBERS: WorkspaceMember[] = []
+
 function colorForName(name: string): string {
     let h = 0
     for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
@@ -38,7 +41,7 @@ export function MentionTextarea({
     className,
     disabled,
 }: MentionTextareaProps) {
-    const members = useSyncStore(s => s.workspaceInfo?.members ?? [])
+    const members = useSyncStore(s => s.workspaceInfo?.members ?? EMPTY_MEMBERS)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const [mentionQuery, setMentionQuery] = useState<string | null>(null)
     const [mentionStart, setMentionStart] = useState(0)
