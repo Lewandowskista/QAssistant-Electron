@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AuthGate } from './AuthGate'
-
-const mockUseAuthStore = vi.fn()
-
-vi.mock('@/store/useAuthStore', () => ({
-    useAuthStore: () => mockUseAuthStore(),
-}))
+import type { AuthStatus } from '@/types/auth'
 
 vi.mock('@/components/ui/button', () => ({
     Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
@@ -33,40 +28,38 @@ vi.mock('lucide-react', () => {
     }
 })
 
+function renderAuthGate(auth: AuthStatus) {
+    return renderToStaticMarkup(
+        <AuthGate
+            auth={auth}
+            signIn={vi.fn(async () => auth)}
+            signUp={vi.fn(async () => auth)}
+        />
+    )
+}
+
 describe('AuthGate', () => {
     it('does not render the old verification screen when auth is in error', () => {
-        mockUseAuthStore.mockReturnValue({
-            auth: {
-                configured: true,
-                status: 'error',
-                user: null,
-                error: 'Invalid login credentials',
-                usingOfflineSession: false,
-            },
-            signIn: vi.fn(),
-            signUp: vi.fn(),
+        const html = renderAuthGate({
+            configured: true,
+            status: 'error',
+            user: null,
+            error: 'Invalid login credentials',
+            usingOfflineSession: false,
         })
-
-        const html = renderToStaticMarkup(<AuthGate />)
 
         expect(html).not.toContain('Verify Your Email')
         expect(html).toContain('Sign In')
     })
 
     it('shows only supported auth actions for desktop mode', () => {
-        mockUseAuthStore.mockReturnValue({
-            auth: {
-                configured: true,
-                status: 'signed_out',
-                user: null,
-                error: null,
-                usingOfflineSession: false,
-            },
-            signIn: vi.fn(),
-            signUp: vi.fn(),
+        const html = renderAuthGate({
+            configured: true,
+            status: 'signed_out',
+            user: null,
+            error: null,
+            usingOfflineSession: false,
         })
-
-        const html = renderToStaticMarkup(<AuthGate />)
 
         expect(html).toContain('Create account')
         expect(html).not.toContain('Forgot your password?')
