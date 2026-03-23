@@ -20,9 +20,34 @@ function Empty({ children }: { children: string }) {
 
 export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
     const linkedPrs = traceability.handoffs.flatMap((handoff) => handoff.linkedPrs || [])
+    const activeHandoff = traceability.activeHandoff || traceability.handoffs[0]
+    const evidenceCount = (activeHandoff?.linkedExecutionRefs?.length ?? 0) + (activeHandoff?.linkedFileIds?.length ?? 0) + (activeHandoff?.linkedNoteIds?.length ?? 0)
 
     return (
         <div className="space-y-5">
+            <Section title="Workflow Summary">
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Coverage</div>
+                        <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{traceability.linkedTestCases.length} linked tests</div>
+                    </div>
+                    <div className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Evidence</div>
+                        <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{evidenceCount} linked artifacts</div>
+                    </div>
+                    <div className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">PR Context</div>
+                        <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{linkedPrs.length} linked PRs</div>
+                    </div>
+                    <div className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Handoff Health</div>
+                        <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">
+                            {activeHandoff ? (activeHandoff.isComplete ? 'Ready to send' : 'Needs fields') : 'No handoff'}
+                        </div>
+                    </div>
+                </div>
+            </Section>
+
             <Section title="Linked Test Cases">
                 {traceability.linkedTestCases.length === 0 ? (
                     <Empty>No linked test cases.</Empty>

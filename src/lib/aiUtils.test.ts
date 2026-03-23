@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { demoProject } from '../data/demoProject'
-import { buildProjectAiContext, sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTaskForQaAi, sanitizeTestPlansForAi } from './aiUtils'
+import { attachTaskCommentsToProjectAiContext, buildProjectAiContext, sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTaskForQaAi, sanitizeTestPlansForAi } from './aiUtils'
 
 describe('ai utils', () => {
     it('strips sensitive and internal fields from QA project context', () => {
@@ -41,7 +41,8 @@ describe('ai utils', () => {
         expect(context.handoffs.length).toBeGreaterThanOrEqual(1)
         const handoffWithPr = context.handoffs.find((handoff) => handoff.linkedPrs.length > 0)
         expect(handoffWithPr?.linkedPrs[0].repoFullName).toBe('acme/storefront')
-        expect(context.tasks[0]).not.toHaveProperty('description')
+        expect(context.tasks[0]).toHaveProperty('description')
+        expect(context.tasks[0]).toHaveProperty('issueType')
     })
 
     it('produces minimal per-function QA payloads', () => {
@@ -59,5 +60,47 @@ describe('ai utils', () => {
             environmentName: 'Staging',
         }))
         expect(executions[0]).not.toHaveProperty('snapshotExpectedResult')
+    })
+
+    it('supports empty manual context selection', () => {
+        const context = buildProjectAiContext(demoProject, 'qa', {
+            taskIds: [],
+            testPlanIds: [],
+            environmentIds: [],
+            testDataGroupIds: [],
+            checklistIds: [],
+            handoffIds: [],
+            includeSapCommerce: false,
+        })
+
+        expect(context?.role).toBe('qa')
+        if (!context || context.role !== 'qa') throw new Error('expected qa context')
+        expect(context.tasks).toHaveLength(0)
+        expect(context.testPlans).toHaveLength(0)
+        expect(context.environments).toHaveLength(0)
+        expect(context.sapCommerce.enabled).toBe(false)
+    })
+
+    it('attaches selected task comments to copilot context', () => {
+        const baseContext = buildProjectAiContext(demoProject, 'qa', {
+            taskIds: [demoProject.tasks[0].id],
+            environmentIds: [],
+            testPlanIds: [],
+            testDataGroupIds: [],
+            checklistIds: [],
+            handoffIds: [],
+            includeSapCommerce: false,
+        })
+        const context = attachTaskCommentsToProjectAiContext(baseContext, {
+            [demoProject.tasks[0].id]: [
+                { authorName: 'Stefan', createdAt: 1_710_000_000_000, body: 'Recent upstream comment' },
+            ],
+        })
+
+        expect(context?.role).toBe('qa')
+        if (!context || context.role !== 'qa') throw new Error('expected qa context')
+        expect(context.tasks[0].comments).toEqual([
+            { authorName: 'Stefan', createdAt: 1_710_000_000_000, body: 'Recent upstream comment' },
+        ])
     })
 })

@@ -35,6 +35,7 @@ QAssistant's current bootstrap path assumes email/password auth and the app hand
 What this sets up:
 
 - required extensions
+- per-user app snapshot storage for projects, settings, and secrets
 - workspace and sync tables
 - row-level security
 - helper functions and workspace RPCs

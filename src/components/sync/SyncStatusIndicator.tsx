@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Cloud, CloudOff, RefreshCw, AlertTriangle, Wifi, Users } from 'lucide-react'
+import { Cloud, CloudOff, RefreshCw, AlertTriangle, Wifi } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSyncStore } from '@/store/useSyncStore'
 import type { CloudSyncStatus } from '@/types/sync'
 import { SyncSetupDialog } from './SyncSetupDialog'
+import { getSyncStatusSummary } from '@/lib/collaboration'
 
 const STATUS_CONFIG: Record<CloudSyncStatus, {
     icon: typeof Cloud
@@ -56,6 +57,13 @@ export function SyncStatusIndicator() {
     const prevErrorRef = useRef<string | null>(null)
     const lastToastRef = useRef<number>(0)
     const relativeTime = useRelativeTime(lastSyncedAt)
+    const syncSummary = getSyncStatusSummary({
+        status,
+        pendingCount,
+        error,
+        lastSyncedAt,
+        workspaceName: workspaceInfo?.workspaceName ?? null,
+    })
 
     // Load config on mount
     useEffect(() => {
@@ -147,11 +155,8 @@ export function SyncStatusIndicator() {
                                 {relativeTime}
                             </span>
                         </div>
-                    ) : isConfigured && workspaceInfo?.workspaceName ? (
-                        <div className="flex items-center gap-1 mt-0.5">
-                            <Users className="h-2.5 w-2.5 text-[#4B5563] shrink-0" />
-                            <span className="text-[10px] text-[#4B5563] truncate">{workspaceInfo.workspaceName}</span>
-                        </div>
+                    ) : isConfigured ? (
+                        <span className="mt-0.5 text-[10px] text-[#4B5563] truncate">{syncSummary.headline}</span>
                     ) : !isConfigured ? (
                         <span className="text-[10px] text-[#4B5563]">Click to set up</span>
                     ) : null}

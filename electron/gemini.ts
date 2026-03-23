@@ -297,10 +297,12 @@ export class GeminiService {
             ])
             const MAX_ISSUES = 25
             const allTasks: any[] = project.tasks || []
-            const activeTasks = allTasks.filter((t: any) => {
-                if (t.source === 'manual') return false
-                return !DONE_STATUSES.has(String(t.status || '').toLowerCase().trim())
-            })
+            const activeTasks = project.manualContextSelection
+                ? allTasks
+                : allTasks.filter((t: any) => {
+                    if (t.source === 'manual') return false
+                    return !DONE_STATUSES.has(String(t.status || '').toLowerCase().trim())
+                })
             if (activeTasks.length > 0) {
                 const blocker = activeTasks.filter((t: any) => t.priority === 'critical').length
                 const high    = activeTasks.filter((t: any) => t.priority === 'high').length
@@ -314,8 +316,22 @@ export class GeminiService {
                     let entry = `  {id:${issueId},t:${title},status:${task.status || 'unknown'},priority:${task.priority || 'medium'}`
                     if (task.assignee) entry += `,assignee:${GeminiService.sanitizeToonValue(task.assignee, 80)}`
                     if (task.labels)   entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 100)}`
+                    if (task.issueType) entry += `,type:${GeminiService.sanitizeToonValue(task.issueType, 60)}`
+                    if (task.reproducibility) entry += `,repro:${GeminiService.sanitizeToonValue(task.reproducibility, 40)}`
+                    if (task.frequency) entry += `,freq:${GeminiService.sanitizeToonValue(task.frequency, 40)}`
+                    if (task.components?.length) entry += `,components:${GeminiService.sanitizeToonValue(task.components.join(','), 120)}`
+                    if (task.affectedEnvironmentNames?.length) entry += `,envs:${GeminiService.sanitizeToonValue(task.affectedEnvironmentNames.join(','), 120)}`
+                    if (task.acceptanceCriteria) entry += `,ac:${GeminiService.sanitizeToonValue(task.acceptanceCriteria, 200)}`
+                    if (task.description) entry += `,desc:${GeminiService.sanitizeToonValue(task.description, 300)}`
                     entry += '}'
                     lines.push(entry)
+                    if (task.comments?.length > 0) {
+                        lines.push(`   comments_for_${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId || task.id, 40)}[`)
+                        for (const comment of task.comments.slice(0, 5)) {
+                            lines.push(`    {author:${GeminiService.sanitizeToonValue(comment.authorName, 80)},date:${comment.createdAt ? new Date(comment.createdAt).toISOString().split('T')[0] : ''},body:${GeminiService.sanitizeToonValue(comment.body, 240)}}`)
+                        }
+                        lines.push('   ]')
+                    }
                 }
                 lines.push(' ]')
             }
@@ -375,12 +391,26 @@ export class GeminiService {
             lines.push('tracked_work[')
             for (const task of project.tasks.slice(0, 40)) {
                 let entry = `  {id:${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId || task.id, 60)},t:${GeminiService.sanitizeToonValue(task.title, 150)},status:${task.status},priority:${task.priority}`
+                if (task.description) entry += `,desc:${GeminiService.sanitizeToonValue(task.description, 300)}`
+                if (task.issueType) entry += `,type:${GeminiService.sanitizeToonValue(task.issueType, 60)}`
                 if (task.assignee) entry += `,assignee:${GeminiService.sanitizeToonValue(task.assignee, 80)}`
                 if (task.collabState) entry += `,collab:${GeminiService.sanitizeToonValue(task.collabState, 40)}`
                 if (task.activeHandoffId) entry += `,handoff:${GeminiService.sanitizeToonValue(task.activeHandoffId, 80)}`
                 if (task.labels) entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 120)}`
+                if (task.reproducibility) entry += `,repro:${GeminiService.sanitizeToonValue(task.reproducibility, 40)}`
+                if (task.frequency) entry += `,freq:${GeminiService.sanitizeToonValue(task.frequency, 40)}`
+                if (task.components?.length) entry += `,components:${GeminiService.sanitizeToonValue(task.components.join(','), 120)}`
+                if (task.affectedEnvironmentNames?.length) entry += `,envs:${GeminiService.sanitizeToonValue(task.affectedEnvironmentNames.join(','), 120)}`
+                if (task.acceptanceCriteria) entry += `,ac:${GeminiService.sanitizeToonValue(task.acceptanceCriteria, 200)}`
                 entry += '}'
                 lines.push(entry)
+                if (task.comments?.length > 0) {
+                    lines.push(`   comments_for_${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId || task.id, 40)}[`)
+                    for (const comment of task.comments.slice(0, 5)) {
+                        lines.push(`    {author:${GeminiService.sanitizeToonValue(comment.authorName, 80)},date:${comment.createdAt ? new Date(comment.createdAt).toISOString().split('T')[0] : ''},body:${GeminiService.sanitizeToonValue(comment.body, 240)}}`)
+                    }
+                    lines.push('   ]')
+                }
             }
             lines.push(' ]')
         }

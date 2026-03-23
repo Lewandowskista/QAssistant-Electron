@@ -20,6 +20,7 @@ DROP TABLE IF EXISTS sync_artifact_links CASCADE;
 DROP TABLE IF EXISTS sync_collab_events  CASCADE;
 DROP TABLE IF EXISTS sync_handoffs       CASCADE;
 DROP TABLE IF EXISTS sync_tasks          CASCADE;
+DROP TABLE IF EXISTS user_app_snapshots  CASCADE;
 DROP TABLE IF EXISTS workspace_members   CASCADE;
 DROP TABLE IF EXISTS user_profiles       CASCADE;
 DROP TABLE IF EXISTS workspaces          CASCADE;
@@ -44,6 +45,12 @@ CREATE TABLE user_profiles (
     user_id      UUID        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     display_name TEXT        NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE user_app_snapshots (
+    user_id      UUID        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    payload_json JSONB       NOT NULL DEFAULT '{}'::jsonb,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -144,6 +151,7 @@ ALTER TABLE sync_artifact_links REPLICA IDENTITY FULL;
 -- ── 6. Row Level Security ─────────────────────────────────────────────────────
 ALTER TABLE workspaces          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profiles       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_app_snapshots  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_members   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sync_tasks          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sync_handoffs       ENABLE ROW LEVEL SECURITY;
@@ -360,6 +368,11 @@ CREATE POLICY "own_profile_select" ON user_profiles FOR SELECT USING (user_id = 
 CREATE POLICY "own_profile_insert" ON user_profiles FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY "own_profile_update" ON user_profiles FOR UPDATE USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
+-- user_app_snapshots
+CREATE POLICY "own_snapshot_select" ON user_app_snapshots FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "own_snapshot_insert" ON user_app_snapshots FOR INSERT WITH CHECK (user_id = auth.uid());
+CREATE POLICY "own_snapshot_update" ON user_app_snapshots FOR UPDATE USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
 -- workspaces
 CREATE POLICY "members_select_workspace" ON workspaces FOR SELECT USING (is_workspace_member(id));
 CREATE POLICY "owner_update_workspace"   ON workspaces FOR UPDATE USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
@@ -387,6 +400,7 @@ CREATE INDEX idx_sync_events_task   ON sync_collab_events(task_id);
 CREATE INDEX idx_sync_links_ws      ON sync_artifact_links(workspace_id);
 CREATE INDEX idx_sync_links_source  ON sync_artifact_links(source_type, source_id);
 CREATE INDEX idx_sync_links_target  ON sync_artifact_links(target_type, target_id);
+CREATE INDEX idx_user_app_snapshots_updated_at ON user_app_snapshots(updated_at);
 
 -- ── 16. Realtime publication ──────────────────────────────────────────────────
 DO $$

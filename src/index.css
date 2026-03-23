@@ -380,20 +380,19 @@
   }
 
   .app-nav-item {
-    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all;
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all;
     color: hsl(var(--text-secondary));
   }
 
   .app-nav-item:hover {
-    background-color: hsl(var(--surface-elevated));
+    background-color: hsl(var(--surface-elevated) / 0.65);
     color: hsl(var(--text-primary));
   }
 
   .app-nav-item[data-active="true"] {
-    background: linear-gradient(135deg, hsl(var(--accent-primary-soft)), transparent 70%);
-    border: 1px solid hsl(var(--border-strong));
+    background-color: hsl(var(--surface-elevated));
     color: hsl(var(--text-primary));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    box-shadow: inset 2px 0 0 hsl(var(--accent-primary));
   }
 
   .app-chip {

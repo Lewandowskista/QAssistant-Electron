@@ -1,27 +1,17 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Project, Task, HandoffPacket, CollabState } from '@/types/project'
+import { Project, Task, HandoffPacket } from '@/types/project'
 import { useProjectStore } from '@/store/useProjectStore'
 import { useUserStore } from '@/store/useUserStore'
 import { HandoffPacketDialog } from './HandoffPacketDialog'
-import { getHandoffMissingFields } from '@/lib/collaboration'
+import { getHandoffMissingFields, getTaskWorkflowSummary } from '@/lib/collaboration'
 import { MentionTextarea } from '@/components/sync/MentionTextarea'
+import { cn } from '@/lib/utils'
 
 interface HandoffPanelProps {
     activeProject: Project
     task: Task
-}
-
-const collabStateLabel: Record<CollabState, string> = {
-    draft: 'Draft',
-    ready_for_dev: 'Ready for Dev',
-    dev_acknowledged: 'Dev Acknowledged',
-    in_fix: 'In Fix',
-    ready_for_qa: 'Ready for QA',
-    qa_retesting: 'QA Retesting',
-    verified: 'Verified',
-    closed: 'Closed'
 }
 
 export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
@@ -48,6 +38,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
         activeHandoff.linkedNoteIds.length > 0
     )
     const missingFields = getHandoffMissingFields(activeHandoff)
+    const workflowSummary = useMemo(() => getTaskWorkflowSummary(activeProject, task), [activeProject, task])
 
     const savePacket = async (payload: {
         type: HandoffPacket['type']
@@ -201,11 +192,37 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                 <div className="flex items-center justify-between">
                     <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-[#6B7280] font-bold">Collaboration State</p>
-                        <div className="text-sm font-semibold text-[#E2E8F0]">{collabStateLabel[task.collabState || 'draft']}</div>
+                        <div className="text-sm font-semibold text-[#E2E8F0]">{workflowSummary.stateLabel}</div>
                     </div>
                     <Button variant="outline" className="border-[#A78BFA]/20 text-[#A78BFA]" onClick={() => setDialogOpen(true)}>
                         {activeHandoff ? 'Edit Handoff' : 'Create Handoff'}
                     </Button>
+                </div>
+                <div className={cn(
+                    "rounded-xl border p-3",
+                    workflowSummary.attentionLevel === 'danger' && "border-[#EF4444]/30 bg-[#EF4444]/10",
+                    workflowSummary.attentionLevel === 'warning' && "border-[#F59E0B]/30 bg-[#F59E0B]/10",
+                    workflowSummary.attentionLevel === 'info' && "border-[#38BDF8]/20 bg-[#38BDF8]/5",
+                    workflowSummary.attentionLevel === 'success' && "border-[#10B981]/30 bg-[#10B981]/10",
+                )}>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#6B7280] font-bold">Next Recommended Action</p>
+                    <p className="mt-2 text-sm font-semibold text-[#E2E8F0]">{workflowSummary.nextAction}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-[#9CA3AF]">
+                        <span>Owner: <span className="text-[#E2E8F0]">{workflowSummary.ownerLabel}</span></span>
+                        <span>Verification: <span className="text-[#E2E8F0]">{workflowSummary.verificationLabel}</span></span>
+                        <span>Linked tests: <span className="text-[#E2E8F0]">{workflowSummary.linkedTestCount}</span></span>
+                        <span>Evidence: <span className="text-[#E2E8F0]">{workflowSummary.evidenceCount}</span></span>
+                        <span>PRs: <span className="text-[#E2E8F0]">{workflowSummary.linkedPrCount}</span></span>
+                    </div>
+                    {workflowSummary.warnings.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                            {workflowSummary.warnings.map((warning) => (
+                                <p key={warning} className="text-xs text-[#FCA5A5]">
+                                    {warning}
+                                </p>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 {activeHandoff ? (
                     <div className="space-y-2 text-xs text-[#9CA3AF]">

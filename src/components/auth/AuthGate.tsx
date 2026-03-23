@@ -2,12 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Cloud, FlaskConical, Loader2, Lock, Minus, ShieldCheck, Square, X, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useAuthStore } from '@/store/useAuthStore'
+import type { AuthStatus } from '@/types/auth'
 
 type Mode = 'sign_in' | 'sign_up'
 
-export function AuthGate() {
-    const { auth, signIn, signUp } = useAuthStore()
+interface AuthGateProps {
+    auth: AuthStatus
+    signIn: (args: { email: string; password: string }) => Promise<AuthStatus>
+    signUp: (args: { email: string; password: string; displayName: string }) => Promise<AuthStatus>
+}
+
+export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
+    const configured = auth.configured
+    const status = auth.status
+    const authError = auth.error
+    const usingOfflineSession = auth.usingOfflineSession
     const [mode, setMode] = useState<Mode>('sign_in')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -17,10 +26,10 @@ export function AuthGate() {
     const [busyAction, setBusyAction] = useState<string | null>(null)
 
     const heading = useMemo(() => {
-        if (!auth.configured) return 'Supabase Configuration Required'
+        if (!configured) return 'Supabase Configuration Required'
         if (mode === 'sign_up') return 'Create Your Account'
         return 'Sign In'
-    }, [auth.configured, mode])
+    }, [configured, mode])
 
     async function run(label: string, action: () => Promise<void>) {
         setBusyAction(label)
@@ -35,7 +44,7 @@ export function AuthGate() {
         }
     }
 
-    if (!auth.configured) {
+    if (!configured) {
         return (
             <AuthShell
                 icon={<Cloud className="h-8 w-8 text-[#A78BFA]" />}
@@ -51,7 +60,7 @@ export function AuthGate() {
         )
     }
 
-    if (auth.status === 'booting') {
+    if (status === 'booting') {
         return (
             <AuthShell
                 icon={<Loader2 className="h-8 w-8 animate-spin text-[#A78BFA]" />}
@@ -68,7 +77,7 @@ export function AuthGate() {
             subtitle={mode === 'sign_up' ? 'Create an account to get started.' : 'Sign in to access the desktop app.'}
         >
             <div className="space-y-4">
-                {auth.error && <InlineError error={auth.error} />}
+                {authError && <InlineError error={authError} />}
                 {error && <InlineError error={error} />}
                 {message && <InlineMessage message={message} />}
 
@@ -152,7 +161,7 @@ export function AuthGate() {
                     </div>
                 )}
 
-                {auth.usingOfflineSession && (
+                {usingOfflineSession && (
                     <MessageCard
                         tone="warn"
                         title="Offline cached session"

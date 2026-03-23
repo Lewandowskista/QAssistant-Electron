@@ -6,6 +6,9 @@ import {
     getCollaborationMetrics,
     migrateLegacyExecutionsToSessions,
     enrichHandoffCompleteness,
+    getTaskWorkflowSummary,
+    getWorkflowHealthSummary,
+    getSyncStatusSummary,
 } from './collaboration'
 import type { Project, Task, HandoffPacket, CollaborationEvent } from '../types/project'
 
@@ -116,7 +119,7 @@ describe('collaboration helpers', () => {
 
     it('getReleaseQueue — verified task does not appear in prsLinkedButNotRetested', () => {
         const task = makeTask({ collabState: 'verified' })
-        const handoff = makeHandoff({ linkedPrs: [{ url: 'https://github.com/x/y/1', title: 'PR #1', status: 'merged' }] })
+        const handoff = makeHandoff({ linkedPrs: [{ repoFullName: 'x/y', prNumber: 1, prUrl: 'https://github.com/x/y/pull/1', status: 'merged' }] })
         const queue = getReleaseQueue(makeProject({ tasks: [task], handoffPackets: [handoff] }))
         expect(queue.prsLinkedButNotRetested).toHaveLength(0)
     })
@@ -159,6 +162,34 @@ describe('collaboration helpers', () => {
         const handoff = makeHandoff({ createdAt: now - twoHoursMs, acknowledgedAt: now })
         const metrics = getCollaborationMetrics(makeProject({ handoffPackets: [handoff] }))
         expect(metrics.avgDevAcknowledgementHours).toBe(2)
+    })
+
+    it('builds a workflow summary with warnings and next action', () => {
+        const task = makeTask({ collabState: 'ready_for_qa', activeHandoffId: 'handoff-1' })
+        const handoff = makeHandoff({ linkedExecutionRefs: [], linkedFileIds: [], linkedNoteIds: [], linkedPrs: [] })
+        const summary = getTaskWorkflowSummary(makeProject({ tasks: [task], handoffPackets: [handoff] }), task)
+        expect(summary.ownerLabel).toBe('QA')
+        expect(summary.nextAction).toContain('Link the PR')
+        expect(summary.warnings.some((warning) => warning.includes('Link the fixing PR'))).toBe(true)
+    })
+
+    it('summarizes workflow health for stuck states', () => {
+        const task = makeTask({ title: 'Checkout issue', collabState: 'ready_for_dev', activeHandoffId: 'handoff-1' })
+        const handoff = makeHandoff({ acknowledgedAt: undefined, linkedExecutionRefs: [], linkedFileIds: [], linkedNoteIds: [] })
+        const health = getWorkflowHealthSummary(makeProject({ tasks: [task], handoffPackets: [handoff] }))
+        expect(health.counts.waitingForDevAck).toBe(1)
+        expect(health.counts.incompleteActiveHandoffs).toBe(1)
+        expect(health.items.waitingForDevAck[0]?.title).toBe('Checkout issue')
+    })
+
+    it('summarizes sync state for pending and failed states', () => {
+        const pending = getSyncStatusSummary({ status: 'connected', pendingCount: 2, workspaceName: 'QA Team' })
+        expect(pending.tone).toBe('warning')
+        expect(pending.headline).toContain('2')
+
+        const failed = getSyncStatusSummary({ status: 'error', pendingCount: 0, error: 'Realtime disconnected' })
+        expect(failed.tone).toBe('danger')
+        expect(failed.detail).toContain('sync error')
     })
 
     it('migrates legacy executions into a synthetic archived session', () => {

@@ -1,4 +1,4 @@
-import { StrictMode, lazy, Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
@@ -53,43 +53,41 @@ const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error("Root element not found")
 
 createRoot(rootElement).render(
-  <StrictMode>
-    <AppAuthBoundary>
-      <HashRouter>
-        <Suspense fallback={
-          <div className="flex items-center justify-center h-full w-full bg-background">
-            <Loader2 className="h-8 w-8 text-primary animate-spin" />
-          </div>
-        }>
-          <Routes>
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<ErrorBoundary name="Dashboard"><DashboardPage /></ErrorBoundary>} />
-              <Route path="tasks" element={<ErrorBoundary name="Tasks"><RequireProject><TasksPage /></RequireProject></ErrorBoundary>} />
-              <Route path="tests" element={<ErrorBoundary name="Tests"><RequireProject><TestsPage /></RequireProject></ErrorBoundary>} />
-              <Route path="test-data" element={<ErrorBoundary name="Test Data"><RequireProject><TestDataPage /></RequireProject></ErrorBoundary>} />
-              <Route path="checklists" element={<ErrorBoundary name="Checklists"><RequireProject><ChecklistsPage /></RequireProject></ErrorBoundary>} />
-              <Route path="sap" element={<ErrorBoundary name="SAP"><RequireProject><SapPage /></RequireProject></ErrorBoundary>} />
-              <Route path="api" element={<ErrorBoundary name="API"><RequireProject><ApiPage /></RequireProject></ErrorBoundary>} />
-              <Route path="runbooks" element={<ErrorBoundary name="Runbooks"><RequireProject><RunbooksPage /></RequireProject></ErrorBoundary>} />
-              <Route path="notes" element={<ErrorBoundary name="Notes"><RequireProject><NotesPage /></RequireProject></ErrorBoundary>} />
-              <Route path="files" element={<ErrorBoundary name="Files"><RequireProject><FilesPage /></RequireProject></ErrorBoundary>} />
-              <Route path="environments" element={<ErrorBoundary name="Environments"><RequireProject><EnvironmentsPage /></RequireProject></ErrorBoundary>} />
-              <Route path="github" element={<ErrorBoundary name="GitHub"><RequireProject><GitHubPage /></RequireProject></ErrorBoundary>} />
-              <Route path="code-reviews" element={<ErrorBoundary name="Code Reviews"><RequireRole role="dev"><CodeReviewsPage /></RequireRole></ErrorBoundary>} />
-              <Route path="deployments" element={<ErrorBoundary name="Deployments"><RequireProject><RequireRole role="dev"><DeploymentsPage /></RequireRole></RequireProject></ErrorBoundary>} />
-              <Route path="release-queue" element={<ErrorBoundary name="Release Queue"><RequireProject><ReleaseQueuePage /></RequireProject></ErrorBoundary>} />
-              <Route path="activity" element={<ErrorBoundary name="Activity Feed"><RequireProject><ActivityFeedPage /></RequireProject></ErrorBoundary>} />
-              <Route path="exploratory" element={<ErrorBoundary name="Exploratory Testing"><RequireProject><ExploratoryTestingPage /></RequireProject></ErrorBoundary>} />
-              <Route path="reports" element={<ErrorBoundary name="Reports"><RequireProject><ReportBuilderPage /></RequireProject></ErrorBoundary>} />
-              <Route path="docs" element={<ErrorBoundary name="Docs"><DocsPage /></ErrorBoundary>} />
-              <Route path="settings" element={<ErrorBoundary name="Settings"><SettingsPage /></ErrorBoundary>} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Route>
-          </Routes>
-        </Suspense>
-      </HashRouter>
-    </AppAuthBoundary>
-  </StrictMode>,
+  <AppAuthBoundary>
+    <HashRouter>
+      <Suspense fallback={
+        <div className="flex items-center justify-center h-full w-full bg-background">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        </div>
+      }>
+        <Routes>
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={<ErrorBoundary name="Dashboard"><DashboardPage /></ErrorBoundary>} />
+            <Route path="tasks" element={<ErrorBoundary name="Tasks"><RequireProject><TasksPage /></RequireProject></ErrorBoundary>} />
+            <Route path="tests" element={<ErrorBoundary name="Tests"><RequireProject><TestsPage /></RequireProject></ErrorBoundary>} />
+            <Route path="test-data" element={<ErrorBoundary name="Test Data"><RequireProject><TestDataPage /></RequireProject></ErrorBoundary>} />
+            <Route path="checklists" element={<ErrorBoundary name="Checklists"><RequireProject><ChecklistsPage /></RequireProject></ErrorBoundary>} />
+            <Route path="sap" element={<ErrorBoundary name="SAP"><RequireProject><SapPage /></RequireProject></ErrorBoundary>} />
+            <Route path="api" element={<ErrorBoundary name="API"><RequireProject><ApiPage /></RequireProject></ErrorBoundary>} />
+            <Route path="runbooks" element={<ErrorBoundary name="Runbooks"><RequireProject><RunbooksPage /></RequireProject></ErrorBoundary>} />
+            <Route path="notes" element={<ErrorBoundary name="Notes"><RequireProject><NotesPage /></RequireProject></ErrorBoundary>} />
+            <Route path="files" element={<ErrorBoundary name="Files"><RequireProject><FilesPage /></RequireProject></ErrorBoundary>} />
+            <Route path="environments" element={<ErrorBoundary name="Environments"><RequireProject><EnvironmentsPage /></RequireProject></ErrorBoundary>} />
+            <Route path="github" element={<ErrorBoundary name="GitHub"><RequireProject><GitHubPage /></RequireProject></ErrorBoundary>} />
+            <Route path="code-reviews" element={<ErrorBoundary name="Code Reviews"><RequireRole role="dev"><CodeReviewsPage /></RequireRole></ErrorBoundary>} />
+            <Route path="deployments" element={<ErrorBoundary name="Deployments"><RequireProject><RequireRole role="dev"><DeploymentsPage /></RequireRole></RequireProject></ErrorBoundary>} />
+            <Route path="release-queue" element={<ErrorBoundary name="Release Queue"><RequireProject><ReleaseQueuePage /></RequireProject></ErrorBoundary>} />
+            <Route path="activity" element={<ErrorBoundary name="Activity Feed"><RequireProject><ActivityFeedPage /></RequireProject></ErrorBoundary>} />
+            <Route path="exploratory" element={<ErrorBoundary name="Exploratory Testing"><RequireProject><ExploratoryTestingPage /></RequireProject></ErrorBoundary>} />
+            <Route path="reports" element={<ErrorBoundary name="Reports"><RequireProject><ReportBuilderPage /></RequireProject></ErrorBoundary>} />
+            <Route path="docs" element={<ErrorBoundary name="Docs"><DocsPage /></ErrorBoundary>} />
+            <Route path="settings" element={<ErrorBoundary name="Settings"><SettingsPage /></ErrorBoundary>} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </Suspense>
+    </HashRouter>
+  </AppAuthBoundary>,
 )
 
 void recordRendererMetric('rendererBootstrapMs', performance.now())

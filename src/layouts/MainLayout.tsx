@@ -223,10 +223,10 @@ export default function MainLayout() {
         {
             title: activeRole === 'dev' ? "DEV TOOLS" : "QA ADVANCED",
             items: [
-                { name: "GitHub", href: "/github", icon: GitBranch },
-                { name: "Environments", href: "/environments", icon: Globe },
                 { name: "Release Queue", href: "/release-queue", icon: ClipboardCheck },
                 { name: "Activity Feed", href: "/activity", icon: Activity },
+                { name: "Environments", href: "/environments", icon: Globe },
+                { name: "GitHub", href: "/github", icon: GitBranch },
                 { name: "API", href: "/api", icon: Code },
                 { name: "Runbooks", href: "/runbooks", icon: BookOpen },
                 ...(activeRole === 'qa' ? [
@@ -343,7 +343,7 @@ export default function MainLayout() {
                         <ChevronLeft className="h-3 w-3" />
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-5 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
                     <div>
                         <div className="relative group">
                             <Search className="absolute left-3 top-3 h-3.5 w-3.5 text-muted-ui opacity-70 group-focus-within:text-primary transition-colors pointer-events-none" />

@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils"
 import { StatusBadge } from "@/components/ui/status-badge"
 import type { TaskCoverageState, TaskDueState, TaskHandoffState } from "@/lib/tasks"
 import type { CollabState } from "@/types/project"
+import { formatCollaborationStateLabel } from "@/lib/collaboration"
 
 type BadgeTone = "neutral" | "blue" | "amber" | "red" | "green" | "purple"
 
@@ -30,8 +31,7 @@ export function collabStateTone(collabState?: CollabState): BadgeTone {
 }
 
 export function collabStateLabel(collabState?: CollabState) {
-    if (!collabState) return "Draft"
-    return collabState.replace(/_/g, " ")
+    return formatCollaborationStateLabel(collabState)
 }
 
 export function dueStateTone(dueState: TaskDueState): BadgeTone {

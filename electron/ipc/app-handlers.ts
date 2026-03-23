@@ -22,6 +22,8 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
     authRefreshProfile: () => Promise<any>
     getAuthErrorStatus: (msg: string) => any
     teardownSync: () => Promise<void>
+    ensureCloudStateForSignedInUser: () => Promise<void>
+    scheduleCloudStateUpload: () => void
     USER_PROFILE_FILE: string
     SETTINGS_FILE: string
     fsp: typeof import('node:fs/promises')
@@ -55,6 +57,7 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(data, 'settings');
             await deps.fsp.writeFile(deps.SETTINGS_FILE, JSON.stringify(data, null, 2));
             await deps.syncCredentialStorageAcknowledgement();
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing settings file:', e);
@@ -77,6 +80,7 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
         deps.assertString(key, 'key', 500);
         deps.assertString(value, 'value', 100_000);
         await deps.setCredential(key, value);
+        deps.scheduleCloudStateUpload();
         return true;
     });
     ipcMain.handle('secure-store-get', async (_e: any, key: any) => {
@@ -85,7 +89,9 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
     });
     ipcMain.handle('secure-store-delete', async (_e: any, key: any) => {
         deps.assertString(key, 'key', 500);
-        return await deps.deleteCredential(key);
+        const result = await deps.deleteCredential(key);
+        deps.scheduleCloudStateUpload();
+        return result;
     });
     ipcMain.handle('secure-store-list', async () => await deps.listCredentials());
 
@@ -105,6 +111,7 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
         try {
             deps.assertObject(data, 'userProfile');
             await deps.fsp.writeFile(deps.USER_PROFILE_FILE, JSON.stringify(data, null, 2));
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing user profile:', e);
@@ -115,7 +122,11 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
     // Primary Supabase Auth
     ipcMain.handle('auth-get-status', async () => {
         try {
-            return await deps.authGetStatus();
+            const status = await deps.authGetStatus();
+            if (status?.status === 'signed_in' && status?.user?.id) {
+                await deps.ensureCloudStateForSignedInUser();
+            }
+            return status;
         } catch (e: any) {
             return deps.getAuthErrorStatus(e.message);
         }
@@ -124,7 +135,11 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
         try {
             deps.assertString(email, 'email', 200);
             deps.assertString(password, 'password', 200);
-            return await deps.authSignIn(email, password);
+            const status = await deps.authSignIn(email, password);
+            if (status?.status === 'signed_in' && status?.user?.id) {
+                await deps.ensureCloudStateForSignedInUser();
+            }
+            return status;
         } catch (e: any) {
             return deps.getAuthErrorStatus(e.message);
         }
@@ -134,7 +149,11 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(email, 'email', 200);
             deps.assertString(password, 'password', 200);
             deps.assertString(displayName, 'displayName', 100);
-            return await deps.authSignUp(email, password, displayName);
+            const status = await deps.authSignUp(email, password, displayName);
+            if (status?.status === 'signed_in' && status?.user?.id) {
+                await deps.ensureCloudStateForSignedInUser();
+            }
+            return status;
         } catch (e: any) {
             return deps.getAuthErrorStatus(e.message);
         }
@@ -152,7 +171,11 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
     });
     ipcMain.handle('auth-refresh-profile', async () => {
         try {
-            return await deps.authRefreshProfile();
+            const status = await deps.authRefreshProfile();
+            if (status?.status === 'signed_in' && status?.user?.id) {
+                await deps.ensureCloudStateForSignedInUser();
+            }
+            return status;
         } catch (e: any) {
             return deps.getAuthErrorStatus(e.message);
         }

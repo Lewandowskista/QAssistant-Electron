@@ -17,7 +17,7 @@ import {
 import { cn } from "@/lib/utils"
 import type { Task } from "@/store/useProjectStore"
 import type { TaskViewModel } from "@/lib/tasks"
-import { TaskStateBadge, collabStateLabel, collabStateTone, coverageStateTone, dueStateTone, handoffStateTone } from "./TaskStateBadge"
+import { TaskStateBadge, collabStateLabel, collabStateTone, dueStateTone, handoffStateTone } from "./TaskStateBadge"
 
 interface TaskCardProps {
     task: Task
@@ -40,14 +40,6 @@ const priorityConfig = {
     low: { icon: ChevronDown, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" }
 } as const
 
-const severityConfig = {
-    blocker: { color: "text-red-600", bg: "bg-red-500/10", border: "border-red-500/20", label: "BLOCKER" },
-    critical: { color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
-    major: { color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "MAJOR" },
-    minor: { color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "MINOR" },
-    cosmetic: { color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20", label: "COSMETIC" }
-} as const
-
 function labelList(task: Task) {
     return (task.labels || "")
         .split(",")
@@ -67,6 +59,38 @@ function sourceClasses(task: Task) {
     return "bg-amber-500/10 border-amber-500/20 text-amber-400"
 }
 
+function taskHint(task: Task, taskView?: TaskViewModel) {
+    if (task.collabState === "ready_for_qa") return "Next: QA retest and verification"
+    if (task.collabState === "ready_for_dev") return "Next: developer acknowledgement"
+    if (task.collabState === "in_fix") return "Next: link PR and return to QA"
+    if (taskView?.handoffState === "incomplete") return `Next: complete ${taskView.handoffMissingFields[0] || "handoff details"}`
+    if (taskView?.coverageState === "uncovered") return "Next: link test coverage"
+    return "Next: review and move workflow forward"
+}
+
+function secondaryTaskState(taskView?: TaskViewModel) {
+    if (!taskView) return null
+    if (taskView.handoffState === "incomplete") {
+        return {
+            label: `Need ${taskView.handoffMissingFields[0] || "evidence"}`,
+            tone: handoffStateTone(taskView.handoffState)
+        }
+    }
+    if (taskView.dueState && taskView.dueState !== "none" && taskView.dueLabel) {
+        return {
+            label: taskView.dueLabel,
+            tone: dueStateTone(taskView.dueState)
+        }
+    }
+    if (taskView.coverageState === "uncovered") {
+        return {
+            label: "No tests",
+            tone: "red" as const
+        }
+    }
+    return null
+}
+
 export const TaskCard = memo(function TaskCard({
     task,
     taskView,
@@ -81,17 +105,17 @@ export const TaskCard = memo(function TaskCard({
     dragDisabled
 }: TaskCardProps) {
     const config = priorityConfig[task.priority] || priorityConfig.medium
-    const severityConfig_ = severityConfig[(task.severity || "major") as keyof typeof severityConfig]
     const PriorityIcon = config.icon
     const labels = labelList(task)
-    const visibleLabels = labels.slice(0, 2)
-    const hiddenLabelCount = Math.max(labels.length - visibleLabels.length, 0)
+    const secondaryState = secondaryTaskState(taskView)
+    const metadataLabels = [...(task.components || []).slice(0, 1), ...labels.slice(0, 1)]
+    const hiddenMetaCount = Math.max((task.components?.length || 0) + labels.length - metadataLabels.length, 0)
 
     return (
         <div
             onClick={onClick}
             className={cn(
-                "group relative overflow-hidden rounded-xl border border-[#2A2A3A] bg-[#1A1A24]/60 p-4 shadow-sm transition-all hover:border-[#A78BFA]/40",
+                "group relative overflow-hidden rounded-xl border border-[#2A2A3A] bg-[#15151D] p-4 shadow-sm transition-all hover:border-[#A78BFA]/30",
                 isSelected && "border-[#A78BFA] ring-1 ring-[#A78BFA]/30 bg-[#1A1A24]/90",
                 isOverlay && "scale-[1.02] border-[#A78BFA] shadow-2xl opacity-95"
             )}
@@ -175,49 +199,25 @@ export const TaskCard = memo(function TaskCard({
                     {task.title}
                 </h4>
 
+                <p className="text-[11px] leading-relaxed text-[#9CA3AF]">
+                    {taskHint(task, taskView)}
+                </p>
+
                 <div className="flex flex-wrap gap-1.5">
-                    <div className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black", config.bg, config.color, config.border)}>
-                        <PriorityIcon className="h-2.5 w-2.5" />
-                        {config.label}
-                    </div>
-                    {["major", "critical", "blocker"].includes(task.severity || "major") && (
-                        <div className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-black", severityConfig_.bg, severityConfig_.color, severityConfig_.border)}>
-                            {severityConfig_.label}
+                    {(task.priority === "critical" || task.severity === "blocker" || task.severity === "critical") && (
+                        <div className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black", config.bg, config.color, config.border)}>
+                            <PriorityIcon className="h-2.5 w-2.5" />
+                            {task.severity === "blocker" ? "BLOCKER" : config.label}
                         </div>
                     )}
                     <TaskStateBadge label={collabStateLabel(task.collabState)} tone={collabStateTone(task.collabState)} />
-                    {taskView?.dueState && taskView.dueState !== "none" && taskView.dueLabel ? (
-                        <TaskStateBadge label={taskView.dueLabel} tone={dueStateTone(taskView.dueState)} />
-                    ) : null}
-                    {taskView ? (
-                        <TaskStateBadge label={`${taskView.linkedTestCount} tests`} tone={coverageStateTone(taskView.coverageState)} />
-                    ) : null}
-                    {taskView?.hasActiveHandoff ? (
-                        <TaskStateBadge
-                            label={taskView.handoffState === "incomplete" ? `Need ${taskView.handoffMissingFields[0] || "evidence"}` : "Handoff"}
-                            tone={handoffStateTone(taskView.handoffState)}
-                        />
-                    ) : null}
+                    {secondaryState ? <TaskStateBadge label={secondaryState.label} tone={secondaryState.tone} /> : null}
                 </div>
 
-                {(task.components?.length || visibleLabels.length > 0 || hiddenLabelCount > 0) && (
-                    <div className="flex flex-wrap gap-1.5">
-                        {(task.components || []).slice(0, 3).map((component) => (
-                            <span key={component} className="rounded-md border border-[#38BDF8]/20 bg-[#38BDF8]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#38BDF8]">
-                                {component}
-                            </span>
-                        ))}
-                        {visibleLabels.map((label) => (
-                            <span key={label} className="rounded-md border border-[#3A3A3A] bg-[#2A2A3A]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9CA3AF]">
-                                {label}
-                            </span>
-                        ))}
-                        {hiddenLabelCount > 0 && (
-                            <span className="rounded-md border border-[#3A3A3A] bg-[#2A2A3A]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9CA3AF]">
-                                +{hiddenLabelCount}
-                            </span>
-                        )}
-                    </div>
+                {(metadataLabels.length > 0 || hiddenMetaCount > 0) && (
+                    <p className="text-[10px] text-[#7C8393]">
+                        {[...metadataLabels, hiddenMetaCount > 0 ? `+${hiddenMetaCount}` : null].filter(Boolean).join(" · ")}
+                    </p>
                 )}
 
                 <div className="flex items-center justify-between border-t border-[#2A2A3A]/40 pt-3">

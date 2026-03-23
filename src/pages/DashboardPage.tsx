@@ -36,8 +36,9 @@ import {
 import { EmptyState } from "@/components/ui/empty-state"
 import { PageHeader } from "@/components/ui/page-header"
 import { Task, TestPlan, Note, Checklist } from "@/types/project"
-import { getCollaborationMetrics, getReleaseQueue } from "@/lib/collaboration"
+import { getCollaborationMetrics, getReleaseQueue, getSyncStatusSummary, getWorkflowHealthSummary } from "@/lib/collaboration"
 import WelcomeScreen from "@/components/WelcomeScreen"
+import { useSyncStore } from "@/store/useSyncStore"
 
 const PassRateTrendChart = lazy(() => import("@/components/DashboardCharts").then((module) => ({ default: module.PassRateTrendChart })))
 const DefectDensityChart = lazy(() => import("@/components/DashboardCharts").then((module) => ({ default: module.DefectDensityChart })))
@@ -131,6 +132,11 @@ export default function DashboardPage() {
     const activeProjectId = useProjectStore((state) => state.activeProjectId)
     const projects = useProjectStore((state) => state.projects)
     const seedDemoProject = useProjectStore((state) => state.seedDemoProject)
+    const syncStatus = useSyncStore((state) => state.status)
+    const syncPendingCount = useSyncStore((state) => state.pendingCount)
+    const syncError = useSyncStore((state) => state.error)
+    const syncLastSyncedAt = useSyncStore((state) => state.lastSyncedAt)
+    const syncWorkspaceName = useSyncStore((state) => state.workspaceInfo?.workspaceName ?? null)
     const [selectedSprint, setSelectedSprint] = useState<string>('all')
     const [standupOpen, setStandupOpen] = useState(false)
     const [standupSummary, setStandupSummary] = useState<string | null>(null)
@@ -201,6 +207,20 @@ export default function DashboardPage() {
         () => activeProject ? getCollaborationMetrics(activeProject) : null,
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [handoffs, collaborationEvents]
+    )
+    const workflowHealth = useMemo(
+        () => activeProject ? getWorkflowHealthSummary(activeProject) : null,
+        [activeProject]
+    )
+    const syncSummary = useMemo(
+        () => getSyncStatusSummary({
+            status: syncStatus,
+            pendingCount: syncPendingCount,
+            error: syncError,
+            lastSyncedAt: syncLastSyncedAt,
+            workspaceName: syncWorkspaceName,
+        }),
+        [syncError, syncLastSyncedAt, syncPendingCount, syncStatus, syncWorkspaceName]
     )
 
     const closedColumnIds = useMemo(() => {
@@ -678,6 +698,81 @@ export default function DashboardPage() {
                     ) : null}
                 </MetricsSection>
             </div>
+
+            {workflowHealth && (
+                <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4">
+                    <section className="app-panel p-5 md:p-6">
+                        <div className="mb-5 flex items-center justify-between gap-3">
+                            <div>
+                                <p className="app-section-label">What Needs Attention</p>
+                                <h2 className="text-lg font-semibold text-[#E2E8F0]">Workflow Health</h2>
+                            </div>
+                            <Button variant="outline" className="border-[#2A2A3A] text-[#E2E8F0]" onClick={() => window.location.hash = '#/release-queue'}>
+                                Open Release Queue
+                            </Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {[
+                                { label: 'Waiting For Dev Ack', count: workflowHealth.counts.waitingForDevAck, items: workflowHealth.items.waitingForDevAck },
+                                { label: 'Ready For QA Without PR', count: workflowHealth.counts.readyForQaWithoutPr, items: workflowHealth.items.readyForQaWithoutPr },
+                                { label: 'Failed Verification Without Follow-Up', count: workflowHealth.counts.failedVerificationWithoutFollowUp, items: workflowHealth.items.failedVerificationWithoutFollowUp },
+                                { label: 'Incomplete Active Handoffs', count: workflowHealth.counts.incompleteActiveHandoffs, items: workflowHealth.items.incompleteActiveHandoffs },
+                            ].map((group) => (
+                                <div key={group.label} className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-4">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#E2E8F0]">{group.label}</p>
+                                        <span className={cn(
+                                            "rounded-full px-2 py-0.5 text-[10px] font-bold",
+                                            group.count > 0 ? "bg-[#EF4444]/10 text-[#EF4444]" : "bg-[#10B981]/10 text-[#10B981]"
+                                        )}>
+                                            {group.count}
+                                        </span>
+                                    </div>
+                                    <div className="mt-3 space-y-2">
+                                        {group.items.length === 0 ? (
+                                            <p className="text-xs text-[#6B7280]">No issues right now.</p>
+                                        ) : group.items.slice(0, 2).map((item) => (
+                                            <div key={`${group.label}-${item.taskId}`} className="rounded-lg border border-[#2A2A3A] bg-[#0F0F13] p-3">
+                                                <div className="text-xs font-semibold text-[#E2E8F0]">{item.title}</div>
+                                                <div className="mt-1 text-[11px] text-[#9CA3AF]">{item.detail}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="app-panel p-5 md:p-6">
+                        <p className="app-section-label">Shared Confidence</p>
+                        <h2 className="text-lg font-semibold text-[#E2E8F0]">Cloud Sync</h2>
+                        <div className={cn(
+                            "mt-4 rounded-xl border p-4",
+                            syncSummary.tone === 'danger' && "border-[#EF4444]/30 bg-[#EF4444]/10",
+                            syncSummary.tone === 'warning' && "border-[#F59E0B]/30 bg-[#F59E0B]/10",
+                            syncSummary.tone === 'info' && "border-[#38BDF8]/20 bg-[#38BDF8]/5",
+                            syncSummary.tone === 'success' && "border-[#10B981]/30 bg-[#10B981]/10",
+                        )}>
+                            <p className="text-sm font-semibold text-[#E2E8F0]">{syncSummary.headline}</p>
+                            <p className="mt-2 text-xs text-[#9CA3AF]">{syncSummary.detail}</p>
+                        </div>
+                        <div className="mt-4 grid grid-cols-3 gap-3">
+                            <div className="rounded-lg border border-[#2A2A3A] bg-[#13131A] p-3">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Status</div>
+                                <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{syncStatus}</div>
+                            </div>
+                            <div className="rounded-lg border border-[#2A2A3A] bg-[#13131A] p-3">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Pending</div>
+                                <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{syncPendingCount}</div>
+                            </div>
+                            <div className="rounded-lg border border-[#2A2A3A] bg-[#13131A] p-3">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Workspace</div>
+                                <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{syncWorkspaceName || 'Not connected'}</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            )}
 
             {/* Layout Row 1: Key Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

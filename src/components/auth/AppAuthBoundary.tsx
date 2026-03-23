@@ -3,35 +3,58 @@ import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useSyncStore } from '@/store/useSyncStore'
 import { AuthGate } from './AuthGate'
+import type { AuthStatus } from '@/types/auth'
+
+function isSameAuthStatus(a: AuthStatus, b: AuthStatus): boolean {
+    return (
+        a.configured === b.configured &&
+        a.status === b.status &&
+        a.error === b.error &&
+        a.supabaseUrl === b.supabaseUrl &&
+        a.supabaseAnonKey === b.supabaseAnonKey &&
+        a.usingOfflineSession === b.usingOfflineSession &&
+        a.user?.id === b.user?.id &&
+        a.user?.email === b.user?.email &&
+        a.user?.displayName === b.user?.displayName &&
+        a.user?.emailConfirmedAt === b.user?.emailConfirmedAt
+    )
+}
 
 export function AppAuthBoundary({ children }: { children: React.ReactNode }) {
-    const auth = useAuthStore(s => s.auth)
-    const isLoaded = useAuthStore(s => s.isLoaded)
-    const bootstrap = useAuthStore(s => s.bootstrap)
-    const setFromIpc = useAuthStore(s => s.setFromIpc)
-
-    const loadSyncConfig = useSyncStore(s => s.loadConfig)
-    const initSync = useSyncStore(s => s.initSync)
+    const [authSnapshot, setAuthSnapshot] = useState(() => {
+        const state = useAuthStore.getState()
+        return { auth: state.auth, isLoaded: state.isLoaded }
+    })
 
     const syncInitAttemptedRef = useRef(false)
     const [slowLoad, setSlowLoad] = useState(false)
 
     useEffect(() => {
-        const unsubscribe = window.electronAPI?.onAuthStatusChanged?.((next) => {
-            setFromIpc(next)
+        const unsubscribeStore = useAuthStore.subscribe((state) => {
+            setAuthSnapshot((current) => (
+                current.isLoaded === state.isLoaded && isSameAuthStatus(current.auth, state.auth)
+                    ? current
+                    : { auth: state.auth, isLoaded: state.isLoaded }
+            ))
         })
-        bootstrap().catch(console.error)
-        return () => unsubscribe?.()
-    }, [bootstrap, setFromIpc])
+        const unsubscribe = window.electronAPI?.onAuthStatusChanged?.((next) => {
+            useAuthStore.getState().setFromIpc(next)
+        })
+        useAuthStore.getState().bootstrap().catch(console.error)
+        return () => {
+            unsubscribeStore()
+            unsubscribe?.()
+        }
+    }, [])
 
     useEffect(() => {
-        if (isLoaded) return
+        if (authSnapshot.isLoaded) return
         const t = window.setTimeout(() => setSlowLoad(true), 4000)
         return () => window.clearTimeout(t)
-    }, [isLoaded])
+    }, [authSnapshot.isLoaded])
 
     useEffect(() => {
-        if (auth.status !== 'signed_in') {
+        if (authSnapshot.auth.status !== 'signed_in') {
             syncInitAttemptedRef.current = false
             return
         }
@@ -41,19 +64,19 @@ export function AppAuthBoundary({ children }: { children: React.ReactNode }) {
 
         let mounted = true
         ;(async () => {
-            await loadSyncConfig()
+            await useSyncStore.getState().loadConfig()
             const config = useSyncStore.getState().config
             if (mounted && config?.configured) {
-                await initSync().catch(console.error)
+                await useSyncStore.getState().initSync().catch(console.error)
             }
         })().catch(console.error)
 
         return () => {
             mounted = false
         }
-    }, [auth.status, initSync, loadSyncConfig])
+    }, [authSnapshot.auth.status])
 
-    if (!isLoaded || auth.status === 'booting') {
+    if (!authSnapshot.isLoaded || authSnapshot.auth.status === 'booting') {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -64,8 +87,9 @@ export function AppAuthBoundary({ children }: { children: React.ReactNode }) {
         )
     }
 
-    if (!auth.configured || auth.status !== 'signed_in') {
-        return <AuthGate />
+    if (!authSnapshot.auth.configured || authSnapshot.auth.status !== 'signed_in') {
+        const store = useAuthStore.getState()
+        return <AuthGate auth={authSnapshot.auth} signIn={store.signIn} signUp={store.signUp} />
     }
 
     return <>{children}</>

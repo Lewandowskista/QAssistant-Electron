@@ -20,11 +20,13 @@ import {
     BarChart3,
     Zap,
     ChevronDown,
+    ChevronUp,
     Trash2,
     Archive,
     Search,
     RotateCcw,
-    ShieldCheck
+    ShieldCheck,
+    SlidersHorizontal
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -44,6 +46,9 @@ import { SubtabBar } from "@/components/ui/subtab-bar"
 import { SegmentedControl } from "@/components/ui/segmented-control"
 
 type SubTab = 'TestCaseGeneration' | 'TestRuns' | 'Reports' | 'CoverageMatrix' | 'RegressionBuilder' | 'RiskMatrix' | 'AIAccuracy'
+
+const TESTS_SUBTAB_STORAGE_PREFIX = "qassistant:testsSubtab:"
+const TESTS_ADVANCED_STORAGE_PREFIX = "qassistant:testsAdvanced:"
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTasksForQaAi, sanitizeTestCasesForAi, sanitizeTestPlansForAi } from '@/lib/aiUtils'
@@ -79,6 +84,7 @@ export default function TestsPage() {
     const projectRunSessions = [...(activeProject?.testRunSessions || [])].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
     const totalRuns = (projectExecutions?.length || 0) + (projectRunSessions?.length || 0)
     const [activeSubTab, setActiveSubTab] = useState<SubTab>('TestCaseGeneration')
+    const [showGenerationAdvanced, setShowGenerationAdvanced] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
     const [showArchived, setShowArchived] = useState(false)
     const [source, setSource] = useState("Linear")
@@ -118,6 +124,24 @@ export default function TestsPage() {
             setGeminiConfigured(!!(projectKey || globalKey))
         }).catch(() => setGeminiConfigured(false))
     }, [activeProjectId, api])
+
+    useEffect(() => {
+        if (!activeProjectId) return
+        const storedSubtab = window.localStorage.getItem(`${TESTS_SUBTAB_STORAGE_PREFIX}${activeProjectId}`) as SubTab | null
+        const storedAdvanced = window.localStorage.getItem(`${TESTS_ADVANCED_STORAGE_PREFIX}${activeProjectId}`)
+        if (storedSubtab) setActiveSubTab(storedSubtab)
+        if (storedAdvanced) setShowGenerationAdvanced(storedAdvanced === "true")
+    }, [activeProjectId])
+
+    useEffect(() => {
+        if (!activeProjectId) return
+        window.localStorage.setItem(`${TESTS_SUBTAB_STORAGE_PREFIX}${activeProjectId}`, activeSubTab)
+    }, [activeProjectId, activeSubTab])
+
+    useEffect(() => {
+        if (!activeProjectId) return
+        window.localStorage.setItem(`${TESTS_ADVANCED_STORAGE_PREFIX}${activeProjectId}`, String(showGenerationAdvanced))
+    }, [activeProjectId, showGenerationAdvanced])
 
     // Regression Builder States
     const [regressionFromDate, setRegressionFromDate] = useState<string>("")
@@ -279,6 +303,14 @@ export default function TestsPage() {
     const filteredSessions = useMemo(() => {
         return projectRunSessions.filter(s => s && (showArchived ? s.isArchived : !s.isArchived))
     }, [projectRunSessions, showArchived])
+
+    const totalCaseCount = useMemo(() => testPlans.reduce((acc, p) => acc + (p.testCases || []).length, 0), [testPlans])
+    const testsNextAction = useMemo(() => {
+        if (selectedTaskIds.length > 0) return `Generate cases from ${selectedTaskIds.length} selected task${selectedTaskIds.length === 1 ? "" : "s"}.`
+        if (previouslyFailedTestCases.length > 0) return `Retest ${previouslyFailedTestCases.length} previously failed case${previouslyFailedTestCases.length === 1 ? "" : "s"}.`
+        if (filteredPlans.length > 0) return "Open an active plan and run or refine its cases."
+        return "Select context or use free text to generate the first test plan."
+    }, [filteredPlans.length, previouslyFailedTestCases.length, selectedTaskIds.length])
 
     const handleAiGenerate = async () => {
         if (!activeProjectId) return
@@ -532,8 +564,15 @@ export default function TestsPage() {
     return (
         <>
             <div className="h-full flex flex-col animate-in fade-in duration-500 overflow-hidden bg-[#0F0F13]">
-                {/* Primary Sub-Navigation (Reference: toolbar style) */}
-                <div className="flex-none border-b app-divider bg-[hsl(var(--surface-header)/0.78)] px-6 py-3">
+                <div className="flex-none space-y-3 border-b app-divider bg-[hsl(var(--surface-header)/0.78)] px-6 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-[240px]">
+                            <h1 className="text-xl font-semibold tracking-tight text-[#E2E8F0]">Tests</h1>
+                            <p className="mt-1 text-xs text-[#8E9196]">
+                                {filteredPlans.length} visible plans · {totalCaseCount} cases · {testsNextAction}
+                            </p>
+                        </div>
+                    </div>
                     <SubtabBar
                         value={activeSubTab}
                         onChange={(value) => setActiveSubTab(value as SubTab)}
@@ -553,96 +592,91 @@ export default function TestsPage() {
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
                     {activeSubTab === 'TestCaseGeneration' && (
                         <div className="flex-1 flex flex-col min-h-0">
-                            {/* Primary Toolbar (Reference: Row 0) */}
-                            <div className="flex-none border-b app-divider bg-[hsl(var(--surface-header)/0.72)] px-6 py-3 flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <span className="app-section-label">Source</span>
-                                        <Select value={source} onValueChange={setSource}>
-                                            <SelectTrigger className="h-9 w-40 text-[11px] font-semibold">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Linear">Linear</SelectItem>
-                                                <SelectItem value="Jira">Jira</SelectItem>
-                                                <SelectItem value="Manual">Manual</SelectItem>
-                                                <SelectItem value="FreeText">Free Text / AI</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                            <div className="flex-none border-b app-divider bg-[hsl(var(--surface-header)/0.68)] px-6 py-3 space-y-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Select value={source} onValueChange={setSource}>
+                                        <SelectTrigger className="h-9 w-40 text-[11px] font-medium">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Linear">Linear</SelectItem>
+                                            <SelectItem value="Jira">Jira</SelectItem>
+                                            <SelectItem value="Manual">Manual</SelectItem>
+                                            <SelectItem value="FreeText">Free Text / AI</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <div className="relative min-w-[260px] flex-1">
+                                        <Input
+                                            placeholder="Search plans & cases..."
+                                            value={planSearchQuery}
+                                            onChange={e => setPlanSearchQuery(e.target.value)}
+                                            className="h-9 bg-[#1A1A24] border-[#2A2A3A] text-[11px] placeholder:text-[#4B5563] pl-8 focus-visible:ring-[#A78BFA]/20"
+                                        />
+                                        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4B5563]" />
                                     </div>
+                                    <Button onClick={() => setCtxDialogOpen(true)} variant="ghost" size="sm" className="h-9 px-3 text-[11px] font-medium text-[#E2E8F0] hover:bg-[#1A1A24] gap-2">
+                                        <FileText className="h-3.5 w-3.5" />
+                                        {selectedTaskIds.length > 0 ? `${selectedTaskIds.length} selected` : 'Select context'}
+                                    </Button>
                                     <Button
                                         onClick={handleAiGenerate}
                                         disabled={isGenerating || (source !== 'FreeText' && selectedTaskIds.length === 0)}
-                                        className="h-8 px-4 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold text-[11px] gap-2"
+                                        className="h-9 px-4 bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-medium text-[11px] gap-2"
                                     >
-                                        <Cpu className="h-3.5 w-3.5" /> {isGenerating ? 'GENERATING...' : 'GENERATE TEST CASES'}
+                                        <Cpu className="h-3.5 w-3.5" /> {isGenerating ? 'Generating...' : 'Generate'}
                                     </Button>
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setShowArchived(!showArchived)}
                                         className={cn(
-                                            "h-8 px-3 text-[11px] font-bold gap-2 border border-transparent transition-all",
-                                            showArchived ? "bg-[#FBBF24]/10 text-[#FBBF24] border-[#FBBF24]/20" : "text-[#6B7280] hover:bg-[#1A1A24]"
+                                            "h-9 px-3 text-[11px] font-medium gap-2 border border-transparent transition-all",
+                                            showArchived ? "bg-[#1A1A24] text-[#E2E8F0]" : "text-[#6B7280] hover:bg-[#1A1A24]"
                                         )}
                                     >
-                                        <Archive className="h-3.5 w-3.5" /> ARCHIVED
+                                        <Archive className="h-3.5 w-3.5" /> Archived
                                     </Button>
-                                    <span className="text-[11px] font-bold text-[#6B7280] uppercase ml-1">Show Archived</span>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <div className="app-chip normal-case tracking-normal font-mono-ui">
-                                        {testPlans.length} plans · {testPlans.reduce((acc, p) => acc + (p.testCases || []).length, 0)} cases
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Secondary Toolbar (Reference: Row 1) */}
-                            <div className="flex-none border-b app-divider bg-[hsl(var(--surface-header)/0.58)] px-6 py-2 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <span className="app-section-label mr-2">Filters</span>
-                                    <SegmentedControl
-                                        value={sourceFilter}
-                                        onChange={setSourceFilter}
-                                        options={['All', 'Jira', 'Linear', 'Manual'].map((item) => ({ value: item, label: item }))}
-                                    />
-                                    <div className="w-[1px] h-4 bg-[#2A2A3A] mx-2" />
-                                    <Button onClick={() => setCtxDialogOpen(true)} variant="ghost" size="sm" className="h-7 px-3 text-[10px] font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-2">
-                                        <FileText className="h-3.5 w-3.5" />
-                                        {selectedTaskIds.length > 0 ? `${selectedTaskIds.length} SELECTED` : 'SELECT CONTEXT'}
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
-                                        <FileSpreadsheet className="h-3.5 w-3.5" /> IMPORT CSV
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => setImportResultsDialogOpen(true)} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
-                                        <ArrowRightCircle className="h-3.5 w-3.5" /> IMPORT RESULTS
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
-                                        <Plus className="h-3.5 w-3.5" /> NEW PLAN
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={handleLoadDesignDoc} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2" title={designDocName || 'Load Design Document Text'}>
-                                        <FileText className={cn("h-3.5 w-3.5", designDocName ? "text-[#10B981]" : "")} /> {designDocName ? 'DOC LOADED' : 'DESIGN DOC'}
-                                        {designDocName && (
-                                            <XCircle
-                                                className="h-3 w-3 ml-1 hover:text-[#EF4444]"
-                                                onClick={(e) => { e.stopPropagation(); setDesignDocName(null); setDesignDocContent(null); }}
-                                            />
-                                        )}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setShowGenerationAdvanced((current) => !current)}
+                                        className="h-9 gap-2 border-[#2A2A3A] bg-[#0F0F13] text-[#E2E8F0]"
+                                    >
+                                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                                        More tools
+                                        {showGenerationAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                     </Button>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                    <div className="relative">
-                                        <Input
-                                            placeholder="Search plans & cases..."
-                                            value={planSearchQuery}
-                                            onChange={e => setPlanSearchQuery(e.target.value)}
-                                            className="h-7 w-64 bg-[#1A1A24] border-[#2A2A3A] text-[11px] placeholder:text-[#4B5563] pl-8 focus-visible:ring-[#A78BFA]/20"
+                                {showGenerationAdvanced && (
+                                    <div className="flex flex-wrap items-center gap-2 border-t border-[#2A2A3A]/70 pt-3">
+                                        <span className="app-section-label mr-2">Filters</span>
+                                        <SegmentedControl
+                                            value={sourceFilter}
+                                            onChange={setSourceFilter}
+                                            options={['All', 'Jira', 'Linear', 'Manual'].map((item) => ({ value: item, label: item }))}
                                         />
-                                        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4B5563]" />
+                                        <div className="w-[1px] h-4 bg-[#2A2A3A] mx-2" />
+                                        <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
+                                            <FileSpreadsheet className="h-3.5 w-3.5" /> IMPORT CSV
+                                        </Button>
+                                        <Button variant="ghost" size="sm" onClick={() => setImportResultsDialogOpen(true)} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
+                                            <ArrowRightCircle className="h-3.5 w-3.5" /> IMPORT RESULTS
+                                        </Button>
+                                        <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2">
+                                            <Plus className="h-3.5 w-3.5" /> NEW PLAN
+                                        </Button>
+                                        <Button variant="ghost" size="sm" onClick={handleLoadDesignDoc} className="h-7 px-3 text-[10px] font-bold text-[#6B7280] hover:text-[#E2E8F0] gap-2" title={designDocName || 'Load Design Document Text'}>
+                                            <FileText className={cn("h-3.5 w-3.5", designDocName ? "text-[#10B981]" : "")} /> {designDocName ? 'DOC LOADED' : 'DESIGN DOC'}
+                                            {designDocName && (
+                                                <XCircle
+                                                    className="h-3 w-3 ml-1 hover:text-[#EF4444]"
+                                                    onClick={(e) => { e.stopPropagation(); setDesignDocName(null); setDesignDocContent(null); }}
+                                                />
+                                            )}
+                                        </Button>
                                     </div>
-                                </div>
+                                )}
                             </div>
 
                             {/* Free Text Input Panel */}
@@ -771,11 +805,8 @@ export default function TestsPage() {
                                             >
                                                 <Archive className="h-3.5 w-3.5" /> ARCHIVED
                                             </Button>
-                                            <span className="text-[11px] font-bold text-[#6B7280] uppercase ml-1">Show Archived</span>
                                         </div>
-                                        <div className="font-mono text-[11px] font-bold text-[#6B7280] bg-[#1A1A24] px-3 py-1 rounded border border-[#2A2A3A] tracking-tighter">
-                                            {totalRuns} RUN(S)
-                                        </div>
+                                        <p className="text-[11px] text-[#8E9196]">{totalRuns} runs</p>
                                     </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">

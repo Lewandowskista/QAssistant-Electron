@@ -32,6 +32,48 @@ export type CollaborationMetrics = {
     reopenRate: number
 }
 
+export type WorkflowAttentionLevel = 'info' | 'warning' | 'danger' | 'success'
+
+export type TaskWorkflowSummary = {
+    stateLabel: string
+    nextAction: string
+    ownerLabel: string
+    verificationLabel: string
+    warnings: string[]
+    attentionLevel: WorkflowAttentionLevel
+    linkedTestCount: number
+    evidenceCount: number
+    linkedPrCount: number
+    hasCompleteHandoff: boolean
+}
+
+export type WorkflowHealthItem = {
+    taskId: string
+    title: string
+    detail: string
+}
+
+export type WorkflowHealthSummary = {
+    counts: {
+        waitingForDevAck: number
+        readyForQaWithoutPr: number
+        failedVerificationWithoutFollowUp: number
+        incompleteActiveHandoffs: number
+    }
+    items: {
+        waitingForDevAck: WorkflowHealthItem[]
+        readyForQaWithoutPr: WorkflowHealthItem[]
+        failedVerificationWithoutFollowUp: WorkflowHealthItem[]
+        incompleteActiveHandoffs: WorkflowHealthItem[]
+    }
+}
+
+export type SyncStatusSummary = {
+    tone: WorkflowAttentionLevel
+    headline: string
+    detail: string
+}
+
 export function getHandoffMissingFields(handoff?: Partial<HandoffPacket> | null): HandoffMissingField[] {
     if (!handoff) {
         return ['summary', 'reproSteps', 'expectedResult', 'actualResult', 'environment', 'severity', 'evidence']
@@ -62,6 +104,14 @@ export function enrichHandoffCompleteness<T extends Partial<HandoffPacket>>(hand
         isComplete: missingFields.length === 0,
         missingFields,
     }
+}
+
+export function formatCollaborationStateLabel(collabState?: string | null): string {
+    if (!collabState) return 'Draft'
+    return collabState
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
 }
 
 export function migrateLegacyExecutionsToSessions(project: Project): TestRunSession[] {
@@ -160,6 +210,204 @@ export function getReleaseQueue(project: Project) {
     }
 }
 
+export function getTaskWorkflowSummary(project: Project, task: Task): TaskWorkflowSummary {
+    const traceability = getTaskTraceabilitySummary(project, task)
+    const activeHandoff = traceability.activeHandoff
+    const linkedPrCount = activeHandoff?.linkedPrs?.length ?? 0
+    const evidenceCount = (activeHandoff?.linkedExecutionRefs?.length ?? 0)
+        + (activeHandoff?.linkedFileIds?.length ?? 0)
+        + (activeHandoff?.linkedNoteIds?.length ?? 0)
+    const warnings: string[] = []
+    const stateLabel = formatCollaborationStateLabel(task.collabState)
+
+    if (!activeHandoff) warnings.push('Create a handoff packet to move this through the QA/dev workflow.')
+    if (activeHandoff && !traceability.hasCompleteHandoff) warnings.push(`Complete the handoff: missing ${traceability.missingFields.join(', ')}.`)
+    if (activeHandoff && evidenceCount === 0) warnings.push('Attach execution evidence, files, or notes before sending.')
+    if ((task.collabState === 'ready_for_qa' || task.collabState === 'qa_retesting') && linkedPrCount === 0) warnings.push('Link the fixing PR so QA can verify the exact change.')
+    if (task.collabState === 'ready_for_dev' && !activeHandoff?.acknowledgedAt) warnings.push('Developer acknowledgement is still missing.')
+
+    const verificationLabel = task.collabState === 'verified'
+        ? 'Verified by QA'
+        : task.collabState === 'qa_retesting'
+            ? 'QA retest in progress'
+            : task.collabState === 'ready_for_qa'
+                ? 'Waiting for QA verification'
+                : activeHandoff?.qaVerificationNotes?.trim()
+                    ? 'Verification notes present'
+                    : 'Verification not started'
+
+    let nextAction = 'Continue collaboration'
+    let ownerLabel = 'Shared'
+    let attentionLevel: WorkflowAttentionLevel = 'info'
+
+    switch (task.collabState ?? 'draft') {
+        case 'draft':
+            nextAction = activeHandoff ? 'Finish the handoff and send it to development.' : 'Create the first handoff packet.'
+            ownerLabel = 'QA'
+            attentionLevel = warnings.length > 0 ? 'warning' : 'info'
+            break
+        case 'ready_for_dev':
+            nextAction = activeHandoff?.acknowledgedAt ? 'Developer can start the fix.' : 'Developer should acknowledge the handoff.'
+            ownerLabel = 'Dev'
+            attentionLevel = activeHandoff?.acknowledgedAt ? 'info' : 'warning'
+            break
+        case 'dev_acknowledged':
+        case 'in_fix':
+            nextAction = linkedPrCount > 0 ? 'Finish the fix and return it to QA.' : 'Link the PR or add a developer response before returning to QA.'
+            ownerLabel = 'Dev'
+            attentionLevel = linkedPrCount > 0 ? 'info' : 'warning'
+            break
+        case 'ready_for_qa':
+            nextAction = linkedPrCount > 0 ? 'QA should start retest and record verification notes.' : 'Link the PR, then start QA retest.'
+            ownerLabel = 'QA'
+            attentionLevel = linkedPrCount > 0 ? 'info' : 'warning'
+            break
+        case 'qa_retesting':
+            nextAction = 'QA should verify or reject the fix with notes.'
+            ownerLabel = 'QA'
+            attentionLevel = 'info'
+            break
+        case 'verified':
+            nextAction = 'Close the workflow or keep it as verified for release tracking.'
+            ownerLabel = 'Shared'
+            attentionLevel = 'success'
+            break
+        case 'closed':
+            nextAction = 'No action needed.'
+            ownerLabel = 'Closed'
+            attentionLevel = 'success'
+            break
+    }
+
+    if (warnings.length > 1 && attentionLevel !== 'success') {
+        attentionLevel = 'danger'
+    }
+
+    return {
+        stateLabel,
+        nextAction,
+        ownerLabel,
+        verificationLabel,
+        warnings,
+        attentionLevel,
+        linkedTestCount: traceability.linkedTests.length,
+        evidenceCount,
+        linkedPrCount,
+        hasCompleteHandoff: traceability.hasCompleteHandoff,
+    }
+}
+
+export function getWorkflowHealthSummary(project: Project): WorkflowHealthSummary {
+    const taskById = new Map((project.tasks || []).map((task) => [task.id, task]))
+    const items = {
+        waitingForDevAck: [] as WorkflowHealthItem[],
+        readyForQaWithoutPr: [] as WorkflowHealthItem[],
+        failedVerificationWithoutFollowUp: [] as WorkflowHealthItem[],
+        incompleteActiveHandoffs: [] as WorkflowHealthItem[],
+    }
+
+    for (const task of project.tasks || []) {
+        const traceability = getTaskTraceabilitySummary(project, task)
+        const activeHandoff = traceability.activeHandoff
+        if (task.collabState === 'ready_for_dev' && !activeHandoff?.acknowledgedAt) {
+            items.waitingForDevAck.push({
+                taskId: task.id,
+                title: task.title,
+                detail: 'Sent to development but not yet acknowledged.',
+            })
+        }
+        if (task.collabState === 'ready_for_qa' && (activeHandoff?.linkedPrs?.length ?? 0) === 0) {
+            items.readyForQaWithoutPr.push({
+                taskId: task.id,
+                title: task.title,
+                detail: 'Marked ready for QA without a linked PR.',
+            })
+        }
+        if (activeHandoff && !traceability.hasCompleteHandoff) {
+            items.incompleteActiveHandoffs.push({
+                taskId: task.id,
+                title: task.title,
+                detail: `Missing ${traceability.missingFields.join(', ')}.`,
+            })
+        }
+    }
+
+    const failedVerificationByTask = new Map<string, number>()
+    const followUpByTask = new Map<string, number>()
+    for (const event of project.collaborationEvents || []) {
+        if (event.eventType === 'verification_failed') failedVerificationByTask.set(event.taskId, event.timestamp)
+        if (event.eventType === 'fix_started' || event.eventType === 'handoff_acknowledged' || event.eventType === 'ready_for_qa') {
+            followUpByTask.set(event.taskId, Math.max(followUpByTask.get(event.taskId) ?? 0, event.timestamp))
+        }
+    }
+    for (const [taskId, failedAt] of failedVerificationByTask.entries()) {
+        const followUpAt = followUpByTask.get(taskId) ?? 0
+        if (followUpAt >= failedAt) continue
+        const task = taskById.get(taskId)
+        if (!task) continue
+        items.failedVerificationWithoutFollowUp.push({
+            taskId,
+            title: task.title,
+            detail: 'Verification failed and no developer follow-up has been recorded yet.',
+        })
+    }
+
+    return {
+        counts: {
+            waitingForDevAck: items.waitingForDevAck.length,
+            readyForQaWithoutPr: items.readyForQaWithoutPr.length,
+            failedVerificationWithoutFollowUp: items.failedVerificationWithoutFollowUp.length,
+            incompleteActiveHandoffs: items.incompleteActiveHandoffs.length,
+        },
+        items,
+    }
+}
+
+export function getSyncStatusSummary(input: {
+    status: string
+    pendingCount: number
+    error?: string | null
+    lastSyncedAt?: number | null
+    workspaceName?: string | null
+}): SyncStatusSummary {
+    const workspaceLabel = input.workspaceName ? `${input.workspaceName} ` : ''
+    if (input.error) {
+        return {
+            tone: 'danger',
+            headline: 'Sync needs attention',
+            detail: `${workspaceLabel}has a sync error. Open Cloud Sync for details and retry after checking your connection.`,
+        }
+    }
+    if (input.status === 'disconnected') {
+        return {
+            tone: 'info',
+            headline: 'Cloud sync is not connected',
+            detail: 'Create or join a workspace to share handoffs, traceability, and release state with the team.',
+        }
+    }
+    if (input.pendingCount > 0) {
+        return {
+            tone: 'warning',
+            headline: `${input.pendingCount} sync change${input.pendingCount === 1 ? '' : 's'} pending`,
+            detail: `${workspaceLabel}is still uploading local changes. Keep the app open until the queue clears.`,
+        }
+    }
+    if (input.status === 'syncing' || input.status === 'connecting') {
+        return {
+            tone: 'info',
+            headline: 'Sync in progress',
+            detail: `${workspaceLabel}is refreshing shared state now.`,
+        }
+    }
+    return {
+        tone: 'success',
+        headline: 'Cloud sync is healthy',
+        detail: input.lastSyncedAt
+            ? `${workspaceLabel}last synced at ${new Date(input.lastSyncedAt).toLocaleTimeString()}.`
+            : `${workspaceLabel}is connected and ready.`,
+    }
+}
+
 export function getCollaborationMetrics(project: Project): CollaborationMetrics {
     const events = project.collaborationEvents || []
     const handoffs = project.handoffPackets || []
@@ -183,6 +431,20 @@ export function getCollaborationMetrics(project: Project): CollaborationMetrics 
         avgDevAcknowledgementHours: averageHours(ackDurations),
         avgReadyForQaToVerificationHours: averageHours(readyForQaDurations),
         reopenRate,
+    }
+}
+
+function getTaskTraceabilitySummary(project: Project, task: Task) {
+    const linkedTests = getLinkedTestsForTask(project, task)
+    const handoffs = (project.handoffPackets || []).filter((item) => item.taskId === task.id)
+    const activeHandoff = handoffs.find((item) => item.id === task.activeHandoffId) || handoffs[0]
+    const missingFields = getHandoffMissingFields(activeHandoff)
+    return {
+        linkedTests,
+        handoffs,
+        activeHandoff,
+        missingFields,
+        hasCompleteHandoff: !!activeHandoff && missingFields.length === 0,
     }
 }
 

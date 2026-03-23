@@ -13,10 +13,9 @@ import {
     useSensors
 } from "@dnd-kit/core"
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
-import { HelpCircle, Loader2, Plus, RefreshCw, Bookmark, X, Check } from "lucide-react"
+import { HelpCircle, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
 import { sanitizeProjectForQaAi, sanitizeTaskForQaAi } from "@/lib/aiUtils"
@@ -37,7 +36,6 @@ import {
 } from "@/lib/tasks"
 import { useLinearAutoSync } from "@/hooks/useLinearAutoSync"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
-import { TaskBoardSummary } from "@/components/tasks/TaskBoardSummary"
 import { TaskFilterBar } from "@/components/tasks/TaskFilterBar"
 import { TaskCard } from "@/components/tasks/TaskCard"
 import { TaskColumn } from "@/components/tasks/TaskColumn"
@@ -507,6 +505,39 @@ export default function TasksPage() {
 
     const clearFilters = () => setFilters(() => ({ ...DEFAULT_TASK_FILTERS, source: sourceMode }))
 
+    const activeFilterCount = useMemo(() => {
+        let count = 0
+        if (filters.search.trim()) count++
+        if (filters.assignee !== "all") count++
+        if (filters.priority !== "all") count++
+        if (filters.severity !== "all") count++
+        if (filters.collabState !== "all") count++
+        if (filters.handoffState !== "all") count++
+        if (filters.dueState !== "all") count++
+        if (filters.coverageState !== "all") count++
+        if (filters.component !== "all") count++
+        if (filters.label !== "all") count++
+        if (filters.sprint !== "all") count++
+        if (filters.version) count++
+        if (filters.onlyMine) count++
+        if (!filters.onlyActive) count++
+        if (filters.status !== "all") count++
+        return count
+    }, [filters])
+
+    const boardStatusText = useMemo(() => {
+        const parts = [
+            `${boardMetrics.open} open`,
+            `${boardMetrics.readyForQa} ready for QA`,
+            `${boardMetrics.needsEvidence} need evidence`,
+            `${boardMetrics.overdue} overdue`,
+        ]
+        if (sourceMode !== "manual" && displaySyncTime) {
+            parts.push(`last synced ${formatRelativeTime(displaySyncTime)}`)
+        }
+        return parts.join(" | ")
+    }, [boardMetrics.needsEvidence, boardMetrics.open, boardMetrics.overdue, boardMetrics.readyForQa, displaySyncTime, sourceMode])
+
     const saveFilterPreset = () => {
         if (!activeProjectId || !presetNameInput.trim()) return
         const next = [...filterPresets.filter(p => p.name !== presetNameInput.trim()), { name: presetNameInput.trim(), filters }]
@@ -527,7 +558,6 @@ export default function TasksPage() {
         savePresets(activeProjectId, next)
     }
 
-    const filterChipClass = "rounded-lg border border-[#2A2A3A] bg-[#13131A] px-3 py-2 text-left transition-colors hover:border-[#A78BFA]/40"
     const noExternalConnections = sourceMode === "linear"
         ? (activeProject?.linearConnections?.length ?? 0) === 0
         : sourceMode === "jira"
@@ -537,9 +567,13 @@ export default function TasksPage() {
     return (
         <div className="flex h-full flex-col overflow-hidden text-[#E2E8F0] animate-in fade-in duration-500">
             <header className="flex-none space-y-3 border-b border-[#2A2A3A] bg-[#0F0F13] px-6 py-4">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="flex items-center gap-3">
-                        <div className="flex rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-1">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-[240px]">
+                        <h1 className="text-xl font-semibold tracking-tight text-[#E2E8F0]">Tasks</h1>
+                        <p className="mt-1 text-xs text-[#8E9196]">{boardStatusText}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex rounded-lg border border-[#2A2A3A] bg-[#111118] p-1">
                             {(["manual", "linear", "jira"] as const).map((mode) => (
                                 <Button
                                     key={mode}
@@ -549,57 +583,16 @@ export default function TasksPage() {
                                         setSourceMode(mode)
                                         setFilters((current) => ({ ...current, source: mode }))
                                     }}
-                                    className={cn("h-8 px-3 text-[11px] font-bold transition-all", sourceMode === mode ? "bg-[#2A2A3A]/80 text-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}
+                                    className={cn("h-8 px-3 text-[11px] font-medium transition-all", sourceMode === mode ? "bg-[#1A1A24] text-[#E2E8F0]" : "text-[#6B7280] hover:text-[#E2E8F0]")}
                                 >
                                     {mode.charAt(0).toUpperCase() + mode.slice(1)}
                                 </Button>
                             ))}
                         </div>
-                        {sourceMode !== "manual" && (
-                            <div className="flex items-center gap-2">
-                                <Button onClick={() => handleSync()} disabled={isSyncing} variant="ghost" className="h-8 gap-1.5 border border-[#A78BFA]/20 bg-[#A78BFA]/10 px-3 text-[11px] font-bold text-[#A78BFA]">
-                                    {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                                    Sync {sourceMode.charAt(0).toUpperCase() + sourceMode.slice(1)}
-                                </Button>
-                                {displaySyncTime && <span className="text-[10px] text-[#6B7280]">Last synced: {formatRelativeTime(displaySyncTime)}</span>}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={() => setIsShortcutModalOpen(true)}>
-                            <HelpCircle className="h-4 w-4" />
-                        </Button>
-                        <Button onClick={() => { setNewTaskStatus(currentColumns[0]?.id || "todo"); setIsNewTaskModalOpen(true) }} disabled={!activeProjectId} className="h-9 gap-2 border border-[#A78BFA]/30 bg-[#1A1A24] px-4 text-xs font-bold text-[#A78BFA]">
-                            <Plus className="h-3.5 w-3.5" /> NEW TASK
+                        <Button onClick={() => { setNewTaskStatus(currentColumns[0]?.id || "todo"); setIsNewTaskModalOpen(true) }} disabled={!activeProjectId} className="h-9 gap-2 border border-[#A78BFA]/20 bg-[#1A1A24] px-4 text-xs font-medium text-[#E2E8F0] hover:bg-[#21212E]">
+                            <Plus className="h-3.5 w-3.5" /> New Task
                         </Button>
                     </div>
-                </div>
-                <div className="grid grid-cols-6 gap-2">
-                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, status: "all", onlyActive: false }))}>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Open</div>
-                        <div className="mt-1 text-lg font-black text-[#E2E8F0]">{boardMetrics.open}</div>
-                    </button>
-                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, dueState: "overdue" }))}>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Overdue</div>
-                        <div className="mt-1 text-lg font-black text-[#FCA5A5]">{boardMetrics.overdue}</div>
-                    </button>
-                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, collabState: "ready_for_qa" }))}>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Ready for QA</div>
-                        <div className="mt-1 text-lg font-black text-[#7DD3FC]">{boardMetrics.readyForQa}</div>
-                    </button>
-                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, handoffState: "incomplete" }))}>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Needs Evidence</div>
-                        <div className="mt-1 text-lg font-black text-[#FDBA74]">{boardMetrics.needsEvidence}</div>
-                    </button>
-                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, coverageState: "uncovered" }))}>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Uncovered</div>
-                        <div className="mt-1 text-lg font-black text-[#FCA5A5]">{boardMetrics.uncovered}</div>
-                    </button>
-                    <button type="button" className={filterChipClass} onClick={() => setFilters((current) => ({ ...current, onlyMine: !current.onlyMine }))}>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">My Items</div>
-                        <div className="mt-1 text-lg font-black text-[#C4B5FD]">{boardMetrics.myItems}</div>
-                    </button>
                 </div>
 
                 <TaskFilterBar
@@ -618,89 +611,33 @@ export default function TasksPage() {
                     onClear={clearFilters}
                     collapsed={isFilterPanelCollapsed}
                     onCollapsedChange={persistFilterPanelCollapsed}
+                    activeFilterCount={activeFilterCount}
+                    presets={filterPresets}
+                    onApplyPreset={(name) => {
+                        const preset = filterPresets.find((entry) => entry.name === name)
+                        if (preset) applyFilterPreset(preset)
+                    }}
+                    onDeletePreset={deleteFilterPreset}
+                    onShowPresetInput={() => setShowPresetInput(true)}
+                    showPresetInput={showPresetInput}
+                    presetInput={presetNameInput}
+                    onPresetInputChange={setPresetNameInput}
+                    onSavePreset={saveFilterPreset}
+                    onCancelPreset={() => setShowPresetInput(false)}
+                    summaryItems={summaryRail}
+                    onSelectSummary={(id) => setFilters((current) => applySummaryPreset(id, current))}
+                    onSync={sourceMode !== "manual" ? () => handleSync() : undefined}
+                    syncLabel={sourceMode !== "manual" ? `Sync ${sourceMode.charAt(0).toUpperCase() + sourceMode.slice(1)}` : undefined}
+                    syncMeta={sourceMode !== "manual" && displaySyncTime ? `Last synced ${formatRelativeTime(displaySyncTime)}` : undefined}
+                    syncDisabled={isSyncing}
+                    onOpenShortcuts={() => setIsShortcutModalOpen(true)}
                 />
-
-                {/* Filter Presets Bar */}
-                {(filterPresets.length > 0 || showPresetInput) && (
-                    <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-[#0F0F13] border-t border-[#2A2A3A]">
-                        <Bookmark className="h-3 w-3 text-[#6B7280] shrink-0" />
-                        {filterPresets.map((preset) => (
-                            <div key={preset.name} className="flex items-center gap-0.5 rounded-full bg-[#1A1A24] border border-[#2A2A3A] pl-2.5 pr-1 py-0.5">
-                                <button
-                                    type="button"
-                                    onClick={() => applyFilterPreset(preset)}
-                                    className="text-[10px] font-bold text-[#A78BFA] hover:text-[#C4B5FD] uppercase tracking-widest"
-                                >
-                                    {preset.name}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => deleteFilterPreset(preset.name)}
-                                    className="ml-1 h-4 w-4 rounded-full flex items-center justify-center text-[#6B7280] hover:text-[#EF4444] hover:bg-[#EF4444]/10"
-                                >
-                                    <X className="h-2.5 w-2.5" />
-                                </button>
-                            </div>
-                        ))}
-                        {showPresetInput ? (
-                            <div className="flex items-center gap-1.5">
-                                <Input
-                                    value={presetNameInput}
-                                    onChange={(e) => setPresetNameInput(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') saveFilterPreset(); if (e.key === 'Escape') setShowPresetInput(false) }}
-                                    placeholder="Preset name..."
-                                    className="h-6 w-36 text-[10px] bg-[#1A1A24] border-[#2A2A3A] px-2 py-0"
-                                    autoFocus
-                                />
-                                <button
-                                    type="button"
-                                    onClick={saveFilterPreset}
-                                    className="h-6 w-6 rounded flex items-center justify-center bg-[#A78BFA]/10 text-[#A78BFA] hover:bg-[#A78BFA]/20"
-                                >
-                                    <Check className="h-3 w-3" />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPresetInput(false)}
-                                    className="h-6 w-6 rounded flex items-center justify-center text-[#6B7280] hover:text-[#E2E8F0]"
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setShowPresetInput(true)}
-                                className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#6B7280] hover:text-[#A78BFA] transition-colors"
-                            >
-                                <Bookmark className="h-3 w-3" />
-                                Save current filters
-                            </button>
-                        )}
-                    </div>
-                )}
-                {!showPresetInput && filterPresets.length === 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-[#0F0F13] border-t border-[#2A2A3A]">
-                        <button
-                            type="button"
-                            onClick={() => setShowPresetInput(true)}
-                            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#6B7280] hover:text-[#A78BFA] transition-colors"
-                        >
-                            <Bookmark className="h-3 w-3" />
-                            Save current filters
-                        </button>
-                    </div>
-                )}
             </header>
 
             <div className="flex min-h-0 flex-1">
                 <div className="flex-1 overflow-hidden bg-[#0F0F13]">
                     <div className="flex h-full min-h-0 flex-col p-4">
-                        <div className="flex-none">
-                            <TaskBoardSummary items={summaryRail} onSelect={(id) => setFilters((current) => applySummaryPreset(id, current))} />
-                        </div>
-
-                        <div className="min-h-0 flex-1 pt-4">
+                        <div className="min-h-0 flex-1">
                             {noExternalConnections ? (
                             <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-8 text-center">
                                 <h3 className="text-lg font-semibold text-[#E2E8F0]">No {sourceMode} connection configured</h3>

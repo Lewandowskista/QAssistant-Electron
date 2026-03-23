@@ -78,6 +78,11 @@ import {
     initAuth,
     setAuthWindowSender,
 } from './auth';
+import {
+    configureCloudStateIo,
+    ensureCloudStateForSignedInUser,
+    scheduleCloudStateUpload,
+} from './cloudState'
 import { GeminiService } from './gemini';
 import { startServer, stopServer, setOAuthCompleteCallback, getServerPort, isServerRunning } from './server';
 import { startReminderService } from './reminders';
@@ -468,6 +473,7 @@ if (app) {
             assertArray,
             assertString,
             assertObject,
+            scheduleCloudStateUpload,
             APP_DATA_DIR,
         });
 
@@ -493,6 +499,8 @@ if (app) {
             authRefreshProfile,
             getAuthErrorStatus,
             teardownSync,
+            ensureCloudStateForSignedInUser,
+            scheduleCloudStateUpload,
             USER_PROFILE_FILE,
             SETTINGS_FILE,
             fsp,
@@ -554,6 +562,7 @@ if (app) {
             pushArtifactLink,
             getTaskById,
             getHandoffById,
+            scheduleCloudStateUpload,
             assertString,
             assertOptionalString,
             assertNumber,
@@ -701,6 +710,35 @@ if (app) {
             writeSettings: async (next) => {
                 await fsp.writeFile(SETTINGS_FILE, JSON.stringify(next, null, 2));
                 await syncCredentialStorageAcknowledgement();
+            },
+        });
+        configureCloudStateIo({
+            readSettings: async () => await readSettings(),
+            writeSettings: async (next) => {
+                await fsp.writeFile(SETTINGS_FILE, JSON.stringify(next, null, 2));
+                await syncCredentialStorageAcknowledgement();
+            },
+            getAllProjects: () => getAllProjects(),
+            saveAllProjects: (projects) => saveAllProjects(projects),
+            readUserProfile: async () => {
+                if (!fs.existsSync(USER_PROFILE_FILE)) return null;
+                const content = await fsp.readFile(USER_PROFILE_FILE, 'utf8');
+                return JSON.parse(content);
+            },
+            writeUserProfile: async (profile) => {
+                await fsp.writeFile(USER_PROFILE_FILE, JSON.stringify(profile, null, 2));
+            },
+            deleteUserProfile: async () => {
+                if (fs.existsSync(USER_PROFILE_FILE)) {
+                    await fsp.unlink(USER_PROFILE_FILE);
+                }
+            },
+            listCredentials: async () => await listCredentials(),
+            setCredential: async (key, value) => {
+                await setCredential(key, value);
+            },
+            deleteCredential: async (key) => {
+                await deleteCredential(key);
             },
         });
 

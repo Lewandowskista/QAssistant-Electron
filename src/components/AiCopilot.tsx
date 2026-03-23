@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
 import { cn } from "@/lib/utils"
-import { getApiKey } from "@/lib/credentials"
+import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
 import {
     Sparkles,
     Send,
@@ -16,12 +16,13 @@ import {
     RotateCcw,
     Lightbulb,
     SlidersHorizontal,
+    Search,
 } from "lucide-react"
 import FormattedText from "@/components/FormattedText"
-import { buildProjectAiContext } from "@/lib/aiUtils"
+import { attachTaskCommentsToProjectAiContext, buildProjectAiContext } from "@/lib/aiUtils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
-import type { AiContextSelection, AiRole } from "@/types/ai"
+import type { AiContextSelection, AiRole, AiTaskComment, ProjectAiContext } from "@/types/ai"
 import type { Checklist, HandoffPacket, Project, QaEnvironment, Task, TestDataGroup, TestPlan } from "@/types/project"
 
 interface Message {
@@ -112,16 +113,88 @@ function formatTime(ts: number) {
     return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
-function buildFullSelection(role: AiRole, project: Project | undefined): AiContextSelection {
+function buildEmptySelection(role: AiRole): AiContextSelection {
     return {
-        taskIds: (project?.tasks || []).map((item) => item.id),
-        testPlanIds: role === "qa" ? (project?.testPlans || []).map((item) => item.id) : [],
-        environmentIds: (project?.environments || []).map((item) => item.id),
-        testDataGroupIds: role === "qa" ? (project?.testDataGroups || []).map((item) => item.id) : [],
-        checklistIds: role === "qa" ? (project?.checklists || []).map((item) => item.id) : [],
-        handoffIds: role === "dev" ? (project?.handoffPackets || []).map((item) => item.id) : [],
-        includeSapCommerce: role === "qa",
+        taskIds: [],
+        testPlanIds: role === "qa" ? [] : [],
+        environmentIds: [],
+        testDataGroupIds: role === "qa" ? [] : [],
+        checklistIds: role === "qa" ? [] : [],
+        handoffIds: role === "dev" ? [] : [],
+        includeSapCommerce: false,
     }
+}
+
+function hasAnyContextSelected(selection: AiContextSelection): boolean {
+    return (
+        getSelectedIds(selection, "taskIds").length > 0 ||
+        getSelectedIds(selection, "testPlanIds").length > 0 ||
+        getSelectedIds(selection, "environmentIds").length > 0 ||
+        getSelectedIds(selection, "testDataGroupIds").length > 0 ||
+        getSelectedIds(selection, "checklistIds").length > 0 ||
+        getSelectedIds(selection, "handoffIds").length > 0 ||
+        selection.includeSapCommerce === true
+    )
+}
+
+function buildContextSearchText(
+    key: ContextSectionKey,
+    item: Task | TestPlan | QaEnvironment | TestDataGroup | Checklist | HandoffPacket
+): string {
+    const searchParts = [getContextItemLabel(item), getContextItemSecondaryText(key, item)]
+    if (key === "tasks" && "title" in item) {
+        searchParts.push(item.sourceIssueId || "", item.externalId || "", item.description || "")
+    }
+    return searchParts.join(" ").toLowerCase()
+}
+
+async function fetchSelectedTaskComments(
+    api: typeof window.electronAPI,
+    project: Project | undefined,
+    tasks: Task[]
+): Promise<Record<string, AiTaskComment[]>> {
+    const commentEntries = await Promise.all(tasks.map(async (task) => {
+        try {
+            if (task.source === "linear") {
+                const apiKey = await getConnectionApiKey(api, "linear_api_key", task.connectionId, project?.id)
+                if (!apiKey || !task.sourceIssueId) return [task.id, []] as const
+                const comments = await api.getLinearComments({ apiKey, issueId: task.sourceIssueId })
+                return [task.id, comments] as const
+            }
+            if (task.source === "jira") {
+                const connection = project?.jiraConnections?.find((item) => item.id === task.connectionId)
+                const apiKey = await getConnectionApiKey(api, "jira_api_token", task.connectionId, project?.id)
+                if (!connection || !apiKey || !task.sourceIssueId) return [task.id, []] as const
+                const comments = await api.getJiraComments({
+                    domain: connection.domain,
+                    email: connection.email,
+                    apiKey,
+                    issueKey: task.sourceIssueId,
+                })
+                return [task.id, comments] as const
+            }
+        } catch {
+            return [task.id, []] as const
+        }
+        return [task.id, []] as const
+    }))
+
+    return Object.fromEntries(commentEntries.map(([taskId, comments]) => {
+        const recentComments = Array.isArray(comments)
+            ? comments
+                .filter((comment): comment is AiTaskComment => Boolean(comment?.body))
+                .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+                .slice(0, 5)
+                .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))
+                .map((comment) => ({
+                    authorName: comment.authorName || "Unknown",
+                    createdAt: Number(comment.createdAt || Date.now()),
+                    body: comment.body,
+                }))
+            : []
+
+        return [taskId, recentComments]
+    }))
 }
 
 function getSelectedIds(selection: AiContextSelection, key: keyof AiContextSelection): string[] {
@@ -169,14 +242,16 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     const [isLoading, setIsLoading] = useState(false)
     const [apiKeyMissing, setApiKeyMissing] = useState(false)
     const [contextOpen, setContextOpen] = useState(false)
-    const [contextSelection, setContextSelection] = useState<AiContextSelection>(() => buildFullSelection("qa", undefined))
+    const [contextSelection, setContextSelection] = useState<AiContextSelection>(() => buildEmptySelection("qa"))
+    const [contextSearchQuery, setContextSearchQuery] = useState("")
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const abortRef = useRef<boolean>(false)
 
     useEffect(() => {
-        setContextSelection(buildFullSelection(activeRole, activeProject))
+        setContextSelection(buildEmptySelection(activeRole))
+        setContextSearchQuery("")
         setContextOpen(false)
     }, [activeProjectId, activeProject, activeRole])
 
@@ -189,13 +264,15 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     )
 
     const contextSummary = useMemo(() => {
-        if (!filteredProjectContext) return "No context selected"
+        if (!filteredProjectContext || !hasAnyContextSelected(contextSelection)) return "No context selected"
         if (filteredProjectContext.role === "dev") {
             return `${filteredProjectContext.tasks.length} tasks | ${filteredProjectContext.handoffs.length} handoffs | ${filteredProjectContext.environments.length} envs`
         }
         const caseCount = filteredProjectContext.testPlans.reduce((sum, plan) => sum + (plan.testCaseCount || 0), 0)
         return `${caseCount} cases | ${filteredProjectContext.tasks.length} tasks | ${filteredProjectContext.environments.length} envs`
-    }, [filteredProjectContext])
+    }, [contextSelection, filteredProjectContext])
+
+    const normalizedContextSearch = contextSearchQuery.trim().toLowerCase()
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -242,8 +319,9 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     }, [])
 
     const resetContextSelection = useCallback(() => {
-        setContextSelection(buildFullSelection(activeRole, activeProject))
-    }, [activeProject, activeRole])
+        setContextSelection(buildEmptySelection(activeRole))
+        setContextSearchQuery("")
+    }, [activeRole])
 
     const sendMessage = useCallback(async (text: string) => {
         if (!text.trim() || isLoading) return
@@ -292,12 +370,20 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             }
             setApiKeyMissing(false)
 
+            let enrichedProjectContext: ProjectAiContext | undefined = filteredProjectContext
+            const selectedTaskIds = getSelectedIds(contextSelection, "taskIds")
+            if (activeProject && filteredProjectContext && selectedTaskIds.length > 0) {
+                const selectedTasks = activeProject.tasks.filter((task) => selectedTaskIds.includes(task.id))
+                const commentsByTaskId = await fetchSelectedTaskComments(window.electronAPI, activeProject, selectedTasks)
+                enrichedProjectContext = attachTaskCommentsToProjectAiContext(filteredProjectContext, commentsByTaskId)
+            }
+
             const result = await window.electronAPI.aiChat({
                 apiKey,
                 userMessage: text.trim(),
                 history: messages.map((m) => ({ role: m.role, content: m.content })),
                 role: activeRole,
-                project: filteredProjectContext,
+                project: enrichedProjectContext,
                 modelName: activeProject?.geminiModel,
             })
 
@@ -329,7 +415,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             clearTimeout(timeoutId)
             setIsLoading(false)
         }
-    }, [isLoading, messages, filteredProjectContext, activeProject, fetchApiKey, activeRole])
+    }, [isLoading, messages, filteredProjectContext, activeProject, fetchApiKey, activeRole, contextSelection])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -437,10 +523,23 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                             </button>
                         </div>
 
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[hsl(var(--text-muted))]" />
+                            <input
+                                value={contextSearchQuery}
+                                onChange={(e) => setContextSearchQuery(e.target.value)}
+                                placeholder="Search context by key, title, or name"
+                                className="w-full rounded-xl border border-[#2A2A3A] bg-[hsl(var(--surface-card))] py-2 pl-9 pr-3 text-[11px] text-[hsl(var(--text-primary))] placeholder:text-[hsl(var(--text-muted))] focus:border-[hsl(var(--accent-primary)/0.4)] focus:outline-none"
+                            />
+                        </div>
+
                         <div className="grid gap-2 max-h-[240px] overflow-y-auto pr-1 custom-scrollbar">
                             {contextSectionMeta.map(({ key, label, selectionKey }) => {
                                 const items = (activeProject[key] || []) as ContextSectionItemMap[typeof key][]
-                                const itemIds = items.map((item) => item.id)
+                                const visibleItems = normalizedContextSearch
+                                    ? items.filter((item) => buildContextSearchText(key, item).includes(normalizedContextSearch))
+                                    : items
+                                const itemIds = visibleItems.map((item) => item.id)
                                 const selectedIds = getSelectedIds(contextSelection, selectionKey)
                                 const allSelected = itemIds.length > 0 && itemIds.every((id) => selectedIds.includes(id))
 
@@ -449,7 +548,9 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                         <div className="mb-2 flex items-center justify-between gap-2">
                                             <div>
                                                 <p className="text-[11px] font-semibold text-[hsl(var(--text-primary))]">{label}</p>
-                                                <p className="text-[10px] text-[hsl(var(--text-muted))]">{selectedIds.length}/{items.length} selected</p>
+                                                <p className="text-[10px] text-[hsl(var(--text-muted))]">
+                                                    {selectedIds.length}/{items.length} selected{normalizedContextSearch ? ` | ${visibleItems.length} shown` : ""}
+                                                </p>
                                             </div>
                                             <button
                                                 onClick={() => toggleAllContextItems(selectionKey, itemIds)}
@@ -461,9 +562,11 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
 
                                         {items.length === 0 ? (
                                             <p className="text-[10px] text-[hsl(var(--text-muted))]">No {label.toLowerCase()} available.</p>
+                                        ) : visibleItems.length === 0 ? (
+                                            <p className="text-[10px] text-[hsl(var(--text-muted))]">No {label.toLowerCase()} match your search.</p>
                                         ) : (
                                             <div className="space-y-1.5">
-                                                {items.map((item) => {
+                                                {visibleItems.map((item) => {
                                                     const isChecked = selectedIds.includes(item.id)
                                                     const secondaryText = getContextItemSecondaryText(key, item)
 

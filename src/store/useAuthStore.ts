@@ -19,30 +19,71 @@ interface AuthState {
     refreshProfile: () => Promise<AuthStatus>
 }
 
+let bootstrapPromise: Promise<void> | null = null
+
+function isSameAuthStatus(a: AuthStatus, b: AuthStatus): boolean {
+    return (
+        a.configured === b.configured &&
+        a.status === b.status &&
+        a.error === b.error &&
+        a.supabaseUrl === b.supabaseUrl &&
+        a.supabaseAnonKey === b.supabaseAnonKey &&
+        a.usingOfflineSession === b.usingOfflineSession &&
+        a.user?.id === b.user?.id &&
+        a.user?.email === b.user?.email &&
+        a.user?.displayName === b.user?.displayName &&
+        a.user?.emailConfirmedAt === b.user?.emailConfirmedAt
+    )
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
     auth: DEFAULT_STATUS,
     isLoaded: false,
 
     async bootstrap() {
-        try {
-            const auth = await window.electronAPI.authGetStatus()
-            set({ auth, isLoaded: true })
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'App login bootstrap failed.'
-            set({
-                auth: {
+        if (bootstrapPromise) {
+            return await bootstrapPromise
+        }
+
+        bootstrapPromise = (async () => {
+            try {
+                const auth = await window.electronAPI.authGetStatus()
+                set((state) => (
+                    state.isLoaded && isSameAuthStatus(state.auth, auth)
+                        ? state
+                        : { auth, isLoaded: true }
+                ))
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'App login bootstrap failed.'
+                const nextAuth: AuthStatus = {
                     configured: typeof window.electronAPI !== 'undefined',
                     status: 'error',
                     user: null,
                     error: message,
-                },
-                isLoaded: true,
-            })
+                }
+                set((state) => (
+                    state.isLoaded && isSameAuthStatus(state.auth, nextAuth)
+                        ? state
+                        : { auth: nextAuth, isLoaded: true }
+                ))
+            } finally {
+                bootstrapPromise = null
+            }
+        })()
+
+        try {
+            await bootstrapPromise
+        } finally {
+            bootstrapPromise = null
         }
     },
 
     setFromIpc(auth) {
-        set({ auth, isLoaded: true })
+        set((state) => (
+            state.isLoaded && isSameAuthStatus(state.auth, auth)
+                ? state
+                : { auth, isLoaded: true }
+        ))
     },
 
     async signIn(args) {

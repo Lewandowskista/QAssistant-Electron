@@ -20,6 +20,23 @@ interface TaskFilterBarProps {
     onClear: () => void
     collapsed: boolean
     onCollapsedChange: (collapsed: boolean) => void
+    activeFilterCount?: number
+    presets?: Array<{ name: string }>
+    onApplyPreset?: (name: string) => void
+    onDeletePreset?: (name: string) => void
+    onShowPresetInput?: () => void
+    showPresetInput?: boolean
+    presetInput?: string
+    onPresetInputChange?: (value: string) => void
+    onSavePreset?: () => void
+    onCancelPreset?: () => void
+    summaryItems?: Array<{ id: string; title: string; count: number }>
+    onSelectSummary?: (id: string) => void
+    onSync?: () => void
+    syncLabel?: string
+    syncMeta?: string
+    syncDisabled?: boolean
+    onOpenShortcuts?: () => void
 }
 
 const collabStates: Array<CollabState> = ["draft", "ready_for_dev", "dev_acknowledged", "in_fix", "ready_for_qa", "qa_retesting", "verified", "closed"]
@@ -67,7 +84,24 @@ export function TaskFilterBar({
     onSortModeChange,
     onClear,
     collapsed,
-    onCollapsedChange
+    onCollapsedChange,
+    activeFilterCount = 0,
+    presets = [],
+    onApplyPreset,
+    onDeletePreset,
+    onShowPresetInput,
+    showPresetInput = false,
+    presetInput = "",
+    onPresetInputChange,
+    onSavePreset,
+    onCancelPreset,
+    summaryItems = [],
+    onSelectSummary,
+    onSync,
+    syncLabel,
+    syncMeta,
+    syncDisabled = false,
+    onOpenShortcuts
 }: TaskFilterBarProps) {
     return (
         <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-3">
@@ -88,26 +122,75 @@ export function TaskFilterBar({
                     className="h-9 gap-2 border-[#2A2A3A] bg-[#0F0F13] text-[#E2E8F0]"
                 >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Filters
+                    More
+                    {activeFilterCount > 0 && (
+                        <span className="rounded-full bg-[#A78BFA]/20 px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#A78BFA]">
+                            {activeFilterCount}
+                        </span>
+                    )}
                     {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
                 </Button>
-                <div className="flex rounded-lg border border-[#2A2A3A] bg-[#0F0F13] p-1">
-                    {(["board", "triage"] as const).map((mode) => (
-                        <Button
-                            key={mode}
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onBoardModeChange(mode)}
-                            className={boardMode === mode ? "h-7 bg-[#2A2A3A] px-3 text-[11px] font-bold text-[#A78BFA]" : "h-7 px-3 text-[11px] text-[#6B7280]"}
-                        >
-                            {mode === "board" ? "Board" : "Triage"}
-                        </Button>
-                    ))}
-                </div>
             </div>
             {!collapsed && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#2A2A3A]/70 pt-3">
+                <div className="mt-3 space-y-3 border-t border-[#2A2A3A]/70 pt-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#6B7280]">View</span>
+                        {(["board", "triage"] as const).map((mode) => (
+                            <Button
+                                key={mode}
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onBoardModeChange(mode)}
+                                className={boardMode === mode ? "h-8 bg-[#1A1A24] px-3 text-[11px] font-medium text-[#E2E8F0]" : "h-8 px-3 text-[11px] text-[#6B7280]"}
+                            >
+                                {mode === "board" ? "Board" : "Triage"}
+                            </Button>
+                        ))}
+                        {onSync && syncLabel ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={onSync}
+                                disabled={syncDisabled}
+                                className="h-8 px-3 text-[11px] font-medium text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                            >
+                                {syncLabel}
+                            </Button>
+                        ) : null}
+                        {onOpenShortcuts ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={onOpenShortcuts}
+                                className="h-8 px-3 text-[11px] font-medium text-[#6B7280] hover:text-[#E2E8F0]"
+                            >
+                                Shortcuts
+                            </Button>
+                        ) : null}
+                        {syncMeta ? <span className="text-[11px] text-[#6B7280]">{syncMeta}</span> : null}
+                    </div>
+
+                    {summaryItems.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 border-t border-[#2A2A3A]/70 pt-3">
+                            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#6B7280]">Quick Views</span>
+                            {summaryItems.map((item) => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => onSelectSummary?.(item.id)}
+                                    className="inline-flex items-center gap-2 rounded-full border border-[#2A2A3A] bg-[#0F0F13] px-3 py-1 text-[11px] text-[#C4CBD7] transition-colors hover:border-[#A78BFA]/40 hover:text-[#E2E8F0]"
+                                >
+                                    <span>{item.title}</span>
+                                    <span className="text-[#6B7280]">{item.count}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2">
                     <FilterSelect
                         value={filters.source}
                         onChange={(value) => setFilters((current) => ({ ...current, source: value as TaskBoardFilters["source"] }))}
@@ -244,6 +327,55 @@ export function TaskFilterBar({
                         <X className="h-3.5 w-3.5" />
                         Clear
                     </Button>
+                    </div>
+
+                    {(presets.length > 0 || showPresetInput || onShowPresetInput) && (
+                        <div className="flex w-full flex-wrap items-center gap-2 border-t border-[#2A2A3A]/70 pt-3">
+                            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#6B7280]">Saved Views</span>
+                            {presets.map((preset) => (
+                                <div key={preset.name} className="flex items-center gap-1 rounded-full border border-[#2A2A3A] bg-[#0F0F13] pl-2.5 pr-1 py-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => onApplyPreset?.(preset.name)}
+                                        className="text-[11px] font-medium text-[#E2E8F0] hover:text-white"
+                                    >
+                                        {preset.name}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onDeletePreset?.(preset.name)}
+                                        className="rounded-full p-0.5 text-[#6B7280] hover:bg-[#EF4444]/10 hover:text-[#EF4444]"
+                                    >
+                                        <X className="h-2.5 w-2.5" />
+                                    </button>
+                                </div>
+                            ))}
+                            {showPresetInput ? (
+                                <div className="flex items-center gap-1.5">
+                                    <Input
+                                        value={presetInput}
+                                        onChange={(event) => onPresetInputChange?.(event.target.value)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter") onSavePreset?.()
+                                            if (event.key === "Escape") onCancelPreset?.()
+                                        }}
+                                        placeholder="Preset name..."
+                                        className="h-8 w-36 border-[#2A2A3A] bg-[#0F0F13] px-2 text-[10px]"
+                                    />
+                                    <Button type="button" size="sm" onClick={onSavePreset} className="h-8 bg-[#A78BFA] px-2 text-[#0F0F13]">
+                                        Save
+                                    </Button>
+                                    <Button type="button" variant="ghost" size="sm" onClick={onCancelPreset} className="h-8 px-2 text-[#6B7280]">
+                                        Cancel
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Button type="button" variant="ghost" size="sm" onClick={onShowPresetInput} className="h-8 px-2 text-[11px] font-medium text-[#6B7280] hover:text-[#E2E8F0]">
+                                    Save current filters
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

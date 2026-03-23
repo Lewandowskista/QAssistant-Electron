@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useSyncStore } from '@/store/useSyncStore'
+import { getSyncStatusSummary } from '@/lib/collaboration'
 
 interface SyncSetupDialogProps {
     open: boolean
@@ -58,6 +59,12 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
     const isConnectedWorkspace = !!config?.configured
     const isOwner = !!workspaceInfo?.canManageInvite
     const inviteMeta = workspaceInvite ?? null
+    const syncSummary = getSyncStatusSummary({
+        status,
+        pendingCount: 0,
+        error,
+        workspaceName: workspaceInfo?.workspaceName ?? null,
+    })
 
     async function handleCreate() {
         setError(null)
@@ -219,6 +226,7 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                         </span>
                                     </div>
                                     <p className="text-xs text-[#9CA3AF]">Members: {workspaceInfo?.members?.length ?? 0}</p>
+                                    <p className="text-xs text-[#9CA3AF]">{syncSummary.detail}</p>
                                     {workspaceInfo?.inviteCodeExpiresAt && (
                                         <p className="text-xs text-[#6B7280]">Invite expires: {formatInviteDate(workspaceInfo.inviteCodeExpiresAt)}</p>
                                     )}
@@ -269,6 +277,10 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                 <p className="text-xs text-[#9CA3AF] leading-relaxed">
                                     Cloud sync requires a fresh Supabase project bootstrapped with <code className="text-[#A78BFA] bg-[#1A1A2E] px-1 rounded">SUPABASE_SCHEMA.sql</code>. Follow the repo guide in <code className="text-[#A78BFA] bg-[#1A1A2E] px-1 rounded">SUPABASE_SETUP.md</code> before creating or joining a workspace.
                                 </p>
+                                <div className="rounded-xl border border-[#2D2D44] bg-[#161625] p-4 space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">What this unlocks</p>
+                                    <p className="text-xs text-[#9CA3AF]">Shared handoffs, traceability, release queue status, and live collaboration presence for your QA/dev workflow.</p>
+                                </div>
                                 {accountSummary}
                                 <div className="grid grid-cols-2 gap-3">
                                     <button
@@ -280,7 +292,7 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                         </div>
                                         <div>
                                             <p className="text-sm font-semibold text-[#E2E8F0] text-center">Create Workspace</p>
-                                            <p className="text-xs text-[#6B7280] text-center mt-1">Start a new shared workspace and invite your team</p>
+                                            <p className="text-xs text-[#6B7280] text-center mt-1">Start the shared workspace, become owner, and generate the first invite code</p>
                                         </div>
                                     </button>
                                     <button
@@ -292,7 +304,7 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                         </div>
                                         <div>
                                             <p className="text-sm font-semibold text-[#E2E8F0] text-center">Join Workspace</p>
-                                            <p className="text-xs text-[#6B7280] text-center mt-1">Join an existing workspace using an invite code</p>
+                                            <p className="text-xs text-[#6B7280] text-center mt-1">Join an existing team workspace with an owner-provided invite code</p>
                                         </div>
                                     </button>
                                 </div>
@@ -346,7 +358,11 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                                         <p className="text-sm font-semibold text-emerald-400">
                                             {mode === 'create' ? 'Workspace created!' : `Joined "${successInfo.workspaceName}"!`}
                                         </p>
-                                        <p className="text-xs text-[#9CA3AF] mt-0.5">Sync is now active.</p>
+                                        <p className="text-xs text-[#9CA3AF] mt-0.5">
+                                            {mode === 'create'
+                                                ? 'You are the workspace owner. Share the invite code so your teammate can join.'
+                                                : 'Sync is now active. Your role and shared workflow data will appear after the first refresh.'}
+                                        </p>
                                     </div>
                                 </div>
 

@@ -13,6 +13,12 @@ export interface AiContextSelection {
     includeSapCommerce?: boolean
 }
 
+export interface AiTaskComment {
+    authorName: string
+    createdAt: number
+    body: string
+}
+
 export interface QaAiTask {
     id: string
     title: string
@@ -30,6 +36,7 @@ export interface QaAiTask {
     affectedEnvironmentNames?: string[]
     components?: string[]
     linkedTestCaseId?: string
+    comments?: AiTaskComment[]
 }
 
 export interface AiSafeEnvironment {
@@ -92,16 +99,23 @@ export interface AiSafeLinkedPr {
 export interface DevAiTask {
     id: string
     title: string
+    description: string
     status: string
     priority: string
+    issueType?: string
     assignee?: string
     labels?: string
     sourceIssueId?: string
     externalId?: string
     acceptanceCriteria?: string
+    reproducibility?: string
+    frequency?: string
+    affectedEnvironmentNames?: string[]
+    components?: string[]
     collabState?: string
     activeHandoffId?: string
     linkedTestCaseId?: string
+    comments?: AiTaskComment[]
 }
 
 export interface DevAiHandoff {
@@ -121,6 +135,7 @@ export interface DevAiHandoff {
 
 export interface QaProjectAiContext {
     role: 'qa'
+    manualContextSelection?: boolean
     name: string
     description?: string
     geminiModel?: string
@@ -137,6 +152,7 @@ export interface QaProjectAiContext {
 
 export interface DevProjectAiContext {
     role: 'dev'
+    manualContextSelection?: boolean
     name: string
     description?: string
     geminiModel?: string

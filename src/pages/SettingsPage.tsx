@@ -160,7 +160,7 @@ export default function SettingsPage() {
     const [dataPath, setDataPath] = useState('')
     const [sysInfo, setSysInfo] = useState<any>(null)
     const [perfMetrics, setPerfMetrics] = useState<{ main: Record<string, number>; renderer: Record<string, number>; counters: Record<string, number> } | null>(null)
-    const [activeSection, setActiveSection] = useState<string | null>(null)
+    const [activeSection, setActiveSection] = useState<string | null>("account")
     const { theme, toggleTheme } = useTheme()
 
     // ── Global settings state ─────────────────────────────────────────────────
@@ -722,17 +722,25 @@ export default function SettingsPage() {
         <>
         <div className="h-full flex flex-col bg-[#0F0F13] overflow-hidden">
             {/* Header */}
-            <div className="flex-none px-8 py-5 border-b border-[#2A2A3A] flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-black text-[#E2E8F0] tracking-tight">Settings</h1>
-                    {activeProject && (
-                        <p className="text-xs text-[#A78BFA] font-semibold mt-0.5">Configuring for: {activeProject.name}</p>
-                    )}
+            <div className="flex-none space-y-3 border-b border-[#2A2A3A] px-8 py-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-black text-[#E2E8F0] tracking-tight">Settings</h1>
+                        <p className="mt-1 text-xs text-[#8E9196]">
+                            {activeProject ? `Configuring ${activeProject.name}` : "Account, app behavior, integrations, and diagnostics"}
+                        </p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="gap-2 text-[#6B7280] hover:text-[#E2E8F0]" onClick={() => setShowSecrets(s => !s)}>
+                        {showSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        <span className="text-xs font-medium">{showSecrets ? 'Hide secrets' : 'Reveal secrets'}</span>
+                    </Button>
                 </div>
-                <Button variant="ghost" size="sm" className="gap-2 text-[#6B7280] hover:text-[#E2E8F0]" onClick={() => setShowSecrets(s => !s)}>
-                    {showSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    <span className="text-xs font-bold">{showSecrets ? 'Hide secrets' : 'Reveal secrets'}</span>
-                </Button>
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <Button variant={activeSection === "account" ? "secondary" : "ghost"} size="sm" className="h-8 text-xs" onClick={() => setActiveSection("account")}>Account</Button>
+                    <Button variant={activeSection === "appearance" || activeSection === "general" ? "secondary" : "ghost"} size="sm" className="h-8 text-xs" onClick={() => setActiveSection("appearance")}>App behavior</Button>
+                    <Button variant={["automation", "linear", "jira", "gemini", "ccv2", "sharing", "webhooks"].includes(activeSection || "") ? "secondary" : "ghost"} size="sm" className="h-8 text-xs" onClick={() => setActiveSection("automation")}>Integrations</Button>
+                    <Button variant={activeSection === "updates" || activeSection === "docs" || activeSection === "diagnostics" ? "secondary" : "ghost"} size="sm" className="h-8 text-xs" onClick={() => setActiveSection("diagnostics")}>Diagnostics</Button>
+                </div>
             </div>
 
             {/* Credential encryption warning */}

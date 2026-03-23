@@ -17,6 +17,7 @@ export function registerSyncHandlers(ipcMain: Electron.IpcMain, deps: {
     pushArtifactLink: (projectId: string, link: any) => void
     getTaskById: (taskId: string) => any
     getHandoffById: (handoffId: string) => any
+    scheduleCloudStateUpload: () => void
     assertString: (v: unknown, name: string, maxLen?: number) => void
     assertOptionalString: (v: unknown, name: string, maxLen?: number) => void
     assertNumber: (v: unknown, name: string, min?: number) => void
@@ -40,18 +41,26 @@ export function registerSyncHandlers(ipcMain: Electron.IpcMain, deps: {
         try {
             deps.assertString(workspaceName, 'workspaceName', 200);
             if (displayName !== undefined && displayName !== null) deps.assertString(displayName, 'displayName', 100);
-            return await deps.createWorkspace(workspaceName, displayName);
+            const result = await deps.createWorkspace(workspaceName, displayName);
+            if (result?.ok) deps.scheduleCloudStateUpload();
+            return result;
         } catch (e: any) { return { ok: false, error: e.message }; }
     });
     ipcMain.handle('sync-join-workspace', async (_e: any, { inviteCode, displayName }: any) => {
         try {
             deps.assertString(inviteCode, 'inviteCode', 64);
             if (displayName !== undefined && displayName !== null) deps.assertString(displayName, 'displayName', 100);
-            return await deps.joinWorkspace(inviteCode, displayName);
+            const result = await deps.joinWorkspace(inviteCode, displayName);
+            if (result?.ok) deps.scheduleCloudStateUpload();
+            return result;
         } catch (e: any) { return { ok: false, error: e.message }; }
     });
     ipcMain.handle('sync-disconnect', async () => {
-        try { await deps.disconnectWorkspace(); return { ok: true }; }
+        try {
+            await deps.disconnectWorkspace();
+            deps.scheduleCloudStateUpload();
+            return { ok: true };
+        }
         catch (e: any) { return { ok: false, error: e.message }; }
     });
     ipcMain.handle('sync-get-workspace-info', async () => {

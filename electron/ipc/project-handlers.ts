@@ -23,6 +23,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
     assertArray: (v: unknown, name: string, maxLen?: number) => void
     assertString: (v: unknown, name: string, maxLen?: number) => void
     assertObject: (v: unknown, name: string) => void
+    scheduleCloudStateUpload: () => void
     APP_DATA_DIR: string
 }): void {
     ipcMain.handle('get-app-data-path', () => deps.APP_DATA_DIR);
@@ -40,6 +41,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertArray(data, 'projects');
             deps.incrementCounter('fullProjectWrites');
             deps.saveAllProjects(data);
+            deps.scheduleCloudStateUpload();
             deps.measureMainMetric('lastFullProjectWriteMs', startedAt);
             return true;
         } catch (e) {
@@ -54,6 +56,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(note, 'note');
             deps.upsertProjectNote(projectId, note);
             deps.incrementCounter('granularNoteWrites');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing note to SQLite:', e);
@@ -66,6 +69,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(noteId, 'noteId', 200);
             deps.deleteProjectNote(projectId, noteId);
             deps.incrementCounter('granularNoteDeletes');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error deleting note from SQLite:', e);
@@ -78,6 +82,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(task, 'task');
             deps.upsertProjectTask(projectId, task);
             deps.incrementCounter('granularTaskWrites');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing task to SQLite:', e);
@@ -90,6 +95,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(taskId, 'taskId', 200);
             deps.deleteProjectTask(projectId, taskId);
             deps.incrementCounter('granularTaskDeletes');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error deleting task from SQLite:', e);
@@ -102,6 +108,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(handoff, 'handoff');
             deps.upsertProjectHandoff(projectId, handoff);
             deps.incrementCounter('granularHandoffWrites');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing handoff to SQLite:', e);
@@ -114,6 +121,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(event, 'event');
             deps.insertProjectCollaborationEvent(projectId, event);
             deps.incrementCounter('granularCollaborationEventWrites');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing collaboration event to SQLite:', e);
@@ -126,6 +134,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(plan, 'plan');
             deps.upsertProjectTestPlan(projectId, plan);
             deps.incrementCounter('granularTestPlanWrites');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing test plan to SQLite:', e);
@@ -138,6 +147,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(planId, 'planId', 200);
             deps.deleteProjectTestPlan(projectId, planId);
             deps.incrementCounter('granularTestPlanDeletes');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error deleting test plan from SQLite:', e);
@@ -150,6 +160,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(env, 'env');
             deps.upsertProjectEnvironment(projectId, env);
             deps.incrementCounter('granularEnvironmentWrites');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing environment to SQLite:', e);
@@ -162,6 +173,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(envId, 'envId', 200);
             deps.deleteProjectEnvironment(projectId, envId);
             deps.incrementCounter('granularEnvironmentDeletes');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error deleting environment from SQLite:', e);
@@ -174,6 +186,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(checklist, 'checklist');
             deps.upsertProjectChecklist(projectId, checklist);
             deps.incrementCounter('granularChecklistWrites');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing checklist to SQLite:', e);
@@ -186,6 +199,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(checklistId, 'checklistId', 200);
             deps.deleteProjectChecklist(projectId, checklistId);
             deps.incrementCounter('granularChecklistDeletes');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error deleting checklist from SQLite:', e);
@@ -198,6 +212,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertObject(session, 'session');
             deps.upsertProjectTestRunSession(projectId, session);
             deps.incrementCounter('granularTestRunSessionWrites');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error writing test run session to SQLite:', e);
@@ -210,6 +225,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(sessionId, 'sessionId', 200);
             deps.deleteProjectTestRunSession(projectId, sessionId);
             deps.incrementCounter('granularTestRunSessionDeletes');
+            deps.scheduleCloudStateUpload();
             return true;
         } catch (e) {
             console.error('Error deleting test run session from SQLite:', e);

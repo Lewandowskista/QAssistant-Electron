@@ -66,27 +66,27 @@ export default function NotesPage() {
 
     // Debounced save for title
     useEffect(() => {
-        if (!selectedNote || !activeProjectId) return
+        if (!selectedItemId || !activeProjectId) return
         if (titleTimer.current) clearTimeout(titleTimer.current)
-        const noteId = selectedNote.id
+        const noteId = selectedItemId
         titleTimer.current = setTimeout(() => {
             if (timerNoteIdRef.current !== noteId) return
             updateNote(activeProjectId!, noteId, { title: titleState })
         }, NOTE_TITLE_DEBOUNCE_MS)
         return () => { if (titleTimer.current) clearTimeout(titleTimer.current) }
-    }, [titleState, selectedNote, activeProjectId])
+    }, [titleState, selectedItemId, activeProjectId])
 
     // Debounced save for content
     useEffect(() => {
-        if (!selectedNote || !activeProjectId) return
+        if (!selectedItemId || !activeProjectId) return
         if (contentTimer.current) clearTimeout(contentTimer.current)
-        const noteId = selectedNote.id
+        const noteId = selectedItemId
         contentTimer.current = setTimeout(() => {
             if (timerNoteIdRef.current !== noteId) return
             updateNote(activeProjectId!, noteId, { content: contentState })
         }, NOTE_CONTENT_DEBOUNCE_MS)
         return () => { if (contentTimer.current) clearTimeout(contentTimer.current) }
-    }, [contentState, selectedNote, activeProjectId])
+    }, [contentState, selectedItemId, activeProjectId])
 
     const handleAddNote = async () => {
         if (!activeProjectId) return

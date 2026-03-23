@@ -1,5 +1,6 @@
 import type { HandoffPacket, Project, QaEnvironment, Task, TestCase, TestExecution, TestPlan } from '@/types/project'
 import type {
+    AiTaskComment,
     AiContextSelection,
     AiRole,
     AiSafeEnvironment,
@@ -41,6 +42,15 @@ function buildEnvironmentNameMap(environments: QaEnvironment[]): Map<string, str
     return new Map(environments.map((environment) => [environment.id, environment.name]))
 }
 
+function sanitizeTaskComments(comments: AiTaskComment[] | undefined): AiTaskComment[] | undefined {
+    if (!Array.isArray(comments) || comments.length === 0) return undefined
+    return comments.map((comment) => ({
+        authorName: comment.authorName,
+        createdAt: comment.createdAt,
+        body: comment.body,
+    }))
+}
+
 function sanitizeEnvironment(environment: QaEnvironment): AiSafeEnvironment {
     return {
         id: environment.id,
@@ -78,6 +88,7 @@ export function sanitizeTaskForQaAi(task: Task, environments: QaEnvironment[] = 
             .filter((value): value is string => Boolean(value)),
         components: task.components,
         linkedTestCaseId: task.linkedTestCaseId,
+        comments: sanitizeTaskComments((task as Task & { comments?: AiTaskComment[] }).comments),
     }
 }
 
@@ -90,22 +101,35 @@ export function sanitizeTaskForDevAi(task: Task): DevAiTask {
     return {
         id: task.id,
         title: task.title,
+        description: task.description,
         status: task.status,
         priority: task.priority,
+        issueType: task.issueType,
         assignee: task.assignee,
         labels: task.labels,
         sourceIssueId: task.sourceIssueId,
         externalId: task.externalId,
         acceptanceCriteria: task.acceptanceCriteria,
+        reproducibility: task.reproducibility,
+        frequency: task.frequency,
+        affectedEnvironmentNames: [],
+        components: task.components,
         collabState: task.collabState,
         activeHandoffId: task.activeHandoffId,
         linkedTestCaseId: task.linkedTestCaseId,
+        comments: sanitizeTaskComments((task as Task & { comments?: AiTaskComment[] }).comments),
     }
 }
 
-export function sanitizeTasksForDevAi(tasks: Task[] | undefined): DevAiTask[] {
+export function sanitizeTasksForDevAi(tasks: Task[] | undefined, environments: QaEnvironment[] = []): DevAiTask[] {
     if (!Array.isArray(tasks)) return []
-    return tasks.map((task) => sanitizeTaskForDevAi(task))
+    const environmentNames = buildEnvironmentNameMap(environments)
+    return tasks.map((task) => ({
+        ...sanitizeTaskForDevAi(task),
+        affectedEnvironmentNames: (task.affectedEnvironments || [])
+            .map((environmentId) => environmentNames.get(environmentId))
+            .filter((value): value is string => Boolean(value)),
+    }))
 }
 
 export function sanitizeTestCaseForAi(testCase: TestCase): QaAiTestCase {
@@ -208,6 +232,7 @@ export function sanitizeProjectForQaAi(project: Project | undefined, selection?:
 
     return {
         role: 'qa',
+        manualContextSelection: selection !== undefined,
         name: project.name,
         description: project.description,
         geminiModel: project.geminiModel,
@@ -232,12 +257,36 @@ export function sanitizeProjectForDevAi(project: Project | undefined, selection?
 
     return {
         role: 'dev',
+        manualContextSelection: selection !== undefined,
         name: project.name,
         description: project.description,
         geminiModel: project.geminiModel,
         environments: environments.map((environment) => sanitizeEnvironment(environment)),
-        tasks: sanitizeTasksForDevAi(tasks),
+        tasks: sanitizeTasksForDevAi(tasks, environments),
         handoffs: sanitizeHandoffsForDevAi(handoffs),
+    }
+}
+
+export function attachTaskCommentsToProjectAiContext(
+    project: ProjectAiContext | undefined,
+    commentsByTaskId: Record<string, AiTaskComment[]>
+): ProjectAiContext | undefined {
+    if (!project) return undefined
+    const attachComments = <T extends { id: string; comments?: AiTaskComment[] }>(task: T): T => ({
+        ...task,
+        comments: sanitizeTaskComments(commentsByTaskId[task.id]),
+    })
+
+    if (project.role === 'dev') {
+        return {
+            ...project,
+            tasks: project.tasks.map(attachComments),
+        }
+    }
+
+    return {
+        ...project,
+        tasks: project.tasks.map(attachComments),
     }
 }
 

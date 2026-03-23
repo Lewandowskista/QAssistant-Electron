@@ -22,10 +22,11 @@ import { DetailItem, MediaSection } from "./TaskDetailsComponents"
 import { HandoffPanel } from "./HandoffPanel"
 import { TraceabilityPanel } from "./TraceabilityPanel"
 import { CollaborationTimeline } from "./CollaborationTimeline"
-import { TaskStateBadge, collabStateLabel, collabStateTone, coverageStateTone, dueStateTone, handoffStateTone } from "./TaskStateBadge"
+import { TaskStateBadge, collabStateLabel, collabStateTone, dueStateTone, handoffStateTone } from "./TaskStateBadge"
 import { deriveTaskViewModels } from "@/lib/tasks"
 import { getConnectionApiKey } from "@/lib/credentials"
 import { PresenceAvatars } from "@/components/sync/PresenceAvatars"
+import { getTaskWorkflowSummary } from "@/lib/collaboration"
 
 interface TaskDetailsSidebarProps {
     selectedTask: Task | null
@@ -96,6 +97,10 @@ export function TaskDetailsSidebar({
     const taskView = useMemo(() => {
         if (!activeProject || !selectedTask) return null
         return deriveTaskViewModels(activeProject).find((entry) => entry.task.id === selectedTask.id) || null
+    }, [activeProject, selectedTask])
+    const workflowSummary = useMemo(() => {
+        if (!activeProject || !selectedTask) return null
+        return getTaskWorkflowSummary(activeProject, selectedTask)
     }, [activeProject, selectedTask])
 
     const timelineEvents = (activeProject?.collaborationEvents || []).filter((event) => event.taskId === selectedTask?.id)
@@ -189,22 +194,32 @@ export function TaskDetailsSidebar({
                     </Button>
                 </div>
 
-                <div className="rounded-xl border border-[#2A2A3A] bg-[#0F0F13] p-4">
-                    <div className="mb-3 flex flex-wrap gap-2">
+                <div className="space-y-3 rounded-xl border border-[#2A2A3A] bg-[#0F0F13] p-4">
+                    <div className="flex flex-wrap gap-2">
                         <TaskStateBadge label={statusLabel} tone="neutral" />
-                        <TaskStateBadge label={selectedTask.priority} tone={selectedTask.priority === "critical" ? "red" : selectedTask.priority === "high" ? "amber" : "neutral"} />
-                        <TaskStateBadge label={selectedTask.severity || "major"} tone={selectedTask.severity === "critical" || selectedTask.severity === "blocker" ? "red" : "amber"} />
                         <TaskStateBadge label={collabStateLabel(selectedTask.collabState)} tone={collabStateTone(selectedTask.collabState)} />
-                        {taskView && taskView.dueState !== "none" && taskView.dueLabel && <TaskStateBadge label={taskView.dueLabel} tone={dueStateTone(taskView.dueState)} />}
-                        {taskView && <TaskStateBadge label={`${taskView.linkedTestCount} linked tests`} tone={coverageStateTone(taskView.coverageState)} />}
-                        {taskView?.hasActiveHandoff && <TaskStateBadge label={taskView.handoffState} tone={handoffStateTone(taskView.handoffState)} />}
+                        {taskView?.handoffState === "incomplete" ? <TaskStateBadge label={`Need ${taskView.handoffMissingFields[0] || "evidence"}`} tone={handoffStateTone(taskView.handoffState)} /> : null}
+                        {taskView && taskView.dueState !== "none" && taskView.dueLabel ? <TaskStateBadge label={taskView.dueLabel} tone={dueStateTone(taskView.dueState)} /> : null}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <DetailItem icon={User} label="ASSIGNEE" value={selectedTask.assignee || "Unassigned"} />
-                        <DetailItem icon={Calendar} label="DUE DATE" value={selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"} />
-                        <DetailItem icon={Tag} label="COMPONENTS" value={selectedTask.components?.join(", ") || "No components"} />
-                        <DetailItem icon={Tag} label="HANDOFF" value={activeHandoff ? (activeHandoff.isComplete ? "Complete" : "Needs fields") : "No handoff"} />
+                    <div className="grid grid-cols-2 gap-3 text-xs text-[#9CA3AF]">
+                        <div>
+                            <span className="text-[#6B7280]">Assignee</span>
+                            <p className="mt-1 text-[#E2E8F0]">{selectedTask.assignee || "Unassigned"}</p>
+                        </div>
+                        <div>
+                            <span className="text-[#6B7280]">Due date</span>
+                            <p className="mt-1 text-[#E2E8F0]">{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"}</p>
+                        </div>
+                        <div>
+                            <span className="text-[#6B7280]">Components</span>
+                            <p className="mt-1 text-[#E2E8F0]">{selectedTask.components?.join(", ") || "No components"}</p>
+                        </div>
+                        <div>
+                            <span className="text-[#6B7280]">Handoff</span>
+                            <p className="mt-1 text-[#E2E8F0]">{activeHandoff ? (activeHandoff.isComplete ? "Complete" : "Needs fields") : "No handoff"}</p>
+                        </div>
                     </div>
+                    {workflowSummary ? <p className="text-sm text-[#E2E8F0]">{workflowSummary.nextAction}</p> : null}
                 </div>
             </div>
 
