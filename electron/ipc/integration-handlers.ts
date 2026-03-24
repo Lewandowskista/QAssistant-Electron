@@ -14,6 +14,7 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
     fsp: typeof import('node:fs/promises')
     fs: typeof import('node:fs')
     shell: any
+    sendWebhook: (webhook: { url: string; type: 'Slack' | 'Teams' | 'Generic'; isEnabled: boolean }, title: string, message: string, color?: string) => Promise<void>
     assertString: (v: unknown, name: string, maxLen?: number) => void
     errMsg: (err: unknown) => string
     assertAutomationArgs: (args: unknown) => void
@@ -41,6 +42,23 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
     ipcMain.handle('check-environments-health', async (_e: any, { environments }: any) => await deps.health.checkEnvironmentsNow(environments));
     ipcMain.handle('start-health-service', (_e: any, { environments, intervalMs }: any) => deps.health.startHealthService(environments, intervalMs));
     ipcMain.handle('stop-health-service', () => deps.health.stopHealthService());
+    ipcMain.handle('send-webhook', async (_e: any, { webhook, title, message, color }: any) => {
+        deps.assertString(webhook?.url, 'webhook.url', 2_000);
+        deps.assertString(webhook?.type, 'webhook.type', 20);
+        deps.assertString(title, 'title', 500);
+        deps.assertString(message, 'message', 50_000);
+        if (color !== undefined) deps.assertString(color, 'color', 20);
+        try {
+            await deps.sendWebhook({
+                url: webhook.url,
+                type: webhook.type,
+                isEnabled: webhook.isEnabled !== false,
+            }, title, message, color);
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: deps.errMsg(e) };
+        }
+    });
 
     // Integration Handlers
     ipcMain.handle('sync-linear', async (_e: any, { apiKey, teamKey, connectionId }: any) => {

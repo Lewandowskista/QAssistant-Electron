@@ -38,6 +38,10 @@ export function getDb(): DB {
     return db
 }
 
+export function isDatabaseInitialized(): boolean {
+    return db !== null
+}
+
 export function closeDatabase(): void {
     db?.close()
     db = null

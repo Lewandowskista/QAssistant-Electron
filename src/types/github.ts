@@ -33,6 +33,16 @@ export interface GitHubPrDetail extends GitHubPullRequest {
     mergeable: boolean | null
     mergeableState: string
     body: string
+    files: GitHubPrFile[]
+}
+
+export interface GitHubPrFile {
+    filename: string
+    status: string
+    additions: number
+    deletions: number
+    changes: number
+    patch?: string
 }
 
 export interface GitHubCommit {

@@ -226,7 +226,10 @@ export async function getPullRequests(owner: string, repo: string, state: 'open'
 }
 
 export async function getPrDetail(owner: string, repo: string, prNumber: number) {
-    const pr = await githubFetch<any>(`/repos/${owner}/${repo}/pulls/${prNumber}`, { cacheTtlMs: 60_000 })
+    const [pr, files] = await Promise.all([
+        githubFetch<any>(`/repos/${owner}/${repo}/pulls/${prNumber}`, { cacheTtlMs: 60_000 }),
+        githubFetch<any[]>(`/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`, { cacheTtlMs: 60_000 }),
+    ])
     return {
         number: pr.number,
         title: pr.title,
@@ -247,6 +250,14 @@ export async function getPrDetail(owner: string, repo: string, prNumber: number)
         mergeable: pr.mergeable,
         mergeableState: pr.mergeable_state,
         body: pr.body || '',
+        files: files.map((file: any) => ({
+            filename: file.filename,
+            status: file.status,
+            additions: file.additions || 0,
+            deletions: file.deletions || 0,
+            changes: file.changes || 0,
+            patch: file.patch,
+        })),
         checkStatus: null,
     }
 }

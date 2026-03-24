@@ -75,6 +75,9 @@ export default function ExploratoryTestingPage() {
     const [bugDesc, setBugDesc] = useState('')
     const selectedSession = sessions.find(s => s.id === selectedSessionId) || sessions[0] || null
     const isActive = selectedSession && !selectedSession.completedAt
+    const defaultBugStatus = activeProject?.columns?.find((column) => column.type === 'unstarted')?.id
+        ?? activeProject?.columns?.[0]?.id
+        ?? 'todo'
 
     // Select first session by default
     useEffect(() => {
@@ -130,7 +133,6 @@ export default function ExploratoryTestingPage() {
     }
 
     const handleFileBugFromObs = (obs: ExploratoryObservation) => {
-        setBugObs(obs)
         setBugTitle(`[Exploratory] ${obs.description.slice(0, 80)}`)
         setBugDesc(obs.description)
         setBugDialogOpen(true)
@@ -141,7 +143,7 @@ export default function ExploratoryTestingPage() {
         const taskId = await addTask(activeProjectId, {
             title: bugTitle.trim(),
             description: bugDesc.trim(),
-            status: 'To Do',
+            status: defaultBugStatus,
             priority: 'high',
         })
         // Link bug to session
@@ -152,7 +154,6 @@ export default function ExploratoryTestingPage() {
         setBugDialogOpen(false)
         setBugTitle('')
         setBugDesc('')
-        setBugObs(null)
         toast.success('Bug task created and linked to session')
     }
 

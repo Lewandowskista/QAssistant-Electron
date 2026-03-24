@@ -13,6 +13,10 @@ export interface WebhookConfig {
     notifyOnHighPriorityDone: boolean;
     notifyOnDueDate: boolean;
     notifyOnAiAnalysis: boolean;
+    notifyOnHandoffSent?: boolean;
+    notifyOnReadyForQa?: boolean;
+    notifyOnVerificationFailed?: boolean;
+    notifyOnPrLinkedToHandoff?: boolean;
 }
 
 function buildSlackPayload(title: string, message: string, color: string): string {
@@ -77,15 +81,15 @@ export async function sendWebhook(
             payload = buildGenericPayload(title, message);
     }
 
-    try {
-        await fetch(webhook.url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: payload,
-            signal: AbortSignal.timeout(15000),
-        });
-    } catch (err) {
-        console.error('[WebhookService] error:', err);
+    const response = await fetch(webhook.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Webhook responded with HTTP ${response.status}`);
     }
 }
 

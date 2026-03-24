@@ -3,10 +3,16 @@
   "private": true,
   "version": "1.0.0",
   "main": "out/main/main.js",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0",
+    "npm": ">=10"
+  },
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "cross-env ELECTRON_RUN_AS_NODE= electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview",
+    "preview": "cross-env ELECTRON_RUN_AS_NODE= electron-vite preview",
+    "postinstall": "electron-builder install-app-deps",
+    "rebuild:native": "electron-builder install-app-deps",
     "generate:icon": "powershell -ExecutionPolicy Bypass -File scripts/generate-app-icon.ps1",
     "lint": "eslint .",
     "test": "vitest run",

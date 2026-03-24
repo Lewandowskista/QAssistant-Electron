@@ -33,9 +33,14 @@ The app is opinionated around one collaboration loop:
 ### Install and run
 
 ```bash
+nvm use
 npm install
 npm run dev
 ```
+
+Use Node `20.19.0` or newer in the supported ranges `^20.19.0 || >=22.12.0`.
+If `npm install` fails with `node: command not found`, install Node first and then rerun the commands above.
+If Electron reports a native-module ABI mismatch for `better-sqlite3`, run `npm run rebuild:native` and then start the app again.
 
 ### Useful scripts
 

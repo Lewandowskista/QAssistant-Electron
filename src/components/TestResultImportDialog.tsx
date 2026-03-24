@@ -122,8 +122,6 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
             }
 
             await addTestRunSession(activeProjectId, {
-                id: crypto.randomUUID(),
-                timestamp: Date.now(),
                 planExecutions,
                 environmentId: selectedEnvId || undefined,
                 environmentName: environments.find(e => e.id === selectedEnvId)?.name,

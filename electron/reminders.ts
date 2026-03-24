@@ -2,7 +2,12 @@
 import electron from 'electron'
 const { Notification, BrowserWindow } = electron as any
 import { REMINDER_COOLDOWN_MS } from './constants'
-import { getTasksForReminders, getRunbookStepsForReminders, getTestCaseStatusCountsForReminders } from './database'
+import {
+    getTasksForReminders,
+    getRunbookStepsForReminders,
+    getTestCaseStatusCountsForReminders,
+    isDatabaseInitialized,
+} from './database'
 
 const notifiedIds = new Map<string, number>()
 const COOLDOWN = REMINDER_COOLDOWN_MS
@@ -33,6 +38,8 @@ export function startReminderService(): () => void {
 }
 
 function checkDueDateReminders() {
+    if (!isDatabaseInitialized()) return
+
     try {
         const tasks = getTasksForReminders()
         const runbookSteps = getRunbookStepsForReminders()
@@ -86,6 +93,8 @@ function checkDueDateReminders() {
 }
 
 function sendDailySummary() {
+    if (!isDatabaseInitialized()) return
+
     try {
         const tasks = getTasksForReminders()
         const statusCounts = getTestCaseStatusCountsForReminders()

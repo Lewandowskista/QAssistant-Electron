@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import {
     Activity as ActivityIcon,
     Calendar,
+    Eye,
     ExternalLink,
     Loader2,
     MessageSquare,
@@ -18,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import FormattedText from "@/components/FormattedText"
 import { Project, Task, TaskStatus, useProjectStore } from "@/store/useProjectStore"
+import type { AnalysisEntry } from "@/types/project"
 import { DetailItem, MediaSection } from "./TaskDetailsComponents"
 import { HandoffPanel } from "./HandoffPanel"
 import { TraceabilityPanel } from "./TraceabilityPanel"
@@ -37,7 +39,8 @@ interface TaskDetailsSidebarProps {
     onAnalyze: (task: Task) => Promise<void>
     isAnalyzing: boolean
     onGenerateBugReport: () => Promise<void>
-    onDeleteAnalysis: (entry: any) => void
+    onViewAnalysis: (entry: AnalysisEntry) => void
+    onDeleteAnalysis: (entry: AnalysisEntry) => void
     onDelete: () => void
     api: any
 }
@@ -55,6 +58,7 @@ export function TaskDetailsSidebar({
     onAnalyze,
     isAnalyzing,
     onGenerateBugReport,
+    onViewAnalysis,
     onDeleteAnalysis,
     onDelete,
     api
@@ -357,9 +361,24 @@ export function TaskDetailsSidebar({
                                 <div key={entry.hash} className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4">
                                     <div className="mb-2 flex items-center justify-between">
                                         <span className="text-[10px] font-bold text-[#6B7280]">{new Date(entry.timestamp).toLocaleString()}</span>
-                                        <Button size="icon" variant="ghost" className="h-6 w-6 text-[#6B7280] hover:text-[#EF4444]" onClick={() => onDeleteAnalysis(entry)}>
-                                            <Trash2 className="h-3 w-3" />
-                                        </Button>
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-6 px-2 text-[#6B7280] hover:text-[#A78BFA]"
+                                                onClick={() => onViewAnalysis(entry)}
+                                            >
+                                                <Eye className="h-3 w-3" />
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-6 w-6 text-[#6B7280] hover:text-[#EF4444]"
+                                                onClick={() => onDeleteAnalysis(entry)}
+                                            >
+                                                <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                        </div>
                                     </div>
                                     <div className="text-[11px] text-[#E2E8F0]">
                                         <FormattedText content={entry.summary} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />

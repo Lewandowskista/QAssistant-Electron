@@ -20,7 +20,15 @@ interface AppUpdaterOptions {
 const UPDATE_STATUS_CHANNEL = 'app-update-status'
 const STARTUP_CHECK_DELAY_MS = 15_000
 
-let appUpdateState: AppUpdateState = createDefaultAppUpdateState(app.getVersion())
+function getAppVersionSafe(): string {
+    try {
+        return typeof app?.getVersion === 'function' ? app.getVersion() : '0.0.0'
+    } catch {
+        return '0.0.0'
+    }
+}
+
+let appUpdateState: AppUpdateState = createDefaultAppUpdateState(getAppVersionSafe())
 let initialized = false
 let startupCheckTimer: NodeJS.Timeout | null = null
 let settingsApi: Pick<AppUpdaterOptions, 'readSettings' | 'writeSettings'> | null = null
@@ -167,7 +175,7 @@ export function initAppUpdater(options: AppUpdaterOptions) {
         fs.mkdirSync(updaterDataDir, { recursive: true })
     }
 
-    appUpdateState = createDefaultAppUpdateState(app.getVersion())
+    appUpdateState = createDefaultAppUpdateState(getAppVersionSafe())
 
     if (!isPackagedAndSupported()) {
         initialized = false

@@ -94,15 +94,15 @@ describe('useProjectStore — handoff operations', () => {
         const taskId = await store.addTask(projectId, { title: 'Handoff task' })
 
         const handoffId = await useProjectStore.getState().createHandoffPacket(projectId, taskId, {
-            type: 'dev_to_qa',
+            type: 'fix_handoff',
             createdByRole: 'dev',
             summary: 'Fix deployed',
             reproSteps: 'Navigate to the page',
             expectedResult: 'Page loads',
             actualResult: 'Page loads',
             environmentName: 'Staging',
-            severity: 'low',
-            linkedExecutionRefs: [{ sessionId: 's1', planExecutionId: 'pe1', caseExecutionId: 'ce1', testCaseTitle: 'Smoke', result: 'pass' }],
+            severity: 'minor',
+            linkedExecutionRefs: [{ sessionId: 's1', planExecutionId: 'pe1', caseExecutionId: 'ce1' }],
             linkedNoteIds: [],
             linkedFileIds: [],
             linkedPrs: [],
@@ -123,7 +123,7 @@ describe('useProjectStore — handoff operations', () => {
         const taskId = await store.addTask(projectId, { title: 'Event task' })
 
         await useProjectStore.getState().createHandoffPacket(projectId, taskId, {
-            type: 'dev_to_qa',
+            type: 'fix_handoff',
             createdByRole: 'dev',
             linkedExecutionRefs: [],
             linkedNoteIds: [],
@@ -139,7 +139,7 @@ describe('useProjectStore — handoff operations', () => {
         const store = useProjectStore.getState()
         const taskId = await store.addTask(projectId, { title: 'Ack task' })
         const handoffId = await useProjectStore.getState().createHandoffPacket(projectId, taskId, {
-            type: 'dev_to_qa',
+            type: 'fix_handoff',
             createdByRole: 'qa',
             linkedExecutionRefs: [],
             linkedNoteIds: [],
@@ -161,7 +161,7 @@ describe('useProjectStore — handoff operations', () => {
         const store = useProjectStore.getState()
         const taskId = await store.addTask(projectId, { title: 'Event ack task' })
         const handoffId = await useProjectStore.getState().createHandoffPacket(projectId, taskId, {
-            type: 'dev_to_qa',
+            type: 'fix_handoff',
             createdByRole: 'qa',
             linkedExecutionRefs: [],
             linkedNoteIds: [],

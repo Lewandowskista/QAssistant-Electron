@@ -271,7 +271,7 @@ export default function TestsPage() {
                 apiKey,
                 candidates: sanitizeTestCasesForAi(allCases),
                 doneTasks: sanitizeTasksForQaAi(doneTasks, activeProject.environments),
-                project: sanitizeProjectForQaAi(activeProject),
+                project: sanitizeProjectForQaAi(activeProject ?? undefined),
                 modelName: activeProject.geminiModel,
             })
             setSmokeSubsetCaseIds(ids || [])
@@ -341,7 +341,7 @@ export default function TestsPage() {
                     apiKey,
                     tasks: sanitizeTasksForQaAi(syntheticTask as any, activeProject!.environments),
                     sourceName: 'Manual',
-                    project: sanitizeProjectForQaAi(activeProject),
+                    project: sanitizeProjectForQaAi(activeProject ?? undefined),
                     designDoc: designDocContent || undefined,
                     modelName: activeProject?.geminiModel,
                 })
@@ -397,7 +397,7 @@ export default function TestsPage() {
                 apiKey,
                 tasks: sanitizeTasksForQaAi(sanitizedTasks as any, activeProject!.environments),
                 sourceName: source,
-                project: sanitizeProjectForQaAi(activeProject),
+                project: sanitizeProjectForQaAi(activeProject ?? undefined),
                 designDoc: designDocContent || undefined,
                 modelName: activeProject?.geminiModel,
             })
@@ -478,7 +478,7 @@ export default function TestsPage() {
                 tasks: sanitizeTasksForQaAi(activeProject?.tasks || [], activeProject.environments),
                 testPlans: sanitizeTestPlansForAi(testPlans),
                 executions: sanitizeExecutionsForAi(projectExecutions),
-                project: sanitizeProjectForQaAi(activeProject),
+                project: sanitizeProjectForQaAi(activeProject ?? undefined),
                 modelName: activeProject?.geminiModel,
             })
             setAiAnalysisResult(result)
@@ -499,7 +499,7 @@ export default function TestsPage() {
                 apiKey,
                 testPlans: sanitizeTestPlansForAi(testPlans),
                 executions: sanitizeExecutionsForAi(projectExecutions),
-                project: sanitizeProjectForQaAi(activeProject),
+                project: sanitizeProjectForQaAi(activeProject ?? undefined),
                 modelName: activeProject?.geminiModel,
             })
             setAiAnalysisResult(result)
@@ -1431,4 +1431,3 @@ export default function TestsPage() {
         </>
     )
 }
-
