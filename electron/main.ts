@@ -106,6 +106,7 @@ import {
 import {
     getPerformanceSnapshot,
     incrementCounter,
+    recordMainMetric,
     measureMainMetric,
     recordRendererMetric,
     startTimer,
@@ -172,9 +173,13 @@ if (app) {
     let stopReminderService = () => {};
     let deferredStartupStarted = false;
     let startDeferredServices = () => {};
+    let idleCpuSampler: ReturnType<typeof setInterval> | null = null;
+    let lastRendererActivityAt = Date.now();
 
     const isMac = process.platform === 'darwin';
     const appUserModelId = 'com.lewandowskista.qassistant';
+    const IDLE_CPU_SAMPLE_INTERVAL_MS = 30_000;
+    const IDLE_CPU_THRESHOLD_MS = 45_000;
 
     function resolveWindowIconPath(): string | undefined {
         const candidates = [
@@ -257,6 +262,10 @@ if (app) {
             mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
         }
 
+        mainWindow.webContents.once('did-finish-load', () => {
+            mainWindow?.webContents.send('ipc-ready');
+        });
+
         mainWindow.once('ready-to-show', () => {
             if (mainWindow) {
                 measureMainMetric('windowReadyToShowMs', windowCreateStartedAt);
@@ -269,7 +278,11 @@ if (app) {
 
         // Auto-sync on focus: pull remote changes whenever the user brings the app to the foreground
         mainWindow.on('focus', () => {
-            onAppFocused().catch(e => console.warn('[sync] onAppFocused failed:', e));
+            lastRendererActivityAt = Date.now();
+            const focusSyncStartedAt = startTimer();
+            onAppFocused()
+                .catch(e => console.warn('[sync] onAppFocused failed:', e))
+                .finally(() => measureMainMetric('focusSyncMs', focusSyncStartedAt));
         });
 
         // On macOS, clicking the red dot should hide the window (not destroy it)
@@ -427,6 +440,10 @@ if (app) {
     }
 
     function setupIpc() {
+        ipcMain.on('renderer-user-activity', () => {
+            lastRendererActivityAt = Date.now();
+        });
+
         // Rate limiting: track last call time per AI channel (3s minimum between calls)
         const aiLastCall: Record<string, number> = {};
         function checkAiRateLimit(channel: string): { __isError: boolean; message: string } | null {
@@ -480,6 +497,7 @@ if (app) {
         registerAppHandlers(ipcMain, {
             recordRendererMetric,
             getPerformanceSnapshot,
+            incrementCounter,
             readSettings,
             syncCredentialStorageAcknowledgement,
             checkForAppUpdate,
@@ -593,6 +611,23 @@ if (app) {
             getServerPort,
             stopServer,
         });
+    }
+
+    function startIdleCpuSampler() {
+        if (idleCpuSampler) clearInterval(idleCpuSampler);
+        idleCpuSampler = setInterval(() => {
+            if (Date.now() - lastRendererActivityAt < IDLE_CPU_THRESHOLD_MS) return;
+            try {
+                const metrics = app.getAppMetrics?.() ?? [];
+                const idleCpuPercent = metrics.reduce((sum: number, metric: any) => {
+                    const percent = Number(metric?.cpu?.percentCPUUsage ?? 0);
+                    return sum + (Number.isFinite(percent) ? percent : 0);
+                }, 0);
+                recordMainMetric('idleCpuPercent', idleCpuPercent);
+            } catch (error) {
+                console.warn('[perf] Failed to sample idle CPU usage:', error);
+            }
+        }, IDLE_CPU_SAMPLE_INTERVAL_MS);
     }
 
     function createTray() {
@@ -772,6 +807,7 @@ if (app) {
             // MainLayout listens for this and retries loadProjects() if the initial
             // call returned empty (because DB wasn't ready yet).
             mainWindow?.webContents.send('ipc-ready');
+            startIdleCpuSampler();
         });
 
         startDeferredServices = () => {
@@ -858,6 +894,10 @@ if (app) {
 
         app.on('before-quit', (event) => {
             (app as any).isQuiting = true;
+            if (idleCpuSampler) {
+                clearInterval(idleCpuSampler);
+                idleCpuSampler = null;
+            }
             stopReminderService();
             teardownSync().catch(() => {});
             // Ask renderer to flush any debounced pending save before closing the DB

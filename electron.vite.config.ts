@@ -84,9 +84,13 @@ export default defineConfig({
         },
         output: {
           manualChunks(id) {
+            if (id.includes('react-dom') || id.includes('react-router-dom') || /node_modules\/react\//.test(id)) return 'react-vendor'
+            if (id.includes('@dnd-kit')) return 'dnd'
             if (id.includes('@tiptap') || id.includes('prosemirror')) return 'editor'
             if (id.includes('recharts') || id.includes('d3-')) return 'charts'
             if (id.includes('@supabase')) return 'supabase'
+            if (id.includes('react-markdown') || id.includes('remark-gfm')) return 'markdown'
+            if (id.includes('date-fns') || id.includes('sonner')) return 'app-utils'
             if (id.includes('@radix-ui') || id.includes('cmdk')) return 'ui-vendor'
             if (id.includes('lucide-react')) return 'icons'
             if (id.includes('@google/generative-ai')) return 'ai-sdk'

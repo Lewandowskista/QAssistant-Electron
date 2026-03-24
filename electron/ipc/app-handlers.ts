@@ -3,6 +3,7 @@ import type Electron from 'electron'
 export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
     recordRendererMetric: (name: string, value: number) => void
     getPerformanceSnapshot: () => any
+    incrementCounter: (name: string, delta?: number) => void
     readSettings: () => Promise<Record<string, unknown>>
     syncCredentialStorageAcknowledgement: () => Promise<void>
     checkForAppUpdate: () => Promise<any>
@@ -38,6 +39,16 @@ export function registerAppHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(name, 'name', 100);
             deps.assertNumber(value, 'value', 0);
             deps.recordRendererMetric(name, value);
+            return true;
+        } catch {
+            return false;
+        }
+    });
+    ipcMain.handle('increment-performance-counter', (_e: any, { name, delta }: any) => {
+        try {
+            deps.assertString(name, 'name', 100);
+            if (delta !== undefined) deps.assertNumber(delta, 'delta', 0, 10_000);
+            deps.incrementCounter(name, typeof delta === 'number' ? delta : 1);
             return true;
         } catch {
             return false;

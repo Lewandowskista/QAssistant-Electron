@@ -56,6 +56,7 @@ export interface ElectronAPI {
     readSettingsFile: () => Promise<any>;
     writeSettingsFile: (data: any) => Promise<{ success: boolean; error?: string }>;
     recordPerformanceMetric: (name: string, value: number) => Promise<boolean>;
+    incrementPerformanceCounter: (name: string, delta?: number) => Promise<boolean>;
     getPerformanceMetrics: () => Promise<{
         appStartedAt: number;
         main: Record<string, number>;
@@ -209,6 +210,7 @@ export interface ElectronAPI {
     // System
     showNotification: (title: string, body: string) => void;
     setAlwaysOnTop: (flag: boolean) => void;
+    reportUserActivity: () => void;
     getAppVersion: () => Promise<string>;
     getSystemInfo: () => Promise<{ platform: string; arch: string; nodeVersion: string; electronVersion: string; appVersion: string }>;
     onAppUpdateStatus: (callback: (state: AppUpdateState) => void) => () => void;

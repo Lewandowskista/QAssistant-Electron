@@ -73,9 +73,11 @@ const MAX_MUTATION_RETRIES = 5
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 let flushInProgress = false
 let autoSyncInProgress = false
+let lastFocusSyncAt = 0
 
 const PULL_TIMEOUT_MS = 20_000
 const CONNECTION_TEST_TIMEOUT_MS = 8_000
+const FOCUS_SYNC_MIN_INTERVAL_MS = 15_000
 
 // ─── Init / teardown ──────────────────────────────────────────────────────────
 
@@ -198,6 +200,7 @@ export async function teardownSync() {
     currentUserId = null
     flushInProgress = false
     autoSyncInProgress = false
+    lastFocusSyncAt = 0
     reconnectAttempts = 0
     setSyncStatus('disconnected')
     notifyRenderer('sync-status-changed', getStatus())
@@ -247,8 +250,11 @@ function stopAutoSync() {
 export async function onAppFocused() {
     if (!currentWorkspaceId) return
     if (autoSyncInProgress || flushInProgress) return
+    const now = Date.now()
+    if (now - lastFocusSyncAt < FOCUS_SYNC_MIN_INTERVAL_MS) return
     if (syncStatus === 'connected' || syncStatus === 'syncing' || syncStatus === 'error') {
         try {
+            lastFocusSyncAt = now
             const freshClient = await getAuthenticatedClient()
             if (!freshClient) return
             supabase = freshClient

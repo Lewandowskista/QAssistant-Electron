@@ -175,6 +175,13 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     },
 }))
 
+let fullReloadTimer: ReturnType<typeof setTimeout> | null = null
+
 function fullReload() {
-    getProjectSyncBridge()?.loadProjects().catch(console.error)
+    if (fullReloadTimer !== null) return
+    fullReloadTimer = window.setTimeout(() => {
+        fullReloadTimer = null
+        void window.electronAPI?.incrementPerformanceCounter?.('syncFallbackReloads')
+        getProjectSyncBridge()?.loadProjects().catch(console.error)
+    }, 250)
 }

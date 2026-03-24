@@ -1,6 +1,7 @@
 // cspell:ignore yxxx
 import { create } from 'zustand'
 import { toast } from 'sonner'
+import { useShallow } from 'zustand/react/shallow'
 import {
     Project, Task, TestCase, TestExecution, TestRunSession,
     Note, QaEnvironment, Attachment, TaskStatus,
@@ -35,6 +36,16 @@ function generateId(): string {
 }
 
 const MAX_AI_COPILOT_HISTORY_ENTRIES = 150
+const EMPTY_NOTES: Note[] = []
+const EMPTY_TASKS: Task[] = []
+const EMPTY_TEST_PLANS: TestPlan[] = []
+const EMPTY_HANDOFFS: HandoffPacket[] = []
+const EMPTY_ATTACHMENTS: Attachment[] = []
+const EMPTY_ARTIFACT_LINKS: ArtifactLink[] = []
+const EMPTY_COLLABORATION_EVENTS: CollaborationEvent[] = []
+const EMPTY_ENVIRONMENTS: QaEnvironment[] = []
+const EMPTY_LINEAR_CONNECTIONS: Project['linearConnections'] = []
+const EMPTY_JIRA_CONNECTIONS: Project['jiraConnections'] = []
 
 /**
  * Persistence helper — writes projects to the SQLite database via IPC.
@@ -2428,9 +2439,48 @@ export function useActiveProjectId() {
     return useProjectStore((state) => state.activeProjectId)
 }
 
+function selectActiveProject(state: ProjectState): Project | null {
+    if (!state.activeProjectId) return null
+    return state.projects.find((project) => project.id === state.activeProjectId) ?? null
+}
+
 export function useActiveProject() {
-    return useProjectStore((state) => {
-        if (!state.activeProjectId) return null
-        return state.projects.find((project) => project.id === state.activeProjectId) ?? null
-    })
+    return useProjectStore((state) => selectActiveProject(state))
+}
+
+export function useActiveProjectNotesContext() {
+    return useProjectStore(useShallow((state) => {
+        const activeProject = selectActiveProject(state)
+        return {
+            activeProjectId: state.activeProjectId,
+            activeProjectName: activeProject?.name ?? null,
+            notes: activeProject?.notes ?? EMPTY_NOTES,
+            tasks: activeProject?.tasks ?? EMPTY_TASKS,
+            artifactLinks: activeProject?.artifactLinks ?? EMPTY_ARTIFACT_LINKS,
+            handoffPackets: activeProject?.handoffPackets ?? EMPTY_HANDOFFS,
+        }
+    }))
+}
+
+export function useActiveProjectTaskBoardContext() {
+    return useProjectStore(useShallow((state) => {
+        const activeProject = selectActiveProject(state)
+        return {
+            activeProjectId: state.activeProjectId,
+            projectId: activeProject?.id ?? null,
+            tasks: activeProject?.tasks ?? EMPTY_TASKS,
+            testPlans: activeProject?.testPlans ?? EMPTY_TEST_PLANS,
+            handoffPackets: activeProject?.handoffPackets ?? EMPTY_HANDOFFS,
+            notes: activeProject?.notes ?? EMPTY_NOTES,
+            files: activeProject?.files ?? EMPTY_ATTACHMENTS,
+            artifactLinks: activeProject?.artifactLinks ?? EMPTY_ARTIFACT_LINKS,
+            collaborationEvents: activeProject?.collaborationEvents ?? EMPTY_COLLABORATION_EVENTS,
+            environments: activeProject?.environments ?? EMPTY_ENVIRONMENTS,
+            linearConnections: activeProject?.linearConnections ?? EMPTY_LINEAR_CONNECTIONS,
+            jiraConnections: activeProject?.jiraConnections ?? EMPTY_JIRA_CONNECTIONS,
+            sourceColumns: activeProject?.sourceColumns,
+            columns: activeProject?.columns,
+            geminiModel: activeProject?.geminiModel,
+        }
+    }))
 }

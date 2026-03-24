@@ -22,6 +22,7 @@ import { useConfirm } from "@/components/ConfirmDialog"
 import { toast } from "sonner"
 import { sanitizeProjectForPersistence } from "@/lib/projectSanitization"
 import { safeInvoke } from "@/lib/safeInvoke"
+import type { PerformanceMode } from "@/lib/performanceMode"
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 type StatusState = { msg: string; ok: boolean } | null
@@ -152,6 +153,8 @@ export default function SettingsPage() {
     const navigate = useNavigate()
     const api = window.electronAPI
     const saveSettingsStore = useSettingsStore(s => s.save)
+    const performanceMode = useSettingsStore(s => s.settings.performanceMode ?? 'auto')
+    const resolvedPerformanceMode = useSettingsStore(s => s.resolvedPerformanceMode)
     const { projects, activeProjectId, updateProject, importProject } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
 
@@ -166,7 +169,6 @@ export default function SettingsPage() {
     // ── Global settings state ─────────────────────────────────────────────────
     const [sapContext, setSapContext] = useState(false)
     const [minimizeToTray, setMinimizeToTray] = useState(false)
-    const [reduceVisualEffects, setReduceVisualEffects] = useState(false)
     const [autoCheckForUpdates, setAutoCheckForUpdates] = useState(true)
     const [appUpdateState, setAppUpdateState] = useState<AppUpdateState>({ status: 'idle', currentVersion: '' })
 
@@ -324,7 +326,6 @@ export default function SettingsPage() {
             const settings = await api.readSettingsFile()
             setSapContext(!!settings.sapCommerceContext)
             setMinimizeToTray(!!settings.minimizeToTray)
-            setReduceVisualEffects(!!settings.reduceVisualEffects)
             setAutoCheckForUpdates(settings.autoCheckForUpdates !== false)
             setAllowInsecureCredentialStorage(settings.allowInsecureCredentialStorage === true)
             setApiEnabled(!!settings.automationApiEnabled)
@@ -889,15 +890,33 @@ export default function SettingsPage() {
                         </div>
                         <Toggle on={theme === 'light'} onToggle={toggleTheme} />
                     </div>
-                    <div className="flex items-center justify-between mt-4">
+                    <div className="mt-4 space-y-3">
                         <div>
-                            <p className="text-sm font-semibold text-[#E2E8F0]">Reduce Visual Effects</p>
-                            <p className="text-xs text-[#6B7280] mt-0.5">Disables backdrop blur on sidebars. Recommended for Mac Intel to reduce GPU load and UI jank.</p>
+                            <p className="text-sm font-semibold text-[#E2E8F0]">Performance Profile</p>
+                            <p className="text-xs text-[#6B7280] mt-0.5">Auto uses a lighter visual mode on macOS Intel. Balanced preserves the current look, while Performance reduces blur, shadows, and non-essential animation.</p>
                         </div>
-                        <Toggle on={reduceVisualEffects} onToggle={async () => {
-                            const next = !reduceVisualEffects; setReduceVisualEffects(next)
-                            await saveSetting({ reduceVisualEffects: next })
-                        }} />
+                        <div className="grid grid-cols-3 gap-2">
+                            {([
+                                { value: 'auto', label: 'Auto' },
+                                { value: 'balanced', label: 'Balanced' },
+                                { value: 'performance', label: 'Performance' },
+                            ] as Array<{ value: PerformanceMode; label: string }>).map((option) => (
+                                <button
+                                    key={option.value}
+                                    onClick={() => { void saveSetting({ performanceMode: option.value }) }}
+                                    className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                                        performanceMode === option.value
+                                            ? 'border-[#A78BFA]/40 bg-[#A78BFA]/10 text-[#E2E8F0]'
+                                            : 'border-[#2A2A3A] text-[#9CA3AF] hover:border-[#A78BFA]/30 hover:text-[#E2E8F0]'
+                                    }`}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[11px] text-[#6B7280]">
+                            Resolved for this machine: <span className="text-[#E2E8F0] font-semibold capitalize">{resolvedPerformanceMode}</span>
+                        </p>
                     </div>
                 </Sec>
 
@@ -1498,6 +1517,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             { label: 'App Version', value: appVersion },
                             { label: 'Platform', value: sysInfo?.platform },
                             { label: 'Architecture', value: sysInfo?.arch },
+                            { label: 'Performance Mode', value: resolvedPerformanceMode },
                             { label: 'Electron', value: sysInfo?.electronVersion },
                             { label: 'Node.js', value: sysInfo?.nodeVersion },
                         ].filter(i => i.value).map(item => (
@@ -1513,9 +1533,13 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 { label: 'App Ready', value: perfMetrics.main.appWhenReadyMs, unit: 'ms' },
                                 { label: 'Window Ready', value: perfMetrics.main.windowReadyToShowMs, unit: 'ms' },
                                 { label: 'Deferred Startup', value: perfMetrics.main.deferredStartupMs, unit: 'ms' },
+                                { label: 'First Route Interactive', value: perfMetrics.renderer.firstRouteInteractiveMs, unit: 'ms' },
                                 { label: 'Project Load', value: perfMetrics.renderer.projectLoadMs, unit: 'ms' },
                                 { label: 'Sync Init', value: perfMetrics.renderer.syncInitMs, unit: 'ms' },
+                                { label: 'Focus Sync', value: perfMetrics.main.focusSyncMs, unit: 'ms' },
+                                { label: 'Idle CPU', value: perfMetrics.main.idleCpuPercent, unit: '%' },
                                 { label: 'Full Project Writes', value: perfMetrics.counters.fullProjectWrites, unit: '' },
+                                { label: 'Sync Fallback Reloads', value: perfMetrics.counters.syncFallbackReloads, unit: '' },
                                 { label: 'Granular Note Writes', value: perfMetrics.counters.granularNoteWrites, unit: '' },
                                 { label: 'Granular Task Writes', value: perfMetrics.counters.granularTaskWrites, unit: '' },
                                 { label: 'Granular Handoff Writes', value: perfMetrics.counters.granularHandoffWrites, unit: '' },
@@ -1535,6 +1559,16 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             <p className="text-[11px] font-mono text-[#A78BFA] break-all">{dataPath}</p>
                         </div>
                     )}
+                    <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3 mb-4">
+                        <p className="text-[10px] font-bold uppercase text-[#6B7280] mb-2">Intel Mac Profiling Checklist</p>
+                        <ol className="space-y-1 text-xs text-[#9CA3AF] list-decimal ml-4">
+                            <li>Cold-launch the packaged macOS x64 app and capture App Ready, Window Ready, and First Route Interactive.</li>
+                            <li>Swipe between macOS Spaces with the app visible and watch for dropped-frame jank.</li>
+                            <li>Type in Notes for 20-30 seconds and verify the caret stays smooth while autosave runs.</li>
+                            <li>Repeat in Tasks while opening the details sidebar and changing filters.</li>
+                            <li>Open Settings and AI Copilot once, then leave the app idle for two minutes and compare Idle CPU plus sync counters.</li>
+                        </ol>
+                    </div>
                     {/* Stored credentials for active project */}
                     {activeProject && (
                         <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-3 mb-4">

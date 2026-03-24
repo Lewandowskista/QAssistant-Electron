@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readSettingsFile: () => ipcRenderer.invoke('read-settings-file'),
   writeSettingsFile: (data: any) => ipcRenderer.invoke('write-settings-file', data),
   recordPerformanceMetric: (name: string, value: number) => ipcRenderer.invoke('record-performance-metric', { name, value }),
+  incrementPerformanceCounter: (name: string, delta?: number) => ipcRenderer.invoke('increment-performance-counter', { name, delta }),
   getPerformanceMetrics: () => ipcRenderer.invoke('get-performance-metrics'),
   getAppUpdateState: () => ipcRenderer.invoke('get-app-update-state'),
   checkForAppUpdate: () => ipcRenderer.invoke('check-app-update'),
@@ -138,6 +139,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFile: (args: any) => ipcRenderer.invoke('open-file', typeof args === 'string' ? { filePath: args } : args),
   showNotification: (title: string, body: string) => ipcRenderer.send('show-notification', { title, body }),
   setAlwaysOnTop: (flag: boolean) => ipcRenderer.send('set-always-on-top', flag),
+  reportUserActivity: () => ipcRenderer.send('renderer-user-activity'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
   onAppUpdateStatus: (callback: (state: any) => void) => {

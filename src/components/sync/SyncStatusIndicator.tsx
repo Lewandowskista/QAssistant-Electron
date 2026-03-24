@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Cloud, CloudOff, RefreshCw, AlertTriangle, Wifi } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSyncStore } from '@/store/useSyncStore'
 import type { CloudSyncStatus } from '@/types/sync'
-import { SyncSetupDialog } from './SyncSetupDialog'
 import { getSyncStatusSummary } from '@/lib/collaboration'
+
+const SyncSetupDialog = lazy(() => import('./SyncSetupDialog').then((module) => ({ default: module.SyncSetupDialog })))
 
 const STATUS_CONFIG: Record<CloudSyncStatus, {
     icon: typeof Cloud
@@ -168,7 +169,11 @@ export function SyncStatusIndicator() {
                 )} />
             </button>
 
-            <SyncSetupDialog open={setupOpen} onClose={() => setSetupOpen(false)} />
+            {setupOpen && (
+                <Suspense fallback={null}>
+                    <SyncSetupDialog open={setupOpen} onClose={() => setSetupOpen(false)} />
+                </Suspense>
+            )}
         </>
     )
 }

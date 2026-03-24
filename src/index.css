@@ -219,6 +219,10 @@
     font-family: "Poppins", "Inter", sans-serif;
     letter-spacing: -0.02em;
   }
+
+  .performance-mode-performance body {
+    background-image: none;
+  }
 }
 
 @layer components {
@@ -447,6 +451,49 @@
     background-color: hsl(var(--state-info-soft));
     border-color: hsl(var(--state-info-border));
     color: hsl(var(--state-info));
+  }
+
+  .performance-mode-performance .app-shell,
+  .performance-mode-performance .app-sidebar,
+  .performance-mode-performance .app-panel,
+  .performance-mode-performance .app-panel-muted,
+  .performance-mode-performance .app-titlebar {
+    background-image: none;
+    background-color: hsl(var(--surface-card));
+    box-shadow: none;
+  }
+
+  .performance-mode-performance .app-sidebar,
+  .performance-mode-performance .app-titlebar {
+    background-color: hsl(var(--surface-header));
+  }
+
+  .performance-mode-performance .app-panel-hover,
+  .performance-mode-performance .app-nav-item,
+  .performance-mode-performance .app-subtab-trigger,
+  .performance-mode-performance .app-chip,
+  .performance-mode-performance .transition-all,
+  .performance-mode-performance .transition-colors,
+  .performance-mode-performance .transition-opacity,
+  .performance-mode-performance .transition-transform {
+    transition-duration: 0ms !important;
+  }
+
+  .performance-mode-performance .animate-pulse {
+    animation: none !important;
+  }
+
+  .performance-mode-performance .shadow-sm,
+  .performance-mode-performance .shadow-lg,
+  .performance-mode-performance .shadow-2xl {
+    box-shadow: none !important;
+  }
+
+  .performance-mode-performance .backdrop-blur-sm,
+  .performance-mode-performance .backdrop-blur-md,
+  .performance-mode-performance .backdrop-blur-xl {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 }
 

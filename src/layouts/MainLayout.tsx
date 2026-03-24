@@ -1,15 +1,16 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { LayoutDashboard, CheckSquare, Settings, Plus, Globe, FileText, FlaskConical, Database, ListChecks, Code, ServerCog, Search, Minus, Square, X, MoreVertical, Edit2, Trash2, ChevronLeft, ChevronRight, Copy, BookOpen, Pin, Sparkles, ChevronDown, User, GitBranch, MessageSquare, Rocket, BarChart3, ClipboardCheck, Activity, Compass, Loader2 } from "lucide-react"
-import AiCopilot from "@/components/AiCopilot"
 import { cn } from "@/lib/utils"
 import { useEffect, useMemo, useState } from "react"
 import { useProjectStore, Project } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { ProjectDialog } from "@/components/ProjectDialog"
-import CommandPalette from "@/components/CommandPalette"
 import { lazy, Suspense } from "react"
+import { recordRendererMetric } from "@/lib/perf"
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"))
+const CommandPalette = lazy(() => import("@/components/CommandPalette"))
+const AiCopilot = lazy(() => import("@/components/AiCopilot"))
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -64,7 +65,8 @@ export default function MainLayout() {
     const currentTheme = useSettingsStore(s => s.settings.theme)
     const isPinnedStore = useSettingsStore(s => s.settings.alwaysOnTop)
     const isSapActive = useSettingsStore(s => s.settings.sapCommerceContext)
-    const reduceVisualEffects = useSettingsStore(s => s.settings.reduceVisualEffects ?? false)
+    const resolvedPerformanceMode = useSettingsStore(s => s.resolvedPerformanceMode)
+    const isPerformanceMode = resolvedPerformanceMode === 'performance'
 
     const [dialogOpen, setDialogOpen] = useState(false)
     const [editingProject, setEditingProject] = useState<Project | undefined>(undefined)
@@ -77,6 +79,8 @@ export default function MainLayout() {
     const [searchQuery, setSearchQuery] = useState("")
     const { confirm: confirmDelete, dialog: confirmDeleteDialog } = useConfirm()
     const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().indexOf('MAC') >= 0)
+    const [paletteMounted, setPaletteMounted] = useState(false)
+    const [copilotMounted, setCopilotMounted] = useState(false)
 
     // Routes that use h-full flex layouts and need the full content area (no padding/max-width)
     const FULL_BLEED_ROUTES = ['/notes', '/files', '/tasks', '/tests', '/exploratory', '/test-data', '/checklists', '/environments', '/api', '/sap', '/runbooks', '/github', '/code-reviews', '/deployments', '/activity', '/reports', '/docs']
@@ -126,6 +130,56 @@ export default function MainLayout() {
 
     // Close settings drawer when navigating away
     useEffect(() => { setSettingsOpen(false) }, [location.pathname])
+
+    useEffect(() => {
+        if (!paletteOpen) return
+        setPaletteMounted(true)
+    }, [paletteOpen])
+
+    useEffect(() => {
+        if (!copilotOpen) return
+        setCopilotMounted(true)
+    }, [copilotOpen])
+
+    useEffect(() => {
+        let raf1 = 0
+        let raf2 = 0
+        raf1 = window.requestAnimationFrame(() => {
+            raf2 = window.requestAnimationFrame(() => {
+                void recordRendererMetric('firstRouteInteractiveMs', performance.now())
+            })
+        })
+        return () => {
+            window.cancelAnimationFrame(raf1)
+            window.cancelAnimationFrame(raf2)
+        }
+    }, [])
+
+    useEffect(() => {
+        const api = window.electronAPI
+        if (!api?.reportUserActivity) return
+
+        let lastSentAt = 0
+        const sendActivity = () => {
+            const now = Date.now()
+            if (now - lastSentAt < 5000) return
+            lastSentAt = now
+            api.reportUserActivity()
+        }
+
+        sendActivity()
+        window.addEventListener('keydown', sendActivity, true)
+        window.addEventListener('pointerdown', sendActivity, true)
+        window.addEventListener('wheel', sendActivity, { passive: true })
+        window.addEventListener('focus', sendActivity)
+
+        return () => {
+            window.removeEventListener('keydown', sendActivity, true)
+            window.removeEventListener('pointerdown', sendActivity, true)
+            window.removeEventListener('wheel', sendActivity)
+            window.removeEventListener('focus', sendActivity)
+        }
+    }, [])
 
     const handlePinToggle = async () => {
         const next = !isPinned
@@ -256,14 +310,14 @@ export default function MainLayout() {
         <>
         <div className={cn(
             "app-shell flex selection:bg-primary/20",
-            isMac && !reduceVisualEffects && "backdrop-blur-xl"
+            isMac && !isPerformanceMode && "backdrop-blur-xl"
         )}>
             {/* 1. PROJECTS SIDEBAR (200px) */}
             <aside
                 aria-label="Projects"
                 className={cn(
                 "app-sidebar w-[220px] shrink-0",
-                isMac && !reduceVisualEffects && "pt-8 backdrop-blur-md"
+                isMac && !isPerformanceMode && "pt-8 backdrop-blur-md"
             )}>
                 <div className="h-12 flex items-center px-4 border-b app-divider app-section-label">
                     Projects
@@ -333,7 +387,7 @@ export default function MainLayout() {
                 aria-label="Navigation"
                 className={cn(
                     "app-sidebar transition-all duration-300 shrink-0",
-                    isMac && !reduceVisualEffects && "pt-8 backdrop-blur-md",
+                    isMac && !isPerformanceMode && "pt-8 backdrop-blur-md",
                     toolsCollapsed ? "w-0 overflow-hidden opacity-0" : "w-[220px]"
                 )}
             >
@@ -538,7 +592,7 @@ export default function MainLayout() {
                     "flex-1 min-h-0 relative",
                     isFullBleedRoute
                         ? "flex flex-col overflow-hidden"
-                        : "overflow-y-auto p-6 scroll-smooth custom-scrollbar"
+                        : cn("overflow-y-auto p-6 custom-scrollbar", !isPerformanceMode && "scroll-smooth")
                 )}>
                     {isFullBleedRoute ? (
                         <Outlet />
@@ -578,7 +632,11 @@ export default function MainLayout() {
                 </div>
 
                 <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} project={editingProject} />
-                <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+                {paletteMounted && (
+                    <Suspense fallback={null}>
+                        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+                    </Suspense>
+                )}
                 <Toaster theme={currentTheme} position="bottom-right" />
                 {confirmDeleteDialog}
             </div>
@@ -586,7 +644,11 @@ export default function MainLayout() {
             </div>
 
             {/* AI COPILOT PANEL - Moved out of flex container */}
-            <AiCopilot open={copilotOpen} onClose={() => setCopilotOpen(false)} />
+            {copilotMounted && (
+                <Suspense fallback={null}>
+                    <AiCopilot open={copilotOpen} onClose={() => setCopilotOpen(false)} />
+                </Suspense>
+            )}
         </>
     )
 }

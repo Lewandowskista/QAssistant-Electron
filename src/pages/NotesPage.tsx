@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef } from "react"
 import { NOTE_TITLE_DEBOUNCE_MS, NOTE_CONTENT_DEBOUNCE_MS } from "@/lib/constants"
-import { useProjectStore } from "@/store/useProjectStore"
+import { useActiveProjectNotesContext, useProjectStore } from "@/store/useProjectStore"
 import { Plus, Trash2, Paperclip, ExternalLink, StickyNote, Code, PanelRightClose, PanelRightOpen, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -8,13 +8,20 @@ import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/ConfirmDialog"
+import { useShallow } from "zustand/react/shallow"
 
 const RichTextEditor = lazy(() => import("@/components/editor/RichTextEditor").then((module) => ({ default: module.RichTextEditor })))
 
 export default function NotesPage() {
-    const { projects, activeProjectId, addNote, updateNote, deleteNote, removeAttachmentFromNote, attachFileToNote, linkArtifact } = useProjectStore()
-    const activeProject = projects.find(p => p.id === activeProjectId)
-    const notes = activeProject?.notes || []
+    const { activeProjectId, notes, tasks, artifactLinks, handoffPackets } = useActiveProjectNotesContext()
+    const { addNote, updateNote, deleteNote, removeAttachmentFromNote, attachFileToNote, linkArtifact } = useProjectStore(useShallow((state) => ({
+        addNote: state.addNote,
+        updateNote: state.updateNote,
+        deleteNote: state.deleteNote,
+        removeAttachmentFromNote: state.removeAttachmentFromNote,
+        attachFileToNote: state.attachFileToNote,
+        linkArtifact: state.linkArtifact,
+    })))
     const api = window.electronAPI
     const { confirm: confirmDialog, dialog: confirmDialogEl } = useConfirm()
 
@@ -25,7 +32,6 @@ export default function NotesPage() {
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
 
     const selectedNote = notes.find(n => n.id === selectedItemId)
-    const artifactLinks = activeProject?.artifactLinks || []
     const filteredNotes = notes.filter((note) => {
         if (linkedTaskFilter !== 'all') {
             const linked = artifactLinks.some((link) =>
@@ -103,7 +109,7 @@ export default function NotesPage() {
         }
     }
 
-    if (!activeProject) {
+    if (!activeProjectId) {
         return (
             <div className="h-full flex flex-col items-center justify-center bg-[#0F0F13] gap-4 text-center">
                 <div className="w-20 h-20 rounded-full bg-[#1A1A24] flex items-center justify-center opacity-40">
@@ -140,7 +146,7 @@ export default function NotesPage() {
                         </div>
                         <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="w-full h-8 rounded-md bg-[#0F0F13] border border-[#2A2A3A] px-2 text-[11px] text-[#E2E8F0]">
                             <option value="all">All Notes</option>
-                            {(activeProject?.tasks || []).map((task) => (
+                            {tasks.map((task) => (
                                 <option key={task.id} value={task.id}>{task.title}</option>
                             ))}
                         </select>
@@ -162,7 +168,7 @@ export default function NotesPage() {
                                     (link.targetType === 'note' && link.targetId === note.id && link.sourceType === 'task')
                                 ).map((link) => {
                                     const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
-                                    const task = activeProject?.tasks.find((item) => item.id === taskId)
+                                    const task = tasks.find((item) => item.id === taskId)
                                     return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-[#A78BFA] text-[9px]">{task.title}</span> : null
                                 })}
                             </div>
@@ -209,7 +215,7 @@ export default function NotesPage() {
                                     className="h-9 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-[10px] text-[#E2E8F0]"
                                 >
                                     <option value="">Link to task...</option>
-                                    {(activeProject?.tasks || []).map((task) => (
+                                    {tasks.map((task) => (
                                         <option key={task.id} value={task.id}>{task.title}</option>
                                     ))}
                                 </select>
@@ -285,7 +291,7 @@ export default function NotesPage() {
                                                     <Trash2 className="h-3 w-3 text-[#EF4444] opacity-0 group-hover:opacity-100 transition-opacity" onClick={async (e) => {
                                                         e.stopPropagation();
                                                         if (!activeProjectId || !selectedNote) return;
-                                                        const linkedHandoffs = (activeProject?.handoffPackets || []).filter((packet) => packet.linkedNoteIds.includes(selectedNote.id))
+                                                        const linkedHandoffs = handoffPackets.filter((packet) => packet.linkedNoteIds.includes(selectedNote.id))
                                                         if (linkedHandoffs.length > 0) {
                                                             toast.error('This attachment is linked to an active handoff. Remove the handoff link first.')
                                                             return

@@ -39,7 +39,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { TaskFilterBar } from "@/components/tasks/TaskFilterBar"
 import { TaskCard } from "@/components/tasks/TaskCard"
 import { TaskColumn } from "@/components/tasks/TaskColumn"
-import { Task, useActiveProject, useActiveProjectId, useProjectStore } from "@/store/useProjectStore"
+import { Project, Task, useActiveProjectTaskBoardContext, useProjectStore } from "@/store/useProjectStore"
 import type { AnalysisEntry } from "@/types/project"
 import { useShallow } from "zustand/react/shallow"
 
@@ -96,15 +96,34 @@ function loadJson<T>(key: string, fallback: T): T {
 
 export default function TasksPage() {
     const api = window.electronAPI
-    const activeProject = useActiveProject()
-    const activeProjectId = useActiveProjectId()
+    const activeProjectContext = useActiveProjectTaskBoardContext()
+    const activeProjectId = activeProjectContext.activeProjectId
     const { addTask, deleteTask, moveTask, updateProject } = useProjectStore(useShallow((state) => ({
         addTask: state.addTask,
         deleteTask: state.deleteTask,
         moveTask: state.moveTask,
         updateProject: state.updateProject,
     })))
-    const tasks = useMemo(() => activeProject?.tasks || [], [activeProject?.tasks])
+    const activeProject = useMemo<Project | null>(() => {
+        if (!activeProjectContext.projectId) return null
+        return {
+            id: activeProjectContext.projectId,
+            tasks: activeProjectContext.tasks,
+            testPlans: activeProjectContext.testPlans,
+            handoffPackets: activeProjectContext.handoffPackets,
+            notes: activeProjectContext.notes,
+            files: activeProjectContext.files,
+            artifactLinks: activeProjectContext.artifactLinks,
+            collaborationEvents: activeProjectContext.collaborationEvents,
+            environments: activeProjectContext.environments,
+            linearConnections: activeProjectContext.linearConnections,
+            jiraConnections: activeProjectContext.jiraConnections,
+            sourceColumns: activeProjectContext.sourceColumns,
+            columns: activeProjectContext.columns,
+            geminiModel: activeProjectContext.geminiModel,
+        } as Project
+    }, [activeProjectContext])
+    const tasks = activeProjectContext.tasks
 
     const [activeTask, setActiveTask] = useState<Task | null>(null)
     const [detailsId, setDetailsId] = useState<string | null>(null)
@@ -362,7 +381,7 @@ export default function TasksPage() {
                 apiKey,
                 task: sanitizeTaskForQaAi(task, activeProject?.environments || []),
                 comments,
-                project: sanitizeProjectForQaAi(activeProject),
+                project: sanitizeProjectForQaAi(activeProject ?? undefined),
                 modelName: activeProject?.geminiModel
             })
 
@@ -696,7 +715,7 @@ export default function TasksPage() {
                 <Suspense fallback={null}>
                     <TaskDetailsSidebar
                         selectedTask={selectedTask}
-                        activeProject={activeProject}
+                        activeProject={activeProject ?? undefined}
                         currentColumns={currentColumns}
                         onClose={() => setDetailsId(null)}
                         onUpdateTask={handleUpdateTask}
@@ -737,7 +756,7 @@ export default function TasksPage() {
                 <NewTaskModal
                     isOpen={isNewTaskModalOpen}
                     onOpenChange={setIsNewTaskModalOpen}
-                    activeProject={activeProject}
+                    activeProject={activeProject ?? undefined}
                     currentColumns={currentColumns}
                     onConfirm={handleConfirmAddTask}
                     initialStatus={newTaskStatus}
