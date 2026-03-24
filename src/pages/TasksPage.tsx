@@ -738,6 +738,12 @@ export default function TasksPage() {
                                 toast.error(error instanceof Error ? error.message : String(error))
                             }
                         }}
+                        onViewAnalysis={(entry) => {
+                            if (!selectedTask) return
+                            setTaskBeingAnalyzed(selectedTask)
+                            setCurrentAnalysisResult(entry.fullResult || entry.summary || null)
+                            setIsAnalysisDialogOpen(true)
+                        }}
                         onDelete={() => setTaskToDelete(selectedTask)}
                         onDeleteAnalysis={async (entry) => {
                             if (!activeProjectId || !selectedTask) return

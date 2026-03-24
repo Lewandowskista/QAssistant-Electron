@@ -93,6 +93,7 @@ import * as integrations from './integrations';
 import { saveFile, saveBytes, deleteFile } from './fileStorage';
 import * as bugReport from './bug-report';
 import { SapHacService } from './sapHac';
+import { sendWebhook } from './webhook';
 import * as accuracy from './accuracy';
 import {
     checkForAppUpdate,
@@ -605,6 +606,7 @@ if (app) {
             fsp,
             fs,
             shell,
+            sendWebhook,
             assertString,
             errMsg,
             assertAutomationArgs,
@@ -777,14 +779,7 @@ if (app) {
             },
         });
 
-        // Create the window immediately — DB init is deferred below so the
-        // window can start rendering while the database opens in the background.
-        createWindow();
-        createTray();
-
-        // Defer DB init + IPC setup to the next event loop tick so Chromium
-        // can begin loading the renderer HTML before we block on SQLite.
-        setImmediate(async () => {
+        try {
             const DB_FILE = path.join(APP_DATA_DIR, 'qassistant.db');
             initDatabase(DB_FILE);
             migrateLegacyEnvironmentSecretsToSecureStore().catch(error => {
@@ -802,13 +797,13 @@ if (app) {
             setOAuthCompleteCallback((provider, userInfo) => {
                 mainWindow?.webContents.send('oauth-complete', { provider, userInfo });
             });
+        } catch (error) {
+            console.error('[startup] Failed to initialize database or IPC services:', error);
+        }
 
-            // Signal renderer that IPC handlers and database are ready.
-            // MainLayout listens for this and retries loadProjects() if the initial
-            // call returned empty (because DB wasn't ready yet).
-            mainWindow?.webContents.send('ipc-ready');
-            startIdleCpuSampler();
-        });
+        createWindow();
+        createTray();
+        startIdleCpuSampler();
 
         startDeferredServices = () => {
             if (deferredStartupStarted) return;

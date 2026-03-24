@@ -316,10 +316,11 @@ async function triggerCollaborationWebhook(
     task: Task | undefined,
     handoff: HandoffPacket | undefined
 ) {
-    if (!window.electronAPI || !project || !task || !handoff) return
+    const api = window.electronAPI
+    if (!api || !project || !task || !handoff) return
 
     try {
-        const settings = await window.electronAPI.readSettingsFile()
+        const settings = await api.readSettingsFile()
         const webhooks = ((settings?.webhooks || []) as WebhookConfig[]).filter((webhook) => {
             if (!webhook.isEnabled) return false
             if (event === 'handoff_sent') return !!webhook.notifyOnHandoffSent
@@ -354,42 +355,15 @@ async function triggerCollaborationWebhook(
         }, null, 2)
 
         await Promise.all(webhooks.map(async (webhook) => {
-            let payload = ''
-            if (webhook.type === 'Teams') {
-                payload = JSON.stringify({
-                    type: 'message',
-                    attachments: [{
-                        contentType: 'application/vnd.microsoft.card.adaptive',
-                        content: {
-                            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-                            type: 'AdaptiveCard',
-                            version: '1.4',
-                            body: [
-                                { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: titleMap[event] },
-                                { type: 'TextBlock', text: message, wrap: true }
-                            ]
-                        }
-                    }]
-                })
-            } else if (webhook.type === 'Slack') {
-                payload = JSON.stringify({
-                    attachments: [{
-                        color: colorMap[event],
-                        title: titleMap[event],
-                        text: message,
-                        footer: 'QAssistant',
-                        ts: Math.floor(Date.now() / 1000)
-                    }]
-                })
-            } else {
-                payload = JSON.stringify({ title: titleMap[event], payload: JSON.parse(message) })
-            }
+            const result = await api.sendWebhook({
+                url: webhook.url,
+                type: webhook.type,
+                isEnabled: webhook.isEnabled,
+            }, titleMap[event], message, colorMap[event])
 
-            await fetch(webhook.url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: payload
-            }).catch((error) => console.error('Webhook notification failed:', error))
+            if (!result.success) {
+                throw new Error(result.error || 'Webhook notification failed.')
+            }
         }))
     } catch (error) {
         console.error('Failed to trigger collaboration webhook:', error)
@@ -1567,6 +1541,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     updateTestCase: async (projectId: string, planId: string, caseId: string, updates: Partial<TestCase>) => {
+        let persistedPlan: TestPlan | undefined
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const testPlans = p.testPlans.map(tp => {

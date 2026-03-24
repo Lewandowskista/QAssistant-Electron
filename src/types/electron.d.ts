@@ -88,6 +88,7 @@ export interface ElectronAPI {
     // File operations
     selectFile: (filters?: { name: string; extensions: string[] }[]) => Promise<string | null>;
     openUrl: (url: string) => Promise<{ success: boolean; error?: string }>;
+    sendWebhook: (webhook: { url: string; type: 'Slack' | 'Teams' | 'Generic'; isEnabled?: boolean }, title: string, message: string, color?: string) => Promise<{ success: boolean; error?: string }>;
     openFile: (args: { filePath: string } | string) => Promise<void>;
     copyToAttachments: (sourcePath: string) => Promise<{ success: boolean; attachment?: Attachment; error?: string }>;
     saveBytesAttachment: (bytes: Uint8Array, fileName: string) => Promise<{ success: boolean; attachment?: Attachment; error?: string }>;
@@ -105,6 +106,25 @@ export interface ElectronAPI {
     aiTestRunSuggestions: (args: AiTestRunSuggestionsRequest) => Promise<string>;
     aiSmokeSubset: (args: AiSmokeSubsetRequest) => Promise<string[]>;
     aiChat: (args: AiChatRequest) => Promise<string>;
+    aiGenerateFlexSearch: (args: { apiKey: string; naturalLanguageQuery: string; modelName?: string }) => Promise<string>;
+    aiStandupSummary: (args: { apiKey: string; metrics: Record<string, unknown>; modelName?: string }) => Promise<string>;
+    aiFindDuplicateBugs: (args: {
+        apiKey: string;
+        newBugTitle: string;
+        newBugDescription: string;
+        newBugReproSteps?: string;
+        affectedComponents?: string[];
+        existingBugs: Array<{ id: string; title: string; description?: string; components?: string[] }>;
+        modelName?: string;
+    }) => Promise<Array<{ bugId: string; title: string; similarityScore: number; reasoning: string }>>;
+    aiTestImpactAnalysis: (args: {
+        apiKey: string;
+        changedFiles: string[];
+        prTitle: string;
+        prDescription?: string;
+        testCases: Array<{ id: string; title: string; sapModule?: string; components?: string[]; tags?: string[] }>;
+        modelName?: string;
+    }) => Promise<{ impactedCaseIds: string[]; affectedModules: string[]; rationale: string }>;
 
     // Integrations (Linear)
     syncLinear: (args: any) => Promise<any>;
@@ -195,6 +215,21 @@ export interface ElectronAPI {
     generateTestCasesCsv: (project: any) => Promise<string>;
     generateExecutionsCsv: (project: any) => Promise<string>;
     exportTestSummaryPdf: (project: any, filterPlanIds?: string[], aiResult?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+    importTestResults: (args: { filePath: string } | string) => Promise<{
+        success: boolean;
+        format?: string;
+        suites?: Array<{
+            name: string;
+            cases: Array<{
+                externalId: string;
+                title: string;
+                result: string;
+                actualResult: string;
+                durationSeconds?: number;
+            }>;
+        }>;
+        error?: string;
+    }>;
 
     // Report Builder (M1)
     generateCustomReport: (args: { project: any; template: any }) => Promise<{ success: boolean; html?: string; error?: string }>;
@@ -215,6 +250,7 @@ export interface ElectronAPI {
     getSystemInfo: () => Promise<{ platform: string; arch: string; nodeVersion: string; electronVersion: string; appVersion: string }>;
     onAppUpdateStatus: (callback: (state: AppUpdateState) => void) => () => void;
     onIpcReady: (callback: () => void) => () => void;
+    onFlushPendingSave: (callback: () => void) => () => void;
     isMinimizedToTray: () => Promise<boolean>;
     appQuit: () => void;
 

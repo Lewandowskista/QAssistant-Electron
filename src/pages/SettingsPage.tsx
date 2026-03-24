@@ -1340,37 +1340,12 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 <Button variant="outline" size="sm" className="h-8 border-[#2A2A3A] text-[#9CA3AF] font-bold" disabled={webhookTesting || !webhookForm.url.trim()} onClick={async () => {
                                     setWebhookTesting(true)
                                     try {
-                                        let testPayload: string
-                                        if (webhookForm.type === 'Teams') {
-                                            testPayload = JSON.stringify({
-                                                type: 'message',
-                                                attachments: [{
-                                                    contentType: 'application/vnd.microsoft.card.adaptive',
-                                                    content: {
-                                                        $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-                                                        type: 'AdaptiveCard',
-                                                        version: '1.4',
-                                                        body: [
-                                                            { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: '✅ Test Notification' },
-                                                            { type: 'TextBlock', text: 'Webhook connection test from QAssistant.', wrap: true },
-                                                        ],
-                                                    },
-                                                }],
-                                            })
-                                        } else if (webhookForm.type === 'Slack') {
-                                            testPayload = JSON.stringify({
-                                                attachments: [{
-                                                    color: '#A78BFA',
-                                                    title: '✅ Test Notification',
-                                                    text: 'Webhook connection test from QAssistant.',
-                                                    footer: 'QAssistant',
-                                                    ts: Math.floor(Date.now() / 1000),
-                                                }]
-                                            })
-                                        } else {
-                                            testPayload = JSON.stringify({ title: '✅ Test Notification', message: 'Webhook connection test from QAssistant.', timestamp: new Date().toISOString() })
-                                        }
-                                        await fetch(webhookForm.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: testPayload })
+                                        const result = await api.sendWebhook({
+                                            url: webhookForm.url,
+                                            type: webhookForm.type,
+                                            isEnabled: true,
+                                        }, '✅ Test Notification', 'Webhook connection test from QAssistant.', '#A78BFA')
+                                        if (!result.success) throw new Error(result.error || 'Webhook test failed.')
                                         flash(setWebhookStatus, 'Test notification sent!', true)
                                     } catch (e: any) {
                                         flash(setWebhookStatus, `Test failed: ${e.message}`, false)

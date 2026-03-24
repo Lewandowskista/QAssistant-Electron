@@ -84,6 +84,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   secureStoreList: () => ipcRenderer.invoke('secure-store-list'),
   selectFile: (filters?: { name: string; extensions: string[] }[]) => ipcRenderer.invoke('select-file', filters),
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
+  sendWebhook: (webhook: { url: string; type: 'Slack' | 'Teams' | 'Generic'; isEnabled?: boolean }, title: string, message: string, color?: string) => ipcRenderer.invoke('send-webhook', { webhook, title, message, color }),
   aiGenerateCases: (args: any) => invoke('ai-generate-cases', args),
   aiListModels: (args: any) => invoke('ai-list-models', args),
   aiAnalyzeIssue: (args: any) => invoke('ai-analyze-issue', args),
