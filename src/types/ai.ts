@@ -213,6 +213,57 @@ export interface AiSmokeSubsetRequest {
     modelName?: string
 }
 
+export interface AiPullRequestFileContext {
+    filename: string
+    status: string
+    additions: number
+    deletions: number
+    changes: number
+    patch?: string
+}
+
+export interface AiPullRequestReviewContext {
+    user: string
+    state: string
+    submittedAt?: string
+    body?: string
+}
+
+export interface AiPullRequestCommentContext {
+    user: string
+    body: string
+    createdAt: string
+}
+
+export interface AiAnalyzePullRequestRequest {
+    apiKey: string
+    pr: {
+        number: number
+        title: string
+        description?: string
+        baseBranch: string
+        headBranch: string
+        ciStatus?: string | null
+        mergeableState?: string
+        files: AiPullRequestFileContext[]
+        reviews?: AiPullRequestReviewContext[]
+        comments?: AiPullRequestCommentContext[]
+    }
+    testCases: Array<{ id: string; title: string; sapModule?: string; components?: string[]; tags?: string[] }>
+    project?: QaProjectAiContext
+    modelName?: string
+}
+
+export interface AiPullRequestAnalysisResult {
+    summary: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    hotspots: Array<{ file: string; reason: string }>
+    affectedAreas: string[]
+    qaChecks: string[]
+    impactedCaseIds: string[]
+    rationale: string
+}
+
 export interface AiChatRequest {
     apiKey: string
     userMessage: string

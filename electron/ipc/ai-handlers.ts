@@ -2,7 +2,7 @@ import type Electron from 'electron'
 import { GeminiService } from '../gemini'
 
 export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
-    checkAiRateLimit: (channel: string) => { __isError: boolean; message: string } | null
+    waitForAiTurn: (channel: string) => Promise<void>
     getGeminiService: (apiKey: string) => any
     accuracy: { readDocumentText: (filePath: string) => Promise<string>; chunkDocument: (text: string, mode: string) => any[] }
     errMsg: (err: unknown) => string
@@ -11,7 +11,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
     assertObject: (v: unknown, name: string) => void
 }): void {
     ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName, comments }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-generate-cases'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-generate-cases');
         deps.assertString(apiKey, 'apiKey');
         try {
             return await deps.getGeminiService(apiKey).generateTestCases(tasks, sourceName, project, designDoc, modelName, comments);
@@ -28,7 +28,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-analyze-issue', async (_e: any, { apiKey, task, comments, project, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-analyze-issue'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-analyze-issue');
         try {
             deps.assertString(apiKey, 'apiKey');
             return await deps.getGeminiService(apiKey).analyzeIssue(task, comments, project, 0, modelName);
@@ -36,7 +36,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-analyze', async (_e: any, { apiKey, context, project, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-analyze'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-analyze');
         try {
             deps.assertString(apiKey, 'apiKey');
             return await deps.getGeminiService(apiKey).analyzeProject(context, project, modelName);
@@ -44,7 +44,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-criticality', async (_e: any, { apiKey, tasks, testPlans, executions, project, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-criticality'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-criticality');
         try {
             deps.assertString(apiKey, 'apiKey');
             return await deps.getGeminiService(apiKey).assessCriticality(tasks, testPlans, executions, project, modelName);
@@ -52,7 +52,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-test-run-suggestions', async (_e: any, { apiKey, testPlans, executions, project, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-test-run-suggestions'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-test-run-suggestions');
         try {
             deps.assertString(apiKey, 'apiKey');
             return await deps.getGeminiService(apiKey).getTestRunSuggestions(testPlans, executions, project, modelName);
@@ -60,7 +60,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-smoke-subset', async (_e: any, { apiKey, candidates, doneTasks, project, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-smoke-subset'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-smoke-subset');
         try {
             deps.assertString(apiKey, 'apiKey');
             return await deps.getGeminiService(apiKey).selectSmokeSubset(candidates, doneTasks, project, modelName);
@@ -68,7 +68,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-chat', async (_e: any, { apiKey, userMessage, history, role, project, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-chat'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-chat');
         try {
             deps.assertString(apiKey, 'apiKey');
             deps.assertString(userMessage, 'userMessage', 50_000);
@@ -88,7 +88,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { success: false, error: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-accuracy-extract-claims', async (_e: any, { apiKey, agentResponse, modelName, expectedAnswer }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-accuracy-extract-claims'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-accuracy-extract-claims');
         try {
             deps.assertString(apiKey, 'apiKey');
             deps.assertString(agentResponse, 'agentResponse', 50_000);
@@ -97,7 +97,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-accuracy-verify-claims', async (_e: any, { apiKey, claims, refChunks, modelName, expectedAnswer }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-accuracy-verify-claims'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-accuracy-verify-claims');
         try {
             deps.assertString(apiKey, 'apiKey');
             deps.assertArray(claims, 'claims', 200);
@@ -107,7 +107,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-accuracy-score-dimensions', async (_e: any, { apiKey, question, agentResponse, expectedAnswer, claimVerdicts, refChunks, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-accuracy-score-dimensions'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-accuracy-score-dimensions');
         try {
             deps.assertString(apiKey, 'apiKey');
             deps.assertString(question, 'question', 10_000);
@@ -119,7 +119,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-accuracy-rerank-chunks', async (_e: any, { apiKey, question, agentResponse, chunks, topK, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-accuracy-rerank-chunks'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-accuracy-rerank-chunks');
         try {
             deps.assertString(apiKey, 'apiKey');
             deps.assertString(question, 'question', 10_000);
@@ -131,7 +131,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
     });
 
     ipcMain.handle('ai-standup-summary', async (_e: any, { apiKey, metrics, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-standup-summary'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-standup-summary');
         try {
             deps.assertString(apiKey, 'apiKey');
             deps.assertObject(metrics, 'metrics');
@@ -141,7 +141,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
     });
 
     ipcMain.handle('ai-generate-flexsearch', async (_e: any, { apiKey, naturalLanguageQuery, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-generate-flexsearch'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-generate-flexsearch');
         try {
             deps.assertString(apiKey, 'apiKey');
             deps.assertString(naturalLanguageQuery, 'naturalLanguageQuery', 1000);
@@ -151,7 +151,7 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
     });
 
     ipcMain.handle('ai-find-duplicate-bugs', async (_e: any, { apiKey, newBugTitle, newBugDescription, newBugReproSteps, affectedComponents, existingBugs, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-find-duplicate-bugs'); if (rateErr) return rateErr;
+        await deps.waitForAiTurn('ai-find-duplicate-bugs');
         try {
             deps.assertString(apiKey, 'apiKey');
             deps.assertString(newBugTitle, 'newBugTitle', 500);
@@ -160,13 +160,13 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
 
-    ipcMain.handle('ai-test-impact-analysis', async (_e: any, { apiKey, changedFiles, prTitle, prDescription, testCases, modelName }: any) => {
-        const rateErr = deps.checkAiRateLimit('ai-test-impact-analysis'); if (rateErr) return rateErr;
+    ipcMain.handle('ai-analyze-pull-request', async (_e: any, { apiKey, pr, testCases, project, modelName }: any) => {
+        await deps.waitForAiTurn('ai-analyze-pull-request');
         try {
             deps.assertString(apiKey, 'apiKey');
-            deps.assertArray(changedFiles, 'changedFiles', 200);
+            deps.assertObject(pr, 'pr');
             deps.assertArray(testCases, 'testCases', 500);
-            return await deps.getGeminiService(apiKey).analyzeTestImpact(changedFiles, prTitle || '', prDescription || '', testCases, modelName);
+            return await deps.getGeminiService(apiKey).analyzePullRequest(pr, testCases, project, modelName);
         }
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });

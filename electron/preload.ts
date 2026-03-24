@@ -96,7 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiGenerateFlexSearch: (args: any) => invoke('ai-generate-flexsearch', args),
   aiStandupSummary: (args: any) => invoke('ai-standup-summary', args),
   aiFindDuplicateBugs: (args: any) => invoke('ai-find-duplicate-bugs', args),
-  aiTestImpactAnalysis: (args: any) => invoke('ai-test-impact-analysis', args),
+  aiAnalyzePullRequest: (args: any) => invoke('ai-analyze-pull-request', args),
   importTestResults: (args: any) => ipcRenderer.invoke('import-test-results', typeof args === 'string' ? { filePath: args } : args),
   readCsvFile: (args: any) => ipcRenderer.invoke('read-csv-file', typeof args === 'string' ? { filePath: args } : args),
   saveFileDialog: (args: any, content?: string) => ipcRenderer.invoke('save-file-dialog', typeof args === 'string' ? { defaultName: args, content } : args),

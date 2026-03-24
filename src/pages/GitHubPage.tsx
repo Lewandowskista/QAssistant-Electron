@@ -10,10 +10,12 @@ import {
 } from 'lucide-react'
 import { cn, formatTimeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { PrAnalysisCard } from '@/components/github/PrAnalysisCard'
 import { RepoSelector } from '@/components/github/RepoSelector'
 import { CheckStatusIcon, mergeableLabel, ReviewSummaryBadges } from '@/components/github/StatusBadges'
 import { SubtabBar } from '@/components/ui/subtab-bar'
 import { SegmentedControl } from '@/components/ui/segmented-control'
+import { sanitizeProjectForQaAi } from '@/lib/aiUtils'
 import { useProjectStore } from '@/store/useProjectStore'
 import { getApiKey } from '@/lib/credentials'
 import { toast } from 'sonner'
@@ -72,10 +74,10 @@ function GitHubContent() {
     // PR search
     const [prSearch, setPrSearch] = useState('')
 
-    // Test Impact Analysis
-    const [impactLoading, setImpactLoading] = useState(false)
-    const [impactResult, setImpactResult] = useState<{ impactedCaseIds: string[]; affectedModules: string[]; rationale: string } | null>(null)
-    const [impactSelectedIds, setImpactSelectedIds] = useState<Set<string>>(new Set())
+    // PR Analysis
+    const [analysisLoading, setAnalysisLoading] = useState(false)
+    const [prAnalysisResult, setPrAnalysisResult] = useState<Awaited<ReturnType<typeof api.aiAnalyzePullRequest>> | null>(null)
+    const [selectedImpactedIds, setSelectedImpactedIds] = useState<Set<string>>(new Set())
     const [buildingRegression, setBuildingRegression] = useState(false)
 
     // Detail panel
@@ -84,6 +86,7 @@ function GitHubContent() {
     const [loadingDetail, setLoadingDetail] = useState(false)
     const [prComments, setPrComments] = useState<GitHubComment[]>([])
     const [loadingComments, setLoadingComments] = useState(false)
+    const projectTestCases = activeProject?.testPlans.flatMap(tp => tp.testCases || []) || []
 
     // Load PRs + commits + secondary data when repo/filter changes
     const loadRepoData = useCallback(async (repo: GitHubRepo, force = false, branch?: string | null) => {
@@ -170,8 +173,8 @@ function GitHubContent() {
         setSelectedPr(pr)
         setPrDetail(null)
         setPrComments([])
-        setImpactResult(null)
-        setImpactSelectedIds(new Set())
+        setPrAnalysisResult(null)
+        setSelectedImpactedIds(new Set())
         setLoadingDetail(true)
         setLoadingComments(true)
         try {
@@ -194,57 +197,76 @@ function GitHubContent() {
         }
     }
 
-    const handleTestImpactAnalysis = async () => {
+    const handleAnalyzePullRequest = async () => {
         if (!selectedPr || !selectedRepo || !activeProject) return
         const apiKey = await getApiKey(api, 'gemini_api_key', activeProject.id)
         if (!apiKey) { toast.error('Configure a Gemini API key in Settings.'); return }
-        const allTestCases = activeProject.testPlans.flatMap(tp => tp.testCases || []).map(tc => ({
+        const allTestCases = projectTestCases.map(tc => ({
             id: tc.id, title: tc.title, sapModule: tc.sapModule, components: tc.components, tags: tc.tags,
         }))
-        if (allTestCases.length === 0) { toast.info('No test cases in project to analyze.'); return }
-        setImpactLoading(true)
+        setAnalysisLoading(true)
         try {
             const detail = prDetail || await api.githubGetPrDetail({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: selectedPr.number })
-            const changedFiles = (detail?.files || []).map((f: any) => f.filename || f.path || String(f))
-            const result = await api.aiTestImpactAnalysis({
+            const result = await api.aiAnalyzePullRequest({
                 apiKey,
-                changedFiles,
-                prTitle: selectedPr.title,
-                prDescription: detail?.body || '',
+                pr: {
+                    number: selectedPr.number,
+                    title: selectedPr.title,
+                    description: detail?.body || '',
+                    baseBranch: detail?.baseBranch || selectedPr.baseBranch,
+                    headBranch: detail?.headBranch || selectedPr.headBranch,
+                    ciStatus: prCheckStatuses[selectedPr.number] ?? selectedPr.checkStatus,
+                    mergeableState: detail?.mergeableState,
+                    files: detail?.files || [],
+                    reviews: prReviews[selectedPr.number] || [],
+                    comments: prComments,
+                },
                 testCases: allTestCases,
+                project: sanitizeProjectForQaAi(activeProject ?? undefined),
                 modelName: activeProject.geminiModel,
             })
-            setImpactResult(result)
-            setImpactSelectedIds(new Set(result.impactedCaseIds))
+            setPrAnalysisResult(result)
+            setSelectedImpactedIds(new Set(result.impactedCaseIds))
         } catch (err: any) {
-            toast.error('Impact analysis failed: ' + err.message)
+            toast.error('PR analysis failed: ' + err.message)
         } finally {
-            setImpactLoading(false)
+            setAnalysisLoading(false)
         }
     }
 
     const handleBuildImpactRegressionSuite = async () => {
-        if (!activeProjectId || !activeProject || impactSelectedIds.size === 0 || !selectedPr) return
+        if (!activeProjectId || !activeProject || selectedImpactedIds.size === 0 || !selectedPr) return
         setBuildingRegression(true)
         try {
-            const allTestCases = activeProject.testPlans.flatMap(tp => tp.testCases || [])
-            const selectedCases = allTestCases.filter(tc => impactSelectedIds.has(tc.id))
+            const selectedCases = projectTestCases.filter(tc => selectedImpactedIds.has(tc.id))
             const ts = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
-            const planName = `PR #${selectedPr.number} Impact Suite · ${ts}`
-            const planId = await addTestPlan(activeProjectId, planName, `Auto-generated from PR #${selectedPr.number}: ${selectedPr.title}`, true, 'manual')
+            const planName = `PR #${selectedPr.number} Regression Suite · ${ts}`
+            const planId = await addTestPlan(activeProjectId, planName, `Auto-generated from PR analysis for #${selectedPr.number}: ${selectedPr.title}`, true, 'manual')
             await batchAddTestCasesToPlan(activeProjectId, planId, selectedCases.map(tc => ({
                 title: tc.title, preConditions: tc.preConditions, steps: tc.steps, testData: tc.testData,
                 expectedResult: tc.expectedResult, actualResult: '', priority: tc.priority, status: 'not-run', sapModule: tc.sapModule, sourceIssueId: tc.sourceIssueId,
             })))
             toast.success(`Created "${planName}" with ${selectedCases.length} test cases.`)
-            setImpactResult(null)
-            setImpactSelectedIds(new Set())
+            setPrAnalysisResult(null)
+            setSelectedImpactedIds(new Set())
         } catch (err: any) {
             toast.error('Failed to create regression suite: ' + err.message)
         } finally {
             setBuildingRegression(false)
         }
     }
+
+    const impactLoading = analysisLoading
+    const impactResult = prAnalysisResult
+        ? {
+            impactedCaseIds: prAnalysisResult.impactedCaseIds,
+            affectedModules: prAnalysisResult.affectedAreas,
+            rationale: prAnalysisResult.rationale || prAnalysisResult.summary,
+        }
+        : null
+    const impactSelectedIds = selectedImpactedIds
+    const setImpactSelectedIds = setSelectedImpactedIds
+    const handleTestImpactAnalysis = handleAnalyzePullRequest
 
     const filteredPrs = prSearch.trim()
         ? prs.filter(pr => {
@@ -646,8 +668,24 @@ function GitHubContent() {
                                         <PrDescription body={prDetail.body} />
                                     )}
 
+                                    <PrAnalysisCard
+                                        analysis={prAnalysisResult}
+                                        isAnalyzing={analysisLoading}
+                                        onAnalyze={handleAnalyzePullRequest}
+                                        projectTestCases={projectTestCases}
+                                        selectedImpactedIds={selectedImpactedIds}
+                                        onToggleImpactedId={(id) => setSelectedImpactedIds(prev => {
+                                            const next = new Set(prev)
+                                            if (next.has(id)) next.delete(id)
+                                            else next.add(id)
+                                            return next
+                                        })}
+                                        onBuildRegressionSuite={handleBuildImpactRegressionSuite}
+                                        isBuildingRegressionSuite={buildingRegression}
+                                    />
+
                                     {/* Test Impact Analysis */}
-                                    <div className="rounded-xl border border-[#2A2A3A] bg-[#0D0D11] overflow-hidden">
+                                    <div className="hidden rounded-xl border border-[#2A2A3A] bg-[#0D0D11] overflow-hidden">
                                         <div className="flex items-center justify-between px-3 py-2 border-b border-[#2A2A3A]">
                                             <div className="flex items-center gap-2">
                                                 <Sparkles className="h-3.5 w-3.5 text-[#A78BFA]" />

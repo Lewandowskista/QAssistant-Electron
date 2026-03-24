@@ -84,6 +84,7 @@ import {
     scheduleCloudStateUpload,
 } from './cloudState'
 import { GeminiService } from './gemini';
+import { AiRateLimiter } from './aiRateLimiter';
 import { startServer, stopServer, setOAuthCompleteCallback, getServerPort, isServerRunning } from './server';
 import { startReminderService } from './reminders';
 import * as health from './health';
@@ -445,16 +446,9 @@ if (app) {
             lastRendererActivityAt = Date.now();
         });
 
-        // Rate limiting: track last call time per AI channel (3s minimum between calls)
-        const aiLastCall: Record<string, number> = {};
-        function checkAiRateLimit(channel: string): { __isError: boolean; message: string } | null {
-            const now = Date.now();
-            const last = aiLastCall[channel] ?? 0;
-            if (now - last < AI_RATE_LIMIT_MS) {
-                return { __isError: true, message: `Please wait a moment before sending another request.` };
-            }
-            aiLastCall[channel] = now;
-            return null;
+        const aiRateLimiter = new AiRateLimiter(AI_RATE_LIMIT_MS);
+        async function waitForAiTurn(channel: string): Promise<void> {
+            await aiRateLimiter.wait(channel);
         }
 
         // Singleton GeminiService cache keyed by API key.
@@ -531,7 +525,7 @@ if (app) {
         });
 
         registerAiHandlers(ipcMain, {
-            checkAiRateLimit,
+            waitForAiTurn,
             getGeminiService,
             accuracy,
             errMsg,

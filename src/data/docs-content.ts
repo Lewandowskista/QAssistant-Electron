@@ -198,7 +198,7 @@ export const DOC_SECTIONS: DocSection[] = [
     id: "github",
     title: "GitHub Integration",
     icon: GitBranch,
-    description: "Full GitHub integration for PR review, CI status tracking, commit browsing, and AI-powered test impact analysis.",
+    description: "Full GitHub integration for PR review, CI status tracking, commit browsing, and AI-powered PR analysis.",
     subsections: [
       {
         id: "github-prs",
@@ -213,9 +213,9 @@ export const DOC_SECTIONS: DocSection[] = [
       },
       {
         id: "github-impact",
-        title: "Test Impact Analysis",
-        content: "AI-powered analysis of how PR changes affect your test suite:\n\n- Select a PR to analyze\n- The AI examines changed files and identifies:\n  - **Impacted test cases** — existing tests that should be re-run\n  - **Affected modules** — areas of the app touched by the changes\n  - **Rationale** — explanation of why each test is impacted\n  - **Suggested test cases** — additional tests to consider\n- **Build Regression Suite** — one-click creation of a regression suite from impacted cases",
-        tips: ["Test impact analysis is most accurate when your test cases have clear module assignments and source issue links."],
+        title: "PR Analysis",
+        content: "AI-powered analysis of pull requests using PR metadata, diff context, review signals, and your QA project context:\n\n- Select a PR and click **Analyze PR**\n- The AI produces:\n  - **Summary** — concise explanation of what changed\n  - **Risk level** — overall regression risk for the PR\n  - **Hotspots** — risky files or implementation areas worth review\n  - **Affected areas** — likely functional surfaces touched by the change\n  - **Suggested QA checks** — concrete validation ideas for this PR\n  - **Existing tests to rerun** — matched project tests when coverage already exists\n- **Build Regression Suite** remains available when impacted existing tests are found",
+        tips: ["PR analysis still works without pre-existing test cases, but impacted-test matching is most accurate when your test cases have clear module assignments and source issue links."],
       },
     ],
   },
@@ -614,7 +614,7 @@ export const DOC_SECTIONS: DocSection[] = [
       {
         id: "ai-capabilities",
         title: "AI Capabilities",
-        content: "AI is integrated throughout the app:\n\n- **Test Case Generation** (Tests) — generate comprehensive test cases from task descriptions or free text\n- **Issue Analysis** (Tasks) — deep analysis of bugs with root cause assessment\n- **Criticality Assessment** (Tests) — determine which tests matter most\n- **Test Run Suggestions** (Tests) — AI recommends what to test next\n- **Smoke Test Subset** (Tests) — minimal test set for quick validation\n- **Test Impact Analysis** (GitHub) — identify tests affected by PR changes\n- **Standup Summary** (Dashboard) — auto-generate daily standup reports\n- **Duplicate Bug Detection** (Tasks) — find semantically similar bugs\n- **FlexSearch Generation** (SAP) — natural language to SQL query conversion\n- **AI Accuracy Evaluation** (Tests) — evaluate chatbot response quality\n- **AI Copilot** (Global) — conversational chat assistant available from the titlebar",
+        content: "AI is integrated throughout the app:\n\n- **Test Case Generation** (Tests) — generate comprehensive test cases from task descriptions or free text\n- **Issue Analysis** (Tasks) — deep analysis of bugs with root cause assessment\n- **Criticality Assessment** (Tests) — determine which tests matter most\n- **Test Run Suggestions** (Tests) — AI recommends what to test next\n- **Smoke Test Subset** (Tests) — minimal test set for quick validation\n- **PR Analysis** (GitHub) — summarize pull requests, flag hotspots, suggest QA checks, and match impacted existing tests\n- **Standup Summary** (Dashboard) — auto-generate daily standup reports\n- **Duplicate Bug Detection** (Tasks) — find semantically similar bugs\n- **FlexSearch Generation** (SAP) — natural language to SQL query conversion\n- **AI Accuracy Evaluation** (Tests) — evaluate chatbot response quality\n- **AI Copilot** (Global) — conversational chat assistant available from the titlebar",
       },
       {
         id: "ai-copilot",

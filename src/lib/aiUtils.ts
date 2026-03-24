@@ -232,7 +232,9 @@ export function sanitizeProjectForQaAi(project: Project | undefined, selection?:
     const testDataGroups = filterByIds(project.testDataGroups, selection?.testDataGroupIds)
     const checklists = filterByIds(project.checklists, selection?.checklistIds)
     const sanitizedEnvironments = environments.map((environment) => sanitizeEnvironment(environment))
-    const sapContextEnabled = isSapCommerceContextEnabled()
+    const sapContextEnabled = selection === undefined
+        ? isSapCommerceContextEnabled()
+        : (isSapCommerceContextEnabled() && selection.includeSapCommerce === true)
     const sapEnvironments = sapContextEnabled ? sanitizeSapEnvironments(environments) : []
 
     return {

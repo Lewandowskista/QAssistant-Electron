@@ -1,6 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
 import { log } from './logger'
+import { normalizePullRequestAnalysisResult } from './prAnalysis'
+import type { PullRequestAnalysisResult } from './prAnalysis'
+import { sanitizeToonList, sanitizeToonScalar, ToonWriter } from './toon'
 
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
 const MODEL_3_FLASH = 'gemini-3-flash';
@@ -15,9 +18,42 @@ const MAX_TOKENS: Record<string, number> = {
     suggestions: 2048,
     smoke_subset: 1024,
     project_analysis: 4096,
+    pr_analysis: 3072,
     claim_extraction: 8192,
     claim_verification: 16384,
     dimension_scoring: 8192,
+}
+
+type PromptTelemetry = Record<string, string | number | boolean | undefined>
+
+type PromptBuildResult = {
+    system: string
+    user: string
+    telemetry?: PromptTelemetry
+}
+
+type QaContextProfile = {
+    includeTrackedIssues?: boolean
+    trackedIssuesMax?: number
+    includeTestCoverage?: boolean
+    includeChecklistAreas?: boolean
+    includeTestDataDomains?: boolean
+    includeSapContext?: boolean
+    includeEnvironments?: boolean
+}
+
+type DevContextProfile = {
+    includeTrackedWork?: boolean
+    trackedWorkMax?: number
+    includeHandoffs?: boolean
+    handoffMax?: number
+    includeEnvironments?: boolean
+}
+
+type GeminiUsage = {
+    promptTokenCount?: number
+    candidatesTokenCount?: number
+    totalTokenCount?: number
 }
 
 /**
@@ -137,7 +173,9 @@ export class GeminiService {
         temperature = 0.7,
         maxOutputTokens = 8192,
         systemInstruction?: string,
-        jsonMode = false
+        jsonMode = false,
+        feature = 'unspecified',
+        telemetry?: PromptTelemetry,
     ): Promise<string> {
         const models = this.buildModelSequence(modelOverride);
 
@@ -153,9 +191,7 @@ export class GeminiService {
                 }
 
                 const usage = result.response.usageMetadata;
-                if (usage) {
-                    log.info(`[Gemini] ${modelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`);
-                }
+                GeminiService.logUsage(modelName, usage, feature, telemetry)
 
                 return result.response.text();
             } catch (err: any) {
@@ -183,274 +219,422 @@ export class GeminiService {
     // ── TOON Sanitizers ──────────────────────────────────────────────────────
 
     private static sanitizeToonValue(value: string | null | undefined, maxLength = 500): string {
-        if (!value?.trim()) return ''
-        let s = value.length > maxLength ? value.substring(0, maxLength) + '...' : value
-        s = s.replace(/\r\n/g, ' ').replace(/\r/g, ' ').replace(/\n/g, ' ')
-        s = s.replace(/{/g, '(').replace(/}/g, ')').replace(/\[/g, '(').replace(/\]/g, ')')
-        s = s.replace(/@/g, '(at)').replace(/---/g, '- - -')
-        // Prevent TOON structural injection via colon (key:value separator), pipe (rule delimiter), backtick
-        s = s.replace(/:/g, '\u02F8').replace(/\|/g, '\u2223').replace(/`/g, "'")
-        return s
+        return sanitizeToonScalar(value, maxLength)
     }
 
-    /**
-     * Sanitizer for document/reference content embedded in accuracy prompts.
-     * Unlike sanitizeToonValue, this preserves colons and pipes so that reference
-     * text is not corrupted before being sent to the model. It only strips characters
-     * that would break JSON string encoding in the model's output context, and
-     * wraps the result in JSON-safe double quotes so the TOON parser treats it as
-     * an opaque string rather than a structured value.
-     */
-    private static sanitizeDocContent(value: string | null | undefined, maxLength = 6000): string {
-        if (!value?.trim()) return '""'
-        let s = value.length > maxLength ? value.substring(0, maxLength) + '...' : value
-        // Normalise line endings to spaces so the TOON line structure isn't broken
-        s = s.replace(/\r\n/g, ' ').replace(/\r/g, ' ').replace(/\n/g, ' ')
-        // Escape characters that would break a JSON string literal
-        s = s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-        // Escape TOON structural chars only at top-level: { } [ ] that could confuse the TOON parser
-        s = s.replace(/{/g, '(').replace(/}/g, ')').replace(/\[/g, '(').replace(/\]/g, ')')
-        return `"${s}"`
+    private static formatPromptTelemetry(feature: string, telemetry?: PromptTelemetry): string {
+        const parts = Object.entries(telemetry || {})
+            .filter(([, value]) => value !== undefined)
+            .map(([key, value]) => `${key}=${value}`)
+        return parts.length > 0 ? `${feature} | ${parts.join(' | ')}` : feature
     }
 
-    private static sanitizeToonValueForTestGen(value: string | null | undefined, maxLength = 2000): string {
-        if (!value?.trim()) return ''
-        let s = value.length > maxLength ? value.substring(0, maxLength) + '...' : value
-        s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-        s = s.replace(/{/g, '(').replace(/}/g, ')').replace(/\[/g, '(').replace(/\]/g, ')')
-        s = s.replace(/@/g, '(at)').replace(/---/g, '- - -')
-        // Prevent TOON structural injection via colon (key:value separator), pipe (rule delimiter), backtick
-        s = s.replace(/:/g, '\u02F8').replace(/\|/g, '\u2223').replace(/`/g, "'")
-        return s
+    private static pushCommentList(writer: ToonWriter, name: string, comments: any[], maxComments = 5): number {
+        const visibleComments = comments.slice(0, maxComments)
+        if (visibleComments.length === 0) return 0
+
+        writer.list(name, visibleComments, (list, comment) => {
+            list.itemObject([
+                { key: 'author', value: comment.authorName, maxLength: 80 },
+                {
+                    key: 'date',
+                    value: comment.createdAt ? new Date(comment.createdAt).toISOString().split('T')[0] : '',
+                    maxLength: 32,
+                },
+                { key: 'body', value: comment.body, maxLength: 240 },
+            ])
+        })
+
+        return visibleComments.length
     }
 
     // ── QA Context Block ─────────────────────────────────────────────────────
 
-    /**
-     * Appends project QA context in TOON format.
-     * @param excludeTrackedIssues - Set true when the calling prompt already includes a dedicated issues block
-     *   (test case generation, criticality assessment) to avoid doubling token usage.
-     */
-    private static appendQaContext(lines: string[], project: any, excludeTrackedIssues = false): void {
-        if (!project) return
-
-        lines.push('qa_context{')
-        lines.push(` project:${GeminiService.sanitizeToonValue(project.name, 200)}`)
-        if (project.description) {
-            lines.push(` project_desc:${GeminiService.sanitizeToonValue(project.description, 300)}`)
-        }
-
-        const activeEnv = project.environments?.find((e: any) => e.isDefault) ?? project.environments?.[0]
-        if (activeEnv) {
-            lines.push(` active_env:${GeminiService.sanitizeToonValue(activeEnv.name, 100)}`)
-            lines.push(` env_type:${activeEnv.type}`)
-            if (activeEnv.baseUrl) lines.push(` env_url:${GeminiService.sanitizeToonValue(activeEnv.baseUrl, 200)}`)
-        }
-
-        if (project.environments?.length > 0) {
-            const envTypes = project.environments.map((e: any) => `${GeminiService.sanitizeToonValue(e.name, 60)}(${e.type})`).join(',')
-            lines.push(` environments:${envTypes}`)
-        }
-
-        // Test coverage snapshot
-        const planSummaries = project.testPlans || []
-        const totalCaseCount = planSummaries.reduce((sum: number, plan: any) => sum + (plan.testCaseCount || plan.testCases?.length || 0), 0)
-        if (totalCaseCount > 0) {
-            const aggregateStatusCounts = planSummaries.reduce((acc: Record<string, number>, plan: any) => {
-                if (plan.statusCounts && typeof plan.statusCounts === 'object') {
-                    for (const [status, count] of Object.entries(plan.statusCounts)) {
-                        acc[status] = (acc[status] || 0) + Number(count || 0)
+    private static resolvePromptWriter(target: ToonWriter | string[]): { writer: ToonWriter; flush: () => void } {
+        if (Array.isArray(target)) {
+            const writer = new ToonWriter()
+            return {
+                writer,
+                flush: () => {
+                    const rendered = writer.toString()
+                    if (rendered) {
+                        target.push(rendered)
                     }
-                    return acc
-                }
-
-                for (const testCase of plan.testCases || []) {
-                    const status = testCase?.status || 'not-run'
-                    acc[status] = (acc[status] || 0) + 1
-                }
-                return acc
-            }, {})
-
-            const passed = aggregateStatusCounts.passed || 0
-            const failed = aggregateStatusCounts.failed || 0
-            const blocked = aggregateStatusCounts.blocked || 0
-            const notRun = aggregateStatusCounts['not-run'] || 0
-            lines.push(` test_coverage:total=${totalCaseCount},passed=${passed},failed=${failed},blocked=${blocked},not_run=${notRun}`)
-        }
-
-        if (project.checklists?.length > 0) {
-            const categories = [...new Set(project.checklists.map((c: any) => c.category).filter(Boolean))]
-            if (categories.length > 0) lines.push(` checklist_areas:${categories.join(',')}`)
-        }
-
-        if (project.testDataGroups?.length > 0) {
-            const dataDomains = [...new Set(project.testDataGroups.map((g: any) => g.category).filter(Boolean))]
-            if (dataDomains.length > 0) lines.push(` test_data_domains:${dataDomains.join(',')}`)
-        }
-
-        // --- Tracked issues (JIRA / Linear) ---
-        // Skip when the calling prompt already includes a dedicated issues block to avoid doubling tokens
-        if (!excludeTrackedIssues) {
-            const DONE_STATUSES = new Set([
-                'done', 'closed', 'resolved', 'cancelled', 'canceled',
-                "won't fix", 'wont fix', 'duplicate'
-            ])
-            const MAX_ISSUES = 25
-            const allTasks: any[] = project.tasks || []
-            const activeTasks = project.manualContextSelection
-                ? allTasks
-                : allTasks.filter((t: any) => {
-                    if (t.source === 'manual') return false
-                    return !DONE_STATUSES.has(String(t.status || '').toLowerCase().trim())
-                })
-            if (activeTasks.length > 0) {
-                const blocker = activeTasks.filter((t: any) => t.priority === 'critical').length
-                const high    = activeTasks.filter((t: any) => t.priority === 'high').length
-                const medium  = activeTasks.filter((t: any) => t.priority === 'medium').length
-                const low     = activeTasks.filter((t: any) => t.priority === 'low').length
-                lines.push(` tasks_summary:total=${allTasks.length},active=${activeTasks.length},shown=${Math.min(activeTasks.length, MAX_ISSUES)},blocker=${blocker},high=${high},medium=${medium},low=${low}`)
-                lines.push(' tracked_issues[')
-                for (const task of activeTasks.slice(0, MAX_ISSUES)) {
-                    const issueId = GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId, 60)
-                    const title   = GeminiService.sanitizeToonValue(task.title, 150)
-                    let entry = `  {id:${issueId},t:${title},status:${task.status || 'unknown'},priority:${task.priority || 'medium'}`
-                    if (task.assignee) entry += `,assignee:${GeminiService.sanitizeToonValue(task.assignee, 80)}`
-                    if (task.labels)   entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 100)}`
-                    if (task.issueType) entry += `,type:${GeminiService.sanitizeToonValue(task.issueType, 60)}`
-                    if (task.reproducibility) entry += `,repro:${GeminiService.sanitizeToonValue(task.reproducibility, 40)}`
-                    if (task.frequency) entry += `,freq:${GeminiService.sanitizeToonValue(task.frequency, 40)}`
-                    if (task.components?.length) entry += `,components:${GeminiService.sanitizeToonValue(task.components.join(','), 120)}`
-                    if (task.affectedEnvironmentNames?.length) entry += `,envs:${GeminiService.sanitizeToonValue(task.affectedEnvironmentNames.join(','), 120)}`
-                    if (task.acceptanceCriteria) entry += `,ac:${GeminiService.sanitizeToonValue(task.acceptanceCriteria, 200)}`
-                    if (task.description) entry += `,desc:${GeminiService.sanitizeToonValue(task.description, 300)}`
-                    entry += '}'
-                    lines.push(entry)
-                    if (task.comments?.length > 0) {
-                        lines.push(`   comments_for_${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId || task.id, 40)}[`)
-                        for (const comment of task.comments.slice(0, 5)) {
-                            lines.push(`    {author:${GeminiService.sanitizeToonValue(comment.authorName, 80)},date:${comment.createdAt ? new Date(comment.createdAt).toISOString().split('T')[0] : ''},body:${GeminiService.sanitizeToonValue(comment.body, 240)}}`)
-                        }
-                        lines.push('   ]')
-                    }
-                }
-                lines.push(' ]')
+                },
             }
         }
 
-        lines.push('}')
-        lines.push('---')
+        return { writer: target, flush: () => undefined }
+    }
 
-        if (project.sapCommerce?.enabled) {
-            const sapEnvSummary = (project.sapCommerce.environments || [])
-                .slice(0, 5)
-                .map((env: any) => {
-                    const tags = [
-                        env.type,
-                        env.isDefault ? 'default' : '',
-                        env.hacUrl ? 'hac' : '',
-                        env.backOfficeUrl ? 'backoffice' : '',
-                        env.occBasePath ? `occ=${GeminiService.sanitizeToonValue(env.occBasePath, 80)}` : '',
-                    ].filter(Boolean).join('|')
-                    return `${GeminiService.sanitizeToonValue(env.name, 60)}(${tags})`
-                })
-                .join(',')
-
-            if (sapEnvSummary) {
-                lines.push(` sap_commerce_envs:${sapEnvSummary}`)
-            }
-            lines.push(SAP_COMMERCE_CONTEXT_BLOCK)
-            lines.push('---')
+    private static logUsage(modelName: string, usage: GeminiUsage | undefined, feature: string, telemetry?: PromptTelemetry): void {
+        if (usage) {
+            log.info(`[Gemini] ${modelName} | ${GeminiService.formatPromptTelemetry(feature, telemetry)} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`)
+        } else {
+            log.info(`[Gemini] ${modelName} | ${GeminiService.formatPromptTelemetry(feature, telemetry)}`)
         }
     }
 
-    private static appendDevContext(lines: string[], project: any): void {
-        if (!project) return
+    private static appendQaContext(target: ToonWriter | string[], project: any, profile: QaContextProfile | boolean = {}): PromptTelemetry {
+        if (!project) return {}
 
-        lines.push('dev_context{')
-        lines.push(` project:${GeminiService.sanitizeToonValue(project.name, 200)}`)
-        if (project.description) {
-            lines.push(` project_desc:${GeminiService.sanitizeToonValue(project.description, 300)}`)
+        const normalizedProfile: QaContextProfile = typeof profile === 'boolean'
+            ? { includeTrackedIssues: !profile }
+            : profile
+
+        const settings: Required<QaContextProfile> = {
+            includeTrackedIssues: normalizedProfile.includeTrackedIssues ?? true,
+            trackedIssuesMax: normalizedProfile.trackedIssuesMax ?? 25,
+            includeTestCoverage: normalizedProfile.includeTestCoverage ?? true,
+            includeChecklistAreas: normalizedProfile.includeChecklistAreas ?? true,
+            includeTestDataDomains: normalizedProfile.includeTestDataDomains ?? true,
+            includeSapContext: normalizedProfile.includeSapContext ?? true,
+            includeEnvironments: normalizedProfile.includeEnvironments ?? true,
         }
 
-        const activeEnv = project.environments?.find((environment: any) => environment.isDefault) ?? project.environments?.[0]
-        if (activeEnv) {
-            lines.push(` active_env:${GeminiService.sanitizeToonValue(activeEnv.name, 100)}`)
-            lines.push(` env_type:${activeEnv.type}`)
-            if (activeEnv.baseUrl) lines.push(` env_url:${GeminiService.sanitizeToonValue(activeEnv.baseUrl, 200)}`)
-        }
+        const telemetry: PromptTelemetry = {}
+        const { writer, flush } = GeminiService.resolvePromptWriter(target)
 
-        if (project.environments?.length > 0) {
-            const environmentSummary = project.environments
-                .map((environment: any) => `${GeminiService.sanitizeToonValue(environment.name, 60)}(${environment.type})`)
-                .join(',')
-            lines.push(` environments:${environmentSummary}`)
-        }
+        writer.object('qa_context', (context) => {
+            context.field('project', project.name, { maxLength: 200 })
+            context.field('project_desc', project.description, { maxLength: 300 })
 
-        if (project.tasks?.length > 0) {
-            lines.push(` work_summary:tasks=${project.tasks.length}`)
-            lines.push('tracked_work[')
-            for (const task of project.tasks.slice(0, 40)) {
-                let entry = `  {id:${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId || task.id, 60)},t:${GeminiService.sanitizeToonValue(task.title, 150)},status:${task.status},priority:${task.priority}`
-                if (task.description) entry += `,desc:${GeminiService.sanitizeToonValue(task.description, 300)}`
-                if (task.issueType) entry += `,type:${GeminiService.sanitizeToonValue(task.issueType, 60)}`
-                if (task.assignee) entry += `,assignee:${GeminiService.sanitizeToonValue(task.assignee, 80)}`
-                if (task.collabState) entry += `,collab:${GeminiService.sanitizeToonValue(task.collabState, 40)}`
-                if (task.activeHandoffId) entry += `,handoff:${GeminiService.sanitizeToonValue(task.activeHandoffId, 80)}`
-                if (task.labels) entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 120)}`
-                if (task.reproducibility) entry += `,repro:${GeminiService.sanitizeToonValue(task.reproducibility, 40)}`
-                if (task.frequency) entry += `,freq:${GeminiService.sanitizeToonValue(task.frequency, 40)}`
-                if (task.components?.length) entry += `,components:${GeminiService.sanitizeToonValue(task.components.join(','), 120)}`
-                if (task.affectedEnvironmentNames?.length) entry += `,envs:${GeminiService.sanitizeToonValue(task.affectedEnvironmentNames.join(','), 120)}`
-                if (task.acceptanceCriteria) entry += `,ac:${GeminiService.sanitizeToonValue(task.acceptanceCriteria, 200)}`
-                entry += '}'
-                lines.push(entry)
-                if (task.comments?.length > 0) {
-                    lines.push(`   comments_for_${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId || task.id, 40)}[`)
-                    for (const comment of task.comments.slice(0, 5)) {
-                        lines.push(`    {author:${GeminiService.sanitizeToonValue(comment.authorName, 80)},date:${comment.createdAt ? new Date(comment.createdAt).toISOString().split('T')[0] : ''},body:${GeminiService.sanitizeToonValue(comment.body, 240)}}`)
-                    }
-                    lines.push('   ]')
+            const activeEnv = project.environments?.find((environment: any) => environment.isDefault) ?? project.environments?.[0]
+            if (activeEnv) {
+                context.field('active_env', activeEnv.name, { maxLength: 100 })
+                context.field('env_type', activeEnv.type, { maxLength: 40 })
+                if (settings.includeEnvironments) {
+                    context.field('env_url', activeEnv.baseUrl, { maxLength: 200 })
                 }
             }
-            lines.push(' ]')
-        }
 
-        if (project.handoffs?.length > 0) {
-            lines.push(` handoff_summary:total=${project.handoffs.length}`)
-            lines.push(' handoffs[')
-            for (const handoff of project.handoffs.slice(0, 25)) {
-                let entry = `  {id:${GeminiService.sanitizeToonValue(handoff.id, 80)},task:${GeminiService.sanitizeToonValue(handoff.taskId, 80)},type:${GeminiService.sanitizeToonValue(handoff.type, 40)},summary:${GeminiService.sanitizeToonValue(handoff.summary, 240)}`
-                if (handoff.environmentName) entry += `,env:${GeminiService.sanitizeToonValue(handoff.environmentName, 80)}`
-                if (handoff.severity) entry += `,severity:${GeminiService.sanitizeToonValue(handoff.severity, 40)}`
-                if (handoff.branchName) entry += `,branch:${GeminiService.sanitizeToonValue(handoff.branchName, 120)}`
-                if (handoff.releaseVersion) entry += `,release:${GeminiService.sanitizeToonValue(handoff.releaseVersion, 80)}`
-                if (handoff.isComplete !== undefined) entry += `,complete:${handoff.isComplete ? 'yes' : 'no'}`
-                entry += '}'
-                lines.push(entry)
+            if (settings.includeEnvironments && project.environments?.length > 0) {
+                context.field(
+                    'environments',
+                    sanitizeToonList(
+                        project.environments.map((environment: any) => `${sanitizeToonScalar(environment.name, 60)}(${sanitizeToonScalar(environment.type, 30)})`),
+                        90,
+                        8,
+                    ),
+                    { style: 'literal' },
+                )
+                telemetry.environments = Math.min(project.environments.length, 8)
+            }
 
-                if (handoff.linkedPrs?.length > 0) {
-                    lines.push(`   linked_prs_for_${GeminiService.sanitizeToonValue(handoff.id, 40)}[`)
-                    for (const linkedPr of handoff.linkedPrs.slice(0, 10)) {
-                        let prEntry = `    {repo:${GeminiService.sanitizeToonValue(linkedPr.repoFullName, 120)},pr:${linkedPr.prNumber}`
-                        if (linkedPr.status) prEntry += `,status:${GeminiService.sanitizeToonValue(linkedPr.status, 40)}`
-                        prEntry += '}'
-                        lines.push(prEntry)
-                    }
-                    lines.push('   ]')
+            if (settings.includeTestCoverage) {
+                const planSummaries = project.testPlans || []
+                const totalCaseCount = planSummaries.reduce((sum: number, plan: any) => sum + (plan.testCaseCount || plan.testCases?.length || 0), 0)
+                if (totalCaseCount > 0) {
+                    const aggregateStatusCounts = planSummaries.reduce((acc: Record<string, number>, plan: any) => {
+                        if (plan.statusCounts && typeof plan.statusCounts === 'object') {
+                            for (const [status, count] of Object.entries(plan.statusCounts)) {
+                                acc[status] = (acc[status] || 0) + Number(count || 0)
+                            }
+                            return acc
+                        }
+
+                        for (const testCase of plan.testCases || []) {
+                            const status = testCase?.status || 'not-run'
+                            acc[status] = (acc[status] || 0) + 1
+                        }
+                        return acc
+                    }, {})
+
+                    context.field(
+                        'test_coverage',
+                        `total=${totalCaseCount},passed=${aggregateStatusCounts.passed || 0},failed=${aggregateStatusCounts.failed || 0},blocked=${aggregateStatusCounts.blocked || 0},not_run=${aggregateStatusCounts['not-run'] || 0}`,
+                        { style: 'literal' },
+                    )
+                    telemetry.coverage_cases = totalCaseCount
                 }
             }
-            lines.push(' ]')
+
+            if (settings.includeChecklistAreas && project.checklists?.length > 0) {
+                const categories = [...new Set(project.checklists.map((checklist: any) => checklist.category).filter(Boolean))] as string[]
+                if (categories.length > 0) {
+                    context.field('checklist_areas', sanitizeToonList(categories, 50, 8), { style: 'literal' })
+                    telemetry.checklist_areas = Math.min(categories.length, 8)
+                }
+            }
+
+            if (settings.includeTestDataDomains && project.testDataGroups?.length > 0) {
+                const dataDomains = [...new Set(project.testDataGroups.map((group: any) => group.category).filter(Boolean))] as string[]
+                if (dataDomains.length > 0) {
+                    context.field('test_data_domains', sanitizeToonList(dataDomains, 50, 8), { style: 'literal' })
+                    telemetry.test_data_domains = Math.min(dataDomains.length, 8)
+                }
+            }
+
+            if (settings.includeTrackedIssues) {
+                const doneStatuses = new Set([
+                    'done', 'closed', 'resolved', 'cancelled', 'canceled',
+                    "won't fix", 'wont fix', 'duplicate'
+                ])
+                const allTasks: any[] = project.tasks || []
+                const activeTasks = project.manualContextSelection
+                    ? allTasks
+                    : allTasks.filter((task: any) => {
+                        if (task.source === 'manual') return false
+                        return !doneStatuses.has(String(task.status || '').toLowerCase().trim())
+                    })
+
+                if (activeTasks.length > 0) {
+                    const visibleTasks = activeTasks.slice(0, settings.trackedIssuesMax)
+                    context.field(
+                        'tasks_summary',
+                        `total=${allTasks.length},active=${activeTasks.length},shown=${visibleTasks.length},blocker=${activeTasks.filter((task: any) => task.priority === 'critical').length},high=${activeTasks.filter((task: any) => task.priority === 'high').length},medium=${activeTasks.filter((task: any) => task.priority === 'medium').length},low=${activeTasks.filter((task: any) => task.priority === 'low').length}`,
+                        { style: 'literal' },
+                    )
+                    context.list('tracked_issues', visibleTasks, (list, task: any) => {
+                        const issueId = task.sourceIssueId || task.externalId || task.id
+                        list.itemObject([
+                            { key: 'id', value: issueId, maxLength: 60 },
+                            { key: 't', value: task.title, maxLength: 150 },
+                            { key: 'status', value: task.status || 'unknown', maxLength: 40 },
+                            { key: 'priority', value: task.priority || 'medium', maxLength: 20 },
+                            { key: 'assignee', value: task.assignee, maxLength: 80 },
+                            { key: 'labels', value: task.labels, maxLength: 100 },
+                            { key: 'type', value: task.issueType, maxLength: 60 },
+                            { key: 'repro', value: task.reproducibility, maxLength: 40 },
+                            { key: 'freq', value: task.frequency, maxLength: 40 },
+                            { key: 'components', value: sanitizeToonList(task.components || [], 24, 8), style: 'literal' },
+                            { key: 'envs', value: sanitizeToonList(task.affectedEnvironmentNames || [], 24, 6), style: 'literal' },
+                            { key: 'ac', value: task.acceptanceCriteria, maxLength: 200 },
+                            { key: 'desc', value: task.description, maxLength: 300 },
+                        ])
+                        if (task.comments?.length > 0) {
+                            GeminiService.pushCommentList(list, `comments_for_${sanitizeToonScalar(issueId, 40)}`, task.comments, 5)
+                        }
+                    })
+                    telemetry.tracked_issues = visibleTasks.length
+                }
+            }
+        })
+
+        writer.separator()
+
+        if (settings.includeSapContext && project.sapCommerce?.enabled) {
+            const sapEnvironments = (project.sapCommerce.environments || []).slice(0, 5)
+            if (sapEnvironments.length > 0) {
+                const summary = sapEnvironments.map((environment: any) => {
+                    const tags = [
+                        environment.type,
+                        environment.isDefault ? 'default' : '',
+                        environment.hacUrl ? 'hac' : '',
+                        environment.backOfficeUrl ? 'backoffice' : '',
+                        environment.occBasePath ? `occ=${sanitizeToonScalar(environment.occBasePath, 80)}` : '',
+                    ].filter(Boolean).join('+')
+                    return `${sanitizeToonScalar(environment.name, 60)}(${sanitizeToonScalar(tags, 120)})`
+                }).join(',')
+                writer.field('sap_commerce_envs', summary, { style: 'literal' })
+            }
+            writer.raw(SAP_COMMERCE_CONTEXT_BLOCK)
+            writer.separator()
+            telemetry.sap_environments = sapEnvironments.length
         }
 
-        lines.push('}')
-        lines.push('---')
+        flush()
+        return telemetry
+    }
+
+    private static appendDevContext(target: ToonWriter | string[], project: any, profile: DevContextProfile = {}): PromptTelemetry {
+        if (!project) return {}
+
+        const settings: Required<DevContextProfile> = {
+            includeTrackedWork: profile.includeTrackedWork ?? true,
+            trackedWorkMax: profile.trackedWorkMax ?? 40,
+            includeHandoffs: profile.includeHandoffs ?? true,
+            handoffMax: profile.handoffMax ?? 25,
+            includeEnvironments: profile.includeEnvironments ?? true,
+        }
+
+        const telemetry: PromptTelemetry = {}
+        const { writer, flush } = GeminiService.resolvePromptWriter(target)
+
+        writer.object('dev_context', (context) => {
+            context.field('project', project.name, { maxLength: 200 })
+            context.field('project_desc', project.description, { maxLength: 300 })
+
+            const activeEnv = project.environments?.find((environment: any) => environment.isDefault) ?? project.environments?.[0]
+            if (activeEnv) {
+                context.field('active_env', activeEnv.name, { maxLength: 100 })
+                context.field('env_type', activeEnv.type, { maxLength: 40 })
+                if (settings.includeEnvironments) {
+                    context.field('env_url', activeEnv.baseUrl, { maxLength: 200 })
+                }
+            }
+
+            if (settings.includeEnvironments && project.environments?.length > 0) {
+                context.field(
+                    'environments',
+                    sanitizeToonList(
+                        project.environments.map((environment: any) => `${sanitizeToonScalar(environment.name, 60)}(${sanitizeToonScalar(environment.type, 30)})`),
+                        90,
+                        8,
+                    ),
+                    { style: 'literal' },
+                )
+                telemetry.environments = Math.min(project.environments.length, 8)
+            }
+
+            if (settings.includeTrackedWork && project.tasks?.length > 0) {
+                const visibleTasks = project.tasks.slice(0, settings.trackedWorkMax)
+                context.field('work_summary', `tasks=${project.tasks.length}`, { style: 'literal' })
+                context.list('tracked_work', visibleTasks, (list, task: any) => {
+                    const taskId = task.sourceIssueId || task.externalId || task.id
+                    list.itemObject([
+                        { key: 'id', value: taskId, maxLength: 60 },
+                        { key: 't', value: task.title, maxLength: 150 },
+                        { key: 'status', value: task.status, maxLength: 40 },
+                        { key: 'priority', value: task.priority, maxLength: 20 },
+                        { key: 'desc', value: task.description, maxLength: 300 },
+                        { key: 'type', value: task.issueType, maxLength: 60 },
+                        { key: 'assignee', value: task.assignee, maxLength: 80 },
+                        { key: 'collab', value: task.collabState, maxLength: 40 },
+                        { key: 'handoff', value: task.activeHandoffId, maxLength: 80 },
+                        { key: 'labels', value: task.labels, maxLength: 120 },
+                        { key: 'repro', value: task.reproducibility, maxLength: 40 },
+                        { key: 'freq', value: task.frequency, maxLength: 40 },
+                        { key: 'components', value: sanitizeToonList(task.components || [], 24, 8), style: 'literal' },
+                        { key: 'envs', value: sanitizeToonList(task.affectedEnvironmentNames || [], 24, 6), style: 'literal' },
+                        { key: 'ac', value: task.acceptanceCriteria, maxLength: 200 },
+                    ])
+                    if (task.comments?.length > 0) {
+                        GeminiService.pushCommentList(list, `comments_for_${sanitizeToonScalar(taskId, 40)}`, task.comments, 5)
+                    }
+                })
+                telemetry.tracked_work = visibleTasks.length
+            }
+
+            if (settings.includeHandoffs && project.handoffs?.length > 0) {
+                const visibleHandoffs = project.handoffs.slice(0, settings.handoffMax)
+                context.field('handoff_summary', `total=${project.handoffs.length}`, { style: 'literal' })
+                context.list('handoffs', visibleHandoffs, (list, handoff: any) => {
+                    list.itemObject([
+                        { key: 'id', value: handoff.id, maxLength: 80 },
+                        { key: 'task', value: handoff.taskId, maxLength: 80 },
+                        { key: 'type', value: handoff.type, maxLength: 40 },
+                        { key: 'summary', value: handoff.summary, maxLength: 240 },
+                        { key: 'env', value: handoff.environmentName, maxLength: 80 },
+                        { key: 'severity', value: handoff.severity, maxLength: 40 },
+                        { key: 'branch', value: handoff.branchName, maxLength: 120 },
+                        { key: 'release', value: handoff.releaseVersion, maxLength: 80 },
+                        { key: 'complete', value: handoff.isComplete === undefined ? undefined : (handoff.isComplete ? 'yes' : 'no'), maxLength: 4 },
+                    ])
+
+                    if (handoff.linkedPrs?.length > 0) {
+                        list.list(`linked_prs_for_${sanitizeToonScalar(handoff.id, 40)}`, handoff.linkedPrs.slice(0, 10), (prList, linkedPr: any) => {
+                            prList.itemObject([
+                                { key: 'repo', value: linkedPr.repoFullName, maxLength: 120 },
+                                { key: 'pr', value: linkedPr.prNumber },
+                                { key: 'status', value: linkedPr.status, maxLength: 40 },
+                            ])
+                        })
+                    }
+                })
+                telemetry.handoffs = visibleHandoffs.length
+            }
+        })
+
+        writer.separator()
+
+        flush()
+        return telemetry
+    }
+
+    private static tokenizeForPromptSelection(text: string): string[] {
+        return text
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .split(/\s+/)
+            .filter((token) => token.length > 2)
+    }
+
+    private static selectRelevantTextSections(source: string, hints: string[], maxChars: number, maxSections = 8): { text: string; sectionCount: number } {
+        if (!source.trim()) return { text: '', sectionCount: 0 }
+
+        const sections = source
+            .split(/\n{2,}/)
+            .map((section) => section.trim())
+            .filter(Boolean)
+
+        if (sections.length === 0) return { text: '', sectionCount: 0 }
+
+        const hintTokens = new Set(hints.flatMap((hint) => GeminiService.tokenizeForPromptSelection(hint)))
+        const scored = sections.map((section, index) => {
+            const tokens = GeminiService.tokenizeForPromptSelection(section)
+            const overlap = tokens.reduce((sum, token) => sum + (hintTokens.has(token) ? 1 : 0), 0)
+            return { section, index, score: overlap, length: section.length }
+        })
+
+        scored.sort((a, b) => b.score - a.score || a.index - b.index)
+
+        const selected: string[] = []
+        let usedChars = 0
+        for (const candidate of scored.slice(0, Math.max(maxSections * 2, maxSections))) {
+            if (selected.length >= maxSections) break
+            if (usedChars >= maxChars) break
+
+            const remaining = maxChars - usedChars
+            if (remaining <= 0) break
+
+            const snippet = candidate.section.length > remaining ? `${candidate.section.slice(0, Math.max(0, remaining - 3))}...` : candidate.section
+            if (!snippet.trim()) continue
+
+            selected.push(snippet)
+            usedChars += snippet.length + 2
+        }
+
+        if (selected.length === 0) {
+            const fallback = source.slice(0, maxChars)
+            return { text: fallback, sectionCount: fallback.trim() ? 1 : 0 }
+        }
+
+        return { text: selected.join('\n\n'), sectionCount: selected.length }
+    }
+
+    private static buildExcerptWindow(source: string, hints: string[], maxChars = 1800): string {
+        const normalized = source.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+        if (!normalized) return ''
+        if (normalized.length <= maxChars) return normalized
+
+        const terms = Array.from(new Set(
+            hints
+                .flatMap((hint) => GeminiService.tokenizeForPromptSelection(hint))
+                .filter((term) => term.length >= 4),
+        )).sort((a, b) => b.length - a.length)
+
+        const lower = normalized.toLowerCase()
+        let matchIndex = -1
+        for (const term of terms) {
+            const index = lower.indexOf(term)
+            if (index >= 0) {
+                matchIndex = index
+                break
+            }
+        }
+
+        if (matchIndex < 0) {
+            return `${normalized.slice(0, Math.max(0, maxChars - 3))}...`
+        }
+
+        const halfWindow = Math.floor(maxChars / 2)
+        let start = Math.max(0, matchIndex - halfWindow)
+        let end = Math.min(normalized.length, start + maxChars)
+        if (end - start < maxChars) {
+            start = Math.max(0, end - maxChars)
+        }
+
+        const prefix = start > 0 ? '...' : ''
+        const suffix = end < normalized.length ? '...' : ''
+        return `${prefix}${normalized.slice(start, end).trim()}${suffix}`
     }
 
     // ── Prompt Builders ──────────────────────────────────────────────────────
     // Each builder returns { system, user } so role/rules go into systemInstruction
     // and actual data goes into the user turn — improving instruction adherence.
 
-    static buildToonPrompt(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0): { system: string; user: string } {
+    static buildToonPrompt(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0): PromptBuildResult {
         const sysLines: string[] = []
         sysLines.push('@role:sr_qa_engineer')
         sysLines.push('@task:deep_issue_analysis')
@@ -459,52 +643,66 @@ export class GeminiService {
         sysLines.push('@rules:all_sections_required|multi_sentence|specific_actionable|infer_if_brief|no_skip|no_merge|consider_env_context|reference_project_functionality|use_tables_for_structured_data|bold_key_findings')
         sysLines.push('@priority_mapping:task_priorities(critical=Blocker,high=Major,medium=Medium,low=Low)|tc_priorities(Blocker,Major,Medium,Low)')
 
-        const userLines: string[] = []
-        GeminiService.appendQaContext(userLines, project)
+        const user = new ToonWriter()
+        const telemetry: PromptTelemetry = {
+            ...GeminiService.appendQaContext(user, project, {
+                includeTrackedIssues: true,
+                trackedIssuesMax: 12,
+                includeTestCoverage: false,
+                includeChecklistAreas: false,
+                includeTestDataDomains: false,
+            }),
+        }
 
-        userLines.push('issue{')
-        userLines.push(` t:${GeminiService.sanitizeToonValue(task.title, 300)}`)
-        if (task.sourceIssueId) userLines.push(` id:${GeminiService.sanitizeToonValue(task.sourceIssueId, 100)}`)
-        userLines.push(` status:${task.status}`)
-        userLines.push(` priority:${task.priority}`)
-        if (task.assignee) userLines.push(` assignee:${GeminiService.sanitizeToonValue(task.assignee, 200)}`)
-        if (task.labels) userLines.push(` labels:${GeminiService.sanitizeToonValue(task.labels, 200)}`)
-        if (task.dueDate) userLines.push(` due:${new Date(task.dueDate).toISOString().split('T')[0]}`)
+        user.object('issue', (issue) => {
+            issue.field('t', task.title, { maxLength: 300 })
+            issue.field('id', task.sourceIssueId, { maxLength: 100 })
+            issue.field('status', task.status, { maxLength: 40 })
+            issue.field('priority', task.priority, { maxLength: 20 })
+            issue.field('assignee', task.assignee, { maxLength: 200 })
+            issue.field('labels', task.labels, { maxLength: 200 })
+            issue.field('due', task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '', { maxLength: 32 })
+            issue.field('desc', task.description || '(none; infer from title+metadata)', { maxLength: 500 })
+        })
+        /*
+            issue.field('desc', task.description || '(noneâ€”infer from title+metadata)', { maxLength: 500 })
         userLines.push(` desc:${task.description ? GeminiService.sanitizeToonValue(task.description) : '(none—infer from title+metadata)'}`)
         userLines.push('}')
 
+        */
         if (comments.length > 0) {
-            userLines.push('comments[')
-            for (const c of comments) {
-                userLines.push(` {author:${GeminiService.sanitizeToonValue(c.authorName, 200)},date:${c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : ''},body:${GeminiService.sanitizeToonValue(c.body)}}`)
-            }
-            userLines.push(']')
+            telemetry.issue_comments = GeminiService.pushCommentList(user, 'comments', comments, 8)
         }
 
         const images = task.attachmentUrls?.length || 0
         const totalImages = Math.max(attachedImageCount, images)
 
         if (totalImages > 0) {
+            user.field('attachment_image_count', totalImages)
+            telemetry.attachment_images = totalImages
+            /*
             userLines.push(`@media:${totalImages}_image(s)_attached—analyze following visual content for additional context (screenshots, error messages, UI state, logs)`)
         }
 
+        */
+        }
         if (project?.contextTasks?.length > 0) {
-            userLines.push('---')
-            userLines.push('project_context_tasks[')
-            for (const t of project.contextTasks) {
-                let entry = ` {t:${GeminiService.sanitizeToonValue(t.title, 200)},type:${GeminiService.sanitizeToonValue(t.issueType, 60)}`
-                if (t.labels) entry += `,labels:${GeminiService.sanitizeToonValue(t.labels, 100)}`
-                if (t.description) entry += `,desc:${GeminiService.sanitizeToonValue(t.description, 300)}`
-                entry += '}'
-                userLines.push(entry)
-            }
-            userLines.push(']')
+            user.separator()
+            user.list('project_context_tasks', project.contextTasks.slice(0, 8), (list, contextTask: any) => {
+                list.itemObject([
+                    { key: 't', value: contextTask.title, maxLength: 200 },
+                    { key: 'type', value: contextTask.issueType, maxLength: 60 },
+                    { key: 'labels', value: contextTask.labels, maxLength: 100 },
+                    { key: 'desc', value: contextTask.description, maxLength: 300 },
+                ])
+            })
+            telemetry.context_tasks = Math.min(project.contextTasks.length, 8)
         }
 
-        return { system: sysLines.join('\n'), user: userLines.join('\n') }
+        return { system: sysLines.join('\n'), user: user.toString(), telemetry }
     }
 
-    static buildTestCaseGenerationPrompt(tasks: any[], sourceName: string, project?: any, designDoc?: string, comments?: Record<string, any[]>): { system: string; user: string } {
+    static buildTestCaseGenerationPrompt(tasks: any[], sourceName: string, project?: any, designDoc?: string, comments?: Record<string, any[]>): PromptBuildResult {
         const sysLines: string[] = []
         sysLines.push('@role:sr_qa_engineer')
         sysLines.push('@task:generate_test_cases')
@@ -527,41 +725,55 @@ export class GeminiService {
         sysLines.push(' sourceIssueId:exact_id_of_the_source_issue_this_test_case_covers(IssueIdentifier_field_value)')
         sysLines.push('}')
 
-        const userLines: string[] = []
+        const user = new ToonWriter()
         // Exclude tracked_issues from qa_context — the project_issues block below already covers them
-        GeminiService.appendQaContext(userLines, project, true)
+        const telemetry: PromptTelemetry = {
+            ...GeminiService.appendQaContext(user, project, {
+                includeTrackedIssues: false,
+                includeTestCoverage: false,
+                includeChecklistAreas: false,
+                includeTestDataDomains: false,
+            }),
+            source: sourceName,
+            issue_count: Math.min(tasks.length, 50),
+        }
 
         if (designDoc) {
-            userLines.push('design_document{')
-            userLines.push(GeminiService.sanitizeToonValueForTestGen(designDoc, 20000))
-            userLines.push('}')
-            userLines.push('---')
+            const hints = tasks.flatMap((task) => [task.title, task.description, task.labels, task.issueType].filter(Boolean))
+            const selectedDesignDoc = GeminiService.selectRelevantTextSections(designDoc, hints, 12_000, 8)
+            user.object('design_document', (doc) => {
+                doc.field('selected_sections', selectedDesignDoc.sectionCount)
+                doc.field('content', selectedDesignDoc.text, { style: 'block', maxLength: 12_000 })
+            })
+            user.separator()
+            telemetry.design_doc_sections = selectedDesignDoc.sectionCount
         }
 
-        userLines.push('project_issues[')
-        for (const task of tasks) {
-            let entry = ` {id:${GeminiService.sanitizeToonValue(task.sourceIssueId || task.externalId, 100)},title:${GeminiService.sanitizeToonValue(task.title, 300)},status:${task.status || 'todo'},priority:${task.priority || 'medium'}`
-            if (task.description) entry += `,desc:${GeminiService.sanitizeToonValueForTestGen(task.description, 2000)}`
-            if (task.issueType) entry += `,type:${GeminiService.sanitizeToonValue(task.issueType, 100)}`
-            if (task.labels) entry += `,labels:${GeminiService.sanitizeToonValue(task.labels, 200)}`
-            if (task.attachmentUrls?.length) entry += `,has_images:true(${task.attachmentUrls.length}_attached)`
-            entry += '}'
-            userLines.push(entry)
+        user.list('project_issues', tasks.slice(0, 50), (list, task) => {
+            const issueId = task.sourceIssueId || task.externalId || task.id
+            list.itemObject([
+                { key: 'id', value: issueId, maxLength: 100 },
+                { key: 'title', value: task.title, maxLength: 300 },
+                { key: 'status', value: task.status || 'todo', maxLength: 40 },
+                { key: 'priority', value: task.priority || 'medium', maxLength: 20 },
+                { key: 'desc', value: task.description, maxLength: 1200 },
+                { key: 'type', value: task.issueType, maxLength: 100 },
+                { key: 'labels', value: task.labels, maxLength: 200 },
+                { key: 'has_images', value: task.attachmentUrls?.length ? `${task.attachmentUrls.length}` : undefined, maxLength: 10 },
+            ])
 
-            // Include up to 5 most recent comments per issue for richer context
-            const issueId = task.sourceIssueId || task.externalId
             const issueComments = comments?.[issueId]?.slice(0, 5) || []
             if (issueComments.length > 0) {
-                userLines.push(` issue_comments_for_${GeminiService.sanitizeToonValue(issueId, 30)}[`)
-                for (const c of issueComments) {
-                    userLines.push(`  {author:${GeminiService.sanitizeToonValue(c.authorName, 100)},body:${GeminiService.sanitizeToonValueForTestGen(c.body, 500)}}`)
-                }
-                userLines.push(' ]')
+                list.list(`issue_comments_for_${sanitizeToonScalar(issueId, 30)}`, issueComments, (commentList, comment) => {
+                    commentList.itemObject([
+                        { key: 'author', value: comment.authorName, maxLength: 100 },
+                        { key: 'body', value: comment.body, maxLength: 500 },
+                    ])
+                })
             }
-        }
-        userLines.push(']')
+        })
 
-        return { system: sysLines.join('\n'), user: userLines.join('\n') }
+        return { system: sysLines.join('\n'), user: user.toString(), telemetry }
     }
 
     static buildCriticalityAssessmentPrompt(tasks: any[], testPlans: any[], executions: any[], project?: any): { system: string; user: string } {
@@ -576,8 +788,12 @@ export class GeminiService {
         sysLines.push('@priority_mapping:task_priorities(critical=Blocker,high=Major,medium=Medium,low=Low)|tc_priorities(blocker,major,medium,low)')
 
         const userLines: string[] = []
-        // Exclude tracked_issues — project_tasks block below covers the same data
-        GeminiService.appendQaContext(userLines, project, true)
+        GeminiService.appendQaContext(userLines, project, {
+            includeTrackedIssues: false,
+            includeTestCoverage: false,
+            includeChecklistAreas: true,
+            includeTestDataDomains: false,
+        })
 
         const failedCases = allCases.filter((tc: any) => tc.status === 'failed')
         const blockerFailed = failedCases.filter((tc: any) => tc.priority === 'blocker').length
@@ -662,7 +878,12 @@ export class GeminiService {
         sysLines.push('@priority_mapping:tc_priorities(blocker,major,medium,low)')
 
         const userLines: string[] = []
-        GeminiService.appendQaContext(userLines, project)
+        GeminiService.appendQaContext(userLines, project, {
+            includeTrackedIssues: false,
+            includeTestCoverage: false,
+            includeChecklistAreas: false,
+            includeTestDataDomains: false,
+        })
 
         userLines.push('overall_stats{')
         userLines.push(` total_cases:${total}`)
@@ -739,7 +960,12 @@ export class GeminiService {
         sysLines.push('@priority_mapping:task_priorities(critical=B,high=MAJ,medium=MED,low=L)|tc_priorities(blocker=B,major=MAJ,medium=MED,low=L)')
 
         const userLines: string[] = []
-        GeminiService.appendQaContext(userLines, project)
+        GeminiService.appendQaContext(userLines, project, {
+            includeTrackedIssues: false,
+            includeTestCoverage: false,
+            includeChecklistAreas: false,
+            includeTestDataDomains: false,
+        })
 
         if (doneTasks.length > 0) {
             userLines.push('done[')
@@ -804,15 +1030,15 @@ export class GeminiService {
 
     /** Analyze a task issue using TOON prompts */
     async analyzeIssue(task: any, comments: any[] = [], project?: any, attachedImageCount: number = 0, modelName?: string): Promise<string> {
-        const { system, user } = GeminiService.buildToonPrompt(task, comments, project, attachedImageCount)
-        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.issue_analysis, system)
+        const { system, user, telemetry } = GeminiService.buildToonPrompt(task, comments, project, attachedImageCount)
+        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.issue_analysis, system, false, 'issue_analysis', telemetry)
     }
 
     /** Generate test cases from tasks using TOON prompts with native JSON mode */
     async generateTestCases(tasks: any[] = [], sourceName: string, project?: any, designDoc?: string, modelName?: string, comments?: Record<string, any[]>): Promise<any[]> {
-        const { system, user } = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc, comments)
+        const { system, user, telemetry } = GeminiService.buildTestCaseGenerationPrompt(tasks || [], sourceName, project, designDoc, comments)
         // jsonMode=true forces the API to return valid JSON — no extraction needed
-        const text = await this.executeWithFallback(user, modelName, 0.4, MAX_TOKENS.test_generation, system, true)
+        const text = await this.executeWithFallback(user, modelName, 0.4, MAX_TOKENS.test_generation, system, true, 'test_generation', telemetry)
 
         // JSON mode guarantees valid JSON, but we still parse safely
         let parsed: any[]
@@ -858,20 +1084,30 @@ export class GeminiService {
     /** Criticality assessment for the current test state */
     async assessCriticality(tasks: any[], testPlans: any[], executions: any[], project?: any, modelName?: string): Promise<string> {
         const { system, user } = GeminiService.buildCriticalityAssessmentPrompt(tasks, testPlans, executions, project)
-        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.criticality, system)
+        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.criticality, system, false, 'criticality', {
+            issue_count: Math.min(tasks.length, 50),
+            test_plan_count: Math.min(testPlans.length, 20),
+            execution_count: executions.length,
+        })
     }
 
     /** Test run suggestions / deployment readiness */
     async getTestRunSuggestions(testPlans: any[], executions: any[], project?: any, modelName?: string): Promise<string> {
         const { system, user } = GeminiService.buildTestRunSuggestionsPrompt(testPlans, executions, project)
-        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.suggestions, system)
+        return await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.suggestions, system, false, 'test_run_suggestions', {
+            test_plan_count: Math.min(testPlans.length, 20),
+            execution_count: executions.length,
+        })
     }
 
     /** Select a minimal smoke test subset from candidates using JSON mode */
     async selectSmokeSubset(candidates: any[], doneTasks: any[], project?: any, modelName?: string): Promise<string[]> {
         const { system, user } = GeminiService.buildSmokeSubsetPrompt(candidates, doneTasks, project)
         // jsonMode=true guarantees a valid JSON array response
-        const text = await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.smoke_subset, system, true)
+        const text = await this.executeWithFallback(user, modelName, 0.3, MAX_TOKENS.smoke_subset, system, true, 'smoke_subset', {
+            candidate_count: Math.min(candidates.length, 200),
+            done_task_count: Math.min(doneTasks.length, 50),
+        })
 
         let parsed: any[]
         try {
@@ -895,15 +1131,18 @@ export class GeminiService {
         sysLines.push('@rules:strategic|actionable|data_driven|bold_decisions|no_generic_advice|all_sections_required|use_tables_for_structured_data|bold_key_findings')
         sysLines.push('@priority_mapping:task_priorities(critical=Blocker,high=Major,medium=Medium,low=Low)')
 
-        const userLines: string[] = []
-        if (project) {
-            GeminiService.appendQaContext(userLines, project)
+        const user = new ToonWriter()
+        const telemetry: PromptTelemetry = {
+            ...GeminiService.appendQaContext(user, project, {
+                includeTrackedIssues: false,
+            }),
+            context_chars: Math.min(projectContext.length, 5000),
         }
-        userLines.push('analysis_context_and_data{')
-        userLines.push(` context:${GeminiService.sanitizeToonValue(projectContext, 5000)}`)
-        userLines.push('}')
+        user.object('analysis_context_and_data', (analysis) => {
+            analysis.field('context', projectContext, { style: 'block', maxLength: 5000 })
+        })
 
-        return await this.executeWithFallback(userLines.join('\n'), modelName, 0.4, MAX_TOKENS.project_analysis, sysLines.join('\n'))
+        return await this.executeWithFallback(user.toString(), modelName, 0.4, MAX_TOKENS.project_analysis, sysLines.join('\n'), false, 'project_analysis', telemetry)
     }
 
     /** Freeform conversational QA chat using multi-turn Gemini chat API */
@@ -915,30 +1154,47 @@ export class GeminiService {
         modelName?: string
     ): Promise<string> {
         const sysLines: string[] = []
-        const userLines: string[] = []
+        const user = new ToonWriter()
+        const telemetry: PromptTelemetry = { role }
+        const hasSapContext = project?.sapCommerce?.enabled === true
 
         if (role === 'dev') {
             sysLines.push('@role:sr_software_engineer')
             sysLines.push('@task:freeform_dev_assistant_chat')
             sysLines.push('@perspective:software_engineer—helpful,concise,context-aware developer focused on implementation,risk,release_readiness,and code review coordination')
             sysLines.push('@rules:conversational|specific|implementation_focused|reference_handoff_and_pr_context_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context')
+            sysLines[sysLines.length - 2] = hasSapContext
+                ? '@perspective:qa_engineerâ€”helpful,concise,context-aware QA expert with SAP Commerce knowledge when project context indicates it'
+                : '@perspective:qa_engineerâ€”helpful,concise,context-aware QA expert; do_not_assume_SAP_Commerce_without_explicit_context'
+            sysLines[sysLines.length - 1] = '@rules:conversational|helpful|specific|reference_project_data_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context|assume_domain_only_from_provided_context'
+            sysLines[sysLines.length - 2] = '@perspective:software_engineerâ€”helpful,concise,context-aware developer focused on implementation,risk,release_readiness,and code review coordination'
+            sysLines[sysLines.length - 1] = '@rules:conversational|specific|implementation_focused|reference_handoff_and_pr_context_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context'
             if (project) {
-                GeminiService.appendDevContext(userLines, project)
+                Object.assign(telemetry, GeminiService.appendDevContext(user, project, {
+                    trackedWorkMax: 20,
+                    handoffMax: 12,
+                }))
             }
         } else {
             sysLines.push('@role:sr_qa_engineer')
             sysLines.push('@task:freeform_qa_assistant_chat')
             sysLines.push('@perspective:qa_engineer—helpful,concise,context-aware QA expert with deep SAP Commerce knowledge')
             sysLines.push('@rules:conversational|helpful|specific|reference_project_data_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context')
+            sysLines[sysLines.length - 2] = hasSapContext
+                ? '@perspective:qa_engineerâ€”helpful,concise,context-aware QA expert with SAP Commerce knowledge when project context indicates it'
+                : '@perspective:qa_engineerâ€”helpful,concise,context-aware QA expert; do_not_assume_SAP_Commerce_without_explicit_context'
+            sysLines[sysLines.length - 1] = '@rules:conversational|helpful|specific|reference_project_data_when_relevant|use_markdown_formatting|keep_answers_concise_unless_detail_asked|no_hallucination|acknowledge_if_insufficient_context|assume_domain_only_from_provided_context'
             if (project) {
-                GeminiService.appendQaContext(userLines, project)
+                Object.assign(telemetry, GeminiService.appendQaContext(user, project, {
+                    trackedIssuesMax: 15,
+                }))
             }
         }
-        userLines.push('user_request{')
-        userLines.push(` message:${GeminiService.sanitizeToonValueForTestGen(userMessage, 3000)}`)
-        userLines.push('}')
+        user.object('user_request', (request) => {
+            request.field('message', userMessage, { style: 'block', maxLength: 3000 })
+        })
         const systemInstruction = sysLines.join('\n')
-        const requestPayload = userLines.join('\n')
+        const requestPayload = user.toString()
 
         // Budget 12k tokens across history turns, keeping the most recent turns in full.
         // Older turns are dropped first to preserve coherence of the recent conversation.
@@ -957,10 +1213,16 @@ export class GeminiService {
             budgetedTurns.unshift(recentTurns[i])
             budgetRemaining -= len
         }
+        telemetry.history_turns = budgetedTurns.length
 
         const geminiHistory = budgetedTurns.map(turn => ({
             role: turn.role === 'user' ? 'user' : 'model' as 'user' | 'model',
-            parts: [{ text: turn.content }]
+            parts: [{
+                text: `chat_turn${new ToonWriter().inlineObject([
+                    { key: 'role', value: turn.role, maxLength: 16 },
+                    { key: 'message', value: turn.content, style: 'block', maxLength: 2000 },
+                ])}`,
+            }]
         }))
 
         const models = this.buildModelSequence(modelName)
@@ -978,9 +1240,7 @@ export class GeminiService {
                 }
 
                 const usage = result.response.usageMetadata
-                if (usage) {
-                    log.info(`[Gemini] ${currentModelName} | prompt: ${usage.promptTokenCount ?? '?'} tokens, output: ${usage.candidatesTokenCount ?? '?'} tokens, total: ${usage.totalTokenCount ?? '?'} tokens`)
-                }
+                GeminiService.logUsage(currentModelName, usage, 'chat', telemetry)
 
                 return result.response.text()
             } catch (err: any) {
@@ -1082,24 +1342,28 @@ export class GeminiService {
         }
         sysLines.push('@out_fmt:json_array[{claimText:string,claimType:string}]')
 
-        const userLines: string[] = []
-        userLines.push('agent_response{')
-        // Use sanitizeDocContent to preserve colons/pipes in technical content (URLs, code, timestamps)
-        userLines.push(` text:${GeminiService.sanitizeDocContent(agentResponse, 8000)}`)
-        userLines.push('}')
+        const user = new ToonWriter()
+        user.object('agent_response', (response) => {
+            response.field('text', agentResponse, { style: 'opaque', maxLength: 8000 })
+        })
         if (expectedAnswer?.trim()) {
-            userLines.push('expected_answer{')
-            userLines.push(` text:${GeminiService.sanitizeDocContent(expectedAnswer, 3000)}`)
-            userLines.push('}')
+            user.object('expected_answer', (expected) => {
+                expected.field('text', expectedAnswer, { style: 'opaque', maxLength: 3000 })
+            })
         }
 
         const raw = await this.executeWithFallback(
-            userLines.join('\n'),
+            user.toString(),
             modelOverride,
             0,
             MAX_TOKENS.claim_extraction,
             sysLines.join('\n'),
-            true
+            true,
+            'claim_extraction',
+            {
+                expected_answer: Boolean(expectedAnswer?.trim()),
+                agent_chars: Math.min(agentResponse.length, 8000),
+            },
         )
         const parsed = GeminiService.parseJsonResponse(raw)
         return Array.isArray(parsed) ? parsed : []
@@ -1126,32 +1390,45 @@ export class GeminiService {
         sysLines.push('@rules:one_verdict_per_claim|default_to_unverifiable_when_in_doubt|confidence_float_0_to_1|confidence_max_0.5_for_unverifiable|cite_chunk_ids_when_applicable|reasoning_1_to_2_sentences|index_matches_input_order|semantic_match_acceptable_exact_wording_not_required')
         sysLines.push('@out_fmt:json_array[{claimIndex:number,verdict:string,confidence:number,sourceChunkIds:string[],reasoning:string}]')
 
-        const userLines: string[] = []
+        const user = new ToonWriter()
         if (expectedAnswer?.trim()) {
-            userLines.push('expected_answer{')
-            userLines.push(` text:${GeminiService.sanitizeDocContent(expectedAnswer, 3000)}`)
-            userLines.push('}')
-            userLines.push('---')
+            user.object('expected_answer', (expected) => {
+                expected.field('text', expectedAnswer, { style: 'opaque', maxLength: 3000 })
+            })
+            user.separator()
         }
-        userLines.push('ref_docs[')
-        for (const chunk of refChunks) {
-            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeDocContent(chunk.content, 6000)}}`)
-        }
-        userLines.push(']')
-        userLines.push('---')
-        userLines.push('claims[')
-        for (let i = 0; i < claims.length; i++) {
-            userLines.push(` {idx:${i},text:${GeminiService.sanitizeToonValue(claims[i].claimText, 500)},type:${claims[i].claimType}}`)
-        }
-        userLines.push(']')
+
+        const excerptHints = [
+            ...claims.map((claim) => claim.claimText),
+            expectedAnswer || '',
+        ]
+        user.list('ref_docs', refChunks, (list, chunk) => {
+            list.itemObject([
+                { key: 'id', value: chunk.id, maxLength: 100 },
+                { key: 'content', value: GeminiService.buildExcerptWindow(chunk.content, excerptHints, 1800), style: 'opaque', maxLength: 1800 },
+            ])
+        })
+        user.separator()
+        user.list('claims', claims, (list, claim, index) => {
+            list.itemObject([
+                { key: 'idx', value: index },
+                { key: 'text', value: claim.claimText, maxLength: 500 },
+                { key: 'type', value: claim.claimType, maxLength: 40 },
+            ])
+        })
 
         const raw = await this.executeWithFallback(
-            userLines.join('\n'),
+            user.toString(),
             modelOverride,
             0,
             MAX_TOKENS.claim_verification,
             sysLines.join('\n'),
-            true
+            true,
+            'claim_verification',
+            {
+                claim_count: claims.length,
+                ref_chunk_count: refChunks.length,
+            },
         )
         const parsed = GeminiService.parseJsonResponse(raw)
         if (!Array.isArray(parsed)) return []
@@ -1193,35 +1470,48 @@ export class GeminiService {
         sysLines.push('@rules:score_each_dimension_independently|score_int_0_to_100|factualAccuracy_and_faithfulness_scores_are_precomputed_your_score_fields_will_be_ignored|if_expected_answer_present_use_as_primary_ground_truth_above_ref_docs|confidence_float_0_to_1|reasoning_2_to_3_sentences_cite_specific_evidence|all_four_dimensions_required')
         sysLines.push('@out_fmt:json_object{factualAccuracy:{score:int,confidence:float,reasoning:string},completeness:{score:int,confidence:float,reasoning:string},faithfulness:{score:int,confidence:float,reasoning:string},relevance:{score:int,confidence:float,reasoning:string}}')
 
-        const userLines: string[] = []
-        userLines.push('eval_context{')
-        userLines.push(` question:${GeminiService.sanitizeToonValue(question, 1000)}`)
-        // Use sanitizeDocContent to preserve colons/pipes in technical content and align limit with extractClaims
-        userLines.push(` agent_response:${GeminiService.sanitizeDocContent(agentResponse, 8000)}`)
-        if (expectedAnswer?.trim()) {
-            userLines.push(` expected_answer:${GeminiService.sanitizeDocContent(expectedAnswer, 3000)}`)
-        }
-        userLines.push('}')
-        userLines.push('---')
-        userLines.push('claim_verdicts[')
-        for (const cv of claimVerdicts) {
-            userLines.push(` {claim:${GeminiService.sanitizeToonValue(cv.claimText, 400)},verdict:${cv.verdict},reasoning:${GeminiService.sanitizeToonValue(cv.reasoning, 200)}}`)
-        }
-        userLines.push(']')
-        userLines.push('---')
-        userLines.push('ref_doc_excerpts[')
-        for (const chunk of refChunks) {
-            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeDocContent(chunk.content, 6000)}}`)
-        }
-        userLines.push(']')
+        const user = new ToonWriter()
+        user.object('eval_context', (context) => {
+            context.field('question', question, { maxLength: 1000 })
+            context.field('agent_response', agentResponse, { style: 'opaque', maxLength: 8000 })
+            if (expectedAnswer?.trim()) {
+                context.field('expected_answer', expectedAnswer, { style: 'opaque', maxLength: 3000 })
+            }
+        })
+        user.separator()
+        user.list('claim_verdicts', claimVerdicts, (list, verdict) => {
+            list.itemObject([
+                { key: 'claim', value: verdict.claimText, maxLength: 400 },
+                { key: 'verdict', value: verdict.verdict, maxLength: 40 },
+                { key: 'reasoning', value: verdict.reasoning, maxLength: 200 },
+            ])
+        })
+        user.separator()
+        const scoreHints = [
+            question,
+            agentResponse,
+            expectedAnswer || '',
+            ...claimVerdicts.map((claim) => claim.claimText),
+        ]
+        user.list('ref_doc_excerpts', refChunks, (list, chunk) => {
+            list.itemObject([
+                { key: 'id', value: chunk.id, maxLength: 100 },
+                { key: 'content', value: GeminiService.buildExcerptWindow(chunk.content, scoreHints, 1800), style: 'opaque', maxLength: 1800 },
+            ])
+        })
 
         const raw = await this.executeWithFallback(
-            userLines.join('\n'),
+            user.toString(),
             modelOverride,
             0,
             MAX_TOKENS.dimension_scoring,
             sysLines.join('\n'),
-            true
+            true,
+            'dimension_scoring',
+            {
+                claim_count: claimVerdicts.length,
+                ref_chunk_count: refChunks.length,
+            },
         )
         const parsed = GeminiService.parseJsonResponse(raw)
         const defaultDim = { score: 0, confidence: 0, reasoning: '' }
@@ -1251,25 +1541,31 @@ export class GeminiService {
         sysLines.push('@rules:rank_by_semantic_meaning_not_keyword_overlap|consider_paraphrases_synonyms_and_implied_concepts|return_only_chunk_ids_in_order_most_relevant_first|omit_chunks_with_zero_relevance|limit_to_top_' + topK)
         sysLines.push('@out_fmt:json_array[string]  // ordered chunk IDs, most relevant first, max ' + topK + ' items')
 
-        const userLines: string[] = []
-        userLines.push('eval_query{')
-        userLines.push(` question:${GeminiService.sanitizeToonValue(question, 1000)}`)
-        userLines.push(` agent_response:${GeminiService.sanitizeDocContent(agentResponse, 3000)}`)
-        userLines.push('}')
-        userLines.push('---')
-        userLines.push('candidate_chunks[')
-        for (const chunk of chunks) {
-            userLines.push(` {id:${GeminiService.sanitizeToonValue(chunk.id, 100)},content:${GeminiService.sanitizeDocContent(chunk.content, 2000)}}`)
-        }
-        userLines.push(']')
+        const user = new ToonWriter()
+        user.object('eval_query', (queryContext) => {
+            queryContext.field('question', question, { maxLength: 1000 })
+            queryContext.field('agent_response', agentResponse, { style: 'opaque', maxLength: 3000 })
+        })
+        user.separator()
+        user.list('candidate_chunks', chunks, (list, chunk) => {
+            list.itemObject([
+                { key: 'id', value: chunk.id, maxLength: 100 },
+                { key: 'content', value: GeminiService.buildExcerptWindow(chunk.content, [question, agentResponse], 1600), style: 'opaque', maxLength: 1600 },
+            ])
+        })
 
         const raw = await this.executeWithFallback(
-            userLines.join('\n'),
+            user.toString(),
             modelOverride,
             0,
             512,
             sysLines.join('\n'),
-            true
+            true,
+            'chunk_rerank',
+            {
+                chunk_count: chunks.length,
+                top_k: topK,
+            },
         )
         const parsed = GeminiService.parseJsonResponse(raw)
         if (!Array.isArray(parsed)) return chunks.slice(0, topK).map(c => c.id)
@@ -1302,22 +1598,38 @@ export class GeminiService {
             '@rules:3_sections_only:Yesterday_Today_Blockers|bullet_points|max_150_words_total|be_specific_not_generic|omit_sections_with_no_items',
         ]
 
-        const userLines: string[] = [
-            'standup_data{',
-            ` project:${GeminiService.sanitizeToonValue(metrics.projectName, 100)}`,
-            ` date:${metrics.date}`,
-            ` ready_for_qa_count:${metrics.readyForQa}`,
-            ` blocked_tasks:${metrics.blocked}`,
-            ` failed_test_cases:${metrics.failedTests}`,
-            ` overdue_tasks:${metrics.overdueTasks}`,
-            ` recent_test_runs:${JSON.stringify(metrics.recentRuns).substring(0, 500)}`,
-            ` recently_verified:${JSON.stringify(metrics.recentlyVerified).substring(0, 300)}`,
-            ` high_priority_open:${JSON.stringify(metrics.highPriorityOpen).substring(0, 300)}`,
-            '}',
-            'produce_standup_summary_for_a_qa_engineer_sharing_status_with_their_team',
-        ]
+        const user = new ToonWriter()
+        user.object('standup_data', (standup) => {
+            standup.field('project', metrics.projectName, { maxLength: 100 })
+            standup.field('date', metrics.date, { maxLength: 40 })
+            standup.field('ready_for_qa_count', metrics.readyForQa)
+            standup.field('blocked_tasks', metrics.blocked)
+            standup.field('failed_test_cases', metrics.failedTests)
+            standup.field('overdue_tasks', metrics.overdueTasks)
+        })
+        user.separator()
+        user.list('recent_runs', metrics.recentRuns.slice(0, 8), (list, run) => {
+            list.itemObject([
+                { key: 'plan', value: run.planName, maxLength: 120 },
+                { key: 'passed', value: run.passed },
+                { key: 'total', value: run.total },
+            ])
+        })
+        user.separator()
+        user.list('recently_verified', metrics.recentlyVerified.slice(0, 10), (list, item) => {
+            list.itemObject([{ key: 'item', value: item, maxLength: 120 }])
+        })
+        user.separator()
+        user.list('high_priority_open', metrics.highPriorityOpen.slice(0, 10), (list, item) => {
+            list.itemObject([{ key: 'item', value: item, maxLength: 120 }])
+        })
+        user.line('produce_standup_summary_for_a_qa_engineer_sharing_status_with_their_team')
 
-        return await this.executeWithFallback(userLines.join('\n'), modelName, 0.6, 1024, sysLines.join('\n'))
+        return await this.executeWithFallback(user.toString(), modelName, 0.6, 1024, sysLines.join('\n'), false, 'standup_summary', {
+            recent_runs: Math.min(metrics.recentRuns.length, 8),
+            recently_verified: Math.min(metrics.recentlyVerified.length, 10),
+            high_priority_open: Math.min(metrics.highPriorityOpen.length, 10),
+        })
     }
 
     /** Convert a plain-English question into a SAP Commerce FlexSearch (FlexibleSearch) SQL query */
@@ -1341,7 +1653,9 @@ export class GeminiService {
             '}',
         ]
 
-        return await this.executeWithFallback(userLines.join('\n'), modelName, 0.2, 1024, sysLines.join('\n'))
+        return await this.executeWithFallback(userLines.join('\n'), modelName, 0.2, 1024, sysLines.join('\n'), false, 'flexsearch_generation', {
+            query_chars: Math.min(naturalLanguageQuery.length, 500),
+        })
     }
 
     /** Detect potential duplicate bugs by comparing new bug data against existing open bugs */
@@ -1362,21 +1676,27 @@ export class GeminiService {
             '@rules:compare_semantically_not_just_keywords|consider_repro_steps_and_components|similarityScore_0_to_100|only_return_bugs_with_score_above_40|max_5_results|order_by_score_desc|reasoning_max_80_chars|return_empty_array_if_no_duplicates',
         ]
 
-        const userLines: string[] = [
-            'new_bug{',
-            ` title:${GeminiService.sanitizeToonValue(newBugTitle, 200)}`,
-            ` description:${GeminiService.sanitizeToonValue(newBugDescription, 400)}`,
-            ` repro_steps:${GeminiService.sanitizeToonValue(newBugReproSteps, 400)}`,
-            ` components:${affectedComponents.join(',')}`,
-            '}',
-            'existing_open_bugs[',
-        ]
-        for (const bug of existingBugs.slice(0, 40)) {
-            userLines.push(` {bugId:${GeminiService.sanitizeToonValue(bug.id, 50)},title:${GeminiService.sanitizeToonValue(bug.title, 200)},description:${GeminiService.sanitizeToonValue(bug.description, 200)},components:${(bug.components || []).join(',')}}`)
-        }
-        userLines.push(']')
+        const user = new ToonWriter()
+        user.object('new_bug', (bug) => {
+            bug.field('title', newBugTitle, { maxLength: 200 })
+            bug.field('description', newBugDescription, { maxLength: 400 })
+            bug.field('repro_steps', newBugReproSteps, { maxLength: 400 })
+            bug.field('components', sanitizeToonList(affectedComponents, 24, 8), { style: 'literal' })
+        })
+        user.separator()
+        user.list('existing_open_bugs', existingBugs.slice(0, 40), (list, bug) => {
+            list.itemObject([
+                { key: 'bugId', value: bug.id, maxLength: 50 },
+                { key: 'title', value: bug.title, maxLength: 200 },
+                { key: 'description', value: bug.description, maxLength: 200 },
+                { key: 'components', value: sanitizeToonList(bug.components || [], 24, 8), style: 'literal' },
+            ])
+        })
 
-        const raw = await this.executeWithFallback(userLines.join('\n'), modelName, 0.2, 1024, sysLines.join('\n'), true)
+        const raw = await this.executeWithFallback(user.toString(), modelName, 0.2, 1024, sysLines.join('\n'), true, 'duplicate_bug_detection', {
+            existing_bug_count: Math.min(existingBugs.length, 40),
+            component_count: Math.min(affectedComponents.length, 8),
+        })
         const parsed = GeminiService.parseJsonResponse(raw)
         if (!Array.isArray(parsed)) return []
         return (parsed as any[]).filter(d => d && typeof d.bugId === 'string').map(d => ({
@@ -1387,47 +1707,111 @@ export class GeminiService {
         })).slice(0, 5)
     }
 
-    /** Analyze a PR diff and identify which test cases are most likely impacted */
-    async analyzeTestImpact(
-        changedFiles: string[],
-        prTitle: string,
-        prDescription: string,
+    /** Analyze a PR using GitHub metadata, changed code, and QA project context */
+    async analyzePullRequest(
+        pr: {
+            number: number
+            title: string
+            description?: string
+            baseBranch: string
+            headBranch: string
+            ciStatus?: string | null
+            mergeableState?: string
+            files: Array<{ filename: string; status: string; additions: number; deletions: number; changes: number; patch?: string }>
+            reviews?: Array<{ user: string; state: string; submittedAt?: string; body?: string }>
+            comments?: Array<{ user: string; body: string; createdAt: string }>
+        },
         testCases: Array<{ id: string; title: string; sapModule?: string; components?: string[]; tags?: string[] }>,
+        project?: any,
         modelName?: string
-    ): Promise<{ impactedCaseIds: string[]; affectedModules: string[]; rationale: string }> {
-        if (testCases.length === 0) return { impactedCaseIds: [], affectedModules: [], rationale: 'No test cases in project.' }
-
+    ): Promise<PullRequestAnalysisResult> {
         const sysLines: string[] = [
             '@role:sr_qa_engineer',
-            '@task:test_impact_analysis',
-            '@out_fmt:json{impactedCaseIds:string[],affectedModules:string[],rationale:string}',
-            '@rules:analyze_changed_files_for_sap_module_and_component_mapping|match_test_cases_by_sapModule_and_components_and_semantic_title_relevance|include_cases_that_test_the_changed_area|impactedCaseIds_are_test_case_ids_from_the_list|affectedModules_use_exact_sap_module_names|rationale_max_200_chars|be_precise_avoid_over_selecting',
+            '@task:pull_request_analysis',
+            '@out_fmt:json{summary:string,riskLevel:low|medium|high|critical,hotspots:{file:string,reason:string}[],affectedAreas:string[],qaChecks:string[],impactedCaseIds:string[],rationale:string}',
+            '@rules:analyze_pr_intent_and_changed_code|identify_review_hotspots_and_regression_risk|qaChecks_must_be_actionable_and_specific|hotspots_max_6|affectedAreas_max_8|qaChecks_max_8|summary_max_120_words|rationale_max_240_chars|impactedCaseIds_must_only_reference_ids_from_test_cases|return_empty_impactedCaseIds_if_no_confident_match|still_return_summary_and_qaChecks_when_test_cases_are_empty|be_concise_and_concrete',
         ]
 
-        const userLines: string[] = [
-            'pr_context{',
-            ` title:${GeminiService.sanitizeToonValue(prTitle, 200)}`,
-            ` description:${GeminiService.sanitizeToonValue(prDescription, 500)}`,
-            '}',
-            'changed_files[',
-        ]
-        for (const f of changedFiles.slice(0, 60)) {
-            userLines.push(` ${GeminiService.sanitizeToonValue(f, 200)}`)
+        const user = new ToonWriter()
+        const telemetry: PromptTelemetry = {
+            ...GeminiService.appendQaContext(user, project, {
+                includeTrackedIssues: false,
+                includeTestCoverage: false,
+                includeChecklistAreas: false,
+                includeTestDataDomains: false,
+            }),
         }
-        userLines.push(']')
-        userLines.push('test_cases[')
-        for (const tc of testCases.slice(0, 100)) {
-            userLines.push(` {id:${GeminiService.sanitizeToonValue(tc.id, 50)},title:${GeminiService.sanitizeToonValue(tc.title, 200)},sapModule:${tc.sapModule || ''},components:${(tc.components || []).join(',')},tags:${(tc.tags || []).join(',')}}`)
-        }
-        userLines.push(']')
 
-        const raw = await this.executeWithFallback(userLines.join('\n'), modelName, 0.2, 1536, sysLines.join('\n'), true)
+        const visibleFiles = (pr.files || []).slice(0, 24)
+        const patchEligibleFiles = new Set(
+            [...visibleFiles]
+                .sort((a, b) => (Number(b.changes) || 0) - (Number(a.changes) || 0) || a.filename.localeCompare(b.filename))
+                .slice(0, 8)
+                .map((file) => file.filename),
+        )
+
+        user.object('pr_context', (context) => {
+            context.field('number', pr.number)
+            context.field('title', pr.title, { maxLength: 200 })
+            context.field('description', pr.description || '', { style: 'block', maxLength: 1500 })
+            context.field('base_branch', pr.baseBranch, { maxLength: 120 })
+            context.field('head_branch', pr.headBranch, { maxLength: 120 })
+            context.field('ci_status', pr.ciStatus || 'unknown', { maxLength: 60 })
+            context.field('mergeable_state', pr.mergeableState || 'unknown', { maxLength: 60 })
+        })
+        user.separator()
+
+        user.list('changed_files', visibleFiles, (list, file) => {
+            list.itemObject([
+                { key: 'filename', value: file.filename, maxLength: 240 },
+                { key: 'status', value: file.status, maxLength: 40 },
+                { key: 'additions', value: Number(file.additions) || 0 },
+                { key: 'deletions', value: Number(file.deletions) || 0 },
+                { key: 'changes', value: Number(file.changes) || 0 },
+                {
+                    key: 'patch',
+                    value: patchEligibleFiles.has(file.filename) ? file.patch || '' : undefined,
+                    style: 'block',
+                    maxLength: 1500,
+                },
+            ])
+        })
+        telemetry.file_count = visibleFiles.length
+        telemetry.file_patches = patchEligibleFiles.size
+
+        user.separator()
+        user.list('reviews', (pr.reviews || []).slice(0, 12), (list, review) => {
+            list.itemObject([
+                { key: 'user', value: review.user, maxLength: 80 },
+                { key: 'state', value: review.state, maxLength: 60 },
+                { key: 'submittedAt', value: review.submittedAt || '', maxLength: 80 },
+                { key: 'body', value: review.body || '', style: 'block', maxLength: 300 },
+            ])
+        })
+
+        user.separator()
+        user.list('comments', (pr.comments || []).slice(-12), (list, comment) => {
+            list.itemObject([
+                { key: 'user', value: comment.user, maxLength: 80 },
+                { key: 'createdAt', value: comment.createdAt, maxLength: 80 },
+                { key: 'body', value: comment.body, style: 'block', maxLength: 300 },
+            ])
+        })
+
+        user.separator()
+        user.list('test_cases', testCases.slice(0, 120), (list, testCase) => {
+            list.itemObject([
+                { key: 'id', value: testCase.id, maxLength: 50 },
+                { key: 'title', value: testCase.title, maxLength: 200 },
+                { key: 'sapModule', value: testCase.sapModule, maxLength: 80 },
+                { key: 'components', value: sanitizeToonList(testCase.components || [], 24, 8), style: 'literal' },
+                { key: 'tags', value: sanitizeToonList(testCase.tags || [], 24, 8), style: 'literal' },
+            ])
+        })
+        telemetry.test_case_count = Math.min(testCases.length, 120)
+
+        const raw = await this.executeWithFallback(user.toString(), modelName, 0.2, MAX_TOKENS.pr_analysis, sysLines.join('\n'), true, 'pr_analysis', telemetry)
         const parsed = GeminiService.parseJsonResponse(raw)
-        if (!parsed || typeof parsed !== 'object') return { impactedCaseIds: [], affectedModules: [], rationale: 'Analysis failed.' }
-        return {
-            impactedCaseIds: Array.isArray(parsed.impactedCaseIds) ? parsed.impactedCaseIds.filter((id: any) => typeof id === 'string') : [],
-            affectedModules: Array.isArray(parsed.affectedModules) ? parsed.affectedModules.filter((m: any) => typeof m === 'string') : [],
-            rationale: typeof parsed.rationale === 'string' ? parsed.rationale : '',
-        }
+        return normalizePullRequestAnalysisResult(parsed)
     }
 }

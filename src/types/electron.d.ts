@@ -2,7 +2,7 @@ import { Project, TestCase, Attachment } from './project';
 import { UserProfile } from './user';
 import { AuthStatus } from './auth';
 import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem, GitHubComment, GitHubWorkflowJob, GitHubWorkflow } from './github';
-import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
+import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiAnalyzePullRequestRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiPullRequestAnalysisResult, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
 import { CronJobEntry, FlexibleSearchResult, ImpExResult } from '@/lib/sapHac';
 import { AppUpdateState } from './update';
 import {
@@ -117,14 +117,7 @@ export interface ElectronAPI {
         existingBugs: Array<{ id: string; title: string; description?: string; components?: string[] }>;
         modelName?: string;
     }) => Promise<Array<{ bugId: string; title: string; similarityScore: number; reasoning: string }>>;
-    aiTestImpactAnalysis: (args: {
-        apiKey: string;
-        changedFiles: string[];
-        prTitle: string;
-        prDescription?: string;
-        testCases: Array<{ id: string; title: string; sapModule?: string; components?: string[]; tags?: string[] }>;
-        modelName?: string;
-    }) => Promise<{ impactedCaseIds: string[]; affectedModules: string[]; rationale: string }>;
+    aiAnalyzePullRequest: (args: AiAnalyzePullRequestRequest) => Promise<AiPullRequestAnalysisResult>;
 
     // Integrations (Linear)
     syncLinear: (args: any) => Promise<any>;

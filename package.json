@@ -8,9 +8,9 @@
     "npm": ">=10"
   },
   "scripts": {
-    "dev": "cross-env ELECTRON_RUN_AS_NODE= electron-vite dev",
+    "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "preview": "cross-env ELECTRON_RUN_AS_NODE= electron-vite preview",
+    "preview": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "rebuild:native": "electron-builder install-app-deps",
     "generate:icon": "powershell -ExecutionPolicy Bypass -File scripts/generate-app-icon.ps1",

@@ -123,7 +123,7 @@ describe('ai utils', () => {
         expect(context.sapCommerce.environments).toEqual([])
     })
 
-    it('injects SAP commerce context when the Settings toggle is on', () => {
+    it('does not inject SAP commerce context when the selector disables it', () => {
         useSettingsStore.setState((state) => ({
             ...state,
             settings: {
@@ -144,7 +144,7 @@ describe('ai utils', () => {
 
         expect(context?.role).toBe('qa')
         if (!context || context.role !== 'qa') throw new Error('expected qa context')
-        expect(context.sapCommerce.enabled).toBe(true)
+        expect(context.sapCommerce.enabled).toBe(false)
         expect(context.sapCommerce.environments).toEqual([])
     })
 
@@ -169,7 +169,7 @@ describe('ai utils', () => {
             testDataGroupIds: [],
             checklistIds: [],
             handoffIds: [],
-            includeSapCommerce: false,
+            includeSapCommerce: true,
         })
 
         expect(context?.role).toBe('qa')
