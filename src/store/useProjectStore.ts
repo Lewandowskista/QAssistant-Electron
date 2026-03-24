@@ -9,7 +9,7 @@ import {
     TestDataEntry, ChecklistItem, CollabState, HandoffPacket, ArtifactLink,
     CollaborationEvent, HandoffExecutionRef, LinkedPrRef, CollaborationActorRole,
     EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution,
-    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun,
+    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun, AiCopilotHistoryEntry,
     ExploratorySession, ExploratoryObservation
 } from '../types/project'
 import { demoProject } from '@/data/demoProject'
@@ -26,13 +26,15 @@ export type {
     TestDataEntry, ChecklistItem, CollabState, HandoffPacket, ArtifactLink,
     CollaborationEvent, HandoffExecutionRef, LinkedPrRef, CollaborationActorRole,
     EnvironmentType, RunbookStepStatus, TestCaseExecution, TestPlanExecution,
-    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun,
+    AccuracyTestSuite, ReferenceDocument, AccuracyQaPair, AccuracyEvalRun, AiCopilotHistoryEntry,
     ExploratorySession, ExploratoryObservation
 }
 
 function generateId(): string {
     return crypto.randomUUID()
 }
+
+const MAX_AI_COPILOT_HISTORY_ENTRIES = 150
 
 /**
  * Persistence helper — writes projects to the SQLite database via IPC.
@@ -286,6 +288,7 @@ function normalizeProject(project: any): Project {
         reportSchedules: project.reportSchedules || [],
         reportHistory: project.reportHistory || [],
         customKpis: project.customKpis || [],
+        aiCopilotHistory: project.aiCopilotHistory || [],
         sourceColumns: project.sourceColumns || (project.columns ? { manual: project.columns } : undefined),
         handoffPackets: (project.handoffPackets || []).map((packet: any) => enrichHandoffCompleteness(packet)),
         artifactLinks: project.artifactLinks || [],
@@ -394,6 +397,8 @@ export interface ProjectState {
     deleteProject: (id: string) => Promise<void>
     importProject: (project: Project) => Promise<void>
     seedDemoProject: () => Promise<void>
+    appendAiCopilotHistoryEntry: (projectId: string, entry: Omit<AiCopilotHistoryEntry, 'id' | 'createdAt'>) => Promise<void>
+    clearAiCopilotHistory: (projectId: string, role?: AiCopilotHistoryEntry['role']) => Promise<void>
 
     // Note Actions
     addNote: (projectId: string, title: string) => Promise<Note>
@@ -583,6 +588,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             reportSchedules: [],
             reportHistory: [],
             customKpis: [],
+            aiCopilotHistory: [],
             handoffPackets: [],
             artifactLinks: [],
             collaborationEvents: []
@@ -600,6 +606,44 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const updatedProjects = get().projects.map(p =>
             p.id === id ? { ...p, ...updates } : p
         )
+        if (window.electronAPI) {
+            saveProjectsToDisk(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
+    appendAiCopilotHistoryEntry: async (projectId: string, entry: Omit<AiCopilotHistoryEntry, 'id' | 'createdAt'>) => {
+        const historyEntry: AiCopilotHistoryEntry = {
+            id: generateId(),
+            createdAt: Date.now(),
+            ...entry,
+        }
+
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            return {
+                ...project,
+                aiCopilotHistory: [historyEntry, ...(project.aiCopilotHistory || [])].slice(0, MAX_AI_COPILOT_HISTORY_ENTRIES),
+            }
+        })
+
+        if (window.electronAPI) {
+            saveProjectsToDisk(updatedProjects)
+        }
+        set({ projects: updatedProjects })
+    },
+
+    clearAiCopilotHistory: async (projectId: string, role?: AiCopilotHistoryEntry['role']) => {
+        const updatedProjects = get().projects.map((project) => {
+            if (project.id !== projectId) return project
+            return {
+                ...project,
+                aiCopilotHistory: role
+                    ? (project.aiCopilotHistory || []).filter((entry) => entry.role !== role)
+                    : [],
+            }
+        })
+
         if (window.electronAPI) {
             saveProjectsToDisk(updatedProjects)
         }

@@ -18,7 +18,7 @@ type DB = ReturnType<typeof Database>
 let db: DB | null = null
 
 // ─── Schema version ──────────────────────────────────────────────────────────
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -69,6 +69,7 @@ function createSchema(): void {
             report_schedules_json TEXT,
             report_history_json TEXT,
             custom_kpis_json TEXT,
+            ai_copilot_history_json TEXT,
             linear_connections_json TEXT, -- JSON: LinearConnection[]
             jira_connections_json TEXT,   -- JSON: JiraConnection[]
             linear_connection_legacy_json TEXT,
@@ -599,6 +600,12 @@ function migrateSyncQueueWorkspaceScope(database: DB): void {
     `)
 }
 
+function migrateProjectAiCopilotHistory(database: DB): void {
+    if (!hasColumn(database, 'projects', 'ai_copilot_history_json')) {
+        database.exec('ALTER TABLE projects ADD COLUMN ai_copilot_history_json TEXT')
+    }
+}
+
 function runMigrations(): void {
     const database = getDb()
     const row = database.prepare('SELECT version FROM schema_version LIMIT 1').get() as { version: number } | undefined
@@ -606,6 +613,7 @@ function runMigrations(): void {
 
     // This migration is idempotent and also repairs partially upgraded installs.
     migrateSyncQueueWorkspaceScope(database)
+    migrateProjectAiCopilotHistory(database)
 
     if (currentVersion < SCHEMA_VERSION) {
         database.prepare('DELETE FROM schema_version').run()
@@ -692,6 +700,7 @@ type ProjectRow = {
     report_schedules_json: string | null
     report_history_json: string | null
     custom_kpis_json: string | null
+    ai_copilot_history_json: string | null
     linear_connections_json: string | null
     jira_connections_json: string | null
     linear_connection_legacy_json: string | null
@@ -725,6 +734,7 @@ function rowToProject(row: ProjectRow): Project {
         reportSchedules: p(row.report_schedules_json) ?? [],
         reportHistory: p(row.report_history_json) ?? [],
         customKpis: p(row.custom_kpis_json) ?? [],
+        aiCopilotHistory: p(row.ai_copilot_history_json) ?? [],
         linearConnections: p(row.linear_connections_json) ?? [],
         jiraConnections: p(row.jira_connections_json) ?? [],
         linearConnection: p(row.linear_connection_legacy_json),
@@ -1896,13 +1906,13 @@ export function saveAllProjects(projects: any[]): void {
     const upsertProject = database.prepare(`
         INSERT INTO projects (id, schema_version, name, color, client_name, description, gemini_model,
             columns_json, source_columns_json, quality_gates_json, report_templates_json,
-            report_schedules_json, report_history_json, custom_kpis_json,
+            report_schedules_json, report_history_json, custom_kpis_json, ai_copilot_history_json,
             linear_connections_json, jira_connections_json,
             linear_connection_legacy_json, jira_connection_legacy_json,
             created_at, updated_at)
         VALUES (@id, @schema_version, @name, @color, @client_name, @description, @gemini_model,
             @columns_json, @source_columns_json, @quality_gates_json, @report_templates_json,
-            @report_schedules_json, @report_history_json, @custom_kpis_json,
+            @report_schedules_json, @report_history_json, @custom_kpis_json, @ai_copilot_history_json,
             @linear_connections_json, @jira_connections_json,
             @linear_connection_legacy_json, @jira_connection_legacy_json,
             @created_at, @updated_at)
@@ -1918,6 +1928,7 @@ export function saveAllProjects(projects: any[]): void {
             report_schedules_json = excluded.report_schedules_json,
             report_history_json = excluded.report_history_json,
             custom_kpis_json = excluded.custom_kpis_json,
+            ai_copilot_history_json = excluded.ai_copilot_history_json,
             linear_connections_json = excluded.linear_connections_json,
             jira_connections_json = excluded.jira_connections_json,
             linear_connection_legacy_json = excluded.linear_connection_legacy_json,
@@ -2121,6 +2132,7 @@ export function saveAllProjects(projects: any[]): void {
                 report_schedules_json: j(proj.reportSchedules),
                 report_history_json: j(proj.reportHistory),
                 custom_kpis_json: j(proj.customKpis),
+                ai_copilot_history_json: j(proj.aiCopilotHistory),
                 linear_connections_json: j(proj.linearConnections),
                 jira_connections_json: j(proj.jiraConnections),
                 linear_connection_legacy_json: j(proj.linearConnection),

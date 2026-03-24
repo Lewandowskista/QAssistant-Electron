@@ -213,7 +213,7 @@ function sanitizeHandoffsForDevAi(handoffs: HandoffPacket[] | undefined): DevAiH
 }
 
 function sanitizeSapEnvironments(environments: QaEnvironment[], includeSapCommerce: boolean | undefined): SanitizedSapEnvironment[] {
-    if (includeSapCommerce === false) return []
+    if (includeSapCommerce !== true) return []
     return environments
         .filter((environment) => environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl || environment.occBasePath)
         .map((environment) => sanitizeEnvironment(environment))

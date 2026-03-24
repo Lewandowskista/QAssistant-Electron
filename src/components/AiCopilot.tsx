@@ -17,13 +17,14 @@ import {
     Lightbulb,
     SlidersHorizontal,
     Search,
+    History,
 } from "lucide-react"
 import FormattedText from "@/components/FormattedText"
 import { attachTaskCommentsToProjectAiContext, buildProjectAiContext } from "@/lib/aiUtils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
 import type { AiContextSelection, AiRole, AiTaskComment, ProjectAiContext } from "@/types/ai"
-import type { Checklist, HandoffPacket, Project, QaEnvironment, Task, TestDataGroup, TestPlan } from "@/types/project"
+import type { AiCopilotHistoryEntry, Checklist, HandoffPacket, Project, QaEnvironment, Task, TestDataGroup, TestPlan } from "@/types/project"
 
 interface Message {
     id: string
@@ -233,7 +234,7 @@ interface AiCopilotProps {
 }
 
 export default function AiCopilot({ open, onClose }: AiCopilotProps) {
-    const { projects, activeProjectId } = useProjectStore()
+    const { projects, activeProjectId, appendAiCopilotHistoryEntry, clearAiCopilotHistory } = useProjectStore()
     const activeRole = useUserStore((state) => state.activeRole)
     const activeProject = projects.find((p) => p.id === activeProjectId)
 
@@ -242,8 +243,10 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     const [isLoading, setIsLoading] = useState(false)
     const [apiKeyMissing, setApiKeyMissing] = useState(false)
     const [contextOpen, setContextOpen] = useState(false)
+    const [historyOpen, setHistoryOpen] = useState(false)
     const [contextSelection, setContextSelection] = useState<AiContextSelection>(() => buildEmptySelection("qa"))
     const [contextSearchQuery, setContextSearchQuery] = useState("")
+    const [expandedHistoryEntryId, setExpandedHistoryEntryId] = useState<string | null>(null)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -253,7 +256,9 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         setContextSelection(buildEmptySelection(activeRole))
         setContextSearchQuery("")
         setContextOpen(false)
-    }, [activeProjectId, activeProject, activeRole])
+        setHistoryOpen(false)
+        setExpandedHistoryEntryId(null)
+    }, [activeProjectId, activeRole])
 
     const roleContent = ROLE_CONTENT[activeRole]
     const contextSectionMeta = activeRole === "dev" ? DEV_CONTEXT_SECTION_META : QA_CONTEXT_SECTION_META
@@ -273,6 +278,10 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     }, [contextSelection, filteredProjectContext])
 
     const normalizedContextSearch = contextSearchQuery.trim().toLowerCase()
+    const copilotHistory = useMemo(
+        () => (activeProject?.aiCopilotHistory || []).filter((entry) => entry.role === activeRole),
+        [activeProject?.aiCopilotHistory, activeRole]
+    )
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -318,10 +327,38 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         })
     }, [])
 
+    const toggleContextPanel = useCallback(() => {
+        setContextOpen((current) => {
+            const next = !current
+            if (next) setHistoryOpen(false)
+            return next
+        })
+    }, [])
+
+    const toggleHistoryPanel = useCallback(() => {
+        setHistoryOpen((current) => {
+            const next = !current
+            if (next) setContextOpen(false)
+            return next
+        })
+    }, [])
+
     const resetContextSelection = useCallback(() => {
         setContextSelection(buildEmptySelection(activeRole))
         setContextSearchQuery("")
     }, [activeRole])
+
+    const handleClearHistory = useCallback(async () => {
+        if (!activeProjectId) return
+        await clearAiCopilotHistory(activeProjectId, activeRole)
+        setExpandedHistoryEntryId(null)
+    }, [activeProjectId, activeRole, clearAiCopilotHistory])
+
+    const handleReusePrompt = useCallback((entry: AiCopilotHistoryEntry) => {
+        setInput(entry.prompt)
+        setHistoryOpen(false)
+        setTimeout(() => inputRef.current?.focus(), 0)
+    }, [])
 
     const sendMessage = useCallback(async (text: string) => {
         if (!text.trim() || isLoading) return
@@ -398,6 +435,19 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     timestamp: Date.now(),
                 },
             ])
+
+            if (activeProjectId) {
+                try {
+                    await appendAiCopilotHistoryEntry(activeProjectId, {
+                        role: activeRole,
+                        prompt: text.trim(),
+                        response: result,
+                        contextSummary: hasAnyContextSelected(contextSelection) ? contextSummary : undefined,
+                    })
+                } catch (historyError) {
+                    console.error("Failed to persist AI Copilot history:", historyError)
+                }
+            }
         } catch (err: unknown) {
             if (!abortRef.current) {
                 setMessages((prev) => [
@@ -415,7 +465,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
             clearTimeout(timeoutId)
             setIsLoading(false)
         }
-    }, [isLoading, messages, filteredProjectContext, activeProject, fetchApiKey, activeRole, contextSelection])
+    }, [isLoading, messages, filteredProjectContext, activeProject, activeProjectId, fetchApiKey, activeRole, contextSelection, contextSummary, appendAiCopilotHistoryEntry])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -471,7 +521,21 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     <div className="flex items-center gap-1">
                         {activeProject && (
                             <button
-                                onClick={() => setContextOpen((current) => !current)}
+                                onClick={toggleHistoryPanel}
+                                className={cn(
+                                    "p-2 rounded-md transition-colors",
+                                    historyOpen
+                                        ? "bg-[#252535] text-[#A78BFA]"
+                                        : "hover:bg-[#252535] text-[#6B7280] hover:text-[#E2E8F0]"
+                                )}
+                                title="View AI Copilot history"
+                            >
+                                <History className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                        {activeProject && (
+                            <button
+                                onClick={toggleContextPanel}
                                 className={cn(
                                     "p-2 rounded-md transition-colors",
                                     contextOpen
@@ -505,6 +569,75 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                         <span className="text-[10px] text-primary font-mono">
                             {contextSummary}
                         </span>
+                    </div>
+                )}
+
+                {activeProject && historyOpen && (
+                    <div className="border-b border-[#2A2A3A]/50 bg-[hsl(var(--surface-header)/0.62)] px-4 py-3 space-y-3 shrink-0">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">History</p>
+                                <p className="text-[10px] text-muted-ui">Review previous prompts and replies for the current copilot role.</p>
+                            </div>
+                            {copilotHistory.length > 0 && (
+                                <button
+                                    onClick={handleClearHistory}
+                                    className="text-[10px] font-semibold uppercase tracking-wider text-muted-ui transition-colors hover:text-foreground"
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="grid gap-2 max-h-[280px] overflow-y-auto pr-1 custom-scrollbar">
+                            {copilotHistory.length === 0 ? (
+                                <div className="rounded-xl border border-[#2A2A3A] bg-[hsl(var(--surface-card))] px-3 py-4 text-[10px] text-[hsl(var(--text-muted))]">
+                                    No saved {activeRole === "dev" ? "Dev" : "QA"} Copilot history yet.
+                                </div>
+                            ) : copilotHistory.map((entry) => {
+                                const isExpanded = expandedHistoryEntryId === entry.id
+                                return (
+                                    <div key={entry.id} className="rounded-xl border border-[#2A2A3A] bg-[hsl(var(--surface-card))] p-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <button
+                                                onClick={() => setExpandedHistoryEntryId((current) => current === entry.id ? null : entry.id)}
+                                                className="min-w-0 flex-1 text-left"
+                                            >
+                                                <div className="flex items-center gap-2 text-[9px] uppercase tracking-wider text-[hsl(var(--text-muted))]">
+                                                    <span>{new Date(entry.createdAt).toLocaleString()}</span>
+                                                    {entry.contextSummary ? <span className="truncate text-primary">{entry.contextSummary}</span> : null}
+                                                </div>
+                                                <p className="mt-1 text-[11px] font-semibold text-[hsl(var(--text-primary))] line-clamp-2">{entry.prompt}</p>
+                                                {!isExpanded && (
+                                                    <p className="mt-1 text-[10px] text-[hsl(var(--text-muted))] line-clamp-2">{entry.response}</p>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => handleReusePrompt(entry)}
+                                                className="shrink-0 rounded-lg border border-[#2A2A3A] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-ui transition-colors hover:text-foreground"
+                                            >
+                                                Reuse
+                                            </button>
+                                        </div>
+
+                                        {isExpanded && (
+                                            <div className="mt-3 space-y-3 border-t border-[#2A2A3A]/60 pt-3">
+                                                <div>
+                                                    <p className="text-[9px] font-bold uppercase tracking-wider text-[hsl(var(--text-muted))]">Prompt</p>
+                                                    <p className="mt-1 whitespace-pre-wrap text-[11px] text-[hsl(var(--text-primary))]">{entry.prompt}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-bold uppercase tracking-wider text-[hsl(var(--text-muted))]">Response</p>
+                                                    <div className="mt-1 text-[11px]">
+                                                        <FormattedText content={entry.response} projectId={activeProjectId || undefined} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
                     </div>
                 )}
 

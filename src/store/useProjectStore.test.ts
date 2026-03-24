@@ -175,3 +175,46 @@ describe('useProjectStore — handoff operations', () => {
         expect(events.some(e => e.eventType === 'handoff_acknowledged' && e.handoffId === handoffId)).toBe(true)
     })
 })
+
+describe('useProjectStore — AI Copilot history', () => {
+    it('appendAiCopilotHistoryEntry stores the newest exchange first', async () => {
+        const store = useProjectStore.getState()
+
+        await store.appendAiCopilotHistoryEntry(projectId, {
+            role: 'qa',
+            prompt: 'What should I test first?',
+            response: 'Start with checkout and order confirmation.',
+            contextSummary: '2 tasks | 1 env',
+        })
+
+        const project = useProjectStore.getState().projects.find(p => p.id === projectId)!
+        expect(project.aiCopilotHistory).toHaveLength(1)
+        expect(project.aiCopilotHistory?.[0]).toEqual(expect.objectContaining({
+            role: 'qa',
+            prompt: 'What should I test first?',
+            response: 'Start with checkout and order confirmation.',
+            contextSummary: '2 tasks | 1 env',
+        }))
+    })
+
+    it('clearAiCopilotHistory can remove entries for a single role', async () => {
+        const store = useProjectStore.getState()
+
+        await store.appendAiCopilotHistoryEntry(projectId, {
+            role: 'qa',
+            prompt: 'QA prompt',
+            response: 'QA reply',
+        })
+        await store.appendAiCopilotHistoryEntry(projectId, {
+            role: 'dev',
+            prompt: 'Dev prompt',
+            response: 'Dev reply',
+        })
+
+        await store.clearAiCopilotHistory(projectId, 'qa')
+
+        const project = useProjectStore.getState().projects.find(p => p.id === projectId)!
+        expect(project.aiCopilotHistory).toHaveLength(1)
+        expect(project.aiCopilotHistory?.[0].role).toBe('dev')
+    })
+})

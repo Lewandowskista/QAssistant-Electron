@@ -403,6 +403,15 @@ export type ExploratorySession = {
     notes: string
 }
 
+export type AiCopilotHistoryEntry = {
+    id: string
+    role: 'qa' | 'dev'
+    prompt: string
+    response: string
+    createdAt: number
+    contextSummary?: string
+}
+
 export type Project = {
     id: string
     schemaVersion?: number
@@ -439,6 +448,7 @@ export type Project = {
     reportSchedules?: any[]
     reportHistory?: any[]
     customKpis?: any[]
+    aiCopilotHistory?: AiCopilotHistoryEntry[]
     handoffPackets?: HandoffPacket[]
     artifactLinks?: ArtifactLink[]
     collaborationEvents?: CollaborationEvent[]

@@ -81,6 +81,39 @@ describe('ai utils', () => {
         expect(context.sapCommerce.enabled).toBe(false)
     })
 
+    it('does not include SAP commerce context unless explicitly selected', () => {
+        const context = sanitizeProjectForQaAi(demoProject)
+
+        expect(context?.role).toBe('qa')
+        if (!context || context.role !== 'qa') throw new Error('expected qa context')
+        expect(context.sapCommerce.enabled).toBe(false)
+        expect(context.sapCommerce.environments).toEqual([])
+    })
+
+    it('includes SAP commerce context only when explicitly selected', () => {
+        const sapEnvironment = demoProject.environments.find((environment) =>
+            environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl || environment.occBasePath
+        )
+        if (!sapEnvironment) throw new Error('expected demo project to include a SAP-capable environment')
+
+        const context = buildProjectAiContext(demoProject, 'qa', {
+            taskIds: [],
+            testPlanIds: [],
+            environmentIds: [sapEnvironment.id],
+            testDataGroupIds: [],
+            checklistIds: [],
+            handoffIds: [],
+            includeSapCommerce: true,
+        })
+
+        expect(context?.role).toBe('qa')
+        if (!context || context.role !== 'qa') throw new Error('expected qa context')
+        expect(context.sapCommerce.enabled).toBe(true)
+        expect(context.sapCommerce.environments).toEqual([
+            expect.objectContaining({ id: sapEnvironment.id, name: sapEnvironment.name }),
+        ])
+    })
+
     it('attaches selected task comments to copilot context', () => {
         const baseContext = buildProjectAiContext(demoProject, 'qa', {
             taskIds: [demoProject.tasks[0].id],
