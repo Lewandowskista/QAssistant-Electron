@@ -1,8 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { demoProject } from '../data/demoProject'
 import { attachTaskCommentsToProjectAiContext, buildProjectAiContext, sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTaskForQaAi, sanitizeTestPlansForAi } from './aiUtils'
+import { useSettingsStore } from '@/store/useSettingsStore'
 
 describe('ai utils', () => {
+    beforeEach(() => {
+        useSettingsStore.setState((state) => ({
+            ...state,
+            settings: {
+                ...state.settings,
+                sapCommerceContext: false,
+            },
+        }))
+    })
+
     it('strips sensitive and internal fields from QA project context', () => {
         const project = {
             ...demoProject,
@@ -81,7 +92,7 @@ describe('ai utils', () => {
         expect(context.sapCommerce.enabled).toBe(false)
     })
 
-    it('does not include SAP commerce context unless explicitly selected', () => {
+    it('does not include SAP commerce context by default when the Settings toggle is off', () => {
         const context = sanitizeProjectForQaAi(demoProject)
 
         expect(context?.role).toBe('qa')
@@ -90,7 +101,7 @@ describe('ai utils', () => {
         expect(context.sapCommerce.environments).toEqual([])
     })
 
-    it('includes SAP commerce context only when explicitly selected', () => {
+    it('does not include SAP commerce context when the Settings toggle is off', () => {
         const sapEnvironment = demoProject.environments.find((environment) =>
             environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl || environment.occBasePath
         )
@@ -104,6 +115,61 @@ describe('ai utils', () => {
             checklistIds: [],
             handoffIds: [],
             includeSapCommerce: true,
+        })
+
+        expect(context?.role).toBe('qa')
+        if (!context || context.role !== 'qa') throw new Error('expected qa context')
+        expect(context.sapCommerce.enabled).toBe(false)
+        expect(context.sapCommerce.environments).toEqual([])
+    })
+
+    it('injects SAP commerce context when the Settings toggle is on', () => {
+        useSettingsStore.setState((state) => ({
+            ...state,
+            settings: {
+                ...state.settings,
+                sapCommerceContext: true,
+            },
+        }))
+
+        const context = buildProjectAiContext(demoProject, 'qa', {
+            taskIds: [],
+            testPlanIds: [],
+            environmentIds: [],
+            testDataGroupIds: [],
+            checklistIds: [],
+            handoffIds: [],
+            includeSapCommerce: false,
+        })
+
+        expect(context?.role).toBe('qa')
+        if (!context || context.role !== 'qa') throw new Error('expected qa context')
+        expect(context.sapCommerce.enabled).toBe(true)
+        expect(context.sapCommerce.environments).toEqual([])
+    })
+
+    it('includes selected SAP-capable environments when the Settings toggle is on', () => {
+        useSettingsStore.setState((state) => ({
+            ...state,
+            settings: {
+                ...state.settings,
+                sapCommerceContext: true,
+            },
+        }))
+
+        const sapEnvironment = demoProject.environments.find((environment) =>
+            environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl || environment.occBasePath
+        )
+        if (!sapEnvironment) throw new Error('expected demo project to include a SAP-capable environment')
+
+        const context = buildProjectAiContext(demoProject, 'qa', {
+            taskIds: [],
+            testPlanIds: [],
+            environmentIds: [sapEnvironment.id],
+            testDataGroupIds: [],
+            checklistIds: [],
+            handoffIds: [],
+            includeSapCommerce: false,
         })
 
         expect(context?.role).toBe('qa')

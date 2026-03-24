@@ -15,8 +15,13 @@ import type {
     QaProjectAiContext,
     DevProjectAiContext,
 } from '@/types/ai'
+import { useSettingsStore } from '@/store/useSettingsStore'
 
 type SanitizedSapEnvironment = AiSafeEnvironment
+
+function isSapCommerceContextEnabled(): boolean {
+    return useSettingsStore.getState().settings.sapCommerceContext === true
+}
 
 function buildAllowedSet(ids?: string[]): Set<string> | undefined {
     if (!Array.isArray(ids)) return undefined
@@ -212,8 +217,7 @@ function sanitizeHandoffsForDevAi(handoffs: HandoffPacket[] | undefined): DevAiH
     return handoffs.map((handoff) => sanitizeHandoffForDevAi(handoff))
 }
 
-function sanitizeSapEnvironments(environments: QaEnvironment[], includeSapCommerce: boolean | undefined): SanitizedSapEnvironment[] {
-    if (includeSapCommerce !== true) return []
+function sanitizeSapEnvironments(environments: QaEnvironment[]): SanitizedSapEnvironment[] {
     return environments
         .filter((environment) => environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl || environment.occBasePath)
         .map((environment) => sanitizeEnvironment(environment))
@@ -228,7 +232,8 @@ export function sanitizeProjectForQaAi(project: Project | undefined, selection?:
     const testDataGroups = filterByIds(project.testDataGroups, selection?.testDataGroupIds)
     const checklists = filterByIds(project.checklists, selection?.checklistIds)
     const sanitizedEnvironments = environments.map((environment) => sanitizeEnvironment(environment))
-    const sapEnvironments = sanitizeSapEnvironments(environments, selection?.includeSapCommerce)
+    const sapContextEnabled = isSapCommerceContextEnabled()
+    const sapEnvironments = sapContextEnabled ? sanitizeSapEnvironments(environments) : []
 
     return {
         role: 'qa',
@@ -242,7 +247,7 @@ export function sanitizeProjectForQaAi(project: Project | undefined, selection?:
         testDataGroups: testDataGroups.map((group) => ({ id: group.id, name: group.name, category: group.category })),
         checklists: checklists.map((checklist) => ({ id: checklist.id, name: checklist.name, category: checklist.category })),
         sapCommerce: {
-            enabled: sapEnvironments.length > 0,
+            enabled: sapContextEnabled,
             environments: sapEnvironments,
         },
     }

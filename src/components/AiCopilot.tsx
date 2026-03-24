@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
 import type { AiContextSelection, AiRole, AiTaskComment, ProjectAiContext } from "@/types/ai"
 import type { AiCopilotHistoryEntry, Checklist, HandoffPacket, Project, QaEnvironment, Task, TestDataGroup, TestPlan } from "@/types/project"
+import { useSettingsStore } from "@/store/useSettingsStore"
 
 interface Message {
     id: string
@@ -114,7 +115,7 @@ function formatTime(ts: number) {
     return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
-function buildEmptySelection(role: AiRole): AiContextSelection {
+function buildEmptySelection(role: AiRole, includeSapCommerce = false): AiContextSelection {
     return {
         taskIds: [],
         testPlanIds: role === "qa" ? [] : [],
@@ -122,7 +123,7 @@ function buildEmptySelection(role: AiRole): AiContextSelection {
         testDataGroupIds: role === "qa" ? [] : [],
         checklistIds: role === "qa" ? [] : [],
         handoffIds: role === "dev" ? [] : [],
-        includeSapCommerce: false,
+        includeSapCommerce: role === "qa" ? includeSapCommerce : false,
     }
 }
 
@@ -236,6 +237,7 @@ interface AiCopilotProps {
 export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     const { projects, activeProjectId, appendAiCopilotHistoryEntry, clearAiCopilotHistory } = useProjectStore()
     const activeRole = useUserStore((state) => state.activeRole)
+    const isSapContextEnabled = useSettingsStore((state) => state.settings.sapCommerceContext)
     const activeProject = projects.find((p) => p.id === activeProjectId)
 
     const [messages, setMessages] = useState<Message[]>([])
@@ -244,7 +246,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     const [apiKeyMissing, setApiKeyMissing] = useState(false)
     const [contextOpen, setContextOpen] = useState(false)
     const [historyOpen, setHistoryOpen] = useState(false)
-    const [contextSelection, setContextSelection] = useState<AiContextSelection>(() => buildEmptySelection("qa"))
+    const [contextSelection, setContextSelection] = useState<AiContextSelection>(() => buildEmptySelection(activeRole, isSapContextEnabled))
     const [contextSearchQuery, setContextSearchQuery] = useState("")
     const [expandedHistoryEntryId, setExpandedHistoryEntryId] = useState<string | null>(null)
 
@@ -253,12 +255,19 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     const abortRef = useRef<boolean>(false)
 
     useEffect(() => {
-        setContextSelection(buildEmptySelection(activeRole))
+        setContextSelection(buildEmptySelection(activeRole, isSapContextEnabled))
         setContextSearchQuery("")
         setContextOpen(false)
         setHistoryOpen(false)
         setExpandedHistoryEntryId(null)
-    }, [activeProjectId, activeRole])
+    }, [activeProjectId, activeRole, isSapContextEnabled])
+
+    useEffect(() => {
+        setContextSelection((current) => ({
+            ...current,
+            includeSapCommerce: activeRole === "qa" ? isSapContextEnabled : false,
+        }))
+    }, [activeRole, isSapContextEnabled])
 
     const roleContent = ROLE_CONTENT[activeRole]
     const contextSectionMeta = activeRole === "dev" ? DEV_CONTEXT_SECTION_META : QA_CONTEXT_SECTION_META
@@ -730,15 +739,15 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
 
                             {activeRole === "qa" && (
                                 <div className="rounded-xl border border-[#2A2A3A] bg-[hsl(var(--surface-card))] p-3">
-                                    <label className="flex cursor-pointer items-start gap-2">
+                                    <label className="flex cursor-default items-start gap-2">
                                         <Checkbox
-                                            checked={contextSelection.includeSapCommerce !== false}
-                                            onCheckedChange={(checked) => setContextSelection((current) => ({ ...current, includeSapCommerce: checked === true }))}
+                                            checked={isSapContextEnabled}
+                                            disabled
                                             className="mt-0.5 border-[#3A3A52] data-[state=checked]:bg-[#A78BFA] data-[state=checked]:text-[#0F0F13]"
                                         />
                                         <span>
                                             <span className="block text-[11px] font-semibold text-[hsl(var(--text-primary))]">SAP Commerce context</span>
-                                            <span className="block text-[10px] text-[hsl(var(--text-muted))]">Include the SAP guidance block and selected SAP-capable environments.</span>
+                                            <span className="block text-[10px] text-[hsl(var(--text-muted))]">Controlled from Settings. When enabled there, SAP guidance is injected into AI prompts; when disabled, none is injected.</span>
                                         </span>
                                     </label>
                                 </div>

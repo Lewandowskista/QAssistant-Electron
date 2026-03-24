@@ -47,6 +47,7 @@ type SyncStatus = 'disconnected' | 'connecting' | 'connected' | 'syncing' | 'err
 let supabase: SupabaseClient | null = null
 let syncLogDir: string | null = null
 let realtimeChannel: RealtimeChannel | null = null
+let realtimeChannelOwner: SupabaseClient | null = null
 let currentWorkspaceId: string | null = null
 let currentUserId: string | null = null
 let syncStatus: SyncStatus = 'disconnected'
@@ -114,6 +115,23 @@ function notifyRenderer(channel: string, data: unknown) {
     mainWindowSender?.(channel, data)
 }
 
+async function closeRealtimeChannel(channel = realtimeChannel, owner = realtimeChannelOwner) {
+    if (!channel) return
+
+    const isCurrentChannel = realtimeChannel === channel
+    if (isCurrentChannel) {
+        realtimeChannel = null
+        realtimeChannelOwner = null
+    }
+
+    await Promise.race([
+        owner
+            ? owner.removeChannel(channel)
+            : channel.unsubscribe(),
+        new Promise<void>(resolve => setTimeout(resolve, 3000)),
+    ]).catch(() => {})
+}
+
 export async function initSync(): Promise<{ ok: boolean; status: SyncStatus }> {
     // Cancel any in-flight reconnect attempt before re-initialising
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
@@ -164,7 +182,7 @@ export async function initSync(): Promise<{ ok: boolean; status: SyncStatus }> {
         return { ok: false, status: syncStatus }
     }
 
-    subscribeRealtime()
+    await subscribeRealtime()
 
     // Flush any persisted pending mutations (from before crash/restart)
     await flushPendingMutations()
@@ -186,15 +204,13 @@ export async function teardownSync() {
     if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
 
     // Remove realtime channel with a 3s cap — broken channels must not block sign-out
-    if (realtimeChannel && supabase) {
+    if (realtimeChannel) {
         const ch = realtimeChannel
-        realtimeChannel = null
-        await Promise.race([
-            supabase.removeChannel(ch),
-            new Promise<void>(resolve => setTimeout(resolve, 3000)),
-        ]).catch(() => {})
+        const owner = realtimeChannelOwner
+        await closeRealtimeChannel(ch, owner)
     }
     realtimeChannel = null
+    realtimeChannelOwner = null
     supabase = null
     currentWorkspaceId = null
     currentUserId = null
@@ -269,6 +285,8 @@ export async function onAppFocused() {
 // ─── Reconnection with exponential backoff (Improvement 2) ───────────────────
 
 function scheduleReconnect() {
+    if (reconnectTimer) return
+
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.warn('[sync] Max reconnect attempts reached — staying in error state')
         setSyncStatus('error')
@@ -283,6 +301,12 @@ function scheduleReconnect() {
         reconnectTimer = null
         // Guard: if teardownSync was called while waiting, abort
         if (!currentWorkspaceId) return
+
+        if (realtimeChannel) {
+            const ch = realtimeChannel
+            const owner = realtimeChannelOwner
+            await closeRealtimeChannel(ch, owner)
+        }
 
         // Refresh the auth client — the token may have expired while we were waiting
         const freshClient = await getAuthenticatedClient()
@@ -299,14 +323,10 @@ function scheduleReconnect() {
         flushInProgress = false
         autoSyncInProgress = false
 
-        if (realtimeChannel) {
-            await supabase.removeChannel(realtimeChannel).catch(() => {})
-            realtimeChannel = null
-        }
         try {
             await performInitialPull()
             if (syncStatus !== 'error') {
-                subscribeRealtime()
+                await subscribeRealtime()
                 await flushPendingMutations()
             }
         } catch (e) {
@@ -617,20 +637,24 @@ async function performInitialPull() {
 
 // ─── Real-time subscriptions ──────────────────────────────────────────────────
 
-function subscribeRealtime() {
+async function subscribeRealtime() {
     if (!supabase || !currentWorkspaceId) return
 
     if (realtimeChannel) {
-        supabase.removeChannel(realtimeChannel)
+        const ch = realtimeChannel
+        const owner = realtimeChannelOwner
+        await closeRealtimeChannel(ch, owner)
     }
 
-    realtimeChannel = supabase
-        .channel(`workspace:${currentWorkspaceId}`)
+    const client = supabase
+    const workspaceId = currentWorkspaceId
+    const channel = client
+        .channel(`workspace:${workspaceId}`)
         .on('postgres_changes', {
             event: '*',
             schema: 'public',
             table: 'sync_tasks',
-            filter: `workspace_id=eq.${currentWorkspaceId}`,
+            filter: `workspace_id=eq.${workspaceId}`,
         }, (payload) => {
             try {
                 if (payload.new && (payload.new as any).updated_by !== currentUserId) {
@@ -643,7 +667,7 @@ function subscribeRealtime() {
             event: '*',
             schema: 'public',
             table: 'sync_handoffs',
-            filter: `workspace_id=eq.${currentWorkspaceId}`,
+            filter: `workspace_id=eq.${workspaceId}`,
         }, (payload) => {
             try {
                 if (payload.new && (payload.new as any).updated_by !== currentUserId) {
@@ -656,7 +680,7 @@ function subscribeRealtime() {
             event: 'INSERT',
             schema: 'public',
             table: 'sync_collab_events',
-            filter: `workspace_id=eq.${currentWorkspaceId}`,
+            filter: `workspace_id=eq.${workspaceId}`,
         }, (payload) => {
             try {
                 if (payload.new && (payload.new as any).actor_user_id !== currentUserId) {
@@ -669,7 +693,7 @@ function subscribeRealtime() {
             event: '*',
             schema: 'public',
             table: 'sync_artifact_links',
-            filter: `workspace_id=eq.${currentWorkspaceId}`,
+            filter: `workspace_id=eq.${workspaceId}`,
         }, (payload) => {
             try {
                 if (payload.new && (payload.new as any).created_by !== currentUserId) {
@@ -678,14 +702,19 @@ function subscribeRealtime() {
                 }
             } catch (e) { console.warn('[sync] realtime artifact_links handler error:', e) }
         })
-        .subscribe((status) => {
+    realtimeChannel = channel
+    realtimeChannelOwner = client
+
+    channel.subscribe((status, err) => {
+            if (realtimeChannel !== channel) return
+
             if (status === 'SUBSCRIBED') {
                 reconnectAttempts = 0
                 if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
                 setSyncStatus('connected')
                 notifyRenderer('sync-status-changed', getStatus())
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                console.warn('[sync] Realtime channel error:', status)
+                console.warn('[sync] Realtime channel error:', status, err?.message ?? '')
                 setSyncStatus('error')
                 lastSyncError = 'Realtime connection lost — reconnecting…'
                 notifyRenderer('sync-status-changed', getStatus())
