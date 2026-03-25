@@ -620,7 +620,7 @@ export class GeminiService {
 
         const halfWindow = Math.floor(maxChars / 2)
         let start = Math.max(0, matchIndex - halfWindow)
-        let end = Math.min(normalized.length, start + maxChars)
+        const end = Math.min(normalized.length, start + maxChars)
         if (end - start < maxChars) {
             start = Math.max(0, end - maxChars)
         }
