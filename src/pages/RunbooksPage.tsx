@@ -99,26 +99,33 @@ export default function RunbooksPage() {
     }
 
     return (
-        <div className="flex h-full bg-[#0F0F13] text-qa-text overflow-hidden">
+        <div className="flex h-full overflow-hidden bg-background text-foreground">
             {/* Sidebar: Categories & List */}
-            <div className="w-80 flex flex-col border-r border-qa-border bg-[#13131A] shrink-0">
+            <div className="w-80 shrink-0 border-r border-ui bg-panel flex flex-col">
                 <div className="p-4 border-b border-qa-border space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-sm font-bold tracking-tight flex items-center gap-2">
                             <BookOpen className="h-4 w-4 text-primary" />
                             Runbooks
                         </h2>
-                        <Button variant="ghost" size="icon" onClick={handleAddRunbook} className="h-8 w-8 text-primary hover:bg-primary/10">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleAddRunbook}
+                            aria-label="Create runbook"
+                            className="h-8 w-8 text-primary hover:bg-primary/10"
+                        >
                             <Plus className="h-4 w-4" />
                         </Button>
                     </div>
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-ui" aria-hidden="true" />
                         <Input
                             placeholder="Search runbooks..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 h-9 bg-[#1A1A24] border-qa-border text-xs focus:ring-primary/50"
+                            aria-label="Search runbooks"
+                            className="h-9 border-ui bg-panel-muted pl-9 text-xs"
                         />
                     </div>
                 </div>
@@ -128,10 +135,10 @@ export default function RunbooksPage() {
                         <button
                             onClick={() => setActiveCategory('all')}
                             className={cn(
-                                "px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all",
+                                "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-[background-color,border-color,color]",
                                 activeCategory === 'all'
                                     ? "bg-primary/20 text-primary border-primary/30"
-                                    : "bg-transparent text-slate-500 border-slate-800 hover:border-slate-700"
+                                    : "border-ui bg-transparent text-muted-ui hover:border-primary/30 hover:text-foreground"
                             )}
                         >
                             All
@@ -141,10 +148,10 @@ export default function RunbooksPage() {
                                 key={cat.id}
                                 onClick={() => setActiveCategory(cat.id)}
                                 className={cn(
-                                    "px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all",
+                                    "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-[background-color,border-color,color]",
                                     activeCategory === cat.id
                                         ? cat.color
-                                        : "bg-transparent text-slate-500 border-slate-800 hover:border-slate-700"
+                                        : "border-ui bg-transparent text-muted-ui hover:border-primary/30 hover:text-foreground"
                                 )}
                             >
                                 {cat.label}
@@ -156,8 +163,8 @@ export default function RunbooksPage() {
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                     {filteredRunbooks.length === 0 ? (
                         <div className="flex flex-col items-center justify-center p-8 text-center space-y-2 opacity-30 mt-10">
-                            <BookOpen className="h-8 w-8" />
-                            <p className="text-xs">No runbooks found</p>
+                            <BookOpen className="h-8 w-8" aria-hidden="true" />
+                            <p className="text-xs text-muted-ui">No runbooks found</p>
                         </div>
                     ) : (
                         filteredRunbooks.map(rb => (
@@ -165,10 +172,10 @@ export default function RunbooksPage() {
                                 <button
                                     onClick={() => setSelectedRunbookId(rb.id)}
                                     className={cn(
-                                        "w-full flex flex-col gap-1.5 rounded-md px-3 py-2.5 text-xs transition-all text-left border",
+                                        "w-full rounded-md border px-3 py-2.5 text-left text-xs transition-[background-color,border-color,color]",
                                         selectedRunbookId === rb.id
-                                            ? "bg-[#2D2D3F] border-primary/30 text-qa-text"
-                                            : "border-transparent text-qa-text-muted hover:bg-[#252535] hover:text-qa-text"
+                                            ? "border-primary/30 bg-primary/8 text-foreground shadow-[inset_0_1px_0_hsl(var(--primary)/0.08)]"
+                                            : "border-transparent text-muted-ui hover:bg-panel-muted hover:text-foreground"
                                     )}
                                 >
                                     <div className="flex items-center justify-between gap-2">
@@ -187,11 +194,16 @@ export default function RunbooksPage() {
                                 <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:text-white">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label={`Open actions for ${rb.name}`}
+                                                className="h-6 w-6 text-muted-ui hover:text-foreground"
+                                            >
                                                 <MoreVertical className="h-3.5 w-3.5" />
                                             </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-32 bg-[#1A1A24] border-qa-border text-white">
+                                        <DropdownMenuContent align="end" className="w-32 border-ui bg-popover text-popover-foreground">
                                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); deleteRunbook(activeProjectId!, rb.id); if (selectedRunbookId === rb.id) setSelectedRunbookId(null); }}>
                                                 <Trash2 className="mr-2 h-3 w-3 text-red-400" /> Delete
                                             </DropdownMenuItem>
@@ -205,19 +217,23 @@ export default function RunbooksPage() {
             </div>
 
             {/* Main Content: Steps */}
-            <div className="flex-1 flex flex-col bg-[#0F0F13] min-w-0">
+            <div className="min-w-0 flex-1 bg-background flex flex-col">
                 {selectedRunbook ? (
                     <>
-                        <div className="h-14 flex items-center justify-between px-6 border-b border-qa-border bg-[#13131A]/30 backdrop-blur-sm sticky top-0 z-10">
+                        <div className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-ui bg-background/95 px-6 backdrop-blur-sm">
                             <div className="flex items-center gap-4">
                                 <h1 className="text-lg font-bold tracking-tight">{selectedRunbook.name}</h1>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" size="sm" className="h-7 text-[10px] uppercase tracking-wider bg-[#1A1A24] border-qa-border hover:bg-[#252535]">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 border-ui bg-panel-muted text-[10px] uppercase tracking-wider text-foreground hover:bg-surface-muted"
+                                        >
                                             {selectedRunbook.category}
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="bg-[#1A1A24] border-qa-border text-white">
+                                    <DropdownMenuContent className="border-ui bg-popover text-popover-foreground">
                                         {CATEGORIES.map(cat => (
                                             <DropdownMenuItem key={cat.id} onClick={() => updateRunbook(activeProjectId!, selectedRunbook.id, { category: cat.id })}>
                                                 {cat.label}
@@ -237,7 +253,7 @@ export default function RunbooksPage() {
                                                 updateRunbookStep(activeProjectId, selectedRunbook.id, step.id, { status: 'pending' })
                                             })
                                         }}
-                                        className="h-8 gap-2 text-qa-text-muted hover:text-qa-text"
+                                        className="h-8 gap-2 text-muted-ui hover:text-foreground"
                                         title="Reset all steps to Pending"
                                     >
                                         <RefreshCcw className="h-3.5 w-3.5" />
@@ -255,9 +271,9 @@ export default function RunbooksPage() {
                             <div className="max-w-3xl mx-auto space-y-8 pb-32">
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between mb-6">
-                                        <h3 className="text-xs font-black tracking-[0.2em] text-qa-text-muted uppercase">Procedure Steps</h3>
+                                        <h3 className="text-xs font-black tracking-[0.2em] text-muted-ui uppercase">Procedure Steps</h3>
                                         <div className="text-[10px] text-muted-foreground flex items-center gap-3">
-                                            <span className="flex items-center gap-1"><Circle className="h-2 w-2 text-slate-500" /> Pending</span>
+                                            <span className="flex items-center gap-1"><Circle className="h-2 w-2 text-muted-ui" /> Pending</span>
                                             <span className="flex items-center gap-1"><Clock className="h-2 w-2 text-blue-500" /> In Progress</span>
                                             <span className="flex items-center gap-1"><CheckCircle2 className="h-2 w-2 text-green-500" /> Done</span>
                                         </div>
@@ -265,15 +281,21 @@ export default function RunbooksPage() {
 
                                     <div className="space-y-3">
                                         {selectedRunbook.steps.sort((a, b) => a.order - b.order).map((step) => (
-                                            <div key={step.id} className="group flex items-start gap-4 p-4 rounded-xl border border-qa-border bg-[#13131A] hover:border-primary/30 transition-all duration-200">
+                                            <div
+                                                key={step.id}
+                                                className="group flex items-start gap-4 rounded-xl border border-ui bg-panel p-4 transition-[background-color,border-color,box-shadow] duration-200 hover:border-primary/30 hover:bg-surface-muted"
+                                            >
                                                 <div className="mt-1 shrink-0">
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
-                                                            <button className="h-5 w-5 rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                                                            <button
+                                                                className="flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                                                                aria-label={`Set status for ${step.title}`}
+                                                            >
                                                                 {getStatusIcon(step.status)}
                                                             </button>
                                                         </DropdownMenuTrigger>
-                                                        <DropdownMenuContent className="bg-[#1A1A24] border-qa-border text-white">
+                                                        <DropdownMenuContent className="border-ui bg-popover text-popover-foreground">
                                                             {STATUS_ORDER.map(s => (
                                                                 <DropdownMenuItem key={s} onClick={() => updateRunbookStep(activeProjectId!, selectedRunbook.id, step.id, { status: s })}>
                                                                     <div className="flex items-center gap-2 capitalize">
@@ -290,13 +312,15 @@ export default function RunbooksPage() {
                                                             <input
                                                                 value={step.title}
                                                                 onChange={(e) => updateRunbookStep(activeProjectId!, selectedRunbook.id, step.id, { title: e.target.value })}
-                                                                className="w-full bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 text-qa-text"
+                                                                aria-label={`Title for ${step.title}`}
+                                                                className="w-full border-none bg-transparent p-0 text-sm font-semibold text-foreground focus:ring-0"
                                                             />
                                                             <textarea
                                                                 placeholder="Add description..."
                                                                 value={step.description || ''}
                                                                 onChange={(e) => updateRunbookStep(activeProjectId!, selectedRunbook.id, step.id, { description: e.target.value })}
-                                                                className="w-full bg-transparent border-none p-0 text-xs text-muted-foreground focus:ring-0 mt-1 resize-none h-16"
+                                                                aria-label={`Description for ${step.title}`}
+                                                                className="mt-1 h-16 w-full resize-none border-none bg-transparent p-0 text-xs text-muted-foreground focus:ring-0"
                                                             />
                                                         </div>
                                                         <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -304,11 +328,12 @@ export default function RunbooksPage() {
                                                                 variant="ghost"
                                                                 size="icon"
                                                                 onClick={() => deleteRunbookStep(activeProjectId!, selectedRunbook.id, step.id)}
+                                                                aria-label={`Delete step ${step.title}`}
                                                                 className="h-8 w-8 text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
-                                                            <div className="p-2 cursor-grab active:cursor-grabbing text-slate-700">
+                                                            <div className="cursor-grab p-2 text-muted-ui active:cursor-grabbing" aria-hidden="true">
                                                                 <GripVertical className="h-4 w-4" />
                                                             </div>
                                                         </div>
@@ -335,17 +360,17 @@ export default function RunbooksPage() {
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center opacity-30 p-8 text-center space-y-4">
-                        <div className="relative">
-                            <BookOpen className="h-20 w-20" />
-                            <div className="absolute -top-1 -right-1 h-6 w-6 bg-primary rounded-full animate-pulse" />
-                        </div>
-                        <div className="max-w-xs">
-                            <h2 className="text-xl font-bold text-white mb-2">Select a Runbook</h2>
-                            <p className="text-sm">Manage complex multi-step procedures like deployments, maintenance tasks, or repetitive testing flows.</p>
-                        </div>
-                        {runbooks.length === 0 && (
-                            <Button onClick={handleAddRunbook} className="mt-4 gap-2">
+                        <div className="flex-1 flex flex-col items-center justify-center opacity-30 p-8 text-center space-y-4">
+                            <div className="relative">
+                                <BookOpen className="h-20 w-20" aria-hidden="true" />
+                                <div className="absolute -top-1 -right-1 h-6 w-6 bg-primary rounded-full animate-pulse" />
+                            </div>
+                            <div className="max-w-xs">
+                                <h2 className="mb-2 text-xl font-bold text-foreground">Select a Runbook</h2>
+                                <p className="text-sm text-muted-ui">Manage complex multi-step procedures like deployments, maintenance tasks, or repetitive testing flows.</p>
+                            </div>
+                            {runbooks.length === 0 && (
+                                <Button onClick={handleAddRunbook} className="mt-4 gap-2">
                                 <Plus className="h-4 w-4" />
                                 Create Your First Runbook
                             </Button>
@@ -355,27 +380,28 @@ export default function RunbooksPage() {
             </div>
 
             <Dialog open={isPromptOpen} onOpenChange={setIsPromptOpen}>
-                <DialogContent className="bg-[#13131A] border-qa-border sm:max-w-[425px]">
+                <DialogContent className="border-ui bg-panel sm:max-w-[425px]">
                     <DialogHeader>
-                        <DialogTitle className="text-qa-text">{promptTitle}</DialogTitle>
+                        <DialogTitle className="text-foreground">{promptTitle}</DialogTitle>
                     </DialogHeader>
                     <div className="py-4 space-y-3">
-                        <label className="text-[10px] font-bold text-qa-text-muted uppercase tracking-widest px-1">{promptLabel}</label>
+                        <label className="px-1 text-[10px] font-bold uppercase tracking-widest text-muted-ui">{promptLabel}</label>
                         <Input
                             autoFocus
                             value={promptValue}
                             onChange={(e) => setPromptValue(e.target.value)}
+                            aria-label={promptLabel}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && promptValue.trim()) {
                                     promptAction?.(promptValue)
                                     setIsPromptOpen(false)
                                 }
                             }}
-                            className="bg-[#1A1A24] border-qa-border text-qa-text"
+                            className="border-ui bg-panel-muted text-foreground"
                         />
                     </div>
-                    <DialogFooter className="bg-[#13131A]">
-                        <Button variant="ghost" onClick={() => setIsPromptOpen(false)} className="text-qa-text-muted hover:text-qa-text">
+                    <DialogFooter className="bg-panel">
+                        <Button variant="ghost" onClick={() => setIsPromptOpen(false)} className="text-muted-ui hover:text-foreground">
                             CANCEL
                         </Button>
                         <Button 

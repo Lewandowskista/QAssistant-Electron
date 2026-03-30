@@ -42,11 +42,14 @@ export type SyncStatusPayload = {
     error: string | null
     pendingCount: number
     lastSyncedAt: number | null
+    initialSyncInProgress: boolean
 }
 
 export type SyncDataUpdatedPayload = {
     table?: string
     id?: string
+    projectId?: string
+    row?: CollaborationEvent | ArtifactLink
 } | null
 
 export type SyncConflictPayload = {

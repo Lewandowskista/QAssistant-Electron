@@ -9,7 +9,7 @@ import type {
     WorkspaceInviteInfo,
     WorkspaceInfo,
 } from '@/types/sync'
-import { measureAsync } from '@/lib/perf'
+import { measureAsync, recordRendererMetric } from '@/lib/perf'
 import { getProjectSyncBridge, setSyncConfigSnapshot } from './syncProjectBridge'
 
 interface SyncState {
@@ -20,9 +20,9 @@ interface SyncState {
     pendingCount: number
     error: string | null
     lastSyncedAt: number | null
+    initialSyncInProgress: boolean
     isLoaded: boolean
 
-    // Actions
     loadConfig: () => Promise<void>
     initSync: () => Promise<{ ok: boolean }>
     createWorkspace: (args: SyncCreateWorkspaceArgs) => Promise<{ ok: boolean; inviteCode?: string; error?: string }>
@@ -36,6 +36,8 @@ interface SyncState {
     reloadProjectsAfterSync: (data?: SyncDataUpdatedPayload) => void
 }
 
+let initSyncPromise: Promise<{ ok: boolean }> | null = null
+
 export const useSyncStore = create<SyncState>((set, get) => ({
     config: null,
     status: 'disconnected',
@@ -44,27 +46,41 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     pendingCount: 0,
     error: null,
     lastSyncedAt: null,
+    initialSyncInProgress: false,
     isLoaded: false,
 
     async loadConfig() {
         const config = await window.electronAPI.syncGetConfig()
+        void recordRendererMetric('sampleSyncConfigured', config.configured ? 1 : 0)
         setSyncConfigSnapshot(config)
-        set({ config, isLoaded: true, status: config.configured ? 'connecting' : 'disconnected' })
+        set((state) => ({
+            config,
+            isLoaded: true,
+            status: config.configured ? state.status : 'disconnected',
+        }))
     },
 
     async initSync() {
-        set({ status: 'connecting' })
-        const result = await measureAsync('syncInitMs', () => window.electronAPI.syncInit())
-        // Don't clobber status — the main process sends sync-status-changed events
-        // throughout initSync (pull, flush, realtime subscribe), so the IPC listener
-        // already keeps us up to date. Only update if result reports a hard failure.
-        if (!result.ok) {
-            set({ status: result.status as CloudSyncStatus })
+        if (initSyncPromise) {
+            return await initSyncPromise
         }
-        if (result.ok) {
-            await get().loadWorkspaceInfo()
-        }
-        return { ok: result.ok }
+
+        initSyncPromise = (async () => {
+            set((state) => ({
+                status: state.status === 'error' ? 'error' : 'connecting',
+            }))
+            const result = await measureAsync('syncInitMs', () => window.electronAPI.syncInit())
+            if (!result.ok) {
+                set({ status: result.status as CloudSyncStatus })
+            } else {
+                await get().loadWorkspaceInfo()
+            }
+            return { ok: result.ok }
+        })().finally(() => {
+            initSyncPromise = null
+        })
+
+        return await initSyncPromise
     },
 
     async createWorkspace(args) {
@@ -73,7 +89,6 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             const config = await window.electronAPI.syncGetConfig()
             setSyncConfigSnapshot(config)
             set({ config, workspaceInvite: null })
-            // Kick off sync in the background — don't block the dialog from showing success
             get().initSync().catch(console.error)
         }
         return result
@@ -85,7 +100,6 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             const config = await window.electronAPI.syncGetConfig()
             setSyncConfigSnapshot(config)
             set({ config, workspaceInvite: null })
-            // Kick off sync in the background — don't block the dialog from showing success
             get().initSync().catch(console.error)
         }
         return result
@@ -94,10 +108,17 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     async disconnect() {
         await window.electronAPI.syncDisconnect()
         setSyncConfigSnapshot({ configured: false })
-        set({ config: { configured: false }, status: 'disconnected', workspaceInfo: null, workspaceInvite: null, pendingCount: 0, error: null, lastSyncedAt: null })
-        // Clear the presence singleton so it re-initialises with fresh credentials
-        // if the user connects to a different workspace later.
-        import('@/hooks/usePresence').then(m => m.clearPresenceClient?.())
+        set({
+            config: { configured: false },
+            status: 'disconnected',
+            workspaceInfo: null,
+            workspaceInvite: null,
+            pendingCount: 0,
+            error: null,
+            lastSyncedAt: null,
+            initialSyncInProgress: false,
+        })
+        import('@/hooks/usePresence').then((m) => m.clearPresenceClient?.()).catch(() => {})
     },
 
     async loadWorkspaceInfo() {
@@ -125,8 +146,11 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     async manualSync() {
         set({ status: 'syncing' })
         const result = await window.electronAPI.syncManual()
-        set({ status: result.ok ? 'connected' : 'error', error: result.error ?? null })
-        // Refresh members after every manual sync (Improvement 8)
+        set({
+            status: result.ok ? 'connected' : 'error',
+            error: result.error ?? null,
+            initialSyncInProgress: false,
+        })
         if (result.ok) {
             await get().loadWorkspaceInfo()
         }
@@ -139,49 +163,64 @@ export const useSyncStore = create<SyncState>((set, get) => ({
             error: data.error,
             pendingCount: data.pendingCount,
             lastSyncedAt: data.lastSyncedAt ?? null,
+            initialSyncInProgress: data.initialSyncInProgress,
         })
     },
 
-    // Granular post-sync refresh (Improvement 5):
-    // When we know which entity changed, update just that entity in the store.
-    // Fallback to full project reload for unknown/bulk changes.
     reloadProjectsAfterSync(data) {
         const bridge = getProjectSyncBridge()
         if (!bridge) return
 
         if (data?.table === 'tasks' && data.id) {
-            // Fetch the single task and merge it into the active project store
             window.electronAPI.getTaskById?.(data.id).then((task) => {
                 if (!task) {
-                    // Task not found locally — do a full reload as fallback
-                    fullReload()
+                    fullReload('task-miss')
                     return
                 }
                 bridge.mergeRemoteTask(task)
-            }).catch(() => fullReload())
+            }).catch(() => fullReload('task-error'))
             return
         }
 
         if (data?.table === 'handoffs' && data.id) {
             window.electronAPI.getHandoffById?.(data.id).then((handoff) => {
-                if (!handoff) { fullReload(); return }
+                if (!handoff) {
+                    fullReload('handoff-miss')
+                    return
+                }
                 bridge.mergeRemoteHandoff(handoff)
-            }).catch(() => fullReload())
+            }).catch(() => fullReload('handoff-error'))
             return
         }
 
-        // For collab_events, artifact_links, or bulk null updates — full reload
-        fullReload()
+        if (data?.table === 'collab_events' && data.projectId && data.row) {
+            bridge.mergeRemoteCollaborationEvent(data.projectId, data.row)
+            return
+        }
+
+        if (data?.table === 'artifact_links' && data.projectId && data.row) {
+            bridge.mergeRemoteArtifactLink(data.projectId, data.row)
+            return
+        }
+
+        fullReload(data?.table ? `${data.table}-bulk` : 'bulk')
     },
 }))
 
-let fullReloadTimer: ReturnType<typeof setTimeout> | null = null
+let fullReloadTimer: number | null = null
+let pendingFullReloadReason = 'unknown'
 
-function fullReload() {
+function fullReload(reason: string) {
+    pendingFullReloadReason = reason
     if (fullReloadTimer !== null) return
     fullReloadTimer = window.setTimeout(() => {
+        const reloadReason = pendingFullReloadReason
+        pendingFullReloadReason = 'unknown'
         fullReloadTimer = null
-        void window.electronAPI?.incrementPerformanceCounter?.('syncFallbackReloads')
+        void Promise.all([
+            window.electronAPI?.incrementPerformanceCounter?.('syncFallbackReloads'),
+            window.electronAPI?.incrementPerformanceCounter?.(`syncFallbackReloadReason:${reloadReason}`),
+        ])
         getProjectSyncBridge()?.loadProjects().catch(console.error)
     }, 250)
 }

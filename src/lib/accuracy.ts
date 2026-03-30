@@ -473,7 +473,6 @@ export async function runAccuracyEvaluation(
             await Promise.race(inFlight)
         }
 
-        // eslint-disable-next-line prefer-const
         let taskRef: Promise<void>
         // eslint-disable-next-line prefer-const
         taskRef = runOne(pair, index).finally(() => inFlight.delete(taskRef))

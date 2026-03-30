@@ -71,18 +71,27 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     load: async () => {
         const api = window.electronAPI
         if (!api) return
-        const [raw, systemInfo] = await Promise.all([
-            api.readSettingsFile(),
-            api.getSystemInfo?.().catch(() => null) ?? Promise.resolve(null),
-        ])
-        const { settings, resolvedPerformanceMode } = normalizeSettings(raw, systemInfo)
+        const raw = await api.readSettingsFile()
+        const { settings, resolvedPerformanceMode } = normalizeSettings(raw, get().systemInfo)
         applyTheme(settings.theme)
         applyPerformanceModeClass(resolvedPerformanceMode)
         set({
             settings,
             loaded: true,
-            systemInfo: systemInfo ? { platform: systemInfo.platform, arch: systemInfo.arch } : null,
             resolvedPerformanceMode,
+        })
+
+        ;(api.getSystemInfo?.().catch(() => null) ?? Promise.resolve(null)).then((systemInfo) => {
+            if (!systemInfo) return
+            const normalizedSystemInfo = { platform: systemInfo.platform, arch: systemInfo.arch }
+            const current = get()
+            const next = normalizeSettings(current.settings, normalizedSystemInfo)
+            applyPerformanceModeClass(next.resolvedPerformanceMode)
+            set({
+                systemInfo: normalizedSystemInfo,
+                settings: next.settings,
+                resolvedPerformanceMode: next.resolvedPerformanceMode,
+            })
         })
     },
 

@@ -4,6 +4,8 @@ type ProjectSyncBridge = {
     loadProjects: () => Promise<void>
     mergeRemoteTask: (task: any) => void
     mergeRemoteHandoff: (handoff: any) => void
+    mergeRemoteCollaborationEvent: (projectId: string, event: any) => void
+    mergeRemoteArtifactLink: (projectId: string, link: any) => void
 }
 
 let projectBridge: ProjectSyncBridge | null = null

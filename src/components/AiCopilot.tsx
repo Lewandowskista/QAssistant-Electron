@@ -9,8 +9,8 @@ import {
     Loader2,
     Bot,
     User,
+    Plus,
     ChevronDown,
-    Trash2,
     Copy,
     Check,
     RotateCcw,
@@ -22,6 +22,7 @@ import {
 import FormattedText from "@/components/FormattedText"
 import { attachTaskCommentsToProjectAiContext, buildProjectAiContext } from "@/lib/aiUtils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
 import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
 import type { AiContextSelection, AiRole, AiTaskComment, ProjectAiContext } from "@/types/ai"
 import type { AiCopilotHistoryEntry, Checklist, HandoffPacket, Project, QaEnvironment, Task, TestDataGroup, TestPlan } from "@/types/project"
@@ -263,6 +264,13 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     }, [activeProjectId, activeRole, isSapContextEnabled])
 
     useEffect(() => {
+        setMessages([])
+        setInput("")
+        setIsLoading(false)
+        abortRef.current = true
+    }, [activeProjectId, activeRole])
+
+    useEffect(() => {
         setContextSelection((current) => ({
             ...current,
             includeSapCommerce: activeRole === "qa" ? isSapContextEnabled : false,
@@ -488,11 +496,15 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         setIsLoading(false)
     }
 
-    const clearChat = () => {
+    const startNewChat = useCallback(() => {
         abortRef.current = true
         setIsLoading(false)
         setMessages([])
-    }
+        setInput("")
+        setHistoryOpen(false)
+        setExpandedHistoryEntryId(null)
+        setTimeout(() => inputRef.current?.focus(), 0)
+    }, [])
 
     const retryLast = () => {
         const lastUser = [...messages].reverse().find((m) => m.role === "user")
@@ -528,6 +540,18 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     onClose={onClose}
                     actions={
                     <div className="flex items-center gap-1">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={startNewChat}
+                            disabled={messages.length === 0 && !input.trim() && !isLoading}
+                            className="h-8 gap-1.5 rounded-md px-2 text-[11px] font-semibold text-[#6B7280] hover:bg-[#252535] hover:text-[#E2E8F0]"
+                            title="Start a new chat"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>New chat</span>
+                        </Button>
                         {activeProject && (
                             <button
                                 onClick={toggleHistoryPanel}
@@ -554,15 +578,6 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                                 title="Select AI context"
                             >
                                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                            </button>
-                        )}
-                        {messages.length > 0 && (
-                            <button
-                                onClick={clearChat}
-                                className="p-2 rounded-md hover:bg-[#252535] text-[#6B7280] hover:text-red-400 transition-colors"
-                                title="Clear chat"
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
                             </button>
                         )}
                     </div>

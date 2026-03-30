@@ -36,7 +36,6 @@ describe('safeInvoke', () => {
     })
 
     it('handles non-Error rejections (plain strings)', async () => {
-        // eslint-disable-next-line prefer-promise-reject-errors
         const result = await safeInvoke(() => Promise.reject('raw string error'))
         expect(result).toBeNull()
         expect(toast.error).toHaveBeenCalledWith('raw string error')

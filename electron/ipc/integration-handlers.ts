@@ -34,12 +34,30 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
         return { running: deps.isServerRunning(), port: deps.getServerPort() };
     });
     ipcMain.handle('automation-api-status', () => ({ running: deps.isServerRunning(), port: deps.getServerPort() }));
-    ipcMain.handle('test-linear-connection', async (_e: any, { apiKey }: any) => await deps.integrations.getLinearTeams(apiKey));
-    ipcMain.handle('test-jira-connection', async (_e: any, { domain, email, apiToken, token }: any) => await deps.integrations.getJiraProjects(domain, email, apiToken || token));
-    ipcMain.handle('ccv2-get-environments', async (_e: any, { subscriptionCode, apiToken }: any) => await deps.health.ccv2GetEnvironments(subscriptionCode, apiToken));
-    ipcMain.handle('ccv2-get-deployments', async (_e: any, { subscriptionCode, apiToken, environmentCode }: any) => await deps.health.ccv2GetDeployments(subscriptionCode, apiToken, environmentCode));
-    ipcMain.handle('ccv2-get-build', async (_e: any, { subscriptionCode, apiToken, buildCode }: any) => await deps.health.ccv2GetBuild(subscriptionCode, apiToken, buildCode));
-    ipcMain.handle('check-environments-health', async (_e: any, { environments }: any) => await deps.health.checkEnvironmentsNow(environments));
+    ipcMain.handle('test-linear-connection', async (_e: any, { apiKey }: any) => {
+        try { return await deps.integrations.getLinearTeams(apiKey); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
+    });
+    ipcMain.handle('test-jira-connection', async (_e: any, { domain, email, apiToken, token }: any) => {
+        try { return await deps.integrations.getJiraProjects(domain, email, apiToken || token); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
+    });
+    ipcMain.handle('ccv2-get-environments', async (_e: any, { subscriptionCode, apiToken }: any) => {
+        try { return await deps.health.ccv2GetEnvironments(subscriptionCode, apiToken); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
+    });
+    ipcMain.handle('ccv2-get-deployments', async (_e: any, { subscriptionCode, apiToken, environmentCode }: any) => {
+        try { return await deps.health.ccv2GetDeployments(subscriptionCode, apiToken, environmentCode); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
+    });
+    ipcMain.handle('ccv2-get-build', async (_e: any, { subscriptionCode, apiToken, buildCode }: any) => {
+        try { return await deps.health.ccv2GetBuild(subscriptionCode, apiToken, buildCode); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
+    });
+    ipcMain.handle('check-environments-health', async (_e: any, { environments }: any) => {
+        try { return await deps.health.checkEnvironmentsNow(environments); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
+    });
     ipcMain.handle('start-health-service', (_e: any, { environments, intervalMs }: any) => deps.health.startHealthService(environments, intervalMs));
     ipcMain.handle('stop-health-service', () => deps.health.stopHealthService());
     ipcMain.handle('send-webhook', async (_e: any, { webhook, title, message, color }: any) => {
@@ -63,80 +81,100 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
     // Integration Handlers
     ipcMain.handle('sync-linear', async (_e: any, { apiKey, teamKey, connectionId }: any) => {
         deps.assertString(apiKey, 'apiKey'); deps.assertString(teamKey, 'teamKey'); deps.assertString(connectionId, 'connectionId');
-        return deps.integrations.fetchLinearIssues(apiKey, teamKey, connectionId);
+        try { return await deps.integrations.fetchLinearIssues(apiKey, teamKey, connectionId); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('get-linear-comments', async (_e: any, { apiKey, issueId }: any) => {
         deps.assertString(apiKey, 'apiKey'); deps.assertString(issueId, 'issueId');
-        return deps.integrations.getLinearComments(apiKey, issueId);
+        try { return await deps.integrations.getLinearComments(apiKey, issueId); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('add-linear-comment', async (_e: any, { apiKey, issueId, body }: any) => {
         deps.assertString(apiKey, 'apiKey'); deps.assertString(issueId, 'issueId'); deps.assertString(body, 'body', 50_000);
-        await deps.integrations.addLinearComment(apiKey, issueId, body); return { success: true };
+        try { await deps.integrations.addLinearComment(apiKey, issueId, body); return { success: true }; }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('get-linear-workflow-states', async (_e: any, { apiKey, teamId }: any) => {
         deps.assertString(apiKey, 'apiKey'); deps.assertString(teamId, 'teamId');
-        return deps.integrations.getLinearWorkflowStates(apiKey, teamId);
+        try { return await deps.integrations.getLinearWorkflowStates(apiKey, teamId); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('update-linear-status', async (_e: any, { apiKey, issueId, stateId }: any) => {
         deps.assertString(apiKey, 'apiKey'); deps.assertString(issueId, 'issueId'); deps.assertString(stateId, 'stateId');
-        await deps.integrations.updateLinearIssueStatus(apiKey, issueId, stateId); return { success: true };
+        try { await deps.integrations.updateLinearIssueStatus(apiKey, issueId, stateId); return { success: true }; }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('get-linear-history', async (_e: any, { apiKey, issueId }: any) => {
         deps.assertString(apiKey, 'apiKey'); deps.assertString(issueId, 'issueId');
-        return deps.integrations.getLinearIssueHistory(apiKey, issueId);
+        try { return await deps.integrations.getLinearIssueHistory(apiKey, issueId); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('create-linear-issue', async (_e: any, { apiKey, teamId, title, description, priority }: any) => {
         deps.assertString(apiKey, 'apiKey'); deps.assertString(teamId, 'teamId'); deps.assertString(title, 'title', 500);
-        return deps.integrations.createLinearIssue(apiKey, teamId, title, description, priority);
+        try { return await deps.integrations.createLinearIssue(apiKey, teamId, title, description, priority); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
 
     ipcMain.handle('sync-jira', async (_e: any, { domain, email, apiKey, projectKey, connectionId }: any) => {
         deps.assertString(domain, 'domain'); deps.assertString(email, 'email'); deps.assertString(apiKey, 'apiKey');
         deps.assertString(projectKey, 'projectKey'); deps.assertString(connectionId, 'connectionId');
-        return deps.integrations.fetchJiraIssues(domain, email, apiKey, projectKey, connectionId);
+        try { return await deps.integrations.fetchJiraIssues(domain, email, apiKey, projectKey, connectionId); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('get-jira-comments', async (_e: any, { domain, email, apiKey, issueKey }: any) => {
         deps.assertString(domain, 'domain'); deps.assertString(email, 'email'); deps.assertString(apiKey, 'apiKey'); deps.assertString(issueKey, 'issueKey');
-        return deps.integrations.getJiraComments(domain, email, apiKey, issueKey);
+        try { return await deps.integrations.getJiraComments(domain, email, apiKey, issueKey); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('add-jira-comment', async (_e: any, { domain, email, apiKey, issueKey, body }: any) => {
         deps.assertString(domain, 'domain'); deps.assertString(email, 'email'); deps.assertString(apiKey, 'apiKey');
         deps.assertString(issueKey, 'issueKey'); deps.assertString(body, 'body', 50_000);
-        await deps.integrations.addJiraComment(domain, email, apiKey, issueKey, body); return { success: true };
+        try { await deps.integrations.addJiraComment(domain, email, apiKey, issueKey, body); return { success: true }; }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('transition-jira-issue', async (_e: any, { domain, email, apiKey, issueKey, transitionName }: any) => {
         deps.assertString(domain, 'domain'); deps.assertString(email, 'email'); deps.assertString(apiKey, 'apiKey');
         deps.assertString(issueKey, 'issueKey'); deps.assertString(transitionName, 'transitionName');
-        await deps.integrations.transitionJiraIssue(domain, email, apiKey, issueKey, transitionName); return { success: true };
+        try { await deps.integrations.transitionJiraIssue(domain, email, apiKey, issueKey, transitionName); return { success: true }; }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('get-jira-history', async (_e: any, { domain, email, apiKey, issueKey }: any) => {
         deps.assertString(domain, 'domain'); deps.assertString(email, 'email'); deps.assertString(apiKey, 'apiKey'); deps.assertString(issueKey, 'issueKey');
-        return deps.integrations.getJiraIssueHistory(domain, email, apiKey, issueKey);
+        try { return await deps.integrations.getJiraIssueHistory(domain, email, apiKey, issueKey); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('get-jira-statuses', async (_e: any, { domain, email, apiKey, projectKey }: any) => {
         deps.assertString(domain, 'domain'); deps.assertString(email, 'email'); deps.assertString(apiKey, 'apiKey'); deps.assertString(projectKey, 'projectKey');
-        return deps.integrations.getJiraStatuses(domain, email, apiKey, projectKey);
+        try { return await deps.integrations.getJiraStatuses(domain, email, apiKey, projectKey); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('create-jira-issue', async (_e: any, { domain, email, apiKey, projectKey, title, description, issueTypeName }: any) => {
         deps.assertString(domain, 'domain'); deps.assertString(email, 'email'); deps.assertString(apiKey, 'apiKey');
         deps.assertString(projectKey, 'projectKey'); deps.assertString(title, 'title', 500);
-        return deps.integrations.createJiraIssue(domain, email, apiKey, projectKey, title, description, issueTypeName);
+        try { return await deps.integrations.createJiraIssue(domain, email, apiKey, projectKey, title, description, issueTypeName); }
+        catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
 
     // SAP HAC Handlers
     const sapHacInstances = new Map<string, any>();
     const getSapHac = (baseUrl: string, ignoreSsl = false) => {
-        if (!sapHacInstances.has(baseUrl)) {
-            // Evict oldest entry when cache is full to prevent unbounded growth
-            if (sapHacInstances.size >= deps.MAX_SAP_HAC_INSTANCES) {
-                const oldestKey = sapHacInstances.keys().next().value;
-                if (typeof oldestKey === 'string') {
-                    sapHacInstances.delete(oldestKey);
-                }
-            }
-            sapHacInstances.set(baseUrl, new deps.SapHacService(baseUrl, ignoreSsl));
+        if (sapHacInstances.has(baseUrl)) {
+            // Move to end of Map iteration order to implement LRU eviction
+            const existing = sapHacInstances.get(baseUrl);
+            sapHacInstances.delete(baseUrl);
+            sapHacInstances.set(baseUrl, existing);
+            return existing;
         }
-        return sapHacInstances.get(baseUrl);
+        // Evict least-recently-used entry when cache is full
+        if (sapHacInstances.size >= deps.MAX_SAP_HAC_INSTANCES) {
+            const lruKey = sapHacInstances.keys().next().value;
+            if (typeof lruKey === 'string') {
+                sapHacInstances.delete(lruKey);
+            }
+        }
+        const instance = new deps.SapHacService(baseUrl, ignoreSsl);
+        sapHacInstances.set(baseUrl, instance);
+        return instance;
     };
 
     ipcMain.handle('sap-hac-login', async (_e: any, { baseUrl, user, pass, ignoreSsl }: any) => {

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/store/useAuthStore'
-import { useSyncStore } from '@/store/useSyncStore'
+import { useProjectStore } from '@/store/useProjectStore'
+import { useSettingsStore } from '@/store/useSettingsStore'
+import { useUserStore } from '@/store/useUserStore'
+import { recordRendererMetric } from '@/lib/perf'
 import { AuthGate } from './AuthGate'
 import type { AuthStatus } from '@/types/auth'
 
@@ -26,7 +30,7 @@ export function AppAuthBoundary({ children }: { children: React.ReactNode }) {
         return { auth: state.auth, isLoaded: state.isLoaded }
     })
 
-    const syncInitAttemptedRef = useRef(false)
+    const cloudStateAttemptedUserIdRef = useRef<string | null>(null)
     const [slowLoad, setSlowLoad] = useState(false)
 
     useEffect(() => {
@@ -55,33 +59,55 @@ export function AppAuthBoundary({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (authSnapshot.auth.status !== 'signed_in') {
-            syncInitAttemptedRef.current = false
+            cloudStateAttemptedUserIdRef.current = null
             return
         }
 
-        if (syncInitAttemptedRef.current) return
-        syncInitAttemptedRef.current = true
+        const userId = authSnapshot.auth.user?.id ?? null
+        if (!userId || cloudStateAttemptedUserIdRef.current === userId) return
+        cloudStateAttemptedUserIdRef.current = userId
 
-        let mounted = true
-        ;(async () => {
-            await useSyncStore.getState().loadConfig()
-            const config = useSyncStore.getState().config
-            if (mounted && config?.configured) {
-                await useSyncStore.getState().initSync().catch(console.error)
-            }
-        })().catch(console.error)
+        let cancelled = false
+        const timeoutId = window.setTimeout(() => {
+            ;(async () => {
+                const startedAt = performance.now()
+                const result = await window.electronAPI?.ensureCloudState?.()
+                void recordRendererMetric('cloudStateEnsureMs', performance.now() - startedAt)
+
+                if (
+                    cancelled ||
+                    !result ||
+                    result.error ||
+                    !result.changed ||
+                    (result.outcome !== 'applied_remote_snapshot' && result.outcome !== 'cleared_local_state')
+                ) {
+                    return
+                }
+
+                await Promise.allSettled([
+                    useProjectStore.getState().loadProjects(),
+                    useSettingsStore.getState().load(),
+                    useUserStore.getState().loadProfile(),
+                ])
+
+                if (!cancelled) {
+                    toast.info('Workspace refreshed from cloud state.', { duration: 4000 })
+                }
+            })().catch(console.error)
+        }, 0)
 
         return () => {
-            mounted = false
+            cancelled = true
+            window.clearTimeout(timeoutId)
         }
-    }, [authSnapshot.auth.status])
+    }, [authSnapshot.auth.status, authSnapshot.auth.user?.id])
 
     if (!authSnapshot.isLoaded || authSnapshot.auth.status === 'booting') {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 {slowLoad && (
-                    <p className="text-sm text-muted-foreground">Connecting to Supabase…</p>
+                    <p className="text-sm text-muted-foreground">Connecting to Supabase...</p>
                 )}
             </div>
         )

@@ -135,7 +135,7 @@ export default function CoverageMatrix() {
     }
 
     const getCellStyle = (cell: CoverageCell | undefined) => {
-        if (!cell?.covered) return "bg-[#1A1A24] text-[#4B5563] border-[#2A2A3A]"
+        if (!cell?.covered) return "bg-panel-muted text-muted-ui border-ui"
         if (cell.failed)    return "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20"
         if (cell.passed)    return "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20"
         return "bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/20"
@@ -151,11 +151,11 @@ export default function CoverageMatrix() {
     if (!activeProject || testPlans.length === 0) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-20 text-center opacity-40">
-                <div className="w-20 h-20 rounded-full bg-[#1A1A24] flex items-center justify-center mb-4">
-                    <Info className="h-8 w-8 text-[#6B7280]" strokeWidth={1} />
+                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-panel-muted">
+                    <Info className="h-8 w-8 text-muted-ui" strokeWidth={1} />
                 </div>
-                <h3 className="text-lg font-bold text-[#E2E8F0]">No Test Plans</h3>
-                <p className="text-sm text-[#6B7280] max-w-sm mt-2">
+                <h3 className="text-lg font-bold text-foreground">No Test Plans</h3>
+                <p className="mt-2 max-w-sm text-sm text-muted-ui">
                     Create test plans with cases linked to issues to see coverage.
                 </p>
             </div>
@@ -166,14 +166,14 @@ export default function CoverageMatrix() {
         return (
             <div className="flex-1 flex flex-col min-h-0">
                 {/* Toolbar */}
-                <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center gap-4">
-                    <div className="flex bg-[#1A1A24] p-1 rounded-lg border border-[#2A2A3A]">
-                        <button onClick={() => setViewMode('issue')} className={cn("h-7 px-3 text-[10px] font-bold rounded transition-all", viewMode === 'issue' ? "bg-[#A78BFA]/10 text-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}>By Issue</button>
-                        <button onClick={() => setViewMode('module')} className={cn("h-7 px-3 text-[10px] font-bold rounded transition-all", viewMode === 'module' ? "bg-[#A78BFA]/10 text-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}>By SAP Module</button>
+                <div className="flex flex-none items-center gap-4 border-b bg-[hsl(var(--surface-header)/0.7)] px-6 py-3" style={{ borderColor: "hsl(var(--border-default))" }}>
+                    <div className="flex rounded-lg border border-ui bg-panel-muted p-1">
+                        <button onClick={() => setViewMode('issue')} className={cn("h-7 rounded px-3 text-[10px] font-bold transition-colors", viewMode === 'issue' ? "bg-primary/10 text-primary" : "text-muted-ui hover:bg-[hsl(var(--surface-elevated))] hover:text-foreground")}>By Issue</button>
+                        <button onClick={() => setViewMode('module')} className={cn("h-7 rounded px-3 text-[10px] font-bold transition-colors", viewMode === 'module' ? "bg-primary/10 text-primary" : "text-muted-ui hover:bg-[hsl(var(--surface-elevated))] hover:text-foreground")}>By SAP Module</button>
                     </div>
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30 p-16">
-                    <p className="text-sm font-semibold text-[#E2E8F0]">
+                    <p className="text-sm font-semibold text-foreground">
                         {viewMode === 'issue'
                             ? "No test cases linked to issues. Set sourceIssueId on test cases."
                             : "No test cases have SAP Module assigned."}
@@ -186,18 +186,18 @@ export default function CoverageMatrix() {
     return (
         <div className="flex-1 flex flex-col min-h-0">
             {/* Toolbar */}
-            <div className="flex-none bg-[#13131A] border-b border-[#2A2A3A] px-6 py-3 flex items-center gap-4">
-                <div className="flex bg-[#1A1A24] p-1 rounded-lg border border-[#2A2A3A]">
-                    <button onClick={() => setViewMode('issue')} className={cn("h-7 px-3 text-[10px] font-bold rounded transition-all", viewMode === 'issue' ? "bg-[#A78BFA]/10 text-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}>By Issue</button>
-                    <button onClick={() => setViewMode('module')} className={cn("h-7 px-3 text-[10px] font-bold rounded transition-all", viewMode === 'module' ? "bg-[#A78BFA]/10 text-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}>By SAP Module</button>
+            <div className="flex flex-none items-center gap-4 border-b bg-[hsl(var(--surface-header)/0.7)] px-6 py-3" style={{ borderColor: "hsl(var(--border-default))" }}>
+                <div className="flex rounded-lg border border-ui bg-panel-muted p-1">
+                    <button onClick={() => setViewMode('issue')} className={cn("h-7 rounded px-3 text-[10px] font-bold transition-colors", viewMode === 'issue' ? "bg-primary/10 text-primary" : "text-muted-ui hover:bg-[hsl(var(--surface-elevated))] hover:text-foreground")}>By Issue</button>
+                    <button onClick={() => setViewMode('module')} className={cn("h-7 rounded px-3 text-[10px] font-bold transition-colors", viewMode === 'module' ? "bg-primary/10 text-primary" : "text-muted-ui hover:bg-[hsl(var(--surface-elevated))] hover:text-foreground")}>By SAP Module</button>
                 </div>
                 <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[#6B7280]" />
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-ui" />
                     <Input
                         placeholder={viewMode === 'issue' ? "Filter issues..." : "Filter modules..."}
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="h-9 pl-8 w-52 bg-[#1A1A24] border-[#2A2A3A] text-xs"
+                        className="h-9 w-52 border-ui bg-panel-muted pl-8 text-xs"
                     />
                 </div>
                 <div className="ml-auto flex items-center gap-3">
@@ -206,9 +206,9 @@ export default function CoverageMatrix() {
                         <span className="flex items-center gap-1 text-[#10B981]"><span className="w-3 h-3 rounded bg-[#10B981]/20 border border-[#10B981]/30 inline-block" /> All Passed</span>
                         <span className="flex items-center gap-1 text-[#EF4444]"><span className="w-3 h-3 rounded bg-[#EF4444]/20 border border-[#EF4444]/30 inline-block" /> Has Failures</span>
                         <span className="flex items-center gap-1 text-[#3B82F6]"><span className="w-3 h-3 rounded bg-[#3B82F6]/20 border border-[#3B82F6]/30 inline-block" /> Not Run Yet</span>
-                        <span className="flex items-center gap-1 text-[#4B5563]"><span className="w-3 h-3 rounded bg-[#1A1A24] border border-[#2A2A3A] inline-block" /> No Coverage</span>
+                        <span className="flex items-center gap-1 text-muted-ui"><span className="inline-block h-3 w-3 rounded border border-ui bg-panel-muted" /> No Coverage</span>
                     </div>
-                    <Button variant="outline" size="sm" onClick={exportCsv} className="h-8 border-[#2A2A3A] text-[#6B7280] text-[10px] font-bold gap-2 hover:bg-[#A78BFA]/10 hover:text-[#A78BFA]">
+                    <Button variant="outline" size="sm" onClick={exportCsv} className="h-8 border-ui text-[10px] font-bold text-muted-ui gap-2 hover:bg-primary/10 hover:text-primary">
                         <Download className="h-3 w-3" /> Export CSV
                     </Button>
                 </div>
@@ -221,15 +221,15 @@ export default function CoverageMatrix() {
                         <thead>
                             <tr>
                                 {/* Corner header */}
-                                <th className="sticky left-0 z-20 bg-[#0F0F13] p-3 text-left min-w-[220px] border border-[#2A2A3A]">
-                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">
+                                <th className="sticky left-0 z-20 min-w-[220px] border border-ui bg-background p-3 text-left">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">
                                         {viewMode === 'issue' ? 'Issue / Requirement' : 'SAP Module'}
                                     </span>
                                 </th>
                                 {matrix.cols.map(col => (
-                                    <th key={col.id} className="p-3 text-center border border-[#2A2A3A] bg-[#13131A] min-w-[130px]">
+                                    <th key={col.id} className="min-w-[130px] border border-ui bg-panel p-3 text-center">
                                         <div className="font-mono text-[9px] text-[#A78BFA] font-bold">{col.displayId}</div>
-                                        <div className="text-[10px] text-[#E2E8F0] font-semibold truncate max-w-[120px] mt-0.5" title={col.name}>{col.name}</div>
+                                        <div className="mt-0.5 max-w-[120px] truncate text-[10px] font-semibold text-foreground" title={col.name}>{col.name}</div>
                                     </th>
                                 ))}
                             </tr>
@@ -237,17 +237,17 @@ export default function CoverageMatrix() {
                         <tbody>
                             {/* Gap Highlight Row: Tasks with No Coverage */}
                             {viewMode === 'issue' && (
-                                <tr className="bg-[#A78BFA]/5 hover:bg-[#A78BFA]/10 transition-colors">
-                                    <td className="p-3 border border-[#A78BFA]/30 bg-[#0F0F13]">
+                                <tr className="bg-primary/5 transition-colors hover:bg-primary/10">
+                                    <td className="border border-primary/30 bg-background p-3">
                                         <span className="text-[10px] font-bold text-[#A78BFA] uppercase tracking-widest">⚠ Coverage Gaps</span>
-                                        <p className="text-[9px] text-[#6B7280] mt-1">Items with no test coverage</p>
+                                        <p className="mt-1 text-[9px] text-muted-ui">Items with no test coverage</p>
                                     </td>
                                     {matrix.cols.map(col => {
                                         // Count tasks in this column that have no coverage
                                         const uncoveredInCol = matrix.rows.filter(r => !matrix.cells.get(`${r.id}::${col.id}`)?.covered).length
                                         return (
                                             <td key={col.id} className="p-2 text-center border border-[#A78BFA]/30 bg-[#A78BFA]/5">
-                                                <span className={cn("text-[13px] font-bold", uncoveredInCol > 0 ? "text-[#A78BFA]" : "text-[#6B7280]")}>
+                                                <span className={cn("text-[13px] font-bold", uncoveredInCol > 0 ? "text-primary" : "text-muted-ui")}>
                                                     {uncoveredInCol}
                                                 </span>
                                             </td>
@@ -262,26 +262,26 @@ export default function CoverageMatrix() {
                                 const coveragePct = matrix.cols.length > 0 ? Math.round((totalCovered / matrix.cols.length) * 100) : 0
 
                                 return (
-                                    <tr key={row.id} className="group hover:bg-[#1A1A24]/30 transition-colors">
+                                    <tr key={row.id} className="group transition-colors hover:bg-panel-muted/60">
                                         {/* Row Header */}
-                                        <td className="sticky left-0 z-10 bg-[#0F0F13] group-hover:bg-[#1A1A24]/50 p-3 border border-[#2A2A3A] transition-colors">
+                                        <td className="sticky left-0 z-10 border border-ui bg-background p-3 transition-colors group-hover:bg-panel-muted">
                                             <div className="flex flex-col gap-0.5">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-mono text-[11px] text-[#A78BFA] font-bold">{row.id}</span>
                                                     {task?.ticketUrl && (
-                                                        <a href={task.ticketUrl} target="_blank" rel="noopener noreferrer" className="text-[#6B7280] hover:text-[#A78BFA] transition-colors">
+                                                        <a href={task.ticketUrl} target="_blank" rel="noopener noreferrer" className="text-muted-ui transition-colors hover:text-primary">
                                                             <ExternalLink className="h-3 w-3" />
                                                         </a>
                                                     )}
                                                 </div>
                                                 {task && (
-                                                    <span className="text-[10px] text-[#9CA3AF] truncate max-w-[200px]" title={task.title}>{task.title}</span>
+                                                    <span className="max-w-[200px] truncate text-[10px] text-soft" title={task.title}>{task.title}</span>
                                                 )}
                                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                                    <div className="h-1 w-20 bg-[#1A1A24] rounded-full overflow-hidden">
+                                                    <div className="h-1 w-20 overflow-hidden rounded-full bg-panel-muted">
                                                         <div className="h-full bg-[#10B981] rounded-full" style={{ width: `${coveragePct}%` }} />
                                                     </div>
-                                                    <span className="text-[9px] text-[#6B7280] font-bold">{coveragePct}%</span>
+                                                    <span className="text-[9px] font-bold text-muted-ui">{coveragePct}%</span>
                                                 </div>
                                             </div>
                                         </td>
@@ -305,17 +305,17 @@ export default function CoverageMatrix() {
                                                     <span className="text-[13px] font-bold">{getCellLabel(cell)}</span>
                                                     {/* Tooltip */}
                                                     {isHovered && (
-                                                        <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1A1A24] border border-[#2A2A3A] rounded-lg p-3 text-left min-w-[220px] shadow-2xl pointer-events-none">
+                                                        <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 min-w-[220px] -translate-x-1/2 rounded-lg border border-ui bg-panel p-3 text-left shadow-2xl">
                                                             {cell?.covered && cell.cases.length > 0 ? (
                                                                 <>
                                                                     <p className="text-[10px] font-bold text-[#10B981] uppercase mb-1.5">✓ Test Coverage</p>
                                                                     {cell.cases.slice(0, 4).map(tc => (
                                                                         <div key={tc.id} className="flex items-center gap-1.5 py-0.5">
-                                                                            <span className={cn("w-1.5 h-1.5 rounded-full flex-none", tc.status === 'passed' ? "bg-[#10B981]" : tc.status === 'failed' ? "bg-[#EF4444]" : "bg-[#6B7280]")} />
-                                                                            <span className="text-[10px] text-[#E2E8F0] truncate">{tc.title}</span>
+                                                                            <span className={cn("w-1.5 h-1.5 rounded-full flex-none", tc.status === 'passed' ? "bg-emerald-500" : tc.status === 'failed' ? "bg-red-500" : "bg-muted-ui")} />
+                                                                            <span className="truncate text-[10px] text-foreground">{tc.title}</span>
                                                                         </div>
                                                                     ))}
-                                                                    {cell.cases.length > 4 && <p className="text-[9px] text-[#6B7280] mt-1">+{cell.cases.length - 4} more</p>}
+                                                                    {cell.cases.length > 4 && <p className="mt-1 text-[9px] text-muted-ui">+{cell.cases.length - 4} more</p>}
                                                                 </>
                                                             ) : (
                                                                 <p className="text-[10px] font-bold text-[#A78BFA] uppercase">⚠ No Coverage</p>
@@ -333,7 +333,7 @@ export default function CoverageMatrix() {
                 </div>
 
                 {/* Summary footer */}
-                <div className="mt-4 flex items-center gap-6 text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">
+                <div className="mt-4 flex items-center gap-6 text-[10px] font-bold uppercase tracking-widest text-muted-ui">
                     <span>{matrix.rows.length} {viewMode === 'issue' ? 'issues' : 'modules'}</span>
                     <span>{matrix.cols.length} test plans</span>
                     <span>{Array.from(matrix.cells.values()).filter(c => c.covered).length} cells covered</span>

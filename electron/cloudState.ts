@@ -54,8 +54,14 @@ type CloudStateIo = {
 let io: CloudStateIo | null = null
 let uploadTimer: ReturnType<typeof setTimeout> | null = null
 let uploadInFlight: Promise<void> | null = null
-let applyInFlight: Promise<void> | null = null
+let applyInFlight: Promise<CloudStateEnsureResult> | null = null
 let suppressUploads = 0
+
+export type CloudStateEnsureResult =
+    | { outcome: 'noop'; changed: false }
+    | { outcome: 'applied_remote_snapshot'; changed: true }
+    | { outcome: 'uploaded_local_snapshot'; changed: false }
+    | { outcome: 'cleared_local_state'; changed: true }
 
 export function configureCloudStateIo(nextIo: CloudStateIo) {
     io = nextIo
@@ -70,21 +76,21 @@ export function scheduleCloudStateUpload() {
     }, UPLOAD_DEBOUNCE_MS)
 }
 
-export async function ensureCloudStateForSignedInUser(): Promise<void> {
+export async function ensureCloudStateForSignedInUser(): Promise<CloudStateEnsureResult> {
     if (applyInFlight) {
         await applyInFlight
-        return
+        return await applyInFlight
     }
 
     applyInFlight = (async () => {
-        if (!io) return
+        if (!io) return { outcome: 'noop', changed: false } as const
 
         const auth = getAuthStatus()
         const userId = auth.user?.id
-        if (!userId) return
+        if (!userId) return { outcome: 'noop', changed: false } as const
 
         const client = await getAuthenticatedClient()
-        if (!client) return
+        if (!client) return { outcome: 'noop', changed: false } as const
 
         const remoteSnapshot = await fetchRemoteSnapshot(client, userId)
         const settings = await io.readSettings()
@@ -96,7 +102,7 @@ export async function ensureCloudStateForSignedInUser(): Promise<void> {
             await runWithoutUploads(async () => {
                 await applySnapshot(remoteSnapshot, userId)
             })
-            return
+            return { outcome: 'applied_remote_snapshot', changed: true } as const
         }
 
         if (!localStateUserId || localStateUserId === userId) {
@@ -104,17 +110,18 @@ export async function ensureCloudStateForSignedInUser(): Promise<void> {
                 await writeSettingsWithMarker(settings, userId)
             })
             await uploadCloudStateNow()
-            return
+            return { outcome: 'uploaded_local_snapshot', changed: false } as const
         }
 
         await runWithoutUploads(async () => {
             await clearLocalUserState(settings, userId)
         })
+        return { outcome: 'cleared_local_state', changed: true } as const
     })().finally(() => {
         applyInFlight = null
     })
 
-    await applyInFlight
+    return await applyInFlight
 }
 
 async function uploadCloudStateNow(): Promise<void> {

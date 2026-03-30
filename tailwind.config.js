@@ -37,13 +37,13 @@ module.exports = {
   				error: 'hsl(var(--destructive))',
   			},
   			qa: {
-  				border: '#2A2A3A',           // Standard borders
-  				'border-hover': '#3A3A4A',   // Hovered borders
-  				text: '#E2E8F0',             // Primary text
-  				'text-secondary': '#9CA3AF', // Secondary text
-  				'text-muted': '#6B7280',     // Muted / placeholder text
-  				purple: '#A78BFA',           // Primary accent
-  				'purple-hover': '#9271e0',   // Purple hover
+  				border: 'hsl(var(--qa-border) / <alpha-value>)',
+  				'border-hover': 'hsl(var(--qa-border-hover) / <alpha-value>)',
+  				text: 'hsl(var(--qa-text) / <alpha-value>)',
+  				'text-secondary': 'hsl(var(--qa-text-secondary) / <alpha-value>)',
+  				'text-muted': 'hsl(var(--qa-text-muted) / <alpha-value>)',
+  				purple: 'hsl(var(--qa-accent) / <alpha-value>)',
+  				'purple-hover': 'hsl(var(--qa-accent-hover) / <alpha-value>)',
   			},
   			// ── End app tokens ───────────────────────────────────────────────
   			primary: {

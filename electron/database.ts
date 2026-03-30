@@ -2616,6 +2616,28 @@ export function getHandoffById(handoffId: string): any | null {
     }
 }
 
+export function getCollaborationEventById(eventId: string): any | null {
+    const database = getDb()
+    const row = database.prepare('SELECT * FROM collaboration_events WHERE id = ?').get(eventId) as CollaborationEventRow | undefined
+    if (!row) return null
+    return rowToCollaborationEvent(row)
+}
+
+export function getArtifactLinkById(linkId: string): any | null {
+    const database = getDb()
+    const row = database.prepare('SELECT * FROM artifact_links WHERE id = ?').get(linkId) as any
+    if (!row) return null
+    return {
+        id: row.id,
+        sourceType: row.source_type,
+        sourceId: row.source_id,
+        targetType: row.target_type,
+        targetId: row.target_id,
+        label: row.label,
+        createdAt: row.created_at,
+    }
+}
+
 // ─── Persistent mutation queue helpers (used by sync.ts) ──────────────────────
 
 export function enqueueSyncMutation(workspaceId: string, tableName: string, op: string, rowId: string, payload: Record<string, unknown>): void {

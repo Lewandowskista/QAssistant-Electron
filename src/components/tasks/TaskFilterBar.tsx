@@ -55,9 +55,10 @@ function FilterSelect({
 }) {
     return (
         <select
+            aria-label={placeholder}
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            className="h-9 rounded-md border border-[#2A2A3A] bg-[#13131A] px-3 text-[11px] text-[#E2E8F0] outline-none hover:border-[#A78BFA]/30"
+            className="h-9 rounded-xl border border-ui bg-panel px-3 text-[11px] text-foreground outline-none transition-[border-color,background-color,color] hover:border-ui-strong focus-visible:border-ring"
         >
             <option value="all">{placeholder}</option>
             {options.map((option) => (
@@ -104,27 +105,28 @@ export function TaskFilterBar({
     onOpenShortcuts
 }: TaskFilterBarProps) {
     return (
-        <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-3">
+        <div className="filter-disclosure p-3">
             <div className="flex flex-wrap items-center gap-2">
                 <div className="relative min-w-[260px] flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280]" />
+                    <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-ui" />
                     <Input
+                        aria-label="Search tasks"
                         value={filters.search}
                         onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
-                        placeholder="Search title, source ID, labels, description, components..."
-                        className="h-9 border-[#2A2A3A] bg-[#0F0F13] pl-9 text-xs"
+                        placeholder="Search title, source ID, labels, description, components…"
+                        className="h-9 border-ui bg-background pl-9 text-xs"
                     />
                 </div>
                 <Button
                     type="button"
                     variant="outline"
                     onClick={() => onCollapsedChange(!collapsed)}
-                    className="h-9 gap-2 border-[#2A2A3A] bg-[#0F0F13] text-[#E2E8F0]"
+                    className="h-9 gap-2 border-ui bg-background text-foreground"
                 >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
                     More
                     {activeFilterCount > 0 && (
-                        <span className="rounded-full bg-[#A78BFA]/20 px-1.5 py-0.5 text-[10px] font-bold leading-none text-[#A78BFA]">
+                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary">
                             {activeFilterCount}
                         </span>
                     )}
@@ -132,9 +134,9 @@ export function TaskFilterBar({
                 </Button>
             </div>
             {!collapsed && (
-                <div className="mt-3 space-y-3 border-t border-[#2A2A3A]/70 pt-3">
+                <div className="mt-3 space-y-3 border-t border-ui/70 pt-3">
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#6B7280]">View</span>
+                        <span className="app-section-label opacity-80">View</span>
                         {(["board", "triage"] as const).map((mode) => (
                             <Button
                                 key={mode}
@@ -142,7 +144,7 @@ export function TaskFilterBar({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => onBoardModeChange(mode)}
-                                className={boardMode === mode ? "h-8 bg-[#1A1A24] px-3 text-[11px] font-medium text-[#E2E8F0]" : "h-8 px-3 text-[11px] text-[#6B7280]"}
+                                className={boardMode === mode ? "h-8 bg-panel-muted px-3 text-[11px] font-medium text-foreground" : "h-8 px-3 text-[11px] text-muted-ui"}
                             >
                                 {mode === "board" ? "Board" : "Triage"}
                             </Button>
@@ -154,7 +156,7 @@ export function TaskFilterBar({
                                 size="sm"
                                 onClick={onSync}
                                 disabled={syncDisabled}
-                                className="h-8 px-3 text-[11px] font-medium text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                                className="h-8 px-3 text-[11px] font-medium text-primary hover:bg-primary/10"
                             >
                                 {syncLabel}
                             </Button>
@@ -165,26 +167,26 @@ export function TaskFilterBar({
                                 variant="ghost"
                                 size="sm"
                                 onClick={onOpenShortcuts}
-                                className="h-8 px-3 text-[11px] font-medium text-[#6B7280] hover:text-[#E2E8F0]"
+                                className="h-8 px-3 text-[11px] font-medium text-muted-ui hover:text-foreground"
                             >
                                 Shortcuts
                             </Button>
                         ) : null}
-                        {syncMeta ? <span className="text-[11px] text-[#6B7280]">{syncMeta}</span> : null}
+                        {syncMeta ? <span className="text-[11px] text-muted-ui">{syncMeta}</span> : null}
                     </div>
 
                     {summaryItems.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-2 border-t border-[#2A2A3A]/70 pt-3">
-                            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#6B7280]">Quick Views</span>
+                        <div className="flex flex-wrap items-center gap-2 border-t border-ui/70 pt-3">
+                            <span className="app-section-label opacity-80">Quick Views</span>
                             {summaryItems.map((item) => (
                                 <button
                                     key={item.id}
                                     type="button"
                                     onClick={() => onSelectSummary?.(item.id)}
-                                    className="inline-flex items-center gap-2 rounded-full border border-[#2A2A3A] bg-[#0F0F13] px-3 py-1 text-[11px] text-[#C4CBD7] transition-colors hover:border-[#A78BFA]/40 hover:text-[#E2E8F0]"
+                                    className="inline-flex items-center gap-2 rounded-full border border-ui bg-background px-3 py-1 text-[11px] text-soft transition-[border-color,color,background-color] hover:border-ui-strong hover:text-foreground"
                                 >
                                     <span>{item.title}</span>
-                                    <span className="text-[#6B7280]">{item.count}</span>
+                                    <span className="text-muted-ui">{item.count}</span>
                                 </button>
                             ))}
                         </div>
@@ -311,7 +313,7 @@ export function TaskFilterBar({
                         type="button"
                         variant={filters.onlyMine ? "default" : "outline"}
                         onClick={() => setFilters((current) => ({ ...current, onlyMine: !current.onlyMine }))}
-                        className={filters.onlyMine ? "h-9 bg-[#A78BFA] text-[#0F0F13]" : "h-9 border-[#2A2A3A] bg-[#0F0F13] text-[#E2E8F0]"}
+                        className={filters.onlyMine ? "h-9 bg-primary text-primary-foreground" : "h-9 border-ui bg-background text-foreground"}
                     >
                         Only My Work
                     </Button>
@@ -319,32 +321,32 @@ export function TaskFilterBar({
                         type="button"
                         variant={filters.onlyActive ? "default" : "outline"}
                         onClick={() => setFilters((current) => ({ ...current, onlyActive: !current.onlyActive }))}
-                        className={filters.onlyActive ? "h-9 bg-[#1E293B] text-[#38BDF8]" : "h-9 border-[#2A2A3A] bg-[#0F0F13] text-[#E2E8F0]"}
+                        className={filters.onlyActive ? "h-9 bg-slate-800 text-sky-300" : "h-9 border-ui bg-background text-foreground"}
                     >
                         Only Active
                     </Button>
-                    <Button type="button" variant="ghost" onClick={onClear} className="h-9 gap-1 text-[#6B7280] hover:text-[#E2E8F0]">
+                    <Button type="button" variant="ghost" onClick={onClear} className="h-9 gap-1 text-muted-ui hover:text-foreground">
                         <X className="h-3.5 w-3.5" />
                         Clear
                     </Button>
                     </div>
 
                     {(presets.length > 0 || showPresetInput || onShowPresetInput) && (
-                        <div className="flex w-full flex-wrap items-center gap-2 border-t border-[#2A2A3A]/70 pt-3">
-                            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#6B7280]">Saved Views</span>
+                        <div className="flex w-full flex-wrap items-center gap-2 border-t border-ui/70 pt-3">
+                            <span className="app-section-label opacity-80">Saved Views</span>
                             {presets.map((preset) => (
-                                <div key={preset.name} className="flex items-center gap-1 rounded-full border border-[#2A2A3A] bg-[#0F0F13] pl-2.5 pr-1 py-0.5">
+                                <div key={preset.name} className="flex items-center gap-1 rounded-full border border-ui bg-background pl-2.5 pr-1 py-0.5">
                                     <button
                                         type="button"
                                         onClick={() => onApplyPreset?.(preset.name)}
-                                        className="text-[11px] font-medium text-[#E2E8F0] hover:text-white"
+                                        className="text-[11px] font-medium text-foreground hover:text-white"
                                     >
                                         {preset.name}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => onDeletePreset?.(preset.name)}
-                                        className="rounded-full p-0.5 text-[#6B7280] hover:bg-[#EF4444]/10 hover:text-[#EF4444]"
+                                        className="rounded-full p-0.5 text-muted-ui hover:bg-red-500/10 hover:text-red-400"
                                     >
                                         <X className="h-2.5 w-2.5" />
                                     </button>
@@ -359,18 +361,18 @@ export function TaskFilterBar({
                                             if (event.key === "Enter") onSavePreset?.()
                                             if (event.key === "Escape") onCancelPreset?.()
                                         }}
-                                        placeholder="Preset name..."
-                                        className="h-8 w-36 border-[#2A2A3A] bg-[#0F0F13] px-2 text-[10px]"
+                                        placeholder="Preset name…"
+                                        className="h-8 w-36 border-ui bg-background px-2 text-[10px]"
                                     />
-                                    <Button type="button" size="sm" onClick={onSavePreset} className="h-8 bg-[#A78BFA] px-2 text-[#0F0F13]">
+                                    <Button type="button" size="sm" onClick={onSavePreset} className="h-8 bg-primary px-2 text-primary-foreground">
                                         Save
                                     </Button>
-                                    <Button type="button" variant="ghost" size="sm" onClick={onCancelPreset} className="h-8 px-2 text-[#6B7280]">
+                                    <Button type="button" variant="ghost" size="sm" onClick={onCancelPreset} className="h-8 px-2 text-muted-ui">
                                         Cancel
                                     </Button>
                                 </div>
                             ) : (
-                                <Button type="button" variant="ghost" size="sm" onClick={onShowPresetInput} className="h-8 px-2 text-[11px] font-medium text-[#6B7280] hover:text-[#E2E8F0]">
+                                <Button type="button" variant="ghost" size="sm" onClick={onShowPresetInput} className="h-8 px-2 text-[11px] font-medium text-muted-ui hover:text-foreground">
                                     Save current filters
                                 </Button>
                             )}

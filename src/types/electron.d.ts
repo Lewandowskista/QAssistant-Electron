@@ -63,6 +63,12 @@ export interface ElectronAPI {
         renderer: Record<string, number>;
         counters: Record<string, number>;
     }>;
+    appShellReady: () => Promise<boolean>;
+    ensureCloudState: () => Promise<{
+        outcome: 'noop' | 'applied_remote_snapshot' | 'uploaded_local_snapshot' | 'cleared_local_state';
+        changed: boolean;
+        error?: string;
+    }>;
     getAppUpdateState: () => Promise<AppUpdateState>;
     checkForAppUpdate: () => Promise<AppUpdateState>;
     downloadAppUpdate: () => Promise<AppUpdateState>;
@@ -266,6 +272,8 @@ export interface ElectronAPI {
     syncPushArtifactLink: (args: SyncPushArtifactLinkArgs) => Promise<{ ok: boolean; error?: string }>;
     getTaskById: (taskId: string) => Promise<any | null>;
     getHandoffById: (handoffId: string) => Promise<any | null>;
+    getCollaborationEventById: (eventId: string) => Promise<any | null>;
+    getArtifactLinkById: (linkId: string) => Promise<any | null>;
     onSyncConflictDetected: (callback: (data: SyncConflictPayload) => void) => () => void;
     onSyncMutationFailed: (callback: (data: SyncMutationFailedPayload) => void) => () => void;
 }

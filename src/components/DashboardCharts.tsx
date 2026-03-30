@@ -2,8 +2,8 @@
  * DashboardCharts.tsx
  * Recharts-powered analytics charts for the QAssistant Dashboard.
  * Includes:
- *   1. Test Pass Rate Trend (line chart — per run session over time)
- *   2. Defect Density by SAP Module (bar chart — failed cases per module)
+ *   1. Test Pass Rate Trend (line chart - per run session over time)
+ *   2. Defect Density by SAP Module (bar chart - failed cases per module)
  *   3. Test Status Donut (pie chart)
  */
 import { useMemo } from "react"
@@ -17,18 +17,21 @@ const COLORS = {
     passed: "#10B981",
     failed: "#EF4444",
     blocked: "#F59E0B",
-    skipped: "#94A3B8",
+    skipped: "hsl(var(--text-secondary))",
     "not-run": "#38BDF8",
-    grid: "rgba(148, 163, 184, 0.12)",
-    gridStrong: "rgba(148, 163, 184, 0.22)",
-    text: "#94A3B8",
-    textStrong: "#CBD5E1",
+    grid: "hsl(var(--border-default) / 0.4)",
+    gridStrong: "hsl(var(--border-strong) / 0.55)",
+    text: "hsl(var(--text-muted))",
+    textStrong: "hsl(var(--text-primary))",
     brand: "#7DD3FC",
     brandStrong: "#38BDF8",
-    brandSoft: "rgba(56, 189, 248, 0.16)",
+    brandSoft: "hsl(var(--state-info) / 0.16)",
     violet: "#A78BFA",
-    violetSoft: "rgba(167, 139, 250, 0.18)",
-    panel: "rgba(15, 23, 42, 0.94)",
+    violetSoft: "hsl(var(--accent-primary) / 0.18)",
+    panel: "hsl(var(--surface-card))",
+    panelText: "hsl(var(--text-primary))",
+    panelStroke: "hsl(var(--surface-card))",
+    dotStroke: "hsl(var(--surface-card))",
 }
 
 const TooltipStyle = {
@@ -37,17 +40,43 @@ const TooltipStyle = {
         border: `1px solid ${COLORS.gridStrong}`,
         borderRadius: "14px",
         fontSize: "11px",
-        color: "#E2E8F0",
-        boxShadow: "0 18px 48px -24px rgba(2, 6, 23, 0.95)",
+        color: COLORS.panelText,
+        boxShadow: "0 18px 48px -24px rgba(15, 23, 42, 0.28)",
         backdropFilter: "blur(10px)",
     },
     labelStyle: { color: COLORS.textStrong, fontWeight: 700 },
-    itemStyle: { color: "#E2E8F0" },
+    itemStyle: { color: COLORS.panelText },
     cursor: { fill: "transparent" },
 }
 
 const axisTick = { fill: COLORS.text, fontSize: 10, fontWeight: 600 }
 const gridProps = { stroke: COLORS.grid, strokeDasharray: "3 6" }
+
+type TooltipPayloadEntry<T> = {
+    payload: T
+}
+
+type ChartTooltipProps<T> = {
+    active?: boolean
+    payload?: Array<TooltipPayloadEntry<T>>
+}
+
+type AIAccuracyPoint = {
+    suiteName: string
+    startedAt: number
+    completedPairs: number
+    totalPairs: number
+    score: number
+    label: string
+    tooltipDate: string
+    tickLabel: string
+}
+
+type StatusDonutPoint = {
+    name: string
+    value: number
+    total: number
+}
 
 function ChartFrame({ id }: { id: string }) {
     return (
@@ -66,6 +95,38 @@ function ChartFrame({ id }: { id: string }) {
             </linearGradient>
         </defs>
     )
+}
+
+function AIAccuracyTooltip({ active, payload }: ChartTooltipProps<AIAccuracyPoint>) {
+    if (active && payload?.length) {
+        const point = payload[0].payload
+        return (
+            <div style={{ ...TooltipStyle.contentStyle, padding: "10px 12px" }}>
+                <p style={{ color: COLORS.textStrong, fontWeight: 700 }}>{point.tooltipDate}</p>
+                <p style={{ color: COLORS.panelText, marginTop: 4 }}>{point.score}/100 AI accuracy</p>
+                <p style={{ color: COLORS.text, marginTop: 4 }}>{point.suiteName}</p>
+                <p style={{ color: COLORS.text }}>{point.completedPairs}/{point.totalPairs} pairs evaluated</p>
+            </div>
+        )
+    }
+    return null
+}
+
+function StatusDonutTooltip({ active, payload }: ChartTooltipProps<StatusDonutPoint>) {
+    if (active && payload?.length) {
+        const point = payload[0].payload
+        return (
+            <div style={{ ...TooltipStyle.contentStyle, padding: "8px 12px" }}>
+                <p style={{ color: DONUT_COLORS[point.name] || COLORS.panelText, fontWeight: 700, textTransform: "uppercase", fontSize: 10 }}>
+                    {point.name}
+                </p>
+                <p style={{ color: COLORS.panelText }}>
+                    {point.value} cases ({point.total > 0 ? Math.round((point.value / point.total) * 100) : 0}%)
+                </p>
+            </div>
+        )
+    }
+    return null
 }
 
 export function PassRateTrendChart() {
@@ -95,7 +156,7 @@ export function PassRateTrendChart() {
 
     if (data.length < 2) {
         return (
-            <div className="flex items-center justify-center h-full text-[11px] text-[#6B7280] italic">
+            <div className="flex items-center justify-center h-full text-[11px] text-muted-ui italic">
                 Run at least 2 test sessions to see the trend.
             </div>
         )
@@ -110,15 +171,76 @@ export function PassRateTrendChart() {
                 <YAxis domain={[0, 100]} tick={axisTick} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
                 <Tooltip
                     {...TooltipStyle}
-                    formatter={(val: any) => [`${val}%`, "Pass Rate"]}
+                    formatter={(value) => [`${value ?? 0}%`, "Pass Rate"]}
                 />
                 <Line
                     type="monotone"
                     dataKey="passRate"
                     stroke="url(#pass-rate-line)"
                     strokeWidth={3}
-                    dot={{ fill: COLORS.brandStrong, stroke: "#0F172A", strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, fill: COLORS.brandStrong, stroke: "#E2E8F0", strokeWidth: 2 }}
+                    dot={{ fill: COLORS.brandStrong, stroke: COLORS.dotStroke, strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, fill: COLORS.brandStrong, stroke: COLORS.panelText, strokeWidth: 2 }}
+                />
+            </LineChart>
+        </ResponsiveContainer>
+    )
+}
+
+export function AIAccuracyTrendChart() {
+    const activeProject = useActiveProject()
+
+    const data = useMemo<AIAccuracyPoint[]>(() => {
+        const completedRuns = (activeProject?.accuracyTestSuites || [])
+            .flatMap((suite) =>
+                suite.evalRuns
+                    .filter((run) => run.status === "completed")
+                    .map((run) => ({
+                        suiteName: suite.name,
+                        startedAt: run.startedAt,
+                        completedPairs: run.completedPairs,
+                        totalPairs: run.totalPairs,
+                        score: run.aggregateScore,
+                        label: new Date(run.startedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                        tooltipDate: new Date(run.startedAt).toLocaleString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                        }),
+                    })),
+            )
+            .sort((a, b) => a.startedAt - b.startedAt)
+            .slice(-12)
+
+        return completedRuns.map((run, index) => ({
+            ...run,
+            tickLabel: completedRuns.length > 6 ? `${index + 1}` : run.label,
+        }))
+    }, [activeProject])
+
+    if (data.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-full text-[11px] text-muted-ui italic">
+                Run an AI Accuracy evaluation in Tests to see the project trend.
+            </div>
+        )
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                <ChartFrame id="ai-accuracy" />
+                <CartesianGrid {...gridProps} vertical={false} />
+                <XAxis dataKey="tickLabel" tick={axisTick} tickLine={false} axisLine={false} />
+                <YAxis domain={[0, 100]} tick={axisTick} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} />
+                <Tooltip content={<AIAccuracyTooltip />} />
+                <Line
+                    type="monotone"
+                    dataKey="score"
+                    stroke="url(#ai-accuracy-line)"
+                    strokeWidth={3}
+                    dot={{ fill: COLORS.violet, stroke: COLORS.dotStroke, strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, fill: COLORS.violet, stroke: COLORS.panelText, strokeWidth: 2 }}
                 />
             </LineChart>
         </ResponsiveContainer>
@@ -156,7 +278,7 @@ export function DefectDensityChart() {
 
     if (data.length === 0) {
         return (
-            <div className="flex items-center justify-center h-full text-[11px] text-[#6B7280] italic">
+            <div className="flex items-center justify-center h-full text-[11px] text-muted-ui italic">
                 No test cases with SAP modules found.
             </div>
         )
@@ -179,7 +301,7 @@ export function DefectDensityChart() {
                 <YAxis tick={axisTick} tickLine={false} axisLine={false} />
                 <Tooltip
                     {...TooltipStyle}
-                    formatter={(val: any, name: any) => [val, name === 'failed' ? 'Failed' : 'Passed']}
+                    formatter={(value, name) => [value ?? 0, name === 'failed' ? 'Failed' : 'Passed']}
                 />
                 <Legend
                     verticalAlign="top"
@@ -206,37 +328,25 @@ const DONUT_COLORS: Record<string, string> = {
 export function TestStatusDonut() {
     const activeProject = useActiveProject()
 
-    const data = useMemo(() => {
+    const data = useMemo<StatusDonutPoint[]>(() => {
         const counts: Record<string, number> = {}
         for (const plan of activeProject?.testPlans || []) {
             for (const tc of plan.testCases || []) {
                 counts[tc.status] = (counts[tc.status] || 0) + 1
             }
         }
-        return Object.entries(counts).map(([name, value]) => ({ name, value }))
+        const total = Object.values(counts).reduce((sum, value) => sum + value, 0)
+        return Object.entries(counts).map(([name, value]) => ({ name, value, total }))
     }, [activeProject])
 
     const total = data.reduce((s, d) => s + d.value, 0)
 
     if (total === 0) {
         return (
-            <div className="flex items-center justify-center h-full text-[11px] text-[#6B7280] italic">
+            <div className="flex items-center justify-center h-full text-[11px] text-muted-ui italic">
                 No test cases yet.
             </div>
         )
-    }
-
-    const CustomTooltip = ({ active, payload }: any) => {
-        if (active && payload?.length) {
-            const { name, value } = payload[0].payload
-            return (
-                <div style={{ ...TooltipStyle.contentStyle, padding: '8px 12px' }}>
-                    <p style={{ color: DONUT_COLORS[name] || '#E2E8F0', fontWeight: 700, textTransform: 'uppercase', fontSize: 10 }}>{name}</p>
-                    <p style={{ color: '#E2E8F0' }}>{value} cases ({total > 0 ? Math.round(value / total * 100) : 0}%)</p>
-                </div>
-            )
-        }
-        return null
     }
 
     return (
@@ -250,14 +360,14 @@ export function TestStatusDonut() {
                     outerRadius="78%"
                     paddingAngle={4}
                     dataKey="value"
-                    stroke="rgba(15, 23, 42, 0.85)"
+                    stroke={COLORS.panelStroke}
                     strokeWidth={3}
                 >
                     {data.map((entry, index) => (
-                        <Cell key={index} fill={DONUT_COLORS[entry.name] || '#6B7280'} />
+                        <Cell key={index} fill={DONUT_COLORS[entry.name] || COLORS.skipped} />
                     ))}
                 </Pie>
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<StatusDonutTooltip />} />
                 <Legend
                     verticalAlign="bottom"
                     iconType="circle"
@@ -293,7 +403,7 @@ export function ExecutionVelocityChart() {
 
     if (data.length === 0) {
         return (
-            <div className="flex items-center justify-center h-full text-[11px] text-[#6B7280] italic">
+            <div className="flex items-center justify-center h-full text-[11px] text-muted-ui italic">
                 No execution data yet.
             </div>
         )
@@ -308,8 +418,8 @@ export function ExecutionVelocityChart() {
                 <YAxis tick={axisTick} tickLine={false} axisLine={false} label={{ value: 'Executions', angle: -90, position: 'insideLeft', fill: COLORS.text, fontSize: 10 }} />
                 <Tooltip
                     {...TooltipStyle}
-                    formatter={(val: any) => [val, "Test Cases Executed"]}
-                    labelFormatter={(label) => `${label}`}
+                    formatter={(value) => [value ?? 0, "Test Cases Executed"]}
+                    labelFormatter={(label) => String(label ?? "")}
                 />
                 <Bar dataKey="executions" fill="url(#execution-velocity-bar)" radius={[12, 12, 4, 4]} />
             </BarChart>
@@ -328,7 +438,7 @@ export function TestBurndownChart() {
         if (!activeSprint) return []
 
         const sprintStart = new Date(activeSprint.startDate || 0)
-        const sprintEnd = new Date(activeSprint.endDate || Date.now())
+        const sprintEnd = new Date(activeSprint.endDate ?? activeSprint.startDate ?? 0)
 
         // Get test cases that should be run in this sprint
         const sprintTestCases = activeProject.testPlans.flatMap(tp => tp.testCases)
@@ -356,7 +466,7 @@ export function TestBurndownChart() {
 
     if (data.length === 0) {
         return (
-            <div className="flex items-center justify-center h-full text-[11px] text-[#6B7280] italic">
+            <div className="flex items-center justify-center h-full text-[11px] text-muted-ui italic">
                 No active sprint or test cases.
             </div>
         )
@@ -371,16 +481,16 @@ export function TestBurndownChart() {
                 <YAxis tick={axisTick} tickLine={false} axisLine={false} label={{ value: 'Not Run', angle: -90, position: 'insideLeft', fill: COLORS.text, fontSize: 10 }} />
                 <Tooltip
                     {...TooltipStyle}
-                    formatter={(val: any) => [val, "Test Cases Remaining"]}
-                    labelFormatter={(label) => `${label}`}
+                    formatter={(value) => [value ?? 0, "Test Cases Remaining"]}
+                    labelFormatter={(label) => String(label ?? "")}
                 />
                 <Line
                     type="monotone"
                     dataKey="remaining"
                     stroke="url(#burndown-line)"
                     strokeWidth={3}
-                    dot={{ fill: COLORS.violet, stroke: "#0F172A", strokeWidth: 2, r: 3.5 }}
-                    activeDot={{ r: 6, fill: COLORS.violet, stroke: "#E2E8F0", strokeWidth: 2 }}
+                    dot={{ fill: COLORS.violet, stroke: COLORS.dotStroke, strokeWidth: 2, r: 3.5 }}
+                    activeDot={{ r: 6, fill: COLORS.violet, stroke: COLORS.panelText, strokeWidth: 2 }}
                 />
             </LineChart>
         </ResponsiveContainer>

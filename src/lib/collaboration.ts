@@ -8,6 +8,7 @@ import type {
     TestPlanExecution,
     TestRunSession,
 } from '../types/project'
+import { isTaskReadyForQa } from './tasks'
 
 export const PROJECT_SCHEMA_VERSION = 2
 
@@ -189,7 +190,7 @@ export function getReleaseQueue(project: Project) {
         }
     })
 
-    const tasksReadyForQa = queue.filter((item) => item.task.collabState === 'ready_for_qa')
+    const tasksReadyForQa = queue.filter((item) => isTaskReadyForQa(item.task))
     const handoffsMissingEvidence = queue.filter((item) => item.handoff && item.missingFields.includes('evidence'))
     const prsLinkedButNotRetested = queue.filter((item) =>
         !!item.handoff?.linkedPrs.length &&
@@ -316,7 +317,7 @@ export function getWorkflowHealthSummary(project: Project): WorkflowHealthSummar
                 detail: 'Sent to development but not yet acknowledged.',
             })
         }
-        if (task.collabState === 'ready_for_qa' && (activeHandoff?.linkedPrs?.length ?? 0) === 0) {
+        if (isTaskReadyForQa(task) && (activeHandoff?.linkedPrs?.length ?? 0) === 0) {
             items.readyForQaWithoutPr.push({
                 taskId: task.id,
                 title: task.title,

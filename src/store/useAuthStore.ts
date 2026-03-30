@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AuthStatus } from '@/types/auth'
+import { recordRendererMetric } from '@/lib/perf'
 
 const DEFAULT_STATUS: AuthStatus = {
     configured: false,
@@ -46,8 +47,15 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
 
         bootstrapPromise = (async () => {
+            const startedAt = performance.now()
             try {
                 const auth = await window.electronAPI.authGetStatus()
+                void Promise.all([
+                    recordRendererMetric('authBootstrapMs', performance.now() - startedAt),
+                    recordRendererMetric('sampleSignedIn', auth.status === 'signed_in' ? 1 : 0),
+                    recordRendererMetric('sampleSignedOut', auth.status === 'signed_out' ? 1 : 0),
+                    recordRendererMetric('sampleOffline', auth.usingOfflineSession ? 1 : 0),
+                ])
                 set((state) => (
                     state.isLoaded && isSameAuthStatus(state.auth, auth)
                         ? state
@@ -61,6 +69,12 @@ export const useAuthStore = create<AuthState>((set) => ({
                     user: null,
                     error: message,
                 }
+                void Promise.all([
+                    recordRendererMetric('authBootstrapMs', performance.now() - startedAt),
+                    recordRendererMetric('sampleSignedIn', 0),
+                    recordRendererMetric('sampleSignedOut', 0),
+                    recordRendererMetric('sampleOffline', 0),
+                ])
                 set((state) => (
                     state.isLoaded && isSameAuthStatus(state.auth, nextAuth)
                         ? state

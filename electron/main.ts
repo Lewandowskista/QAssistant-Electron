@@ -44,6 +44,8 @@ import {
     closeDatabase,
     getTaskById,
     getHandoffById,
+    getCollaborationEventById,
+    getArtifactLinkById,
     migrateLegacyEnvironmentSecretsToSecureStore,
     upsertProjectNote,
     deleteProjectNote,
@@ -575,6 +577,8 @@ if (app) {
             pushArtifactLink,
             getTaskById,
             getHandoffById,
+            getCollaborationEventById,
+            getArtifactLinkById,
             scheduleCloudStateUpload,
             assertString,
             assertOptionalString,
@@ -667,6 +671,7 @@ if (app) {
 
     app.whenReady().then(async () => {
         measureMainMetric('appWhenReadyMs', appBootStartedAt);
+        recordMainMetric('sampleIsPackaged', app.isPackaged ? 1 : 0);
         if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
             app.setAppUserModelId(appUserModelId);
         }
@@ -888,7 +893,7 @@ if (app) {
                 idleCpuSampler = null;
             }
             stopReminderService();
-            teardownSync().catch(() => {});
+            teardownSync().catch(e => console.error('[main] sync teardown failed:', e));
             // Ask renderer to flush any debounced pending save before closing the DB
             if (mainWindow && !mainWindow.isDestroyed()) {
                 event.preventDefault();
@@ -896,7 +901,7 @@ if (app) {
                 setTimeout(() => {
                     closeDatabase();
                     app.exit(0);
-                }, 150);
+                }, 500);
             } else {
                 closeDatabase();
             }
@@ -904,7 +909,12 @@ if (app) {
     });
 
     app.on('window-all-closed', () => {
-        const settings = fs.existsSync(SETTINGS_FILE) ? JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) : {};
+        let settings: { minimizeToTray?: boolean } = {};
+        try {
+            if (fs.existsSync(SETTINGS_FILE)) {
+                settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+            }
+        } catch { /* use defaults if settings file is corrupt or unreadable */ }
         if (process.platform !== 'darwin' && !settings.minimizeToTray) {
             app.quit();
         }

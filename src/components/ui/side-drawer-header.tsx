@@ -22,16 +22,18 @@ export function SideDrawerHeader({ icon: Icon, title, subtitle, onClose, actions
         <div className="app-panel-title truncate">{title}</div>
         {subtitle ? <div className="app-helper-text truncate">{subtitle}</div> : null}
       </div>
-      {actions}
-      {onClose ? (
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-xl p-2 text-muted-ui transition-colors hover:bg-[hsl(var(--surface-elevated))] hover:text-foreground"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      ) : null}
+      <div className="flex items-center gap-1 app-region-no-drag">
+        {actions}
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-muted-ui transition-colors hover:bg-[hsl(var(--surface-elevated))] hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
     </div>
   )
 }

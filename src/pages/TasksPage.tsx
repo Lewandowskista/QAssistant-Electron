@@ -1,5 +1,6 @@
 // cspell:ignore youtu
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import {
     DndContext,
     DragEndEvent,
@@ -16,6 +17,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
 import { HelpCircle, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { ActionToolbar, CompactPageHeader, InlineStatusSummary, PageScaffold, SurfaceBlock } from "@/components/ui/workspace"
 import { cn } from "@/lib/utils"
 import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
 import { sanitizeProjectForQaAi, sanitizeTaskForQaAi } from "@/lib/aiUtils"
@@ -96,6 +98,7 @@ function loadJson<T>(key: string, fallback: T): T {
 
 export default function TasksPage() {
     const api = window.electronAPI
+    const [searchParams, setSearchParams] = useSearchParams()
     const activeProjectContext = useActiveProjectTaskBoardContext()
     const activeProjectId = activeProjectContext.activeProjectId
     const { addTask, deleteTask, moveTask, updateProject } = useProjectStore(useShallow((state) => ({
@@ -148,14 +151,52 @@ export default function TasksPage() {
 
     useEffect(() => {
         if (!activeProjectId) return
-        setFiltersState(loadJson(`${FILTER_STORAGE_PREFIX}${activeProjectId}`, DEFAULT_TASK_FILTERS))
-        setBoardMode(loadJson(`${BOARD_STORAGE_PREFIX}${activeProjectId}`, { value: "board" }).value as "board" | "triage")
+        const nextFilters = loadJson(`${FILTER_STORAGE_PREFIX}${activeProjectId}`, DEFAULT_TASK_FILTERS)
+        const requestedView = searchParams.get("view")
+        const requestedSource = searchParams.get("source")
+        const requestedTaskId = searchParams.get("task")
+        const requestedQuery = searchParams.get("q")
+
+        if (requestedSource === "manual" || requestedSource === "linear" || requestedSource === "jira") {
+            nextFilters.source = requestedSource
+            setSourceMode(requestedSource)
+        }
+
+        if (requestedQuery !== null) nextFilters.search = requestedQuery
+
+        setFiltersState(nextFilters)
+        setBoardMode(
+            requestedView === "triage" || requestedView === "board"
+                ? requestedView
+                : (loadJson(`${BOARD_STORAGE_PREFIX}${activeProjectId}`, { value: "board" }).value as "board" | "triage")
+        )
         setSortMode(loadJson(`${SORT_STORAGE_PREFIX}${activeProjectId}`, { value: "manual" }).value as TaskSortMode)
         setIsFilterPanelCollapsed(loadJson(`${FILTER_PANEL_STORAGE_PREFIX}${activeProjectId}`, { value: true }).value as boolean)
         setFilterPresets(loadPresets(activeProjectId))
+        setDetailsId(requestedTaskId)
         setShowPresetInput(false)
         setPresetNameInput("")
-    }, [activeProjectId])
+    }, [activeProjectId, searchParams])
+
+    useEffect(() => {
+        const next = new URLSearchParams(searchParams)
+
+        if (boardMode === "board") next.delete("view")
+        else next.set("view", boardMode)
+
+        if (sourceMode === "manual") next.delete("source")
+        else next.set("source", sourceMode)
+
+        if (detailsId) next.set("task", detailsId)
+        else next.delete("task")
+
+        if (filters.search.trim()) next.set("q", filters.search.trim())
+        else next.delete("q")
+
+        if (next.toString() !== searchParams.toString()) {
+            setSearchParams(next, { replace: true })
+        }
+    }, [boardMode, detailsId, filters.search, searchParams, setSearchParams, sourceMode])
 
     const setFilters = useCallback((updater: (current: TaskBoardFilters) => TaskBoardFilters) => {
         setFiltersState((current) => {
@@ -584,15 +625,15 @@ export default function TasksPage() {
             : false
 
     return (
-        <div className="flex h-full flex-col overflow-hidden text-[#E2E8F0] animate-in fade-in duration-500">
-            <header className="flex-none space-y-3 border-b border-[#2A2A3A] bg-[#0F0F13] px-6 py-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-[240px]">
-                        <h1 className="text-xl font-semibold tracking-tight text-[#E2E8F0]">Tasks</h1>
-                        <p className="mt-1 text-xs text-[#8E9196]">{boardStatusText}</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex rounded-lg border border-[#2A2A3A] bg-[#111118] p-1">
+        <PageScaffold className="flex h-full max-w-none flex-col overflow-hidden pb-0 animate-in fade-in duration-500">
+            <CompactPageHeader
+                eyebrow="Delivery board"
+                title="Tasks"
+                description="Keep triage, active work, and release-ready issues in one calmer workspace."
+                summary={<InlineStatusSummary items={boardStatusText.split(" | ")} />}
+                actions={
+                    <ActionToolbar className="border-0 bg-transparent p-0 shadow-none">
+                        <div className="flex rounded-lg border border-ui bg-panel-muted p-1">
                             {(["manual", "linear", "jira"] as const).map((mode) => (
                                 <Button
                                     key={mode}
@@ -602,71 +643,81 @@ export default function TasksPage() {
                                         setSourceMode(mode)
                                         setFilters((current) => ({ ...current, source: mode }))
                                     }}
-                                    className={cn("h-8 px-3 text-[11px] font-medium transition-all", sourceMode === mode ? "bg-[#1A1A24] text-[#E2E8F0]" : "text-[#6B7280] hover:text-[#E2E8F0]")}
+                                    className={cn(
+                                        "h-8 px-3 text-[11px] font-medium",
+                                        sourceMode === mode ? "bg-background text-foreground" : "text-muted-ui hover:text-foreground"
+                                    )}
                                 >
                                     {mode.charAt(0).toUpperCase() + mode.slice(1)}
                                 </Button>
                             ))}
                         </div>
-                        <Button onClick={() => { setNewTaskStatus(currentColumns[0]?.id || "todo"); setIsNewTaskModalOpen(true) }} disabled={!activeProjectId} className="h-9 gap-2 border border-[#A78BFA]/20 bg-[#1A1A24] px-4 text-xs font-medium text-[#E2E8F0] hover:bg-[#21212E]">
+                        <Button
+                            onClick={() => {
+                                setNewTaskStatus(currentColumns[0]?.id || "todo")
+                                setIsNewTaskModalOpen(true)
+                            }}
+                            disabled={!activeProjectId}
+                            className="h-9 gap-2"
+                        >
                             <Plus className="h-3.5 w-3.5" /> New Task
                         </Button>
-                    </div>
-                </div>
+                    </ActionToolbar>
+                }
+            />
 
-                <TaskFilterBar
-                    filters={{ ...filters, source: filters.source === "all" ? sourceMode : filters.source }}
-                    setFilters={setFilters}
-                    versions={filterOptions.versions}
-                    assignees={filterOptions.assignees}
-                    components={filterOptions.components}
-                    statuses={filterOptions.statuses}
-                    labels={filterOptions.labels}
-                    sprints={filterOptions.sprints}
-                    boardMode={boardMode}
-                    onBoardModeChange={persistBoardMode}
-                    sortMode={sortMode}
-                    onSortModeChange={persistSortMode}
-                    onClear={clearFilters}
-                    collapsed={isFilterPanelCollapsed}
-                    onCollapsedChange={persistFilterPanelCollapsed}
-                    activeFilterCount={activeFilterCount}
-                    presets={filterPresets}
-                    onApplyPreset={(name) => {
-                        const preset = filterPresets.find((entry) => entry.name === name)
-                        if (preset) applyFilterPreset(preset)
-                    }}
-                    onDeletePreset={deleteFilterPreset}
-                    onShowPresetInput={() => setShowPresetInput(true)}
-                    showPresetInput={showPresetInput}
-                    presetInput={presetNameInput}
-                    onPresetInputChange={setPresetNameInput}
-                    onSavePreset={saveFilterPreset}
-                    onCancelPreset={() => setShowPresetInput(false)}
-                    summaryItems={summaryRail}
-                    onSelectSummary={(id) => setFilters((current) => applySummaryPreset(id, current))}
-                    onSync={sourceMode !== "manual" ? () => handleSync() : undefined}
-                    syncLabel={sourceMode !== "manual" ? `Sync ${sourceMode.charAt(0).toUpperCase() + sourceMode.slice(1)}` : undefined}
-                    syncMeta={sourceMode !== "manual" && displaySyncTime ? `Last synced ${formatRelativeTime(displaySyncTime)}` : undefined}
-                    syncDisabled={isSyncing}
-                    onOpenShortcuts={() => setIsShortcutModalOpen(true)}
-                />
-            </header>
+            <TaskFilterBar
+                filters={{ ...filters, source: filters.source === "all" ? sourceMode : filters.source }}
+                setFilters={setFilters}
+                versions={filterOptions.versions}
+                assignees={filterOptions.assignees}
+                components={filterOptions.components}
+                statuses={filterOptions.statuses}
+                labels={filterOptions.labels}
+                sprints={filterOptions.sprints}
+                boardMode={boardMode}
+                onBoardModeChange={persistBoardMode}
+                sortMode={sortMode}
+                onSortModeChange={persistSortMode}
+                onClear={clearFilters}
+                collapsed={isFilterPanelCollapsed}
+                onCollapsedChange={persistFilterPanelCollapsed}
+                activeFilterCount={activeFilterCount}
+                presets={filterPresets}
+                onApplyPreset={(name) => {
+                    const preset = filterPresets.find((entry) => entry.name === name)
+                    if (preset) applyFilterPreset(preset)
+                }}
+                onDeletePreset={deleteFilterPreset}
+                onShowPresetInput={() => setShowPresetInput(true)}
+                showPresetInput={showPresetInput}
+                presetInput={presetNameInput}
+                onPresetInputChange={setPresetNameInput}
+                onSavePreset={saveFilterPreset}
+                onCancelPreset={() => setShowPresetInput(false)}
+                summaryItems={summaryRail}
+                onSelectSummary={(id) => setFilters((current) => applySummaryPreset(id, current))}
+                onSync={sourceMode !== "manual" ? () => handleSync() : undefined}
+                syncLabel={sourceMode !== "manual" ? `Sync ${sourceMode.charAt(0).toUpperCase() + sourceMode.slice(1)}` : undefined}
+                syncMeta={sourceMode !== "manual" && displaySyncTime ? `Last synced ${formatRelativeTime(displaySyncTime)}` : undefined}
+                syncDisabled={isSyncing}
+                onOpenShortcuts={() => setIsShortcutModalOpen(true)}
+            />
 
             <div className="flex min-h-0 flex-1">
-                <div className="flex-1 overflow-hidden bg-[#0F0F13]">
+                <div className="flex-1 overflow-hidden">
                     <div className="flex h-full min-h-0 flex-col p-4">
                         <div className="min-h-0 flex-1">
                             {noExternalConnections ? (
-                            <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-8 text-center">
-                                <h3 className="text-lg font-semibold text-[#E2E8F0]">No {sourceMode} connection configured</h3>
-                                <p className="mt-2 text-sm text-[#9CA3AF]">Connect {sourceMode} in Settings to sync upstream tasks. Local enrichment stays in QAssistant after sync.</p>
-                            </div>
+                            <SurfaceBlock className="p-8 text-center">
+                                <h3 className="text-lg font-semibold text-foreground">No {sourceMode} connection configured</h3>
+                                <p className="mt-2 text-sm text-soft">Connect {sourceMode} in Settings to sync upstream tasks. Local enrichment stays in QAssistant after sync.</p>
+                            </SurfaceBlock>
                         ) : sortedTaskViews.length === 0 ? (
-                            <div className="rounded-xl border border-[#2A2A3A] bg-[#13131A] p-8 text-center">
-                                <h3 className="text-lg font-semibold text-[#E2E8F0]">No tasks match the current view</h3>
-                                <p className="mt-2 text-sm text-[#9CA3AF]">Try clearing filters, changing source, or creating a new task.</p>
-                            </div>
+                            <SurfaceBlock className="p-8 text-center">
+                                <h3 className="text-lg font-semibold text-foreground">No tasks match the current view</h3>
+                                <p className="mt-2 text-sm text-soft">Try clearing filters, changing source, or creating a new task.</p>
+                            </SurfaceBlock>
                         ) : boardMode === "triage" ? (
                             <div className="h-full overflow-y-auto custom-scrollbar">
                                 <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-[#6B7280]">Loading triage view...</div>}>
@@ -812,6 +863,6 @@ export default function TasksPage() {
                     </div>
                 </div>
             </>
-        </div>
+        </PageScaffold>
     )
 }

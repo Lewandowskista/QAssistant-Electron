@@ -43,7 +43,6 @@ class CookieJar {
             try {
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
                 const { Agent } = require('undici')
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-call
                 fetchOptions.dispatcher = new Agent({ connect: { rejectUnauthorized: false } })
             } catch {
                 // undici not available — use a custom node https agent via monkey-patching is not

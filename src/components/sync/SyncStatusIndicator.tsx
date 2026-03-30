@@ -48,6 +48,7 @@ export function SyncStatusIndicator() {
         pendingCount,
         error,
         lastSyncedAt,
+        initialSyncInProgress,
         isLoaded,
         loadConfig,
         setStatusFromIpc,
@@ -112,6 +113,11 @@ export function SyncStatusIndicator() {
     const cfg = STATUS_CONFIG[status]
     const Icon = cfg.icon
     const isConfigured = config?.configured
+    const showBackgroundSync = Boolean(isConfigured && status === 'connected' && initialSyncInProgress)
+    const indicatorLabel = isConfigured ? (showBackgroundSync ? 'Syncing in background' : cfg.label) : 'Cloud Sync'
+    const indicatorSubtitle = showBackgroundSync
+        ? 'Shell is ready while startup sync finishes'
+        : syncSummary.headline
 
     if (!isLoaded) return null
 
@@ -139,7 +145,7 @@ export function SyncStatusIndicator() {
                 <div className="flex flex-col min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                         <span className={cn('text-xs font-medium', isConfigured ? cfg.color : 'text-[#4B5563]')}>
-                            {isConfigured ? cfg.label : 'Cloud Sync'}
+                            {indicatorLabel}
                         </span>
                         {pendingCount > 0 && (
                             <span className="text-[10px] font-bold bg-[#A78BFA]/20 text-[#A78BFA] px-1.5 py-0.5 rounded-full leading-none">
@@ -148,7 +154,7 @@ export function SyncStatusIndicator() {
                         )}
                     </div>
                     {/* Last synced timestamp (Improvement 7) */}
-                    {isConfigured && status === 'connected' && relativeTime ? (
+                    {isConfigured && status === 'connected' && relativeTime && !showBackgroundSync ? (
                         <div className="flex items-center gap-1 mt-0.5">
                             <Wifi className="h-2.5 w-2.5 text-[#4B5563] shrink-0" />
                             <span className="text-[10px] text-[#4B5563] truncate">
@@ -157,7 +163,7 @@ export function SyncStatusIndicator() {
                             </span>
                         </div>
                     ) : isConfigured ? (
-                        <span className="mt-0.5 text-[10px] text-[#4B5563] truncate">{syncSummary.headline}</span>
+                        <span className="mt-0.5 text-[10px] text-[#4B5563] truncate">{indicatorSubtitle}</span>
                     ) : !isConfigured ? (
                         <span className="text-[10px] text-[#4B5563]">Click to set up</span>
                     ) : null}

@@ -89,6 +89,8 @@ export const DEFAULT_TASK_FILTERS: TaskBoardFilters = {
 
 const ACTIVE_COLUMN_IDS = new Set(["backlog", "todo", "in-progress", "in review", "in-review", "ready", "ready for qa", "qa_retesting", "in_fix"])
 const DONE_COLUMN_IDS = new Set(["done", "closed", "complete", "completed", "canceled", "cancelled", "duplicate"])
+const READY_FOR_QA_STATUS_IDS = new Set(["ready for qa", "ready_for_qa"])
+const QA_RETESTING_STATUS_IDS = new Set(["qa retesting", "qa_retesting"])
 const DEFAULT_TASK_COLUMNS: TaskBoardColumn[] = [
     { id: "backlog", title: "BACKLOG", color: "bg-[#9CA3AF]", textColor: "text-[#9CA3AF]" },
     { id: "todo", title: "TODO", color: "bg-[#6B7280]", textColor: "text-[#6B7280]" },
@@ -130,6 +132,10 @@ function normalizeColumnId(value: string) {
     return String(value || "").trim().toLowerCase()
 }
 
+function normalizeWorkflowId(value?: string | null) {
+    return String(value || "").trim().toLowerCase().replace(/\s+/g, " ")
+}
+
 function isDoneColumn(column: TaskBoardColumn) {
     const id = normalizeColumnId(column.id)
     const type = normalizeColumnId(column.type || "")
@@ -147,6 +153,20 @@ function findColumnForStatus(columns: TaskBoardColumn[], status: string) {
 
 export function getTaskSource(task: Task): TaskSource {
     return task.source || "manual"
+}
+
+export function isTaskReadyForQa(task: Task) {
+    if (task.collabState === "ready_for_qa") return true
+    return READY_FOR_QA_STATUS_IDS.has(normalizeWorkflowId(task.status))
+}
+
+export function isTaskQaRetesting(task: Task) {
+    if (task.collabState === "qa_retesting") return true
+    return QA_RETESTING_STATUS_IDS.has(normalizeWorkflowId(task.status))
+}
+
+export function isTaskInQaQueue(task: Task) {
+    return isTaskReadyForQa(task) || isTaskQaRetesting(task)
 }
 
 export function getTaskLabels(task: Task) {
@@ -245,7 +265,7 @@ export function deriveTaskViewModels(project: Project, now = Date.now()): TaskVi
         const activeHandoff = task.activeHandoffId ? handoffMap.get(task.activeHandoffId) : (project.handoffPackets || []).find((handoff) => handoff.taskId === task.id)
         const handoffMissingFields = activeHandoff?.missingFields || []
         const dueState = getTaskDueState(task, now)
-        const isReadyForQa = task.collabState === "ready_for_qa"
+        const isReadyForQa = isTaskReadyForQa(task)
         const isDevQueue = ["ready_for_dev", "dev_acknowledged", "in_fix"].includes(task.collabState || "draft")
         const severity = task.severity || "major"
         const isBlockedOrCritical = task.priority === "critical" || severity === "critical" || severity === "blocker"
@@ -403,7 +423,7 @@ export function getSummaryRail(taskViewModels: TaskViewModel[]) {
             id: "qa-queue",
             title: "QA Queue",
             description: "Ready for QA or active retest work.",
-            count: taskViewModels.filter((task) => ["ready_for_qa", "qa_retesting"].includes(task.task.collabState || "draft")).length
+            count: taskViewModels.filter((task) => isTaskInQaQueue(task.task)).length
         },
         {
             id: "dev-queue",

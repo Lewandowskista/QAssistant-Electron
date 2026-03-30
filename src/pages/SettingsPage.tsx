@@ -1,11 +1,11 @@
 /* cspell:disable-file */
 /* cspell:words testplans ATATT aistudio Lewandowskista */
 import { useState, useEffect, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import {
     Zap, Globe, Cpu, Server, Share2, Database, Search,
     Plus, X, Edit2, Check, Copy, RefreshCw, ExternalLink,
-    Eye, EyeOff, Trash2, Upload, Download, ChevronDown, ChevronUp, Bell, Sun, User, LogOut, AlertTriangle, BookOpen
+    Eye, EyeOff, Trash2, Upload, Download, Bell, Sun, User, LogOut, AlertTriangle, BookOpen
 } from "lucide-react"
 import { useTheme } from "@/hooks/useTheme"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import { LinearConnection, JiraConnection } from "@/types/project"
 import type { AppUpdateState } from "@/types/update"
 import type { UserRole, AuthProvider } from "@/types/user"
 import { useConfirm } from "@/components/ConfirmDialog"
+import { CompactPageHeader, InlineStatusSummary, PageScaffold, SettingsSectionNav, SurfaceBlock } from "@/components/ui/workspace"
 import { toast } from "sonner"
 import { sanitizeProjectForPersistence } from "@/lib/projectSanitization"
 import { safeInvoke } from "@/lib/safeInvoke"
@@ -27,6 +28,22 @@ import type { PerformanceMode } from "@/lib/performanceMode"
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 type StatusState = { msg: string; ok: boolean } | null
 type CredentialStorageStatus = Awaited<ReturnType<typeof window.electronAPI.getCredentialStorageStatus>>
+
+const SETTINGS_SECTIONS = [
+    { id: "account", label: "Account", icon: User },
+    { id: "appearance", label: "Appearance", icon: Sun },
+    { id: "general", label: "General", icon: Database },
+    { id: "automation", label: "Automation API", icon: Share2 },
+    { id: "linear", label: "Linear", icon: Zap },
+    { id: "jira", label: "Jira", icon: Globe },
+    { id: "gemini", label: "Google AI Studio", icon: Cpu },
+    { id: "ccv2", label: "CCv2", icon: Server },
+    { id: "sharing", label: "Project Sharing", icon: Upload },
+    { id: "webhooks", label: "Webhooks", icon: Bell },
+    { id: "updates", label: "Updates", icon: Download },
+    { id: "docs", label: "Documentation", icon: BookOpen },
+    { id: "diagnostics", label: "Diagnostics", icon: Search },
+] as const
 
 function StatusBanner({ s }: { s: StatusState }) {
     if (!s) return null
@@ -93,24 +110,22 @@ function formatUpdateCheckTime(value?: number): string {
 }
 
 // ── Components ────────────────────────────────────────────────────────────────
-function Sec({ id, title, icon, children, activeSection, setActiveSection }: { 
+function Sec({ id, title, icon, children, activeSection }: { 
     id: string; title: string; icon: React.ReactNode; children: React.ReactNode;
-    activeSection: string | null; setActiveSection: (id: string | null) => void;
+    activeSection: string | null;
 }) {
     const open = activeSection === id
+    if (!open) return null
     return (
-        <SectionCard>
-            <button
-                className="w-full flex items-center justify-between group"
-                onClick={() => setActiveSection(open ? null : id)}
-            >
-                <div className="flex items-center gap-3">
-                    <span className="text-primary opacity-80 group-hover:opacity-100 transition-opacity">{icon}</span>
-                    <span className="font-semibold text-foreground text-sm">{title}</span>
+        <SectionCard className="space-y-5">
+            <div className="flex items-center gap-3">
+                <span className="text-primary opacity-90">{icon}</span>
+                <div>
+                    <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+                    <p className="app-helper-text">Focused configuration for this area.</p>
                 </div>
-                {open ? <ChevronUp className="h-4 w-4 text-muted-ui" /> : <ChevronDown className="h-4 w-4 text-muted-ui" />}
-            </button>
-            {open && <div className="mt-5 border-t app-divider pt-5 space-y-4">{children}</div>}
+            </div>
+            <div className="border-t app-divider pt-5 space-y-4">{children}</div>
         </SectionCard>
     )
 }
@@ -151,6 +166,7 @@ function FormPanel({ title, onSave, onTest, onCancel, children, status }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
     const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
     const api = window.electronAPI
     const saveSettingsStore = useSettingsStore(s => s.save)
     const performanceMode = useSettingsStore(s => s.settings.performanceMode ?? 'auto')
@@ -163,7 +179,8 @@ export default function SettingsPage() {
     const [dataPath, setDataPath] = useState('')
     const [sysInfo, setSysInfo] = useState<any>(null)
     const [perfMetrics, setPerfMetrics] = useState<{ main: Record<string, number>; renderer: Record<string, number>; counters: Record<string, number> } | null>(null)
-    const [activeSection, setActiveSection] = useState<string | null>("account")
+    const requestedSection = searchParams.get("section") ?? "account"
+    const activeSection = SETTINGS_SECTIONS.some((section) => section.id === requestedSection) ? requestedSection : "account"
     const { theme, toggleTheme } = useTheme()
 
     // ── Global settings state ─────────────────────────────────────────────────
@@ -234,6 +251,13 @@ export default function SettingsPage() {
     const [orphanScanResult, setOrphanScanResult] = useState<{ orphaned: OrphanEntry[]; totalSize: number } | null>(null)
     const [orphanScanning, setOrphanScanning] = useState(false)
     const [orphanDeleting, setOrphanDeleting] = useState(false)
+
+    const handleSectionChange = useCallback((sectionId: string) => {
+        const next = new URLSearchParams(searchParams)
+        if (sectionId === "account") next.delete("section")
+        else next.set("section", sectionId)
+        setSearchParams(next, { replace: true })
+    }, [searchParams, setSearchParams])
 
     const handleScanOrphans = useCallback(async () => {
         setOrphanScanning(true)
@@ -721,62 +745,78 @@ export default function SettingsPage() {
 
     return (
         <>
-        <div className="h-full flex flex-col bg-[#0F0F13] overflow-hidden">
-            {/* Header */}
-            <div className="flex-none space-y-3 border-b border-[#2A2A3A] px-8 py-5">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-black text-[#E2E8F0] tracking-tight">Settings</h1>
-                        <p className="mt-1 text-xs text-[#8E9196]">
-                            {activeProject ? `Configuring ${activeProject.name}` : "Account, app behavior, integrations, and diagnostics"}
-                        </p>
-                    </div>
-                    <Button variant="ghost" size="sm" className="gap-2 text-[#6B7280] hover:text-[#E2E8F0]" onClick={() => setShowSecrets(s => !s)}>
-                        {showSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        <span className="text-xs font-medium">{showSecrets ? 'Hide secrets' : 'Reveal secrets'}</span>
-                    </Button>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                    <Button variant={activeSection === "account" ? "secondary" : "ghost"} size="sm" className="h-8 text-xs" onClick={() => setActiveSection("account")}>Account</Button>
-                    <Button variant={activeSection === "appearance" || activeSection === "general" ? "secondary" : "ghost"} size="sm" className="h-8 text-xs" onClick={() => setActiveSection("appearance")}>App behavior</Button>
-                    <Button variant={["automation", "linear", "jira", "gemini", "ccv2", "sharing", "webhooks"].includes(activeSection || "") ? "secondary" : "ghost"} size="sm" className="h-8 text-xs" onClick={() => setActiveSection("automation")}>Integrations</Button>
-                    <Button variant={activeSection === "updates" || activeSection === "docs" || activeSection === "diagnostics" ? "secondary" : "ghost"} size="sm" className="h-8 text-xs" onClick={() => setActiveSection("diagnostics")}>Diagnostics</Button>
-                </div>
-            </div>
+        <div className="flex h-full flex-col overflow-hidden bg-background">
+            <PageScaffold className="flex min-h-0 flex-1 max-w-none flex-col">
+                <CompactPageHeader
+                    eyebrow="Workspace preferences"
+                    title="Settings"
+                    description={activeProject ? `Configuring ${activeProject.name}` : "Account, app behavior, integrations, and diagnostics"}
+                    summary={(
+                        <InlineStatusSummary
+                            items={[
+                                activeSection ? SETTINGS_SECTIONS.find((section) => section.id === activeSection)?.label : null,
+                                theme === "dark" ? "dark theme" : "light theme",
+                                activeProject ? activeProject.name : "no active project",
+                            ]}
+                        />
+                    )}
+                    actions={(
+                        <Button variant="ghost" size="sm" className="gap-2" onClick={() => setShowSecrets(s => !s)}>
+                            {showSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            <span>{showSecrets ? 'Hide secrets' : 'Reveal secrets'}</span>
+                        </Button>
+                    )}
+                />
 
-            {/* Credential encryption warning */}
-            {credStorageStatus?.encrypted === false && (
-                <div className="flex-none mx-8 mt-4 flex items-start gap-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
-                    <AlertTriangle className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
-                    <div className="flex-1 space-y-3">
-                        <p className="text-xs text-yellow-300 leading-relaxed">
-                            <span className="font-bold">Credentials are stored unencrypted.</span> Your OS keyring and Electron safeStorage are both unavailable on this system. API keys and tokens can only be written to disk in plaintext.
-                        </p>
-                        <div className="flex items-center justify-between gap-4">
-                            <p className="text-[11px] text-yellow-200/90 leading-relaxed">
-                                {credStorageStatus?.acknowledged
-                                    ? 'Plaintext fallback is currently allowed on this device. Secret fields remain in a degraded security mode.'
-                                    : 'Plaintext fallback is blocked until you explicitly allow this degraded mode.'}
-                            </p>
-                            <Toggle
-                                on={allowInsecureCredentialStorage}
-                                onToggle={async () => {
-                                    const next = !allowInsecureCredentialStorage
-                                    setAllowInsecureCredentialStorage(next)
-                                    await saveSetting({ allowInsecureCredentialStorage: next })
-                                    await refreshCredentialStorageStatus()
-                                }}
+                {credStorageStatus?.encrypted === false && (
+                    <SurfaceBlock className="flex-none border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
+                            <div className="flex-1 space-y-3">
+                                <p className="text-xs leading-relaxed text-yellow-300">
+                                    <span className="font-bold">Credentials are stored unencrypted.</span> Your OS keyring and Electron safeStorage are both unavailable on this system. API keys and tokens can only be written to disk in plaintext.
+                                </p>
+                                <div className="flex items-center justify-between gap-4">
+                                    <p className="text-[11px] leading-relaxed text-yellow-200/90">
+                                        {credStorageStatus?.acknowledged
+                                            ? 'Plaintext fallback is currently allowed on this device. Secret fields remain in a degraded security mode.'
+                                            : 'Plaintext fallback is blocked until you explicitly allow this degraded mode.'}
+                                    </p>
+                                    <Toggle
+                                        on={allowInsecureCredentialStorage}
+                                        onToggle={async () => {
+                                            const next = !allowInsecureCredentialStorage
+                                            setAllowInsecureCredentialStorage(next)
+                                            await saveSetting({ allowInsecureCredentialStorage: next })
+                                            await refreshCredentialStorageStatus()
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </SurfaceBlock>
+                )}
+
+                <div className="settings-layout min-h-0 flex-1">
+                    <div className="min-h-0 overflow-y-auto custom-scrollbar pr-1">
+                        <div className="sticky top-0">
+                            <SettingsSectionNav
+                                items={SETTINGS_SECTIONS.map((section) => ({
+                                    id: section.id,
+                                    label: section.label,
+                                    icon: section.icon,
+                                }))}
+                                value={activeSection}
+                                onChange={handleSectionChange}
                             />
                         </div>
                     </div>
-                </div>
-            )}
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-8 py-6 space-y-3 custom-scrollbar">
+                    <div className="min-h-0 overflow-y-auto custom-scrollbar pr-1">
+                        <div className="space-y-4">
 
                 {/* ── ACCOUNT & IDENTITY ───────────────────────────────────── */}
-                <Sec id="account" title="Account & Identity" icon={<User className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="account" title="Account & Identity" icon={<User className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>Supabase Session</SectionLabel>
                     <div className="flex items-center justify-between rounded-xl border border-[#2A2A3A] bg-[#0F0F13] px-4 py-3">
                         <div>
@@ -881,7 +921,7 @@ export default function SettingsPage() {
                 </Sec>
 
                 {/* ── APPEARANCE ───────────────────────────────────────────── */}
-                <Sec id="appearance" title="Appearance" icon={<Sun className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="appearance" title="Appearance" icon={<Sun className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>Theme</SectionLabel>
                     <div className="flex items-center justify-between">
                         <div>
@@ -921,7 +961,7 @@ export default function SettingsPage() {
                 </Sec>
 
                 {/* ── GENERAL ─────────────────────────────────────────────── */}
-                <Sec id="general" title="General" icon={<Database className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="general" title="General" icon={<Database className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>App Behavior</SectionLabel>
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -951,7 +991,7 @@ export default function SettingsPage() {
                 </Sec>
 
                 {/* ── AUTOMATION API ───────────────────────────────────────── */}
-                <Sec id="automation" title="Automation API" icon={<Share2 className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="automation" title="Automation API" icon={<Share2 className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>REST API for CI/CD Integration</SectionLabel>
 
                     <div className="flex items-center justify-between mb-4">
@@ -1014,7 +1054,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── LINEAR ──────────────────────────────────────────────── */}
-                <Sec id="linear" title="Linear" icon={<Zap className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="linear" title="Linear" icon={<Zap className="h-4 w-4" />} activeSection={activeSection}>
                     <div className="flex items-center justify-between mb-2">
                         <div>
                             <SectionLabel>Connections</SectionLabel>
@@ -1078,7 +1118,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── JIRA ────────────────────────────────────────────────── */}
-                <Sec id="jira" title="Atlassian Jira" icon={<Globe className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="jira" title="Atlassian Jira" icon={<Globe className="h-4 w-4" />} activeSection={activeSection}>
                     <div className="flex items-center justify-between mb-2">
                         <div>
                             <SectionLabel>Connections</SectionLabel>
@@ -1132,7 +1172,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── GOOGLE AI ────────────────────────────────────────────── */}
-                <Sec id="gemini" title="Google AI Studio" icon={<Cpu className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="gemini" title="Google AI Studio" icon={<Cpu className="h-4 w-4" />} activeSection={activeSection}>
                     <div className="flex items-center justify-between mb-4">
                         <p className="text-xs text-[#6B7280]">Get your API key from aistudio.google.com → API Keys</p>
                         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[#A78BFA] font-bold text-xs" onClick={() => api.openUrl('https://aistudio.google.com/apikey')}><ExternalLink className="h-3.5 w-3.5" />Get API Key</Button>
@@ -1194,7 +1234,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── SAP CCv2 ─────────────────────────────────────────────── */}
-                <Sec id="ccv2" title="SAP Commerce Cloud v2 (CCv2)" icon={<Server className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="ccv2" title="SAP Commerce Cloud v2 (CCv2)" icon={<Server className="h-4 w-4" />} activeSection={activeSection}>
                     <div className="flex items-center justify-between mb-4">
                         <p className="text-xs text-[#6B7280] max-w-md">Enter your subscription code and Management API token to enable the CCv2 Deployments panel on the SAP page.</p>
                         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[#A78BFA] font-bold text-xs flex-none ml-4" onClick={() => api.openUrl('https://help.sap.com/docs/SAP_COMMERCE_CLOUD_PUBLIC_CLOUD')}><ExternalLink className="h-3.5 w-3.5" />API Docs</Button>
@@ -1222,7 +1262,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── PROJECT SHARING ──────────────────────────────────────── */}
-                <Sec id="sharing" title="Project Sharing" icon={<Upload className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="sharing" title="Project Sharing" icon={<Upload className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>Export / Import</SectionLabel>
                     <p className="text-xs text-[#6B7280] mb-4">Export the current project to a JSON file to share with teammates, or import a project from a shared file. Environment usernames/passwords, API keys, and tokens are stripped during export and import and must be re-entered on the receiving machine.</p>
                     <div className="flex items-center gap-2">
@@ -1237,7 +1277,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── WEBHOOKS ─────────────────────────────────────────────── */}
-                <Sec id="webhooks" title="Webhooks & Notifications" icon={<Bell className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="webhooks" title="Webhooks & Notifications" icon={<Bell className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>Outbound Webhooks</SectionLabel>
                     <p className="text-xs text-[#6B7280] -mt-3 mb-4">Send notifications to Slack, Microsoft Teams (via Power Automate Workflows), or any generic endpoint when key events occur.</p>
 
@@ -1360,7 +1400,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── APPLICATION UPDATES ─────────────────────────────────── */}
-                <Sec id="updates" title="Application Updates" icon={<Download className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="updates" title="Application Updates" icon={<Download className="h-4 w-4" />} activeSection={activeSection}>
                     <div className="bg-[#0F0F13] border border-[#2A2A3A] rounded-xl px-4 py-4 space-y-4">
                         <div className="flex items-start justify-between gap-4">
                             <div>
@@ -1476,7 +1516,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── HELP & DOCUMENTATION ────────────────────────────────── */}
-                <Sec id="docs" title="Help & Documentation" icon={<BookOpen className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="docs" title="Help & Documentation" icon={<BookOpen className="h-4 w-4" />} activeSection={activeSection}>
                     <p className="text-xs text-[#6B7280] mb-4">Complete documentation for every feature, integration, and keyboard shortcut in QAssistant.</p>
                     <Button size="sm" className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold h-9 gap-2" onClick={() => navigate('/docs')}>
                         <BookOpen className="h-3.5 w-3.5" /> Open Documentation
@@ -1485,7 +1525,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 </Sec>
 
                 {/* ── DIAGNOSTICS ──────────────────────────────────────────── */}
-                <Sec id="diagnostics" title="Diagnostics" icon={<Search className="h-4 w-4" />} activeSection={activeSection} setActiveSection={setActiveSection}>
+                <Sec id="diagnostics" title="Diagnostics" icon={<Search className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>Storage & System Info</SectionLabel>
                     <div className="grid sm:grid-cols-2 gap-3 mb-4">
                         {[
@@ -1636,7 +1676,10 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     </div>
                 </Sec>
 
-            </div>
+                        </div>
+                    </div>
+                </div>
+            </PageScaffold>
         </div>
         {confirmDialogEl}
         </>

@@ -415,6 +415,8 @@ export interface ProjectState {
     getTaskTraceability: (projectId: string, taskId: string) => TraceabilityResult
     mergeRemoteTask: (task: Task & { handoffPackets?: HandoffPacket[]; collaborationEvents?: CollaborationEvent[] }) => void
     mergeRemoteHandoff: (handoff: HandoffPacket) => void
+    mergeRemoteCollaborationEvent: (projectId: string, event: CollaborationEvent) => void
+    mergeRemoteArtifactLink: (projectId: string, link: ArtifactLink) => void
 
     // Test Plan Actions
     addTestPlan: (projectId: string, name: string, description: string, isRegressionSuite?: boolean, source?: 'manual' | 'linear' | 'jira') => Promise<string>
@@ -1232,11 +1234,46 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             projects: state.projects.map(p => {
                 const handoffPackets = (p.handoffPackets || [])
                 const existingIdx = handoffPackets.findIndex(h => h.id === remoteHandoff.id)
-                if (existingIdx === -1) return p
+                if (existingIdx === -1) {
+                    if (!p.tasks.some((task) => task.id === remoteHandoff.taskId)) return p
+                    return { ...p, handoffPackets: [...handoffPackets, remoteHandoff] }
+                }
                 const updated = [...handoffPackets]
                 updated[existingIdx] = { ...updated[existingIdx], ...remoteHandoff }
                 return { ...p, handoffPackets: updated }
             })
+        }))
+    },
+
+    mergeRemoteCollaborationEvent: (projectId, remoteEvent) => {
+        set(state => ({
+            projects: state.projects.map((project) => {
+                if (project.id !== projectId) return project
+                const existingEvents = project.collaborationEvents || []
+                const existingIdx = existingEvents.findIndex((event) => event.id === remoteEvent.id)
+                if (existingIdx === -1) {
+                    return { ...project, collaborationEvents: [...existingEvents, remoteEvent].sort((a, b) => a.timestamp - b.timestamp) }
+                }
+                const updated = [...existingEvents]
+                updated[existingIdx] = { ...updated[existingIdx], ...remoteEvent }
+                return { ...project, collaborationEvents: updated }
+            }),
+        }))
+    },
+
+    mergeRemoteArtifactLink: (projectId, remoteLink) => {
+        set(state => ({
+            projects: state.projects.map((project) => {
+                if (project.id !== projectId) return project
+                const existingLinks = project.artifactLinks || []
+                const existingIdx = existingLinks.findIndex((link) => link.id === remoteLink.id)
+                if (existingIdx === -1) {
+                    return { ...project, artifactLinks: [remoteLink, ...existingLinks] }
+                }
+                const updated = [...existingLinks]
+                updated[existingIdx] = { ...updated[existingIdx], ...remoteLink }
+                return { ...project, artifactLinks: updated }
+            }),
         }))
     },
 
@@ -2408,6 +2445,8 @@ registerProjectSyncBridge({
     loadProjects: () => useProjectStore.getState().loadProjects(),
     mergeRemoteTask: (task) => useProjectStore.getState().mergeRemoteTask(task),
     mergeRemoteHandoff: (handoff) => useProjectStore.getState().mergeRemoteHandoff(handoff),
+    mergeRemoteCollaborationEvent: (projectId, event) => useProjectStore.getState().mergeRemoteCollaborationEvent(projectId, event),
+    mergeRemoteArtifactLink: (projectId, link) => useProjectStore.getState().mergeRemoteArtifactLink(projectId, link),
 })
 
 export function useActiveProjectId() {

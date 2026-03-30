@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useMemo, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useActiveProject, useActiveProjectId, useProjectStore } from "@/store/useProjectStore"
 import { TestPlan, TestCase, TestCaseStatus } from "@/types/project"
 import {
@@ -31,6 +32,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CompactPageHeader, InlineStatusSummary, PageScaffold } from "@/components/ui/workspace"
 import {
     Select,
     SelectContent,
@@ -70,6 +72,7 @@ const DevTestPlanSummary = lazy(() => import("@/components/sync/DevTestPlanSumma
 
 export default function TestsPage() {
     const api = window.electronAPI;
+    const [searchParams, setSearchParams] = useSearchParams()
     const activeRole = useUserStore(s => s.profile?.activeRole ?? 'qa')
     const activeProject = useActiveProject()
     const activeProjectId = useActiveProjectId()
@@ -129,14 +132,26 @@ export default function TestsPage() {
         if (!activeProjectId) return
         const storedSubtab = window.localStorage.getItem(`${TESTS_SUBTAB_STORAGE_PREFIX}${activeProjectId}`) as SubTab | null
         const storedAdvanced = window.localStorage.getItem(`${TESTS_ADVANCED_STORAGE_PREFIX}${activeProjectId}`)
-        if (storedSubtab) setActiveSubTab(storedSubtab)
+        const requestedTab = searchParams.get("tab") as SubTab | null
+        if (requestedTab && ['TestCaseGeneration', 'TestRuns', 'Reports', 'CoverageMatrix', 'RegressionBuilder', 'RiskMatrix', 'AIAccuracy'].includes(requestedTab)) {
+            setActiveSubTab(requestedTab)
+        } else if (storedSubtab) {
+            setActiveSubTab(storedSubtab)
+        }
         if (storedAdvanced) setShowGenerationAdvanced(storedAdvanced === "true")
-    }, [activeProjectId])
+    }, [activeProjectId, searchParams])
 
     useEffect(() => {
         if (!activeProjectId) return
         window.localStorage.setItem(`${TESTS_SUBTAB_STORAGE_PREFIX}${activeProjectId}`, activeSubTab)
     }, [activeProjectId, activeSubTab])
+
+    useEffect(() => {
+        const next = new URLSearchParams(searchParams)
+        if (activeSubTab === "TestCaseGeneration") next.delete("tab")
+        else next.set("tab", activeSubTab)
+        if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+    }, [activeSubTab, searchParams, setSearchParams])
 
     useEffect(() => {
         if (!activeProjectId) return
@@ -563,9 +578,15 @@ export default function TestsPage() {
 
     return (
         <>
-            <div className="h-full flex flex-col animate-in fade-in duration-500 overflow-hidden bg-[#0F0F13]">
+            <PageScaffold className="flex h-full max-w-none flex-col overflow-hidden pb-0 animate-in fade-in duration-500">
+                <CompactPageHeader
+                    eyebrow="QA workflow"
+                    title="Tests"
+                    description="Generate, run, review, and package test coverage without jumping between disconnected tools."
+                    summary={<InlineStatusSummary items={[`${filteredPlans.length} visible plans`, `${totalCaseCount} cases`, testsNextAction]} />}
+                />
                 <div className="flex-none space-y-3 border-b app-divider bg-[hsl(var(--surface-header)/0.78)] px-6 py-4">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="hidden">
                         <div className="min-w-[240px]">
                             <h1 className="text-xl font-semibold tracking-tight text-[#E2E8F0]">Tests</h1>
                             <p className="mt-1 text-xs text-[#8E9196]">
@@ -1427,7 +1448,7 @@ export default function TestsPage() {
                         onOpenChange={setImportResultsDialogOpen}
                     />
                 </Suspense>
-            </div>
+            </PageScaffold>
         </>
     )
 }

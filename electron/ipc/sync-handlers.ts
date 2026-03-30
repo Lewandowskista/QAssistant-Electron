@@ -17,6 +17,8 @@ export function registerSyncHandlers(ipcMain: Electron.IpcMain, deps: {
     pushArtifactLink: (projectId: string, link: any) => void
     getTaskById: (taskId: string) => any
     getHandoffById: (handoffId: string) => any
+    getCollaborationEventById: (eventId: string) => any
+    getArtifactLinkById: (linkId: string) => any
     scheduleCloudStateUpload: () => void
     assertString: (v: unknown, name: string, maxLen?: number) => void
     assertOptionalString: (v: unknown, name: string, maxLen?: number) => void
@@ -125,6 +127,18 @@ export function registerSyncHandlers(ipcMain: Electron.IpcMain, deps: {
         try {
             deps.assertString(handoffId, 'handoffId', 200);
             return deps.getHandoffById(handoffId);
+        } catch { return null; }
+    });
+    ipcMain.handle('get-collaboration-event-by-id', (_e: any, eventId: string) => {
+        try {
+            deps.assertString(eventId, 'eventId', 200);
+            return deps.getCollaborationEventById(eventId);
+        } catch { return null; }
+    });
+    ipcMain.handle('get-artifact-link-by-id', (_e: any, linkId: string) => {
+        try {
+            deps.assertString(linkId, 'linkId', 200);
+            return deps.getArtifactLinkById(linkId);
         } catch { return null; }
     });
 }

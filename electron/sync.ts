@@ -36,6 +36,7 @@ import type { WorkspaceInfo, WorkspaceInviteInfo, WorkspaceMember } from '../src
 import { appendFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { log } from './logger'
+import { measureMainMetric, startTimer } from './perf'
 
 // ─── Credential keys ──────────────────────────────────────────────────────────
 const CRED_WORKSPACE_ID      = 'sync_workspace_id'
@@ -54,6 +55,8 @@ let syncStatus: SyncStatus = 'disconnected'
 let lastSyncError: string | null = null
 let lastSyncedAt: number | null = null
 let mainWindowSender: ((channel: string, ...args: any[]) => void) | null = null
+let initialSyncInProgress = false
+let initialSyncPromise: Promise<void> | null = null
 
 // Auto-sync
 let autoSyncInterval: ReturnType<typeof setInterval> | null = null
@@ -136,6 +139,10 @@ export async function initSync(): Promise<{ ok: boolean; status: SyncStatus }> {
     // Cancel any in-flight reconnect attempt before re-initialising
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
 
+    if (initialSyncPromise) {
+        return { ok: true, status: syncStatus }
+    }
+
     const wsId = await getCredential(CRED_WORKSPACE_ID)
     const auth = await initAuth()
     const client = await getAuthenticatedClient()
@@ -174,24 +181,30 @@ export async function initSync(): Promise<{ ok: boolean; status: SyncStatus }> {
     setSyncStatus('connecting')
     notifyRenderer('sync-status-changed', getStatus())
 
-    // Pull all remote changes, then subscribe to real-time
-    await performInitialPull()
-
-    if (syncStatus === 'error') {
-        // Pull failed — scheduleReconnect() already queued; don't start auto-sync yet
-        return { ok: false, status: syncStatus }
-    }
-
     await subscribeRealtime()
-
-    // Flush any persisted pending mutations (from before crash/restart)
-    await flushPendingMutations()
 
     // Start auto-sync (periodic pull + focus handler)
     startAutoSync()
 
     // Clear reconnect state on successful init
     reconnectAttempts = 0
+
+    initialSyncInProgress = true
+    notifyRenderer('sync-status-changed', getStatus())
+    initialSyncPromise = (async () => {
+        try {
+            await performInitialPull()
+            if (syncStatus === 'error') return
+            await flushPendingMutations()
+        } finally {
+            initialSyncInProgress = false
+            initialSyncPromise = null
+            notifyRenderer('sync-status-changed', getStatus())
+        }
+    })()
+    initialSyncPromise.catch((error) => {
+        console.warn('[sync] Initial background sync failed:', error)
+    })
 
     return { ok: true, status: syncStatus }
 }
@@ -216,6 +229,8 @@ export async function teardownSync() {
     currentUserId = null
     flushInProgress = false
     autoSyncInProgress = false
+    initialSyncInProgress = false
+    initialSyncPromise = null
     lastFocusSyncAt = 0
     reconnectAttempts = 0
     setSyncStatus('disconnected')
@@ -232,8 +247,8 @@ function setSyncStatus(s: SyncStatus) {
 function startAutoSync() {
     stopAutoSync()
     autoSyncInterval = setInterval(async () => {
-        // Skip if another auto-sync tick is already running
-        if (autoSyncInProgress) return
+        // Skip if another auto-sync tick or a manual flush is already running
+        if (autoSyncInProgress || flushInProgress || initialSyncInProgress) return
         // Only run if connected or in error (allow self-recovery), and workspace is set
         if (!currentWorkspaceId) return
         if (syncStatus !== 'connected' && syncStatus !== 'syncing' && syncStatus !== 'error') return
@@ -265,7 +280,7 @@ function stopAutoSync() {
 /** Called by main.ts when the BrowserWindow gains focus */
 export async function onAppFocused() {
     if (!currentWorkspaceId) return
-    if (autoSyncInProgress || flushInProgress) return
+    if (autoSyncInProgress || flushInProgress || initialSyncInProgress) return
     const now = Date.now()
     if (now - lastFocusSyncAt < FOCUS_SYNC_MIN_INTERVAL_MS) return
     if (syncStatus === 'connected' || syncStatus === 'syncing' || syncStatus === 'error') {
@@ -322,15 +337,20 @@ function scheduleReconnect() {
         // Reset mutexes in case they were stuck from the failed attempt
         flushInProgress = false
         autoSyncInProgress = false
+        initialSyncInProgress = false
+        initialSyncPromise = null
 
         try {
+            await subscribeRealtime()
+            initialSyncInProgress = true
+            notifyRenderer('sync-status-changed', getStatus())
             await performInitialPull()
-            if (syncStatus !== 'error') {
-                await subscribeRealtime()
-                await flushPendingMutations()
-            }
+            if (syncStatus !== 'error') await flushPendingMutations()
         } catch (e) {
             console.warn('[sync] Reconnect attempt failed:', e)
+        } finally {
+            initialSyncInProgress = false
+            notifyRenderer('sync-status-changed', getStatus())
         }
     }, delay)
 }
@@ -349,6 +369,7 @@ export function getStatus() {
         error: lastSyncError,
         pendingCount,
         lastSyncedAt,
+        initialSyncInProgress,
     }
 }
 
@@ -566,11 +587,13 @@ async function testConnection(): Promise<void> {
     if (!supabase || !currentWorkspaceId) throw new Error('Not initialised')
 
     const { error } = await withTimeout(
-        supabase
-            .from('workspace_members')
-            .select('user_id', { count: 'exact', head: true })
-            .eq('workspace_id', currentWorkspaceId)
-            .limit(1),
+        Promise.resolve(
+            supabase
+                .from('workspace_members')
+                .select('user_id', { count: 'exact', head: true })
+                .eq('workspace_id', currentWorkspaceId)
+                .limit(1),
+        ),
         CONNECTION_TEST_TIMEOUT_MS,
         'Connection test',
     )
@@ -584,6 +607,7 @@ async function performInitialPull() {
     if (!supabase || !currentWorkspaceId) return
 
     const wsId = currentWorkspaceId
+    const pullStartedAt = startTimer()
     setSyncStatus('syncing')
     notifyRenderer('sync-status-changed', getStatus())
 
@@ -624,14 +648,54 @@ async function performInitialPull() {
 
         lastSyncedAt = Date.now()
         setSyncStatus('connected')
+        measureMainMetric('syncInitialPullMs', pullStartedAt)
         notifyRenderer('sync-status-changed', getStatus())
         notifyRenderer('sync-data-updated', null)
     } catch (e: any) {
         console.error('[sync] Initial pull failed:', e.message)
         lastSyncError = e.message
         setSyncStatus('error')
+        measureMainMetric('syncInitialPullMs', pullStartedAt)
         notifyRenderer('sync-status-changed', getStatus())
         scheduleReconnect()
+    }
+}
+
+function toSyncDataUpdatedPayloadForEvent(row: any) {
+    return {
+        table: 'collab_events',
+        id: row.event_id,
+        projectId: row.project_id,
+        row: {
+            id: row.event_id,
+            taskId: row.task_id,
+            handoffId: row.handoff_id ?? undefined,
+            eventType: row.event_type,
+            actorRole: row.actor_role,
+            actorUserId: row.actor_user_id ?? undefined,
+            actorDisplayName: row.actor_display_name ?? undefined,
+            timestamp: row.timestamp,
+            title: row.title ?? '',
+            details: row.details ?? undefined,
+            metadata: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
+        } satisfies CollaborationEvent,
+    }
+}
+
+function toSyncDataUpdatedPayloadForLink(row: any) {
+    return {
+        table: 'artifact_links',
+        id: row.link_id,
+        projectId: row.project_id,
+        row: {
+            id: row.link_id,
+            sourceType: row.source_type,
+            sourceId: row.source_id,
+            targetType: row.target_type,
+            targetId: row.target_id,
+            label: row.label,
+            createdAt: row.created_at,
+        } satisfies ArtifactLink,
     }
 }
 
@@ -648,6 +712,7 @@ async function subscribeRealtime() {
 
     const client = supabase
     const workspaceId = currentWorkspaceId
+    const subscribeStartedAt = startTimer()
     const channel = client
         .channel(`workspace:${workspaceId}`)
         .on('postgres_changes', {
@@ -659,7 +724,11 @@ async function subscribeRealtime() {
             try {
                 if (payload.new && (payload.new as any).updated_by !== currentUserId) {
                     applyRemoteTasks([payload.new as any])
-                    notifyRenderer('sync-data-updated', { table: 'tasks', id: (payload.new as any).task_id })
+                    notifyRenderer('sync-data-updated', {
+                        table: 'tasks',
+                        id: (payload.new as any).task_id,
+                        projectId: (payload.new as any).project_id,
+                    })
                 }
             } catch (e) { console.warn('[sync] realtime task handler error:', e) }
         })
@@ -672,7 +741,11 @@ async function subscribeRealtime() {
             try {
                 if (payload.new && (payload.new as any).updated_by !== currentUserId) {
                     applyRemoteHandoffs([payload.new as any])
-                    notifyRenderer('sync-data-updated', { table: 'handoffs', id: (payload.new as any).handoff_id })
+                    notifyRenderer('sync-data-updated', {
+                        table: 'handoffs',
+                        id: (payload.new as any).handoff_id,
+                        projectId: (payload.new as any).project_id,
+                    })
                 }
             } catch (e) { console.warn('[sync] realtime handoff handler error:', e) }
         })
@@ -685,7 +758,7 @@ async function subscribeRealtime() {
             try {
                 if (payload.new && (payload.new as any).actor_user_id !== currentUserId) {
                     applyRemoteCollabEvents([payload.new as any])
-                    notifyRenderer('sync-data-updated', { table: 'collab_events', id: (payload.new as any).event_id })
+                    notifyRenderer('sync-data-updated', toSyncDataUpdatedPayloadForEvent(payload.new as any))
                 }
             } catch (e) { console.warn('[sync] realtime collab_events handler error:', e) }
         })
@@ -698,29 +771,48 @@ async function subscribeRealtime() {
             try {
                 if (payload.new && (payload.new as any).created_by !== currentUserId) {
                     applyRemoteArtifactLinks([payload.new as any])
-                    notifyRenderer('sync-data-updated', { table: 'artifact_links', id: (payload.new as any).link_id })
+                    notifyRenderer('sync-data-updated', toSyncDataUpdatedPayloadForLink(payload.new as any))
                 }
             } catch (e) { console.warn('[sync] realtime artifact_links handler error:', e) }
         })
     realtimeChannel = channel
     realtimeChannelOwner = client
 
-    channel.subscribe((status, err) => {
+    await new Promise<void>((resolve) => {
+        let settled = false
+        const finish = () => {
+            if (settled) return
+            settled = true
+            resolve()
+        }
+        const timeout = setTimeout(() => {
+            measureMainMetric('syncRealtimeSubscribeMs', subscribeStartedAt)
+            finish()
+        }, CONNECTION_TEST_TIMEOUT_MS)
+
+        channel.subscribe((status, err) => {
             if (realtimeChannel !== channel) return
 
             if (status === 'SUBSCRIBED') {
+                clearTimeout(timeout)
                 reconnectAttempts = 0
                 if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
                 setSyncStatus('connected')
+                measureMainMetric('syncRealtimeSubscribeMs', subscribeStartedAt)
                 notifyRenderer('sync-status-changed', getStatus())
+                finish()
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                clearTimeout(timeout)
                 console.warn('[sync] Realtime channel error:', status, err?.message ?? '')
                 setSyncStatus('error')
                 lastSyncError = 'Realtime connection lost — reconnecting…'
+                measureMainMetric('syncRealtimeSubscribeMs', subscribeStartedAt)
                 notifyRenderer('sync-status-changed', getStatus())
                 scheduleReconnect()
+                finish()
             }
         })
+    })
 }
 
 // ─── Apply remote rows → local SQLite ────────────────────────────────────────
@@ -1002,16 +1094,19 @@ export async function flushPendingMutations() {
     // Mutex: prevent concurrent flushes
     if (flushInProgress) return
     flushInProgress = true
+    const flushStartedAt = startTimer()
 
     let pending: ReturnType<typeof loadSyncPendingQueue>
     try {
         pending = loadSyncPendingQueue(currentWorkspaceId)
     } catch (e) {
         console.error('[sync] Could not load pending queue:', e)
+        measureMainMetric('syncFlushPendingMs', flushStartedAt)
         flushInProgress = false
         return
     }
     if (pending.length === 0) {
+        measureMainMetric('syncFlushPendingMs', flushStartedAt)
         flushInProgress = false
         return
     }
@@ -1031,34 +1126,34 @@ export async function flushPendingMutations() {
             }
             if (mutation.op === 'upsert') {
                 // Conflict detection (Improvement 9): check remote updated_at before upserting
-                const remoteupdatedAt = await fetchRemoteUpdatedAt(mutation.table, mutation.row_id)
+                const remoteupdatedAt = await fetchRemoteUpdatedAt(mutation.table_name, mutation.row_id)
                 const localUpdatedAt = (mutation.payload.updated_at as number | undefined) ?? 0
                 if (remoteupdatedAt && remoteupdatedAt > localUpdatedAt) {
                     // Remote is newer — skip push, pull the fresh remote version instead
-                    console.warn(`[sync] Conflict on ${mutation.table}/${mutation.row_id}: remote is newer. Pulling remote version.`)
-                    await pullSingleRow(mutation.table, mutation.row_id)
+                    console.warn(`[sync] Conflict on ${mutation.table_name}/${mutation.row_id}: remote is newer. Pulling remote version.`)
+                    await pullSingleRow(mutation.table_name, mutation.row_id)
                     removeSyncMutation(mutation.id)
-                    notifyRenderer('sync-conflict-detected', { table: mutation.table, id: mutation.row_id })
+                    notifyRenderer('sync-conflict-detected', { table: mutation.table_name, id: mutation.row_id })
                     continue
                 }
 
                 const { error } = await supabase
-                    .from(mutation.table)
-                    .upsert(mutation.payload as any, { onConflict: getConflictColumns(mutation.table) })
+                    .from(mutation.table_name)
+                    .upsert(mutation.payload as any, { onConflict: getConflictColumns(mutation.table_name) })
                 if (error) throw error
             } else if (mutation.op === 'delete') {
                 const { error } = await supabase
-                    .from(mutation.table)
+                    .from(mutation.table_name)
                     .delete()
-                    .eq(getPkColumn(mutation.table), mutation.row_id)
+                    .eq(getPkColumn(mutation.table_name), mutation.row_id)
                     .eq('workspace_id', currentWorkspaceId)
                 if (error) throw error
             }
             removeSyncMutation(mutation.id)
         } catch (e: any) {
-            console.error(`[sync] Failed to flush ${mutation.table}/${mutation.row_id}:`, e.message)
+            console.error(`[sync] Failed to flush ${mutation.table_name}/${mutation.row_id}:`, e.message)
             if (mutation.retry_count >= MAX_MUTATION_RETRIES) {
-                console.error(`[sync] Dropping mutation after ${MAX_MUTATION_RETRIES} retries: ${mutation.table}/${mutation.row_id}`)
+                console.error(`[sync] Dropping mutation after ${MAX_MUTATION_RETRIES} retries: ${mutation.table_name}/${mutation.row_id}`)
                 writeDeadLetter(mutation)
                 removeSyncMutation(mutation.id)
                 maxRetryFailed = true
@@ -1076,11 +1171,13 @@ export async function flushPendingMutations() {
     if (anyFailed) {
         setSyncStatus('error')
         lastSyncError = 'Some changes failed to sync — retrying…'
+        measureMainMetric('syncFlushPendingMs', flushStartedAt)
         notifyRenderer('sync-status-changed', getStatus())
         scheduleRetry()
     } else {
         lastSyncedAt = Date.now()
         setSyncStatus('connected')
+        measureMainMetric('syncFlushPendingMs', flushStartedAt)
         notifyRenderer('sync-status-changed', getStatus())
     }
 

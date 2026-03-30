@@ -29,6 +29,7 @@ import { deriveTaskViewModels } from "@/lib/tasks"
 import { getConnectionApiKey } from "@/lib/credentials"
 import { PresenceAvatars } from "@/components/sync/PresenceAvatars"
 import { getTaskWorkflowSummary } from "@/lib/collaboration"
+import { InspectorDrawer } from "@/components/ui/workspace"
 
 interface TaskDetailsSidebarProps {
     selectedTask: Task | null
@@ -46,7 +47,7 @@ interface TaskDetailsSidebarProps {
 }
 
 function SectionTitle({ children }: { children: string }) {
-    return <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">{children}</h3>
+    return <h3 className="app-section-label">{children}</h3>
 }
 
 export function TaskDetailsSidebar({
@@ -186,49 +187,49 @@ export function TaskDetailsSidebar({
     if (!selectedTask) return null
 
     return (
-        <div className="flex w-full max-w-[520px] shrink-0 flex-col overflow-hidden border-l border-[#2A2A3A] bg-[#13131A] shadow-2xl">
-            <div className="space-y-4 border-b border-[#2A2A3A] p-5">
+        <InspectorDrawer>
+            <div className="space-y-4 border-b border-ui p-5">
                 <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">{selectedTask.sourceIssueId || selectedTask.externalId || "MANUAL TASK"}</p>
-                        <h2 className="text-lg font-semibold leading-tight text-[#E2E8F0]">{selectedTask.title}</h2>
+                        <p className="app-section-label">{selectedTask.sourceIssueId || selectedTask.externalId || "MANUAL TASK"}</p>
+                        <h2 className="text-lg font-semibold leading-tight text-foreground">{selectedTask.title}</h2>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#E2E8F0]" onClick={onClose}>
+                    <Button aria-label="Close task details" variant="ghost" size="icon" className="h-8 w-8 text-muted-ui hover:text-foreground" onClick={onClose}>
                         <X className="h-4 w-4" />
                     </Button>
                 </div>
 
-                <div className="space-y-3 rounded-xl border border-[#2A2A3A] bg-[#0F0F13] p-4">
+                <div className="space-y-3 rounded-2xl border border-ui bg-background p-4">
                     <div className="flex flex-wrap gap-2">
                         <TaskStateBadge label={statusLabel} tone="neutral" />
                         <TaskStateBadge label={collabStateLabel(selectedTask.collabState)} tone={collabStateTone(selectedTask.collabState)} />
                         {taskView?.handoffState === "incomplete" ? <TaskStateBadge label={`Need ${taskView.handoffMissingFields[0] || "evidence"}`} tone={handoffStateTone(taskView.handoffState)} /> : null}
                         {taskView && taskView.dueState !== "none" && taskView.dueLabel ? <TaskStateBadge label={taskView.dueLabel} tone={dueStateTone(taskView.dueState)} /> : null}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-xs text-[#9CA3AF]">
+                    <div className="grid grid-cols-2 gap-3 text-xs text-soft">
                         <div>
-                            <span className="text-[#6B7280]">Assignee</span>
-                            <p className="mt-1 text-[#E2E8F0]">{selectedTask.assignee || "Unassigned"}</p>
+                            <span className="text-muted-ui">Assignee</span>
+                            <p className="mt-1 text-foreground">{selectedTask.assignee || "Unassigned"}</p>
                         </div>
                         <div>
-                            <span className="text-[#6B7280]">Due date</span>
-                            <p className="mt-1 text-[#E2E8F0]">{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"}</p>
+                            <span className="text-muted-ui">Due date</span>
+                            <p className="mt-1 text-foreground">{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"}</p>
                         </div>
                         <div>
-                            <span className="text-[#6B7280]">Components</span>
-                            <p className="mt-1 text-[#E2E8F0]">{selectedTask.components?.join(", ") || "No components"}</p>
+                            <span className="text-muted-ui">Components</span>
+                            <p className="mt-1 text-foreground">{selectedTask.components?.join(", ") || "No components"}</p>
                         </div>
                         <div>
-                            <span className="text-[#6B7280]">Handoff</span>
-                            <p className="mt-1 text-[#E2E8F0]">{activeHandoff ? (activeHandoff.isComplete ? "Complete" : "Needs fields") : "No handoff"}</p>
+                            <span className="text-muted-ui">Handoff</span>
+                            <p className="mt-1 text-foreground">{activeHandoff ? (activeHandoff.isComplete ? "Complete" : "Needs fields") : "No handoff"}</p>
                         </div>
                     </div>
-                    {workflowSummary ? <p className="text-sm text-[#E2E8F0]">{workflowSummary.nextAction}</p> : null}
+                    {workflowSummary ? <p className="text-sm text-foreground">{workflowSummary.nextAction}</p> : null}
                 </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={loadTabContent} variant="underline" className="flex min-h-0 flex-1 flex-col">
-                <div className="overflow-x-auto border-b border-[#2A2A3A] custom-scrollbar">
+                <div className="overflow-x-auto border-b border-ui custom-scrollbar">
                     <TabsList>
                         <TabsTrigger value="overview">Overview</TabsTrigger>
                         <TabsTrigger value="collaboration">Collaboration</TabsTrigger>
@@ -243,21 +244,21 @@ export function TaskDetailsSidebar({
                     <TabsContent value="overview" className="m-0 space-y-5">
                         <div className="flex items-center justify-between">
                             <SectionTitle>Overview</SectionTitle>
-                            <Button variant="outline" className="border-[#2A2A3A] text-[#E2E8F0]" onClick={() => setIsEditing((value) => !value)}>
+                            <Button variant="outline" className="border-ui text-foreground" onClick={() => setIsEditing((value) => !value)}>
                                 {isEditing ? "Cancel Edit" : "Edit Task"}
                             </Button>
                         </div>
                         {isEditing ? (
                             <div className="space-y-4">
-                                <Input value={String(draft.title || "")} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
-                                <Textarea value={String(draft.acceptanceCriteria || "")} onChange={(event) => setDraft((current) => ({ ...current, acceptanceCriteria: event.target.value }))} placeholder="Acceptance criteria" className="min-h-[90px] border-[#2A2A3A] bg-[#1A1A24] text-sm" />
-                                <Textarea value={String(draft.description || "")} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Description" className="min-h-[140px] border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                <Input value={String(draft.title || "")} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="border-ui bg-panel-muted text-sm" />
+                                <Textarea value={String(draft.acceptanceCriteria || "")} onChange={(event) => setDraft((current) => ({ ...current, acceptanceCriteria: event.target.value }))} placeholder="Acceptance criteria…" className="min-h-[90px] border-ui bg-panel-muted text-sm" />
+                                <Textarea value={String(draft.description || "")} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Description…" className="min-h-[140px] border-ui bg-panel-muted text-sm" />
                                 <div className="grid grid-cols-2 gap-4">
-                                    <select value={String(draft.status || selectedTask.status)} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as TaskStatus }))} className="h-10 rounded-md border border-[#2A2A3A] bg-[#1A1A24] px-3 text-xs text-[#E2E8F0]">
+                                    <select aria-label="Task status" value={String(draft.status || selectedTask.status)} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as TaskStatus }))} className="h-10 rounded-xl border border-ui bg-panel-muted px-3 text-xs text-foreground">
                                         {currentColumns.map((column) => <option key={column.id} value={column.id}>{column.title}</option>)}
                                     </select>
-                                    <Input value={String(draft.assignee || "")} onChange={(event) => setDraft((current) => ({ ...current, assignee: event.target.value }))} placeholder="Assignee" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
-                                    <Input value={String(draft.version || "")} onChange={(event) => setDraft((current) => ({ ...current, version: event.target.value }))} placeholder="Version" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                    <Input value={String(draft.assignee || "")} onChange={(event) => setDraft((current) => ({ ...current, assignee: event.target.value }))} placeholder="Assignee…" className="border-ui bg-panel-muted text-sm" />
+                                    <Input value={String(draft.version || "")} onChange={(event) => setDraft((current) => ({ ...current, version: event.target.value }))} placeholder="Version…" className="border-ui bg-panel-muted text-sm" />
                                     <Input type="date" value={draft.dueDate ? new Date(draft.dueDate).toISOString().slice(0, 10) : ""} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value ? new Date(event.target.value).getTime() : undefined }))} className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
                                     <Input value={String(draft.labels || "")} onChange={(event) => setDraft((current) => ({ ...current, labels: event.target.value }))} placeholder="Labels" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
                                     <Input value={Array.isArray(draft.components) ? draft.components.join(", ") : String(draft.components || "")} onChange={(event) => setDraft((current) => ({ ...current, components: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) }))} placeholder="Components" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
@@ -397,13 +398,13 @@ export function TaskDetailsSidebar({
                             </div>
                         ) : (
                             activity.map((item, index) => (
-                                <div key={`${item.timestamp}-${index}`} className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4">
+                                <div key={`${item.timestamp}-${index}`} className="rounded-xl border border-ui bg-panel-muted p-4">
                                     <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-[10px] font-bold text-[#E2E8F0]">{item.author}</span>
-                                        <span className="text-[10px] text-[#6B7280]">{new Date(item.timestamp).toLocaleString()}</span>
+                                        <span className="text-[10px] font-bold text-foreground">{item.author}</span>
+                                        <span className="text-[10px] text-muted-ui">{new Date(item.timestamp).toLocaleString()}</span>
                                     </div>
-                                    <div className="text-[11px] text-[#9CA3AF]">
-                                        {item.fromValue ? `${item.fromValue} -> ` : ""}<span className="font-semibold text-[#38BDF8]">{item.toValue}</span>
+                                    <div className="text-[11px] text-soft">
+                                        {item.fromValue ? `${item.fromValue} → ` : ""}<span className="font-semibold text-sky-300">{item.toValue}</span>
                                     </div>
                                 </div>
                             ))
@@ -412,23 +413,23 @@ export function TaskDetailsSidebar({
                 </div>
             </Tabs>
 
-            <div className="space-y-2 border-t border-[#2A2A3A] bg-[#0F0F13] p-5">
-                <Button className="w-full gap-2 bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]" onClick={() => onAnalyze(selectedTask)} disabled={isAnalyzing}>
+            <div className="space-y-2 border-t border-ui bg-background p-5">
+                <Button className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => onAnalyze(selectedTask)} disabled={isAnalyzing}>
                     {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ActivityIcon className="h-4 w-4" />}
-                    {isAnalyzing ? "ANALYZING..." : "ANALYZE ISSUE"}
+                    {isAnalyzing ? "Analyzing…" : "Analyze Issue"}
                 </Button>
-                <Button className="w-full gap-1.5 border border-[#10B981]/20 bg-[#1E2A1E] text-[10px] font-bold text-[#10B981]" onClick={onGenerateBugReport}>
-                    <Target className="h-3.5 w-3.5" /> GENERATE BUG REPORT
+                <Button className="w-full gap-1.5 border border-emerald-500/20 bg-emerald-500/10 text-[10px] font-bold text-emerald-300" onClick={onGenerateBugReport}>
+                    <Target className="h-3.5 w-3.5" /> Generate Bug Report
                 </Button>
                 {selectedTask.source !== "manual" && selectedTask.ticketUrl && (
-                    <Button className="w-full gap-1.5 border border-[#A78BFA]/20 bg-[#1A1A24] text-[10px] font-bold text-[#A78BFA]" onClick={() => api.openUrl(selectedTask.ticketUrl)}>
-                        <ExternalLink className="h-3.5 w-3.5" /> OPEN SOURCE TICKET
+                    <Button className="w-full gap-1.5 border border-primary/20 bg-primary/10 text-[10px] font-bold text-primary" onClick={() => api.openUrl(selectedTask.ticketUrl)}>
+                        <ExternalLink className="h-3.5 w-3.5" /> Open Source Ticket
                     </Button>
                 )}
-                <Button className="w-full gap-1.5 border border-[#EF4444]/20 bg-[#1E1010] text-[10px] font-bold text-[#EF4444]" onClick={onDelete}>
-                    <Trash2 className="h-3.5 w-3.5" /> DELETE TASK
+                <Button className="w-full gap-1.5 border border-red-500/20 bg-red-500/10 text-[10px] font-bold text-red-300" onClick={onDelete}>
+                    <Trash2 className="h-3.5 w-3.5" /> Delete Task
                 </Button>
             </div>
-        </div>
+        </InspectorDrawer>
     )
 }

@@ -70,6 +70,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   recordPerformanceMetric: (name: string, value: number) => ipcRenderer.invoke('record-performance-metric', { name, value }),
   incrementPerformanceCounter: (name: string, delta?: number) => ipcRenderer.invoke('increment-performance-counter', { name, delta }),
   getPerformanceMetrics: () => ipcRenderer.invoke('get-performance-metrics'),
+  appShellReady: () => ipcRenderer.invoke('app-shell-ready'),
+  ensureCloudState: () => ipcRenderer.invoke('ensure-cloud-state'),
   getAppUpdateState: () => ipcRenderer.invoke('get-app-update-state'),
   checkForAppUpdate: () => ipcRenderer.invoke('check-app-update'),
   downloadAppUpdate: () => ipcRenderer.invoke('download-app-update'),
@@ -242,6 +244,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Granular queries for post-sync targeted refresh
   getTaskById: (taskId: string) => ipcRenderer.invoke('get-task-by-id', taskId),
   getHandoffById: (handoffId: string) => ipcRenderer.invoke('get-handoff-by-id', handoffId),
+  getCollaborationEventById: (eventId: string) => ipcRenderer.invoke('get-collaboration-event-by-id', eventId),
+  getArtifactLinkById: (linkId: string) => ipcRenderer.invoke('get-artifact-link-by-id', linkId),
   // Conflict + permanent failure notifications from main process
   onSyncConflictDetected: (callback: (data: { table: string; id: string }) => void) => {
     const listener = (_event: any, data: any) => callback(data);
