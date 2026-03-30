@@ -31,3 +31,10 @@ QAssistant_CS_Ref/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Codex local files
+.codex/
+
+# Python caches
+__pycache__/
+*.py[cod]
