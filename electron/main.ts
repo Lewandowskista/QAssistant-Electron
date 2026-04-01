@@ -545,7 +545,7 @@ if (app) {
             report,
             reportBuilder,
             bugReport,
-            mainWindow,
+            getMainWindow: () => mainWindow,
             dialog,
             BrowserWindow,
             shell,

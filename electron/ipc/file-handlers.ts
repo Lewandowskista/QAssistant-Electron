@@ -9,7 +9,7 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
     report: any
     reportBuilder: any
     bugReport: any
-    mainWindow: any
+    getMainWindow: () => any
     dialog: any
     BrowserWindow: any
     shell: any
@@ -24,8 +24,9 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
     errMsg: (err: unknown) => string
 }): void {
     ipcMain.handle('select-file', async (_e: any, filters?: Electron.FileFilter[]) => {
-        if (!deps.mainWindow) return null;
-        const res = await deps.dialog.showOpenDialog(deps.mainWindow, {
+        const mainWindow = deps.getMainWindow();
+        if (!mainWindow) return null;
+        const res = await deps.dialog.showOpenDialog(mainWindow, {
             properties: ['openFile'],
             ...(filters && filters.length > 0 ? { filters } : {})
         });
@@ -164,9 +165,10 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
     ipcMain.handle('generate-executions-csv', (_e: any, { project: p }: any) => deps.report.generateExecutionsCsv(p));
     ipcMain.handle('generate-test-summary-markdown', (_e: any, { project: p, filterPlanIds, aiResult }: any) => deps.report.generateTestSummaryMarkdown(p, filterPlanIds, aiResult));
     ipcMain.handle('export-test-summary-pdf', async (_e: any, { project: p, filterPlanIds, aiResult }: any) => {
-        if (!deps.mainWindow) return { success: false, error: 'No main window' };
+        const mainWindow = deps.getMainWindow();
+        if (!mainWindow) return { success: false, error: 'No main window' };
         const html = deps.report.generateTestSummaryHtml(p, filterPlanIds, aiResult);
-        const res = await deps.dialog.showSaveDialog(deps.mainWindow, { defaultPath: `${p.name.replace(/\s+/g, '-')}-test-summary.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+        const res = await deps.dialog.showSaveDialog(mainWindow, { defaultPath: `${p.name.replace(/\s+/g, '-')}-test-summary.pdf`, filters: [{ name: 'PDF', extensions: ['pdf'] }] });
         if (res.canceled) return { success: false };
         const printWindow = new deps.BrowserWindow({ show: false });
         await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
@@ -192,13 +194,14 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
 
     ipcMain.handle('export-custom-report-pdf', async (_e: any, { project: p, template }: any) => {
         try {
-            if (!deps.mainWindow) return { success: false, error: 'No main window' };
+            const mainWindow = deps.getMainWindow();
+            if (!mainWindow) return { success: false, error: 'No main window' };
             deps.assertObject(p, 'project');
             deps.assertObject(template, 'template');
             deps.assertString(template.name as string, 'template.name', 500);
             deps.assertArray(template.sections, 'template.sections', 100);
             const html = deps.reportBuilder.generateCustomReport(p as any, template as any);
-            const res = await deps.dialog.showSaveDialog(deps.mainWindow, {
+            const res = await deps.dialog.showSaveDialog(mainWindow, {
                 defaultPath: `${(p.name as string).replace(/\s+/g, '-')}-${(template.name as string).replace(/\s+/g, '-')}.pdf`,
                 filters: [{ name: 'PDF', extensions: ['pdf'] }]
             });
@@ -233,8 +236,9 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
         } catch (e: any) { return { success: false, error: e.message }; }
     });
     ipcMain.handle('save-file-dialog', async (_e: any, { defaultName, content }: any) => {
-        if (!deps.mainWindow) return { success: false };
-        const res = await deps.dialog.showSaveDialog(deps.mainWindow, { defaultPath: defaultName });
+        const mainWindow = deps.getMainWindow();
+        if (!mainWindow) return { success: false };
+        const res = await deps.dialog.showSaveDialog(mainWindow, { defaultPath: defaultName });
         if (res.canceled) return { success: false };
         if (!res.filePath) return { success: false, error: 'No file path selected.' };
         await deps.fsp.writeFile(res.filePath, content);
