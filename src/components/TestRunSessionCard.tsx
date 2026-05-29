@@ -39,7 +39,7 @@ export default function TestRunSessionCard({ session, activeProjectId }: TestRun
     const statusesRendered = Object.entries(statusCounts).map(([status, count]) => (
         <div key={status} className="flex items-center gap-1.5 px-1">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColors[status as TestCaseStatus] }} />
-            <span className="text-[10px] text-[#9CA3AF] capitalize">{count} {status}</span>
+            <span className="text-[10px] text-soft capitalize">{count} {status}</span>
         </div>
     ))
 
@@ -47,12 +47,12 @@ export default function TestRunSessionCard({ session, activeProjectId }: TestRun
 
     return (
         <div className={cn(
-            "bg-[#13131A] border border-[#2A2A3A] rounded-xl overflow-hidden transition-opacity shadow-sm",
+            "bg-panel border border-ui rounded-xl overflow-hidden transition-opacity shadow-sm",
             session.isArchived ? "opacity-60" : "opacity-100"
         )}>
             {/* Header (Clickable to Collapse) */}
             <div
-                className="flex items-center p-4 cursor-pointer hover:bg-[#1A1A24] transition-colors"
+                className="flex items-center p-4 cursor-pointer hover:bg-elevated transition-colors"
                 onClick={() => setIsCollapsed(!isCollapsed)}
             >
                 <div className="text-[#38BDF8] mr-[10px]">
@@ -62,9 +62,9 @@ export default function TestRunSessionCard({ session, activeProjectId }: TestRun
                 <div className="flex flex-col flex-1">
                     <div className="flex items-center gap-2">
                         <span className="font-mono text-[14px] font-bold text-[#38BDF8] tracking-tight">EXEC-{new Date(session.timestamp).getTime().toString().slice(-4)}</span>
-                        <span className="text-[14px] font-semibold text-[#E2E8F0]">{session.planExecutions?.length === 1 ? session.planExecutions[0].snapshotTestPlanName : 'Multi-Plan Execution Session'}</span>
+                        <span className="text-[14px] font-semibold text-foreground">{session.planExecutions?.length === 1 ? session.planExecutions[0].snapshotTestPlanName : 'Multi-Plan Execution Session'}</span>
                         <div className="bg-[#1E1E32] px-[6px] py-[2px] rounded border border-[#2A2A3A]/50 self-center">
-                            <span className="text-[10px] text-[#9CA3AF] uppercase font-medium">{totalCases} execution(s)</span>
+                            <span className="text-[10px] text-soft uppercase font-medium">{totalCases} execution(s)</span>
                         </div>
                         {session.isArchived && (
                             <div className="bg-[#2D2010] px-[6px] py-[2px] rounded border border-[#FBBF24]/20 self-center">
@@ -80,16 +80,16 @@ export default function TestRunSessionCard({ session, activeProjectId }: TestRun
 
                 {/* Right Align Actions */}
                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <div className="text-[11px] text-[#6B7280] mr-2">
+                    <div className="text-[11px] text-muted-ui mr-2">
                         {new Date(session.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#E2E8F0]" title="Duplicate session">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-ui hover:text-foreground" title="Duplicate session">
                         <Copy className="h-[14px] w-[14px]" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#E2E8F0]" onClick={() => archiveTestRunSession(activeProjectId, session.id, !session.isArchived)} title={session.isArchived ? "Unarchive session" : "Archive session"}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-ui hover:text-foreground" onClick={() => archiveTestRunSession(activeProjectId, session.id, !session.isArchived)} title={session.isArchived ? "Unarchive session" : "Archive session"}>
                         <Archive className="h-[14px] w-[14px]" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-[#6B7280] hover:text-[#F87171] hover:bg-[#EF4444]/10" onClick={() => deleteTestRunSession(activeProjectId, session.id)} title="Delete session">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-ui hover:text-[#F87171] hover:bg-[#EF4444]/10" onClick={() => deleteTestRunSession(activeProjectId, session.id)} title="Delete session">
                         <Trash2 className="h-[14px] w-[14px]" />
                     </Button>
                 </div>
@@ -97,11 +97,11 @@ export default function TestRunSessionCard({ session, activeProjectId }: TestRun
 
             {/* Body */}
             {!isCollapsed && (
-                <div className="px-5 pb-4 pl-[42px] flex flex-col gap-4 bg-[#0F0F13]/50 border-t border-[#2A2A3A]">
+                <div className="px-5 pb-4 pl-[42px] flex flex-col gap-4 bg-[#0F0F13]/50 border-t border-ui">
                     <div className="h-2" />
                     {(session.planExecutions || []).map(planEx => (
                         <div key={planEx.id} className="flex flex-col gap-2">
-                            <div className="text-[12px] font-bold text-[#38BDF8] mb-1 pl-1 border-b border-[#2A2A3A] pb-2 uppercase tracking-wider">
+                            <div className="text-[12px] font-bold text-[#38BDF8] mb-1 pl-1 border-b border-ui pb-2 uppercase tracking-wider">
                                 {planEx.snapshotTestPlanName}
                             </div>
                             <div className="flex flex-col gap-2">

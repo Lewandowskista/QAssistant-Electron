@@ -124,7 +124,7 @@ export function MentionTextarea({
                 rows={rows}
                 disabled={disabled}
                 className={cn(
-                    'w-full bg-[#1A1A2E] border border-[#2D2D44] rounded-lg px-3 py-2 text-sm text-[#E2E8F0]',
+                    'w-full bg-selected border border-[#2D2D44] rounded-lg px-3 py-2 text-sm text-foreground',
                     'placeholder-[#4B5563] focus:outline-none focus:border-[#A78BFA] transition-colors resize-none',
                     disabled && 'opacity-50 cursor-not-allowed',
                     className
@@ -134,10 +134,10 @@ export function MentionTextarea({
             {/* Mention picker */}
             {mentionQuery !== null && filtered.length > 0 && (
                 <div
-                    className="absolute z-50 left-0 mt-1 w-64 rounded-xl border border-[#2D2D44] bg-[#13131A] shadow-2xl overflow-hidden"
+                    className="absolute z-50 left-0 mt-1 w-64 rounded-xl border border-[#2D2D44] bg-panel shadow-2xl overflow-hidden"
                     onClick={e => e.stopPropagation()}
                 >
-                    <div className="px-3 py-1.5 text-[10px] font-bold text-[#6B7280] uppercase tracking-wider border-b border-[#2D2D44]">
+                    <div className="px-3 py-1.5 text-[10px] font-bold text-muted-ui uppercase tracking-wider border-b border-[#2D2D44]">
                         Mention a teammate
                     </div>
                     {filtered.map((m, idx) => (
@@ -157,14 +157,14 @@ export function MentionTextarea({
                                 {initials(m.display_name || '?')}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-xs font-semibold text-[#E2E8F0] truncate">{m.display_name}</p>
-                                <p className="text-[10px] text-[#6B7280] truncate">{m.email}</p>
+                                <p className="text-xs font-semibold text-foreground truncate">{m.display_name}</p>
+                                <p className="text-[10px] text-muted-ui truncate">{m.email}</p>
                             </div>
                             <span className={cn(
                                 'ml-auto text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0',
                                 m.role === 'owner'
-                                    ? 'bg-[#A78BFA]/10 text-[#A78BFA]'
-                                    : 'bg-[#2D2D44] text-[#6B7280]'
+                                    ? 'bg-[#A78BFA]/10 text-brand'
+                                    : 'bg-[#2D2D44] text-muted-ui'
                             )}>
                                 {m.role}
                             </span>
@@ -175,7 +175,7 @@ export function MentionTextarea({
 
             {/* Hint */}
             {members.length > 0 && (
-                <p className="mt-1 text-[10px] text-[#4B5563]">Type @ to mention a teammate</p>
+                <p className="mt-1 text-[10px] text-muted-ui">Type @ to mention a teammate</p>
             )}
         </div>
     )

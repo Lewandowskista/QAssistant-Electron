@@ -41,3 +41,12 @@ export function applyPerformanceModeClass(mode: ResolvedPerformanceMode) {
     document.documentElement.classList.toggle('performance-mode-balanced', mode === 'balanced')
     document.documentElement.classList.toggle('performance-mode-performance', mode === 'performance')
 }
+
+/**
+ * When true, the app honors the OS `prefers-reduced-motion` preference. When
+ * false (the default), the app shows its designed motion regardless of the OS
+ * setting. See the gated media query in index.css.
+ */
+export function applyRespectReducedMotionClass(respect: boolean) {
+    document.documentElement.classList.toggle('respect-reduced-motion', respect)
+}

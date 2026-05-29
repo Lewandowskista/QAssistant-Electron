@@ -150,16 +150,16 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[92vh] overflow-hidden border-[#2A2A3A] bg-[#13131A] p-0 shadow-2xl sm:max-w-[760px]">
-                <DialogHeader className="border-b border-[#2A2A3A] p-6 pb-4">
-                    <DialogTitle className="text-xl font-bold tracking-tight text-[#E2E8F0]">Create Task</DialogTitle>
+            <DialogContent className="max-h-[92vh] overflow-hidden border-ui bg-panel p-0 shadow-2xl sm:max-w-[760px]">
+                <DialogHeader className="border-b border-ui p-6 pb-4">
+                    <DialogTitle className="text-xl font-bold tracking-tight text-foreground">Create Task</DialogTitle>
                 </DialogHeader>
 
                 <div className="max-h-[calc(92vh-140px)] space-y-6 overflow-y-auto p-6">
                     <section className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Source</Label>
-                            <div className="flex rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-1">
+                            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Source</Label>
+                            <div className="flex rounded-lg border border-ui bg-panel-muted p-1">
                                 {(["manual", "linear", "jira"] as const).map((source) => (
                                     <Button
                                         key={source}
@@ -167,7 +167,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setNewTaskSource(source)}
-                                        className={cn("h-8 text-[11px] font-bold", newTaskSource === source ? "bg-[#2A2A3A]/80 text-[#A78BFA]" : "text-[#6B7280] hover:text-[#E2E8F0]")}
+                                        className={cn("h-8 text-[11px] font-bold", newTaskSource === source ? "bg-[#2A2A3A]/80 text-brand" : "text-muted-ui hover:text-foreground")}
                                     >
                                         {source.charAt(0).toUpperCase() + source.slice(1)}
                                     </Button>
@@ -176,15 +176,15 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                         </div>
 
                         {newTaskSource !== "manual" && (
-                            <div className="rounded-xl border border-[#2A2A3A] bg-[#0F0F13] p-4">
-                                <div className="mb-3 text-[11px] text-[#9CA3AF]">
+                            <div className="rounded-xl border border-ui bg-app p-4">
+                                <div className="mb-3 text-[11px] text-soft">
                                     Upstream ticket fields sync from {newTaskSource}. Components, QA notes, linked tests, handoffs, and due dates remain local enrichment after sync.
                                 </div>
                                 <Select value={newTaskConnectionId} onValueChange={setNewTaskConnectionId}>
-                                    <SelectTrigger className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-xs text-[#E2E8F0]">
+                                    <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground">
                                         <SelectValue placeholder={`Select ${newTaskSource} connection`} />
                                     </SelectTrigger>
-                                    <SelectContent className="border-[#2A2A3A] bg-[#1A1A24]">
+                                    <SelectContent className="border-ui bg-panel-muted">
                                         {newTaskSource === "linear"
                                             ? activeProject?.linearConnections?.map((connection) => (
                                                 <SelectItem key={connection.id} value={connection.id}>{connection.label || connection.teamId}</SelectItem>
@@ -202,7 +202,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="space-y-3">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Template</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Template</Label>
                         <div className="grid grid-cols-4 gap-2">
                             {(["bug", "story", "investigation", "retest_request"] as const).map((template) => (
                                 <Button
@@ -210,7 +210,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                     type="button"
                                     variant="ghost"
                                     onClick={() => applyTemplate(template)}
-                                    className={cn("h-10 rounded-xl border border-[#2A2A3A] bg-[#0F0F13] text-[11px] font-bold text-[#9CA3AF]", taskTemplate === template && "border-[#A78BFA]/40 bg-[#A78BFA]/10 text-[#C4B5FD]")}
+                                    className={cn("h-10 rounded-xl border border-ui bg-app text-[11px] font-bold text-soft", taskTemplate === template && "border-[#A78BFA]/40 bg-[#A78BFA]/10 text-brand")}
                                 >
                                     {template.replace("_", " ")}
                                 </Button>
@@ -219,45 +219,45 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="space-y-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Core Details</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Core Details</Label>
                         <Input
                             autoFocus
                             value={newTaskTitle}
                             onChange={(event) => setNewTaskTitle(event.target.value)}
                             placeholder="Task title"
-                            className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-sm"
+                            className="h-10 border-ui bg-panel-muted text-sm"
                         />
                         <Textarea
                             value={newTaskAcceptanceCriteria}
                             onChange={(event) => setNewTaskAcceptanceCriteria(event.target.value)}
                             placeholder="Acceptance criteria"
-                            className="min-h-[86px] border-[#2A2A3A] bg-[#1A1A24] text-sm"
+                            className="min-h-[86px] border-ui bg-panel-muted text-sm"
                         />
                         <Textarea
                             value={newTaskDescription}
                             onChange={(event) => setNewTaskDescription(event.target.value)}
                             placeholder="Description, context, repro notes, or implementation guidance"
-                            className="min-h-[120px] border-[#2A2A3A] bg-[#1A1A24] text-sm"
+                            className="min-h-[120px] border-ui bg-panel-muted text-sm"
                         />
                     </section>
 
                     <section className="space-y-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Triage Metadata</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Triage Metadata</Label>
                         <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Status</Label>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Status</Label>
                                 <Select value={newTaskStatus} onValueChange={(value: TaskStatus) => setNewTaskStatus(value)}>
-                                    <SelectTrigger className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-xs text-[#E2E8F0]"><SelectValue /></SelectTrigger>
-                                    <SelectContent className="border-[#2A2A3A] bg-[#1A1A24]">
+                                    <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
+                                    <SelectContent className="border-ui bg-panel-muted">
                                         {currentColumns.map((col) => <SelectItem key={col.id} value={col.id}>{col.title}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Priority</Label>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Priority</Label>
                                 <Select value={newTaskPriority} onValueChange={(value: any) => setNewTaskPriority(value)}>
-                                    <SelectTrigger className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-xs text-[#E2E8F0]"><SelectValue /></SelectTrigger>
-                                    <SelectContent className="border-[#2A2A3A] bg-[#1A1A24]">
+                                    <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
+                                    <SelectContent className="border-ui bg-panel-muted">
                                         <SelectItem value="low">Low</SelectItem>
                                         <SelectItem value="medium">Medium</SelectItem>
                                         <SelectItem value="high">High</SelectItem>
@@ -266,10 +266,10 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Severity</Label>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Severity</Label>
                                 <Select value={newTaskSeverity} onValueChange={(value: any) => setNewTaskSeverity(value)}>
-                                    <SelectTrigger className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-xs text-[#E2E8F0]"><SelectValue /></SelectTrigger>
-                                    <SelectContent className="border-[#2A2A3A] bg-[#1A1A24]">
+                                    <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
+                                    <SelectContent className="border-ui bg-panel-muted">
                                         <SelectItem value="cosmetic">Cosmetic</SelectItem>
                                         <SelectItem value="minor">Minor</SelectItem>
                                         <SelectItem value="major">Major</SelectItem>
@@ -280,32 +280,32 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <Input value={newTaskAssignee} onChange={(event) => setNewTaskAssignee(event.target.value)} placeholder="Assignee" className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-sm" />
-                            <Input type="date" value={newTaskDueDate} onChange={(event) => setNewTaskDueDate(event.target.value)} className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                            <Input value={newTaskAssignee} onChange={(event) => setNewTaskAssignee(event.target.value)} placeholder="Assignee" className="h-10 border-ui bg-panel-muted text-sm" />
+                            <Input type="date" value={newTaskDueDate} onChange={(event) => setNewTaskDueDate(event.target.value)} className="h-10 border-ui bg-panel-muted text-sm" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <Input value={newTaskVersion} onChange={(event) => setNewTaskVersion(event.target.value)} placeholder="Release version" className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-sm" />
-                            <Input value={newTaskComponents} onChange={(event) => setNewTaskComponents(event.target.value)} placeholder="Components: checkout, payments" className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                            <Input value={newTaskVersion} onChange={(event) => setNewTaskVersion(event.target.value)} placeholder="Release version" className="h-10 border-ui bg-panel-muted text-sm" />
+                            <Input value={newTaskComponents} onChange={(event) => setNewTaskComponents(event.target.value)} placeholder="Components: checkout, payments" className="h-10 border-ui bg-panel-muted text-sm" />
                         </div>
-                        <Input value={newTaskLabels} onChange={(event) => setNewTaskLabels(event.target.value)} placeholder="Labels: bug, ui, regression" className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                        <Input value={newTaskLabels} onChange={(event) => setNewTaskLabels(event.target.value)} placeholder="Labels: bug, ui, regression" className="h-10 border-ui bg-panel-muted text-sm" />
                     </section>
 
-                    <section className="rounded-xl border border-[#2A2A3A] bg-[#0F0F13] p-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Collaboration Hints</Label>
-                        <p className="mt-2 text-[11px] leading-relaxed text-[#9CA3AF]">
+                    <section className="rounded-xl border border-ui bg-app p-4">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Collaboration Hints</Label>
+                        <p className="mt-2 text-[11px] leading-relaxed text-soft">
                             Use components and acceptance criteria if this task should link back to tests. For bug and retest work, add enough context so the handoff packet can be completed with minimal rework.
                         </p>
                     </section>
                 </div>
 
-                <DialogFooter className="gap-2 border-t border-[#2A2A3A] bg-[#13131A] p-6 pt-4">
-                    <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-xs font-bold text-[#6B7280] hover:text-[#E2E8F0]">
+                <DialogFooter className="gap-2 border-t border-ui bg-panel p-6 pt-4">
+                    <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-xs font-bold text-muted-ui hover:text-foreground">
                         Cancel
                     </Button>
                     <Button
                         onClick={handleConfirm}
                         disabled={isSubmitting || !newTaskTitle.trim() || (newTaskSource !== "manual" && (!newTaskConnectionId || noExternalConnections))}
-                        className="h-10 bg-[#A78BFA] px-8 text-xs font-bold text-[#0F0F13] hover:bg-[#C4B5FD]"
+                        className="h-10 bg-primary px-8 text-xs font-bold text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]"
                     >
                         {isSubmitting ? "CREATING..." : newTaskSource === "manual" ? "CREATE TASK" : `CREATE IN ${newTaskSource.toUpperCase()}`}
                     </Button>

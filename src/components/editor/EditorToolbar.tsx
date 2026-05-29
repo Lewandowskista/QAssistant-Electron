@@ -33,44 +33,44 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
     if (!editor) return null
 
     return (
-        <div className="flex items-center gap-2 p-2 bg-[#1A1A24]/80 backdrop-blur-md border border-[#2A2A3A] rounded-2xl shadow-2xl mx-4 mb-4">
+        <div className="flex items-center gap-2 p-2 bg-[#1A1A24]/80 backdrop-blur-md border border-ui rounded-2xl shadow-2xl mx-4 mb-4">
             {/* Font Family Dropdown */}
-            <div className="flex items-center border-r border-[#2A2A3A] pr-2 gap-1">
+            <div className="flex items-center border-r border-ui pr-2 gap-1">
                 <select
-                    className="bg-transparent text-[10px] font-bold text-[#E2E8F0] focus:outline-none cursor-pointer p-1 rounded hover:bg-[#2A2A3A]"
+                    className="bg-transparent text-[10px] font-bold text-foreground focus:outline-none cursor-pointer p-1 rounded hover:bg-elevated"
                     onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
                     value={editor.getAttributes('textStyle').fontFamily || '"Inter", sans-serif'}
                 >
                     {fonts.map(f => (
-                        <option key={f.value} value={f.value} className="bg-[#1A1A24] text-[#E2E8F0]">{f.name}</option>
+                        <option key={f.value} value={f.value} className="bg-panel-muted text-foreground">{f.name}</option>
                     ))}
                 </select>
             </div>
 
             {/* Font Size Dropdown */}
-            <div className="flex items-center border-r border-[#2A2A3A] pr-2 gap-1">
+            <div className="flex items-center border-r border-ui pr-2 gap-1">
                 <select
-                    className="bg-transparent text-[10px] font-bold text-[#E2E8F0] focus:outline-none cursor-pointer p-1 rounded hover:bg-[#2A2A3A]"
+                    className="bg-transparent text-[10px] font-bold text-foreground focus:outline-none cursor-pointer p-1 rounded hover:bg-elevated"
                     onChange={(e) => editor.chain().focus().setFontSize(e.target.value).run()}
                     value={editor.getAttributes('textStyle').fontSize || '16px'}
                 >
                     {fontSizes.map(size => (
-                        <option key={size} value={size} className="bg-[#1A1A24] text-[#E2E8F0]">{size}</option>
+                        <option key={size} value={size} className="bg-panel-muted text-foreground">{size}</option>
                     ))}
                 </select>
             </div>
 
             {/* Basic Formatting */}
-            <div className="flex items-center border-r border-[#2A2A3A] pr-2 gap-1">
+            <div className="flex items-center border-r border-ui pr-2 gap-1">
                 <button
                     onClick={() => editor.chain().focus().toggleBold().run()}
-                    className={`p-1.5 rounded transition-colors ${editor.isActive('bold') ? 'bg-[#A78BFA] text-[#0F0F13]' : 'text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#2A2A3A]'}`}
+                    className={`p-1.5 rounded transition-colors ${editor.isActive('bold') ? 'bg-primary text-[#0F0F13]' : 'text-muted-ui hover:text-foreground hover:bg-elevated'}`}
                 >
                     <Bold className="h-4 w-4" />
                 </button>
                 <button
                     onClick={() => editor.chain().focus().toggleItalic().run()}
-                    className={`p-1.5 rounded transition-colors ${editor.isActive('italic') ? 'bg-[#A78BFA] text-[#0F0F13]' : 'text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#2A2A3A]'}`}
+                    className={`p-1.5 rounded transition-colors ${editor.isActive('italic') ? 'bg-primary text-[#0F0F13]' : 'text-muted-ui hover:text-foreground hover:bg-elevated'}`}
                 >
                     <Italic className="h-4 w-4" />
                 </button>
@@ -83,7 +83,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
                         <button
                             key={color.value}
                             onClick={() => editor.chain().focus().setColor(color.value).run()}
-                            className={`w-4 h-4 rounded-full border border-[#2A2A3A] hover:scale-125 transition-transform ${editor.isActive('textStyle', { color: color.value }) ? 'ring-2 ring-white ring-offset-2 ring-offset-[#0F0F13]' : ''}`}
+                            className={`w-4 h-4 rounded-full border border-ui hover:scale-125 transition-transform ${editor.isActive('textStyle', { color: color.value }) ? 'ring-2 ring-white ring-offset-2 ring-offset-[#0F0F13]' : ''}`}
                             style={{ backgroundColor: color.value === 'inherit' ? '#E2E8F0' : color.value }}
                             title={color.name}
                         />

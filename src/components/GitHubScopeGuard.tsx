@@ -47,13 +47,13 @@ export function GitHubScopeGuard({ children }: Props) {
     // No GitHub identity connected
     if (!githubIdentity) {
         return (
-            <div className="h-full flex flex-col items-center justify-center bg-[#0F0F13] gap-4 text-center p-8">
-                <div className="w-20 h-20 rounded-full bg-[#1A1A24] flex items-center justify-center">
-                    <ExternalLink className="h-10 w-10 text-[#A78BFA] opacity-60" />
+            <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center p-8">
+                <div className="w-20 h-20 rounded-full bg-panel-muted flex items-center justify-center">
+                    <ExternalLink className="h-10 w-10 text-brand opacity-60" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-semibold text-[#E2E8F0] mb-1">Connect GitHub</h2>
-                    <p className="text-sm text-[#6B7280] max-w-md">
+                    <h2 className="text-lg font-semibold text-foreground mb-1">Connect GitHub</h2>
+                    <p className="text-sm text-muted-ui max-w-md">
                         Go to <strong>Settings → Account &amp; Identity</strong> and connect your GitHub account to use Developer features.
                     </p>
                 </div>
@@ -64,8 +64,8 @@ export function GitHubScopeGuard({ children }: Props) {
     // Still checking scope
     if (checking) {
         return (
-            <div className="h-full flex items-center justify-center bg-[#0F0F13]">
-                <Loader2 className="h-8 w-8 text-[#A78BFA] animate-spin" />
+            <div className="h-full flex items-center justify-center bg-app">
+                <Loader2 className="h-8 w-8 text-brand animate-spin" />
             </div>
         )
     }
@@ -73,13 +73,13 @@ export function GitHubScopeGuard({ children }: Props) {
     // Error checking scope
     if (error) {
         return (
-            <div className="h-full flex flex-col items-center justify-center bg-[#0F0F13] gap-4 text-center p-8">
+            <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center p-8">
                 <div className="w-20 h-20 rounded-full bg-red-950/40 flex items-center justify-center">
                     <AlertTriangle className="h-10 w-10 text-red-400 opacity-60" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-semibold text-[#E2E8F0] mb-1">GitHub Connection Error</h2>
-                    <p className="text-sm text-[#6B7280] max-w-md">{error}</p>
+                    <h2 className="text-lg font-semibold text-foreground mb-1">GitHub Connection Error</h2>
+                    <p className="text-sm text-muted-ui max-w-md">{error}</p>
                 </div>
             </div>
         )
@@ -88,17 +88,17 @@ export function GitHubScopeGuard({ children }: Props) {
     // Token missing repo scope
     if (!hasScope) {
         return (
-            <div className="h-full flex flex-col items-center justify-center bg-[#0F0F13] gap-4 text-center p-8">
+            <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center p-8">
                 <div className="w-20 h-20 rounded-full bg-amber-950/40 flex items-center justify-center">
                     <AlertTriangle className="h-10 w-10 text-amber-400 opacity-60" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-semibold text-[#E2E8F0] mb-1">Additional Permissions Needed</h2>
-                    <p className="text-sm text-[#6B7280] max-w-md mb-4">
+                    <h2 className="text-lg font-semibold text-foreground mb-1">Additional Permissions Needed</h2>
+                    <p className="text-sm text-muted-ui max-w-md mb-4">
                         Your GitHub connection needs repository access to enable Dev features. Please re-connect to grant the required permissions.
                     </p>
                     <Button
-                        className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold"
+                        className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
                         onClick={() => window.electronAPI.oauthStart('github')}
                     >
                         <ExternalLink className="h-4 w-4 mr-2" />

@@ -30,7 +30,7 @@ export function ConfirmDialog({
             {/* Backdrop */}
             <div
                 className={cn(
-                    "fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity duration-200",
+                    "fixed inset-0 z-layer-confirm bg-black/60 backdrop-blur-sm transition-opacity duration-200",
                     open ? "opacity-100" : "opacity-0 pointer-events-none"
                 )}
                 onClick={onCancel}
@@ -38,7 +38,7 @@ export function ConfirmDialog({
             {/* Dialog */}
             <div
                 className={cn(
-                    "fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 transition-all duration-200",
+                    "fixed left-1/2 top-1/2 z-layer-confirm -translate-x-1/2 -translate-y-1/2 transition-all duration-200",
                     open ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
                 )}
             >
@@ -57,14 +57,14 @@ export function ConfirmDialog({
                             <div className="mb-2">
                                 <StatusBadge tone={destructive ? "danger" : "info"}>{destructive ? "Destructive" : "Confirmation"}</StatusBadge>
                             </div>
-                            <p className="text-sm font-bold text-[#E2E8F0]">{title}</p>
+                            <p className="text-sm font-bold text-foreground">{title}</p>
                             {description && (
-                                <p className="text-xs text-[#6B7280] mt-1 leading-relaxed">{description}</p>
+                                <p className="text-xs text-muted-ui mt-1 leading-relaxed">{description}</p>
                             )}
                         </div>
                         <button
                             onClick={onCancel}
-                            className="ml-auto p-1 rounded-md text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#252535] transition-colors"
+                            className="ml-auto p-1 rounded-md text-muted-ui hover:text-foreground hover:bg-elevated transition-colors"
                         >
                             <X className="h-4 w-4" />
                         </button>
@@ -74,7 +74,7 @@ export function ConfirmDialog({
                             variant="ghost"
                             size="sm"
                             onClick={onCancel}
-                            className="h-9 px-4 text-[#9CA3AF] hover:text-[#E2E8F0] font-semibold"
+                            className="h-9 px-4 text-soft hover:text-foreground font-semibold"
                         >
                             {cancelLabel}
                         </Button>
@@ -85,7 +85,7 @@ export function ConfirmDialog({
                                 "h-9 px-5 font-bold transition-all",
                                 destructive
                                     ? "bg-red-500 hover:bg-red-600 text-white"
-                                    : "bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13]"
+                                    : "bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13]"
                             )}
                         >
                             {confirmLabel}

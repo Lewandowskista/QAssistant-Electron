@@ -188,13 +188,13 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
 
     return (
         <div className="space-y-4">
-            <div className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4 space-y-3">
+            <div className="rounded-xl border border-ui bg-panel-muted p-4 space-y-3">
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#6B7280] font-bold">Collaboration State</p>
-                        <div className="text-sm font-semibold text-[#E2E8F0]">{workflowSummary.stateLabel}</div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-ui font-bold">Collaboration State</p>
+                        <div className="text-sm font-semibold text-foreground">{workflowSummary.stateLabel}</div>
                     </div>
-                    <Button variant="outline" className="border-[#A78BFA]/20 text-[#A78BFA]" onClick={() => setDialogOpen(true)}>
+                    <Button variant="outline" className="border-[#A78BFA]/20 text-brand" onClick={() => setDialogOpen(true)}>
                         {activeHandoff ? 'Edit Handoff' : 'Create Handoff'}
                     </Button>
                 </div>
@@ -205,14 +205,14 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                     workflowSummary.attentionLevel === 'info' && "border-[#38BDF8]/20 bg-[#38BDF8]/5",
                     workflowSummary.attentionLevel === 'success' && "border-[#10B981]/30 bg-[#10B981]/10",
                 )}>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#6B7280] font-bold">Next Recommended Action</p>
-                    <p className="mt-2 text-sm font-semibold text-[#E2E8F0]">{workflowSummary.nextAction}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-[#9CA3AF]">
-                        <span>Owner: <span className="text-[#E2E8F0]">{workflowSummary.ownerLabel}</span></span>
-                        <span>Verification: <span className="text-[#E2E8F0]">{workflowSummary.verificationLabel}</span></span>
-                        <span>Linked tests: <span className="text-[#E2E8F0]">{workflowSummary.linkedTestCount}</span></span>
-                        <span>Evidence: <span className="text-[#E2E8F0]">{workflowSummary.evidenceCount}</span></span>
-                        <span>PRs: <span className="text-[#E2E8F0]">{workflowSummary.linkedPrCount}</span></span>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-ui font-bold">Next Recommended Action</p>
+                    <p className="mt-2 text-sm font-semibold text-foreground">{workflowSummary.nextAction}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-soft">
+                        <span>Owner: <span className="text-foreground">{workflowSummary.ownerLabel}</span></span>
+                        <span>Verification: <span className="text-foreground">{workflowSummary.verificationLabel}</span></span>
+                        <span>Linked tests: <span className="text-foreground">{workflowSummary.linkedTestCount}</span></span>
+                        <span>Evidence: <span className="text-foreground">{workflowSummary.evidenceCount}</span></span>
+                        <span>PRs: <span className="text-foreground">{workflowSummary.linkedPrCount}</span></span>
                     </div>
                     {workflowSummary.warnings.length > 0 && (
                         <div className="mt-3 space-y-1">
@@ -225,16 +225,16 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                     )}
                 </div>
                 {activeHandoff ? (
-                    <div className="space-y-2 text-xs text-[#9CA3AF]">
-                        <div><span className="text-[#E2E8F0] font-semibold">Summary:</span> {activeHandoff.summary || 'Missing'}</div>
-                        <div><span className="text-[#E2E8F0] font-semibold">Environment:</span> {activeHandoff.environmentName || 'Missing'}</div>
-                        <div><span className="text-[#E2E8F0] font-semibold">Severity:</span> {activeHandoff.severity || 'Missing'}</div>
-                        <div><span className="text-[#E2E8F0] font-semibold">Evidence:</span> {hasEvidence ? 'Attached' : 'Missing'}</div>
+                    <div className="space-y-2 text-xs text-soft">
+                        <div><span className="text-foreground font-semibold">Summary:</span> {activeHandoff.summary || 'Missing'}</div>
+                        <div><span className="text-foreground font-semibold">Environment:</span> {activeHandoff.environmentName || 'Missing'}</div>
+                        <div><span className="text-foreground font-semibold">Severity:</span> {activeHandoff.severity || 'Missing'}</div>
+                        <div><span className="text-foreground font-semibold">Evidence:</span> {hasEvidence ? 'Attached' : 'Missing'}</div>
                         {activeHandoff.branchName && (
-                            <div><span className="text-[#E2E8F0] font-semibold">Branch:</span> {activeHandoff.branchName}</div>
+                            <div><span className="text-foreground font-semibold">Branch:</span> {activeHandoff.branchName}</div>
                         )}
                         {activeHandoff.releaseVersion && (
-                            <div><span className="text-[#E2E8F0] font-semibold">Release:</span> {activeHandoff.releaseVersion}</div>
+                            <div><span className="text-foreground font-semibold">Release:</span> {activeHandoff.releaseVersion}</div>
                         )}
                         <div className="flex flex-wrap gap-2">
                             {missingFields.length === 0 ? (
@@ -248,7 +248,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         {activeHandoff.linkedPrs.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                                 {activeHandoff.linkedPrs.map((pr) => (
-                                    <span key={`${pr.repoFullName}#${pr.prNumber}`} className="px-2 py-1 rounded-md bg-[#0F0F13] border border-[#2A2A3A] text-[10px] text-[#38BDF8]">
+                                    <span key={`${pr.repoFullName}#${pr.prNumber}`} className="px-2 py-1 rounded-md bg-app border border-ui text-[10px] text-[#38BDF8]">
                                         {pr.repoFullName}#{pr.prNumber}
                                     </span>
                                 ))}
@@ -256,19 +256,19 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         )}
                     </div>
                 ) : (
-                    <p className="text-xs text-[#6B7280]">No handoff packet yet.</p>
+                    <p className="text-xs text-muted-ui">No handoff packet yet.</p>
                 )}
             </div>
 
             {role === 'qa' && (
                 <div className="space-y-3">
-                    <Button className="w-full bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13]" onClick={handleSendToDeveloper}>
+                    <Button className="w-full bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13]" onClick={handleSendToDeveloper}>
                         Send to Developer
                     </Button>
-                    <Button variant="outline" className="w-full border-[#2A2A3A] text-[#E2E8F0]" onClick={handleStartRetest} disabled={(task.collabState || 'draft') !== 'ready_for_qa'}>
+                    <Button variant="outline" className="w-full border-ui text-foreground" onClick={handleStartRetest} disabled={(task.collabState || 'draft') !== 'ready_for_qa'}>
                         Start Retest
                     </Button>
-                    <MentionTextarea value={qaNotes} onChange={setQaNotes} placeholder="QA verification notes... (@ to mention)" rows={3} />
+                    <MentionTextarea value={qaNotes} onChange={setQaNotes} placeholder="QA verification notes… (@ to mention)" rows={3} />
                     <div className="grid grid-cols-2 gap-2">
                         <Button variant="outline" className="border-[#10B981]/20 text-[#10B981]" onClick={() => handleVerify(true)}>Verify Fix</Button>
                         <Button variant="outline" className="border-[#EF4444]/20 text-[#EF4444]" onClick={() => handleVerify(false)}>Fail Verification</Button>
@@ -282,7 +282,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         <Button variant="outline" className="border-[#F59E0B]/20 text-[#F59E0B]" onClick={handleAcknowledge}>Acknowledge</Button>
                         <Button variant="outline" className="border-[#38BDF8]/20 text-[#38BDF8]" onClick={handleStartFix}>Start Fix</Button>
                     </div>
-                    <MentionTextarea value={devResponse} onChange={setDevResponse} placeholder="Developer response or resolution summary... (@ to mention)" rows={3} />
+                    <MentionTextarea value={devResponse} onChange={setDevResponse} placeholder="Developer response or resolution summary… (@ to mention)" rows={3} />
                     <Button className="w-full bg-[#10B981] hover:bg-[#34D399] text-[#0F0F13]" onClick={handleReturnToQa}>
                         Return to QA
                     </Button>

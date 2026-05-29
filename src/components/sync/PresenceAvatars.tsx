@@ -39,7 +39,7 @@ export function PresenceAvatars({ taskId, className }: PresenceAvatarsProps) {
 
     return (
         <div className={cn('flex items-center gap-1', className)} title="Currently viewing">
-            <span className="text-[10px] text-[#6B7280] mr-1">Also viewing:</span>
+            <span className="text-[10px] text-muted-ui mr-1">Also viewing:</span>
             <div className="flex -space-x-1.5">
                 {viewers.slice(0, 4).map(v => (
                     <div
@@ -54,7 +54,7 @@ export function PresenceAvatars({ taskId, className }: PresenceAvatarsProps) {
                     </div>
                 ))}
                 {viewers.length > 4 && (
-                    <div className="w-6 h-6 rounded-full bg-[#2A2A3A] flex items-center justify-center text-[9px] font-bold text-[#9CA3AF] ring-2 ring-[#0F0F13]">
+                    <div className="w-6 h-6 rounded-full bg-elevated flex items-center justify-center text-[9px] font-bold text-soft ring-2 ring-[#0F0F13]">
                         +{viewers.length - 4}
                     </div>
                 )}

@@ -140,28 +140,28 @@ export default function FilesPage() {
     }
 
     if (!activeProject) {
-        return <div className="h-full flex items-center justify-center text-[#6B7280] bg-[#0F0F13]">Select a project to manage files.</div>
+        return <div className="h-full flex items-center justify-center text-muted-ui bg-app">Select a project to manage files.</div>
     }
 
     return (
-        <div className="h-full flex flex-col animate-in fade-in duration-500 bg-[#0F0F13] overflow-hidden">
+        <div className="h-full flex flex-col animate-in fade-in duration-500 bg-app overflow-hidden">
             {/* Top Toolbar */}
-            <header className="bg-[#13131A] border-b border-[#2A2A3A] p-4 flex items-center justify-between flex-none">
+            <header className="bg-panel border-b border-ui p-4 flex items-center justify-between flex-none">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-[0.2em]">FILES</span>
-                        <div className="w-1 h-1 rounded-full bg-[#A78BFA] animate-pulse" />
+                        <span className="text-[10px] font-black text-muted-ui uppercase tracking-[0.2em]">FILES</span>
+                        <div className="w-1 h-1 rounded-full bg-primary animate-pulse" />
                     </div>
                     <div className="relative w-64">
-                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280] pointer-events-none" />
+                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
                         <Input
-                            placeholder="Filter artifacts..."
+                            placeholder="Filter artifacts…"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="h-9 pl-9 bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0]"
+                            className="h-9 pl-9 bg-panel-muted border-ui text-xs text-foreground"
                         />
                     </div>
-                    <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="h-9 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-3 text-xs text-[#E2E8F0]">
+                    <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="h-9 rounded-md bg-panel-muted border border-ui px-3 text-xs text-foreground">
                         <option value="all">All Tasks</option>
                         {(activeProject?.tasks || []).map((task) => (
                             <option key={task.id} value={task.id}>{task.title}</option>
@@ -169,10 +169,10 @@ export default function FilesPage() {
                     </select>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button onClick={handlePaste} variant="outline" className="h-9 border-[#A78BFA]/20 text-[#A78BFA] font-black text-[10px] uppercase hover:bg-[#A78BFA]/5">
+                    <Button onClick={handlePaste} variant="outline" className="h-9 border-[#A78BFA]/20 text-brand font-black text-[10px] uppercase hover:bg-[#A78BFA]/5">
                         PASTE SCREENSHOT
                     </Button>
-                    <Button onClick={handleBrowse} className="h-9 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase gap-2 px-6">
+                    <Button onClick={handleBrowse} className="h-9 bg-primary text-[#0F0F13] font-black text-[10px] uppercase gap-2 px-6">
                         <Upload className="h-3.5 w-3.5" /> BROWSE FILES
                     </Button>
                 </div>
@@ -216,12 +216,12 @@ export default function FilesPage() {
             >
                 {allFiles.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
-                        <div className="w-24 h-24 rounded-3xl bg-[#1A1A24] border border-[#2A2A3A] flex items-center justify-center">
-                            <FileIcon className="h-10 w-10 text-[#6B7280]" strokeWidth={1.5} />
+                        <div className="w-24 h-24 rounded-3xl bg-panel-muted border border-ui flex items-center justify-center">
+                            <FileIcon className="h-10 w-10 text-muted-ui" strokeWidth={1.5} />
                         </div>
                         <div>
-                            <h3 className="text-xl font-black text-[#E2E8F0] uppercase tracking-widest">No artifacts archived</h3>
-                            <p className="text-sm text-[#6B7280] mt-2 max-w-sm mx-auto font-medium">Drop files, scripts, or paste screenshots directly into the library.</p>
+                            <h3 className="text-xl font-black text-foreground uppercase tracking-widest">No artifacts archived</h3>
+                            <p className="text-sm text-muted-ui mt-2 max-w-sm mx-auto font-medium">Drop files, scripts, or paste screenshots directly into the library.</p>
                         </div>
                     </div>
                 ) : (
@@ -229,7 +229,7 @@ export default function FilesPage() {
                         {filtered.map((file) => (
                             <div
                                 key={file.id}
-                                className="group bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-4 hover:border-[#A78BFA]/50 transition-all cursor-pointer relative overflow-hidden shadow-sm"
+                                className="group bg-panel border border-ui rounded-2xl p-4 hover:border-[#A78BFA]/50 transition-all cursor-pointer relative overflow-hidden shadow-sm"
                                 onContextMenu={(event) => openContextMenu(event, file.id)}
                                 onMouseDown={(event) => {
                                     if (event.button !== 2) return
@@ -240,7 +240,7 @@ export default function FilesPage() {
                                 <div className="absolute top-0 left-0 w-full h-1 bg-[#A78BFA]/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <div className="flex flex-col items-center text-center">
                                     <div
-                                        className="w-12 h-12 rounded-xl bg-[#1A1A24] flex items-center justify-center mb-3 text-[#A78BFA] overflow-hidden"
+                                        className="w-12 h-12 rounded-xl bg-panel-muted flex items-center justify-center mb-3 text-brand overflow-hidden"
                                     >
                                         {isImageAttachment(file) ? (
                                             previewUrls[file.id] ? (
@@ -251,7 +251,7 @@ export default function FilesPage() {
                                                     loading="lazy"
                                                 />
                                             ) : (
-                                                <div className="flex h-full w-full items-center justify-center text-[#6B7280]">
+                                                <div className="flex h-full w-full items-center justify-center text-muted-ui">
                                                     <File className="h-6 w-6" />
                                                 </div>
                                             )
@@ -259,8 +259,8 @@ export default function FilesPage() {
                                             <File className="h-6 w-6" />
                                         )}
                                     </div>
-                                    <div className="text-xs font-bold text-[#E2E8F0] truncate w-full mb-1" onClick={() => api.openFile(file.filePath)}>{file.fileName}</div>
-                                    <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest">
+                                    <div className="text-xs font-bold text-foreground truncate w-full mb-1" onClick={() => api.openFile(file.filePath)}>{file.fileName}</div>
+                                    <div className="text-[9px] font-black text-muted-ui uppercase tracking-widest">
                                         {file.fileSizeBytes ? `${(file.fileSizeBytes / 1024 / 1024).toFixed(1)} MB` : ''}
                                     </div>
                                     <div className="flex flex-wrap gap-1 mt-2 justify-center">
@@ -270,7 +270,7 @@ export default function FilesPage() {
                                         ).map((link) => {
                                             const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
                                             const task = activeProject?.tasks.find((item) => item.id === taskId)
-                                            return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-[#A78BFA] text-[9px]">{task.title}</span> : null
+                                            return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-brand text-[9px]">{task.title}</span> : null
                                         })}
                                     </div>
                                 </div>
@@ -283,7 +283,7 @@ export default function FilesPage() {
             {contextMenu && (
                 <div className="fixed inset-0 z-50" onMouseDown={() => setContextMenu(null)}>
                     <div
-                        className="absolute min-w-48 rounded-xl border border-[#2A2A3A] bg-[#13131A] p-2 shadow-2xl"
+                        className="absolute min-w-48 rounded-xl border border-ui bg-panel p-2 shadow-2xl"
                         style={{ left: contextMenu.x, top: contextMenu.y }}
                         onMouseDown={(event) => event.stopPropagation()}
                         onContextMenu={(event) => event.preventDefault()}
@@ -303,7 +303,7 @@ export default function FilesPage() {
                                             toast.success('File linked to task.')
                                             setContextMenu(null)
                                         }}
-                                        className="h-9 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-xs text-[#E2E8F0]"
+                                        className="h-9 rounded-md bg-panel-muted border border-ui px-2 text-xs text-foreground"
                                     >
                                         <option value="">Link to task</option>
                                         {(activeProject?.tasks || []).map((task) => (
@@ -315,7 +315,7 @@ export default function FilesPage() {
                                             api.openFile(file.filePath)
                                             setContextMenu(null)
                                         }}
-                                        className="flex items-center gap-2 rounded-md border border-[#2A2A3A] bg-[#1A1A24] px-3 py-2 text-xs text-[#E2E8F0] hover:border-[#A78BFA]/30 hover:text-[#A78BFA]"
+                                        className="flex items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-2 text-xs text-foreground hover:border-[#A78BFA]/30 hover:text-brand"
                                     >
                                         <ExternalLink className="h-3.5 w-3.5" />
                                         Open file
@@ -332,7 +332,7 @@ export default function FilesPage() {
                                             api.deleteAttachment(file.filePath)
                                             setContextMenu(null)
                                         }}
-                                        className="flex items-center gap-2 rounded-md border border-[#2A2A3A] bg-[#1A1A24] px-3 py-2 text-xs text-[#E2E8F0] hover:border-[#EF4444]/30 hover:text-[#EF4444]"
+                                        className="flex items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-2 text-xs text-foreground hover:border-[#EF4444]/30 hover:text-[hsl(var(--state-danger))]"
                                     >
                                         <Trash2 className="h-3.5 w-3.5" />
                                         Delete file
@@ -347,7 +347,7 @@ export default function FilesPage() {
             {/* Upload Overlay */}
             {isDragging && (
                 <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center">
-                    <div className="bg-[#A78BFA] text-[#0F0F13] px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl animate-bounce">
+                    <div className="bg-primary text-[#0F0F13] px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl animate-bounce">
                         Release to upload
                     </div>
                 </div>

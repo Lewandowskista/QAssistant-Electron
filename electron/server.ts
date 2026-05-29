@@ -10,65 +10,45 @@ import { log } from './logger'
 import { enrichHandoffCompleteness, getReleaseQueue, PROJECT_SCHEMA_VERSION } from '../src/lib/collaboration'
 import { getAllProjects, getProjectById, getProjectSummaries, saveAllProjects } from './database'
 
-const server = express()
-
 // ── In-memory rate limiter — 100 requests per minute per IP ─────────────────
-// No external deps needed for a desktop app; entries are evicted lazily.
 const _rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX = 100
 
-function rateLimiter(req: any, res: any, next: any) {
-    const ip: string = req.ip ?? req.socket?.remoteAddress ?? 'unknown'
-    const now = Date.now()
-    let entry = _rateLimitMap.get(ip)
-    if (!entry || now >= entry.resetAt) {
-        entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
-        _rateLimitMap.set(ip, entry)
-    }
-    entry.count++
-    if (entry.count > RATE_LIMIT_MAX) {
-        const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
-        res.set('Retry-After', String(retryAfter))
-        return res.status(429).json({ error: 'Too many requests. Please slow down.' })
-    }
-    // Lazy eviction: clear stale entries once the map grows large
-    if (_rateLimitMap.size > 500) {
-        for (const [key, val] of _rateLimitMap) {
-            if (now >= val.resetAt) _rateLimitMap.delete(key)
+function makeRateLimiter() {
+    return function rateLimiter(req: any, res: any, next: any) {
+        const ip: string = req.ip ?? req.socket?.remoteAddress ?? 'unknown'
+        const now = Date.now()
+        let entry = _rateLimitMap.get(ip)
+        if (!entry || now >= entry.resetAt) {
+            entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
+            _rateLimitMap.set(ip, entry)
         }
+        entry.count++
+        if (entry.count > RATE_LIMIT_MAX) {
+            const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
+            res.set('Retry-After', String(retryAfter))
+            return res.status(429).json({ error: 'Too many requests. Please slow down.' })
+        }
+        // Lazy eviction: clear stale entries once the map grows large
+        if (_rateLimitMap.size > 500) {
+            for (const [key, val] of _rateLimitMap) {
+                if (now >= val.resetAt) _rateLimitMap.delete(key)
+            }
+        }
+        next()
     }
-    next()
 }
 
-// CORS: allow only the Electron renderer (origin is 'null' for file:// / custom
-// protocols) and the exact port the server is bound to. The regex below is kept
-// as a fallback for browser-based automation clients that set a localhost origin.
-server.use((req: any, res: any, next: any) => {
-    const origin = req.headers.origin as string | undefined
-    // Electron renderer sends no origin or 'null' — always allow
-    if (!origin || origin === 'null') {
-        res.header('Access-Control-Allow-Origin', 'null')
-        res.header('Vary', 'Origin')
-    } else {
-        // For browser clients, restrict to the exact port this server is running on
-        const allowed = new RegExp(`^https?://(localhost|127\\.0\\.0\\.1):${currentPort}$`)
-        if (allowed.test(origin)) {
-            res.header('Access-Control-Allow-Origin', origin)
-            res.header('Vary', 'Origin')
-        }
-    }
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
-    if (req.method === 'OPTIONS') return res.sendStatus(204)
-    next()
-})
-
-server.use(bodyParser.json({ limit: '1mb' }))
-
-let authToken = crypto.randomBytes(32).toString('hex')
-let serverInstance: any = null
-const openSockets = new Set<any>()
+/** Escape characters that have special meaning in HTML. */
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
 
 // Callback invoked after a successful OAuth exchange so main process can notify the renderer
 let oauthCompleteCallback: ((provider: string, userInfo: any) => void) | null = null
@@ -76,6 +56,8 @@ export function setOAuthCompleteCallback(cb: (provider: string, userInfo: any) =
     oauthCompleteCallback = cb
 }
 
+let serverInstance: any = null
+const openSockets = new Set<any>()
 let currentPort = 5248
 let requestedPort = 5248
 
@@ -87,16 +69,53 @@ export function isServerRunning(): boolean {
     return !!serverInstance
 }
 
-export function startServer(apiToken: string, port: number = 3030) {
-    // Prevent double-start (e.g. called from both IPC handler and app.whenReady)
-    if (serverInstance) {
-        log.info('[QAssistant] API server already running, skipping restart.')
-        return
+/**
+ * Timing-safe bearer-token check. Compares constant-length HMAC digests so
+ * that the execution time does not depend on where the strings diverge.
+ */
+function isValidBearerToken(header: string | undefined, expected: string): boolean {
+    if (!header || !header.startsWith('Bearer ')) return false
+    const provided = header.slice('Bearer '.length)
+    // Pad/hash both sides to the same fixed length before comparing
+    const key = Buffer.from('qassistant-token-check')
+    const a = crypto.createHmac('sha256', key).update(provided).digest()
+    const b = crypto.createHmac('sha256', key).update(expected).digest()
+    try {
+        return crypto.timingSafeEqual(a, b)
+    } catch {
+        return false
     }
-    authToken = apiToken
-    currentPort = port
-    requestedPort = port
+}
 
+/** Build and wire up a fresh Express app. Called once per server start. */
+function buildApp(apiToken: string, port: number) {
+    const app_ = express()
+
+    // ── CORS ────────────────────────────────────────────────────────────────
+    // Allow only the Electron renderer (origin is 'null' for file:// / custom
+    // protocols) and the exact port this server is bound to.
+    app_.use((req: any, res: any, next: any) => {
+        const origin = req.headers.origin as string | undefined
+        if (!origin || origin === 'null') {
+            res.header('Access-Control-Allow-Origin', 'null')
+            res.header('Vary', 'Origin')
+        } else {
+            const allowed = new RegExp(`^https?://(localhost|127\\.0\\.0\\.1):${port}$`)
+            if (allowed.test(origin)) {
+                res.header('Access-Control-Allow-Origin', origin)
+                res.header('Vary', 'Origin')
+            }
+        }
+        res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        res.header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+        if (req.method === 'OPTIONS') return res.sendStatus(204)
+        next()
+    })
+
+    app_.use(bodyParser.json({ limit: '1mb' }))
+    app_.use(makeRateLimiter())
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
     const readProjects = (): any[] => {
         try {
             return getAllProjects().map((project: any) => ({
@@ -129,11 +148,8 @@ export function startServer(apiToken: string, port: number = 3030) {
         saveAllProjects(projects)
     }
 
-    // ── Rate limiting (applied before all routes, including /health) ──────
-    server.use(rateLimiter)
-
-    // ── Public health endpoint (no auth) ───────────────────────────────────
-    server.get('/health', (_req: Request, res: Response) => {
+    // ── Public health endpoint (no auth) ─────────────────────────────────────
+    app_.get('/health', (_req: Request, res: Response) => {
         res.json({
             status: 'active',
             version: app.getVersion(),
@@ -142,12 +158,13 @@ export function startServer(apiToken: string, port: number = 3030) {
         })
     })
 
-    // ── OAuth callback (public — no auth token required) ───────────────────
-    server.get('/auth/callback', async (req: any, res: any) => {
+    // ── OAuth callback (public — no auth token required) ──────────────────────
+    app_.get('/auth/callback', async (req: any, res: any) => {
         const { code, state, error } = req.query
 
         if (error) {
-            res.status(400).send(`<html><body><h2>Authorization failed</h2><p>${error}</p><script>window.close()</script></body></html>`)
+            const safeError = escapeHtml(String(error))
+            res.status(400).send(`<html><body><h2>Authorization failed</h2><p>${safeError}</p><script>window.close()</script></body></html>`)
             return
         }
 
@@ -156,7 +173,6 @@ export function startServer(apiToken: string, port: number = 3030) {
             return
         }
 
-        // Resolve provider from in-memory pending auth (GitHub/Linear don't echo it back)
         const pending = oauth.getPendingAuth()
         const provider = pending?.provider
 
@@ -173,22 +189,21 @@ export function startServer(apiToken: string, port: number = 3030) {
             res.send('<html><body><h2>Connected successfully!</h2><p>You can close this tab and return to QAssistant.</p><script>window.close()</script></body></html>')
         } catch (e: any) {
             console.error('[OAuth] Callback exchange failed:', e.message)
-            res.status(500).send(`<html><body><h2>Connection failed</h2><p>${e.message}</p><script>window.close()</script></body></html>`)
+            res.status(500).send('<html><body><h2>Connection failed</h2><p>Please close this tab and try again.</p><script>window.close()</script></body></html>')
         }
     })
 
-    // ── Auth middleware for all protected routes ────────────────────────────
-    server.use((req: any, res: any, next: any) => {
-        const authHeader = req.headers.authorization
-        if (authHeader === `Bearer ${authToken}`) {
+    // ── Auth middleware for all protected routes ────────────────────────────────
+    app_.use((req: any, res: any, next: any) => {
+        if (isValidBearerToken(req.headers.authorization, apiToken)) {
             next()
         } else {
             res.status(401).json({ error: 'Unauthorized. Bearer token required.' })
         }
     })
 
-    // ── GET /api/projects ── list all projects ──────────────────────────────
-    server.get('/api/projects', async (_req: any, res: any) => {
+    // ── GET /api/projects ─────────────────────────────────────────────────────
+    app_.get('/api/projects', async (_req: any, res: any) => {
         try {
             res.json(getProjectSummaries())
         } catch (e: any) {
@@ -196,8 +211,8 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── GET /api/projects/:id ── single project detail ───────────────────────
-    server.get('/api/projects/:id', async (req: any, res: any) => {
+    // ── GET /api/projects/:id ─────────────────────────────────────────────────
+    app_.get('/api/projects/:id', async (req: any, res: any) => {
         try {
             const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
@@ -207,11 +222,10 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    server.get('/api/projects/:id/release-readiness', async (req: any, res: any) => {
+    app_.get('/api/projects/:id/release-readiness', async (req: any, res: any) => {
         try {
             const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
-
             const queue = getReleaseQueue(project)
             res.json({
                 projectId: project.id,
@@ -227,11 +241,10 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    server.get('/api/projects/:id/retest-queue', async (req: any, res: any) => {
+    app_.get('/api/projects/:id/retest-queue', async (req: any, res: any) => {
         try {
             const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
-
             const queue = getReleaseQueue(project)
             res.json({
                 readyForQa: queue.tasksReadyForQa,
@@ -244,15 +257,16 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    server.get('/api/projects/:id/traceability', async (req: any, res: any) => {
+    app_.get('/api/projects/:id/traceability', async (req: any, res: any) => {
         try {
             const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
-
             const tasks = (project.tasks || []).map((task: any) => {
-                const linkedTests = (project.testPlans || []).flatMap((plan: any) => plan.testCases || []).filter((testCase: any) =>
-                    testCase.sourceIssueId === task.sourceIssueId || testCase.linkedDefectIds?.includes(task.id)
-                )
+                const linkedTests = (project.testPlans || [])
+                    .flatMap((plan: any) => plan.testCases || [])
+                    .filter((testCase: any) =>
+                        testCase.sourceIssueId === task.sourceIssueId || testCase.linkedDefectIds?.includes(task.id)
+                    )
                 const handoff = (project.handoffPackets || []).find((packet: any) => packet.taskId === task.id)
                 return {
                     taskId: task.id,
@@ -264,21 +278,19 @@ export function startServer(apiToken: string, port: number = 3030) {
                     handoffComplete: handoff?.isComplete || false,
                 }
             })
-
             res.json({ projectId: project.id, tasks })
         } catch (e: any) {
             res.status(500).json({ error: e.message })
         }
     })
 
-    // ── GET /api/testcases ── all test cases across all projects ─────────────
-    server.get('/api/testcases', async (req: any, res: any) => {
+    // ── GET /api/testcases ────────────────────────────────────────────────────
+    app_.get('/api/testcases', async (req: any, res: any) => {
         try {
             const projects = readProjects()
             const projectId = req.query.projectId as string | undefined
             const planId = req.query.planId as string | undefined
             const status = req.query.status as string | undefined
-
             const results: any[] = []
             for (const project of projects) {
                 if (projectId && project.id !== projectId) continue
@@ -286,13 +298,7 @@ export function startServer(apiToken: string, port: number = 3030) {
                     if (planId && plan.id !== planId) continue
                     for (const tc of (plan.testCases || [])) {
                         if (status && tc.status !== status) continue
-                        results.push({
-                            ...tc,
-                            planId: plan.id,
-                            planName: plan.name,
-                            projectId: project.id,
-                            projectName: project.name,
-                        })
+                        results.push({ ...tc, planId: plan.id, planName: plan.name, projectId: project.id, projectName: project.name })
                     }
                 }
             }
@@ -302,12 +308,11 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── GET /api/testcases/:displayId ── find by display ID (e.g. TC-001) ──────
-    server.get('/api/testcases/:displayId', async (req: any, res: any) => {
+    // ── GET /api/testcases/:displayId ─────────────────────────────────────────
+    app_.get('/api/testcases/:displayId', async (req: any, res: any) => {
         try {
             const projects = readProjects()
             const displayId = req.params.displayId
-
             for (const project of projects) {
                 for (const plan of (project.testPlans || [])) {
                     const tc = plan.testCases?.find((t: any) => t.displayId === displayId)
@@ -322,23 +327,19 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── POST /api/results ── submit a single test execution result ───────────
-    server.post('/api/results', async (req: any, res: any) => {
+    // ── POST /api/results ─────────────────────────────────────────────────────
+    app_.post('/api/results', async (req: any, res: any) => {
         const { displayId, status, actualResult, notes } = req.body
-
         if (!displayId || !status) {
             return res.status(400).json({ error: 'Required fields: displayId, status' })
         }
-
         const validStatuses = ['passed', 'failed', 'blocked', 'skipped', 'not-run']
         if (!validStatuses.includes(status)) {
             return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` })
         }
-
         try {
             const projects = readProjects()
             let found = false
-
             for (const project of projects) {
                 for (const plan of (project.testPlans || [])) {
                     const tc = plan.testCases?.find((t: any) => t.displayId === displayId)
@@ -346,8 +347,7 @@ export function startServer(apiToken: string, port: number = 3030) {
                         tc.status = status
                         if (actualResult) tc.actualResult = actualResult
                         tc.updatedAt = Date.now()
-
-                        const execution = {
+                        project.testExecutions = [{
                             id: crypto.randomUUID(),
                             testCaseId: tc.id,
                             testPlanId: plan.id,
@@ -356,18 +356,14 @@ export function startServer(apiToken: string, port: number = 3030) {
                             notes: notes || 'Submitted via Automation API',
                             executedAt: Date.now(),
                             snapshotTestCaseTitle: tc.title
-                        }
-
-                        project.testExecutions = [execution, ...(project.testExecutions || [])]
+                        }, ...(project.testExecutions || [])]
                         found = true
                         break
                     }
                 }
                 if (found) break
             }
-
             if (!found) return res.status(404).json({ error: `Test case '${displayId}' not found.` })
-
             writeProjects(projects)
             res.json({ success: true, message: `Result recorded for ${displayId}` })
         } catch (e: any) {
@@ -375,25 +371,21 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── POST /api/results/batch ── submit multiple results at once ───────────
-    server.post('/api/results/batch', async (req: any, res: any) => {
+    // ── POST /api/results/batch ───────────────────────────────────────────────
+    app_.post('/api/results/batch', async (req: any, res: any) => {
         const results: any[] = req.body?.results
-
         if (!Array.isArray(results) || results.length === 0) {
             return res.status(400).json({ error: 'Request body must have a "results" array.' })
         }
-
         try {
             const projects = readProjects()
             const summary: any[] = []
-
             for (const item of results) {
                 const { displayId, status, actualResult, notes } = item
                 if (!displayId || !status) {
                     summary.push({ displayId, success: false, error: 'Missing displayId or status' })
                     continue
                 }
-
                 let found = false
                 for (const project of projects) {
                     for (const plan of (project.testPlans || [])) {
@@ -402,8 +394,7 @@ export function startServer(apiToken: string, port: number = 3030) {
                             tc.status = status
                             if (actualResult) tc.actualResult = actualResult
                             tc.updatedAt = Date.now()
-
-                            const execution = {
+                            project.testExecutions = [{
                                 id: crypto.randomUUID(),
                                 testCaseId: tc.id,
                                 testPlanId: plan.id,
@@ -412,18 +403,15 @@ export function startServer(apiToken: string, port: number = 3030) {
                                 notes: notes || 'Batch submitted via Automation API',
                                 executedAt: Date.now(),
                                 snapshotTestCaseTitle: tc.title
-                            }
-                            project.testExecutions = [execution, ...(project.testExecutions || [])]
+                            }, ...(project.testExecutions || [])]
                             found = true
                             break
                         }
                     }
                     if (found) break
                 }
-
                 summary.push({ displayId, success: found, error: found ? undefined : 'Not found' })
             }
-
             writeProjects(projects)
             res.json({ success: true, results: summary })
         } catch (e: any) {
@@ -431,15 +419,12 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── GET /api/executions ── list executions with optional filtering ───────
-    server.get('/api/executions', async (req: any, res: any) => {
+    // ── GET /api/executions ───────────────────────────────────────────────────
+    app_.get('/api/executions', async (req: any, res: any) => {
         try {
             const projects = readProjects()
             const projectId = req.query.projectId as string | undefined
             const limit = Math.min(parseInt(req.query.limit as string || '100', 10), 1000)
-
-            // Collect all matching executions, then sort and slice.
-            // Pre-filter by projectId to avoid building a huge intermediate array.
             const all: any[] = []
             for (const project of projects) {
                 if (projectId && project.id !== projectId) continue
@@ -447,7 +432,6 @@ export function startServer(apiToken: string, port: number = 3030) {
                     all.push({ ...ex, projectId: project.id, projectName: project.name })
                 }
             }
-
             all.sort((a, b) => b.executedAt - a.executedAt)
             res.json(all.slice(0, limit))
         } catch (e: any) {
@@ -455,17 +439,16 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    server.post('/api/handoffs', async (req: any, res: any) => {
+    // ── POST /api/handoffs ────────────────────────────────────────────────────
+    app_.post('/api/handoffs', async (req: any, res: any) => {
         try {
             const { projectId, taskId, ...payload } = req.body || {}
             if (!projectId || !taskId) return res.status(400).json({ error: 'Required fields: projectId, taskId' })
-
             const projects = readProjects()
             const project = projects.find((item: any) => item.id === projectId)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
             const task = (project.tasks || []).find((item: any) => item.id === taskId)
             if (!task) return res.status(404).json({ error: 'Task not found.' })
-
             const handoff = enrichHandoffCompleteness({
                 id: crypto.randomUUID(),
                 taskId,
@@ -488,12 +471,10 @@ export function startServer(apiToken: string, port: number = 3030) {
                 branchName: payload.branchName,
                 releaseVersion: payload.releaseVersion,
             })
-
             project.handoffPackets = [handoff, ...(project.handoffPackets || [])]
             task.activeHandoffId = handoff.id
             task.collabState = 'ready_for_dev'
             task.lastCollabUpdatedAt = Date.now()
-
             writeProjects(projects)
             res.status(201).json(handoff)
         } catch (e: any) {
@@ -501,7 +482,7 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    server.post('/api/handoffs/:id/acknowledge', async (req: any, res: any) => {
+    app_.post('/api/handoffs/:id/acknowledge', async (req: any, res: any) => {
         try {
             const projects = readProjects()
             const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
@@ -518,7 +499,7 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    server.post('/api/handoffs/:id/ready-for-qa', async (req: any, res: any) => {
+    app_.post('/api/handoffs/:id/ready-for-qa', async (req: any, res: any) => {
         try {
             const projects = readProjects()
             const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
@@ -536,16 +517,14 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    // ── GET /api/projects/:id/quality-gate ── CI/CD quality gate evaluation ──
-    server.get('/api/projects/:id/quality-gate', async (req: any, res: any) => {
+    // ── GET /api/projects/:id/quality-gate ────────────────────────────────────
+    app_.get('/api/projects/:id/quality-gate', async (req: any, res: any) => {
         try {
             const project = readProject(req.params.id)
             if (!project) return res.status(404).json({ error: 'Project not found.' })
-
             const allTestCases: any[] = (project.testPlans || []).flatMap((tp: any) => tp.testCases || [])
             const allTasks: any[] = project.tasks || []
             const activeTasks = allTasks.filter((t: any) => !['done', 'canceled', 'duplicate'].includes(t.status))
-
             const passedCases = allTestCases.filter((tc: any) => tc.status === 'passed').length
             const passRate = allTestCases.length > 0 ? Math.round((passedCases / allTestCases.length) * 100) : 0
             const criticalBlockers = activeTasks.filter((t: any) => t.priority === 'critical' || t.severity === 'blocker').length
@@ -553,9 +532,7 @@ export function startServer(apiToken: string, port: number = 3030) {
                 allTestCases.some((tc: any) => tc.sourceIssueId === t.sourceIssueId || tc.linkedDefectIds?.includes(t.id))
             ).length
             const coveragePercent = activeTasks.length > 0 ? Math.round((tasksWithLinkedTests / activeTasks.length) * 100) : 100
-
             const enabledGates = (project.qualityGates || []).filter((g: any) => g.isEnabled)
-
             const gateResults = enabledGates.map((gate: any) => {
                 const criteriaResults = (gate.criteria || []).map((criterion: any) => {
                     let actualValue = 0
@@ -581,10 +558,8 @@ export function startServer(apiToken: string, port: number = 3030) {
                 })
                 return { gateId: gate.id, gateName: gate.name, passed: criteriaResults.every((r: any) => r.passed), criteria: criteriaResults }
             })
-
             const overallPassed = gateResults.length === 0 || gateResults.every((g: any) => g.passed)
             const status = overallPassed ? 'go' : gateResults.some((g: any) => g.passed) ? 'caution' : 'no-go'
-
             res.json({
                 projectId: project.id,
                 projectName: project.name,
@@ -598,12 +573,11 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    server.post('/api/handoffs/:id/verify', async (req: any, res: any) => {
+    app_.post('/api/handoffs/:id/verify', async (req: any, res: any) => {
         try {
             const passed = !!req.body?.passed
             const notes = req.body?.notes
             if (!notes) return res.status(400).json({ error: 'Required field: notes' })
-
             const projects = readProjects()
             const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
             if (!target) return res.status(404).json({ error: 'Handoff not found.' })
@@ -620,39 +594,52 @@ export function startServer(apiToken: string, port: number = 3030) {
         }
     })
 
-    if (serverInstance) return // already running
+    return app_
+}
 
-    const tryListen = (p: number) => {
-        const instance = server.listen(p, () => {
-            log.info(`[QAssistant] Automation API running on port ${p}`)
-            currentPort = p
-            serverInstance = instance
-
-            // Track keep-alive sockets so we can destroy them on shutdown
-            instance.on('connection', (socket: any) => {
-                openSockets.add(socket)
-                socket.once('close', () => openSockets.delete(socket))
-            })
-        })
-
-        instance.on('error', (err: any) => {
-            if (err.code === 'EADDRINUSE') {
-                console.warn(`[QAssistant] Port ${p} in use, trying ${p + 1}...`)
-                instance.close()
-                tryListen(p + 1)
-            } else {
-                console.error('[QAssistant] API server error:', err.message)
-            }
-        })
+export function startServer(apiToken: string, port: number = 3030): Promise<void> {
+    if (serverInstance) {
+        log.info('[QAssistant] API server already running, skipping restart.')
+        return Promise.resolve()
     }
+    requestedPort = port
 
-    tryListen(port)
+    const app_ = buildApp(apiToken, port)
+
+    return new Promise<void>((resolve, reject) => {
+        const tryListen = (p: number) => {
+            // Bind explicitly to localhost — do not expose the automation API on the LAN.
+            const instance = app_.listen(p, '127.0.0.1', () => {
+                log.info(`[QAssistant] Automation API running on 127.0.0.1:${p}`)
+                currentPort = p
+                serverInstance = instance
+
+                instance.on('connection', (socket: any) => {
+                    openSockets.add(socket)
+                    socket.once('close', () => openSockets.delete(socket))
+                })
+
+                resolve()
+            })
+
+            instance.on('error', (err: any) => {
+                if (err.code === 'EADDRINUSE') {
+                    console.warn(`[QAssistant] Port ${p} in use, trying ${p + 1}...`)
+                    instance.close()
+                    tryListen(p + 1)
+                } else {
+                    console.error('[QAssistant] API server error:', err.message)
+                    reject(err)
+                }
+            })
+        }
+
+        tryListen(port)
+    })
 }
 
 export function stopServer() {
     if (serverInstance) {
-        // Destroy all open keep-alive connections immediately so the port is freed
-        // synchronously rather than waiting for socket idle timeouts.
         for (const socket of openSockets) {
             try { socket.destroy() } catch { /* ignore */ }
         }

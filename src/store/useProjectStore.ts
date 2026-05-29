@@ -46,6 +46,7 @@ const EMPTY_COLLABORATION_EVENTS: CollaborationEvent[] = []
 const EMPTY_ENVIRONMENTS: QaEnvironment[] = []
 const EMPTY_LINEAR_CONNECTIONS: Project['linearConnections'] = []
 const EMPTY_JIRA_CONNECTIONS: Project['jiraConnections'] = []
+const EMPTY_TEST_RUN_SESSIONS: TestRunSession[] = []
 
 /**
  * Persistence helper — writes projects to the SQLite database via IPC.
@@ -73,6 +74,7 @@ const saveProjectsToDisk = (projects: Project[]): Promise<boolean> => {
  * skipping intermediate states is safe.
  */
 let _debounceSaveTimer: ReturnType<typeof setTimeout> | null = null
+let _flushListenerRegistered = false
 const debouncedSaveProjectsToDisk = (projects: Project[]): void => {
     if (_debounceSaveTimer !== null) clearTimeout(_debounceSaveTimer)
     _debounceSaveTimer = setTimeout(() => {
@@ -81,9 +83,23 @@ const debouncedSaveProjectsToDisk = (projects: Project[]): void => {
     }, 300)
 }
 
+/**
+ * Shared fallback for granular IPC persist failures: show a toast and flush
+ * the full project snapshot so at least one save path succeeds.
+ */
+function onPersistError(err: unknown, label: string): void {
+    console.error(`[store] ${label} failed:`, err)
+    toast.error('Failed to save — retrying with full snapshot.')
+    saveProjectsToDisk(useProjectStore.getState().projects)
+}
+
 const persistNoteToDisk = async (projectId: string, note: Note) => {
     if (window.electronAPI?.upsertProjectNote) {
-        await window.electronAPI.upsertProjectNote(projectId, note)
+        try {
+            await window.electronAPI.upsertProjectNote(projectId, note)
+        } catch (err) {
+            onPersistError(err, 'upsertProjectNote')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -91,7 +107,11 @@ const persistNoteToDisk = async (projectId: string, note: Note) => {
 
 const deleteNoteFromDisk = async (projectId: string, noteId: string) => {
     if (window.electronAPI?.deleteProjectNote) {
-        await window.electronAPI.deleteProjectNote(projectId, noteId)
+        try {
+            await window.electronAPI.deleteProjectNote(projectId, noteId)
+        } catch (err) {
+            onPersistError(err, 'deleteProjectNote')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -99,7 +119,11 @@ const deleteNoteFromDisk = async (projectId: string, noteId: string) => {
 
 const persistTaskToDisk = async (projectId: string, task: Task) => {
     if (window.electronAPI?.upsertProjectTask) {
-        await window.electronAPI.upsertProjectTask(projectId, task)
+        try {
+            await window.electronAPI.upsertProjectTask(projectId, task)
+        } catch (err) {
+            onPersistError(err, 'upsertProjectTask')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -107,7 +131,11 @@ const persistTaskToDisk = async (projectId: string, task: Task) => {
 
 const deleteTaskFromDisk = async (projectId: string, taskId: string) => {
     if (window.electronAPI?.deleteProjectTask) {
-        await window.electronAPI.deleteProjectTask(projectId, taskId)
+        try {
+            await window.electronAPI.deleteProjectTask(projectId, taskId)
+        } catch (err) {
+            onPersistError(err, 'deleteProjectTask')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -115,7 +143,11 @@ const deleteTaskFromDisk = async (projectId: string, taskId: string) => {
 
 const persistHandoffToDisk = async (projectId: string, handoff: HandoffPacket) => {
     if (window.electronAPI?.upsertProjectHandoff) {
-        await window.electronAPI.upsertProjectHandoff(projectId, handoff)
+        try {
+            await window.electronAPI.upsertProjectHandoff(projectId, handoff)
+        } catch (err) {
+            onPersistError(err, 'upsertProjectHandoff')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -123,7 +155,11 @@ const persistHandoffToDisk = async (projectId: string, handoff: HandoffPacket) =
 
 const persistCollaborationEventToDisk = async (projectId: string, event: CollaborationEvent) => {
     if (window.electronAPI?.insertProjectCollaborationEvent) {
-        await window.electronAPI.insertProjectCollaborationEvent(projectId, event)
+        try {
+            await window.electronAPI.insertProjectCollaborationEvent(projectId, event)
+        } catch (err) {
+            onPersistError(err, 'insertProjectCollaborationEvent')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -131,7 +167,11 @@ const persistCollaborationEventToDisk = async (projectId: string, event: Collabo
 
 const persistTestPlanToDisk = async (projectId: string, plan: TestPlan) => {
     if (window.electronAPI?.upsertProjectTestPlan) {
-        await window.electronAPI.upsertProjectTestPlan(projectId, plan)
+        try {
+            await window.electronAPI.upsertProjectTestPlan(projectId, plan)
+        } catch (err) {
+            onPersistError(err, 'upsertProjectTestPlan')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -139,7 +179,11 @@ const persistTestPlanToDisk = async (projectId: string, plan: TestPlan) => {
 
 const deleteTestPlanFromDisk = async (projectId: string, planId: string) => {
     if (window.electronAPI?.deleteProjectTestPlan) {
-        await window.electronAPI.deleteProjectTestPlan(projectId, planId)
+        try {
+            await window.electronAPI.deleteProjectTestPlan(projectId, planId)
+        } catch (err) {
+            onPersistError(err, 'deleteProjectTestPlan')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -147,7 +191,11 @@ const deleteTestPlanFromDisk = async (projectId: string, planId: string) => {
 
 const persistEnvironmentToDisk = async (projectId: string, env: QaEnvironment) => {
     if (window.electronAPI?.upsertProjectEnvironment) {
-        await window.electronAPI.upsertProjectEnvironment(projectId, env)
+        try {
+            await window.electronAPI.upsertProjectEnvironment(projectId, env)
+        } catch (err) {
+            onPersistError(err, 'upsertProjectEnvironment')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -155,7 +203,11 @@ const persistEnvironmentToDisk = async (projectId: string, env: QaEnvironment) =
 
 const deleteEnvironmentFromDisk = async (projectId: string, envId: string) => {
     if (window.electronAPI?.deleteProjectEnvironment) {
-        await window.electronAPI.deleteProjectEnvironment(projectId, envId)
+        try {
+            await window.electronAPI.deleteProjectEnvironment(projectId, envId)
+        } catch (err) {
+            onPersistError(err, 'deleteProjectEnvironment')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -163,7 +215,11 @@ const deleteEnvironmentFromDisk = async (projectId: string, envId: string) => {
 
 const persistChecklistToDisk = async (projectId: string, checklist: Checklist) => {
     if (window.electronAPI?.upsertProjectChecklist) {
-        await window.electronAPI.upsertProjectChecklist(projectId, checklist)
+        try {
+            await window.electronAPI.upsertProjectChecklist(projectId, checklist)
+        } catch (err) {
+            onPersistError(err, 'upsertProjectChecklist')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -171,7 +227,11 @@ const persistChecklistToDisk = async (projectId: string, checklist: Checklist) =
 
 const deleteChecklistFromDisk = async (projectId: string, checklistId: string) => {
     if (window.electronAPI?.deleteProjectChecklist) {
-        await window.electronAPI.deleteProjectChecklist(projectId, checklistId)
+        try {
+            await window.electronAPI.deleteProjectChecklist(projectId, checklistId)
+        } catch (err) {
+            onPersistError(err, 'deleteProjectChecklist')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -179,7 +239,11 @@ const deleteChecklistFromDisk = async (projectId: string, checklistId: string) =
 
 const persistTestRunSessionToDisk = async (projectId: string, session: TestRunSession) => {
     if (window.electronAPI?.upsertProjectTestRunSession) {
-        await window.electronAPI.upsertProjectTestRunSession(projectId, session)
+        try {
+            await window.electronAPI.upsertProjectTestRunSession(projectId, session)
+        } catch (err) {
+            onPersistError(err, 'upsertProjectTestRunSession')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -187,7 +251,11 @@ const persistTestRunSessionToDisk = async (projectId: string, session: TestRunSe
 
 const deleteTestRunSessionFromDisk = async (projectId: string, sessionId: string) => {
     if (window.electronAPI?.deleteProjectTestRunSession) {
-        await window.electronAPI.deleteProjectTestRunSession(projectId, sessionId)
+        try {
+            await window.electronAPI.deleteProjectTestRunSession(projectId, sessionId)
+        } catch (err) {
+            onPersistError(err, 'deleteProjectTestRunSession')
+        }
         return
     }
     saveProjectsToDisk(useProjectStore.getState().projects)
@@ -522,9 +590,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             return
         }
 
-        // Register a one-time flush listener so any pending debounced save is flushed
-        // synchronously when the main process sends 'flush-pending-save' before quitting
-        if (window.electronAPI.onFlushPendingSave) {
+        // Register the flush listener exactly once — loadProjects may be called
+        // multiple times (e.g. after import), and stacking listeners causes duplicate saves.
+        if (!_flushListenerRegistered && window.electronAPI.onFlushPendingSave) {
+            _flushListenerRegistered = true
             window.electronAPI.onFlushPendingSave(() => {
                 if (_debounceSaveTimer !== null) {
                     clearTimeout(_debounceSaveTimer)
@@ -1098,7 +1167,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             if (persistedHandoff) await persistHandoffToDisk(projectId, persistedHandoff)
             if (persistedEvent) await persistCollaborationEventToDisk(projectId, persistedEvent)
         }
-        await triggerCollaborationWebhook('pr_linked', notificationProject, notificationTask, notificationHandoff)
+        // Use persistedHandoff (has the final updatedAt) rather than the pre-update snapshot.
+        await triggerCollaborationWebhook('pr_linked', notificationProject, notificationTask, persistedHandoff ?? notificationHandoff)
     },
 
     addCollaborationEvent: async (projectId: string, event: Omit<CollaborationEvent, 'id' | 'timestamp'> & Partial<Pick<CollaborationEvent, 'timestamp'>>) => {
@@ -1134,8 +1204,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             description: seedData.description || executionRef.steps || executionRef.actualResult || '',
             source: seedData.source || 'manual'
         })
-        const activeProject = get().projects.find((project) => project.id === projectId)
-        const task = activeProject?.tasks.find((item) => item.id === taskId)
         const handoffId = await get().createHandoffPacket(projectId, taskId, {
             type: 'bug_handoff',
             createdByRole: 'qa',
@@ -1150,6 +1218,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }]
         })
         await get().setTaskCollabState(projectId, taskId, 'ready_for_dev')
+        // Re-fetch task after createHandoffPacket has mutated state (e.g. set activeHandoffId).
+        const task = get().projects.find((p) => p.id === projectId)?.tasks.find((t) => t.id === taskId)
         if (task) {
             await get().addCollaborationEvent(projectId, {
                 taskId,
@@ -2497,4 +2567,18 @@ export function useActiveProjectTaskBoardContext() {
             geminiModel: activeProject?.geminiModel,
         }
     }))
+}
+
+// ---------------------------------------------------------------------------
+// Flakiness stats selector
+// ---------------------------------------------------------------------------
+import { useMemo } from 'react'
+import { computeFlakinessStatsForProject, TestCaseFlakinessStats } from '@/lib/utils'
+
+export function useFlakinessStats(windowSize = 10): Map<string, TestCaseFlakinessStats> {
+    const sessions = useProjectStore(s => {
+        const p = s.projects.find(p => p.id === s.activeProjectId)
+        return p?.testRunSessions ?? EMPTY_TEST_RUN_SESSIONS
+    })
+    return useMemo(() => computeFlakinessStatsForProject(sessions, windowSize), [sessions, windowSize])
 }

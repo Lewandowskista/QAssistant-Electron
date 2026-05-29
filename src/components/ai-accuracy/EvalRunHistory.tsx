@@ -53,8 +53,8 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
         return (
             <div className="flex-1 flex items-center justify-center p-12">
                 <div className="text-center space-y-2">
-                    <p className="text-sm font-semibold text-[#E2E8F0]">No evaluation runs yet</p>
-                    <p className="text-xs text-[#6B7280]">Run an evaluation from the Setup tab to see results here.</p>
+                    <p className="text-sm font-semibold text-foreground">No evaluation runs yet</p>
+                    <p className="text-xs text-muted-ui">Run an evaluation from the Setup tab to see results here.</p>
                 </div>
             </div>
         )
@@ -65,13 +65,13 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
     return (
         <div className="flex-1 overflow-y-auto p-6 space-y-2">
             <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">
+                <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">
                     Evaluation History ({runs.length})
                 </p>
                 {onCompareRuns && completedRuns.length >= 2 && (
                     <div className="flex items-center gap-2">
                         {selectedIds.size > 0 && (
-                            <span className="text-[10px] text-[#6B7280]">
+                            <span className="text-[10px] text-muted-ui">
                                 {selectedIds.size}/2 selected
                             </span>
                         )}
@@ -80,10 +80,10 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                             disabled={selectedIds.size !== 2}
                             onClick={handleCompare}
                             className={cn(
-                                "h-7 text-[10px] font-bold border-[#2A2A3A]",
+                                "h-7 text-[10px] font-bold border-ui",
                                 selectedIds.size === 2
-                                    ? "text-[#A78BFA] border-[#A78BFA]/30 hover:bg-[#A78BFA]/10"
-                                    : "text-[#6B7280]"
+                                    ? "text-brand border-[#A78BFA]/30 hover:bg-[#A78BFA]/10"
+                                    : "text-muted-ui"
                             )}
                         >
                             <GitCompare className="h-3.5 w-3.5 mr-1" />
@@ -106,20 +106,20 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                     <div
                         key={run.id}
                         className={cn(
-                            "border border-[#2A2A3A] rounded-xl p-4 flex items-center gap-3 bg-[#13131A] transition-colors",
+                            "border border-ui rounded-xl p-4 flex items-center gap-3 bg-panel transition-colors",
                             activeRunId === run.id && !isSelected && "border-[#A78BFA]/40 bg-[#A78BFA]/5",
                             isSelected && "border-[#A78BFA]/60 bg-[#A78BFA]/10",
-                            isSelectable && "hover:bg-[#1A1A24] cursor-pointer",
-                            !isSelectable && "hover:bg-[#1A1A24]"
+                            isSelectable && "hover:bg-elevated cursor-pointer",
+                            !isSelectable && "hover:bg-elevated"
                         )}
                         onClick={isSelectable ? () => toggleSelect(run.id) : undefined}
                     >
                         {isSelectable && (
                             <div className={cn(
                                 "w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center",
-                                isSelected ? "border-[#A78BFA] bg-[#A78BFA]" : "border-[#2A2A3A]"
+                                isSelected ? "border-[#A78BFA] bg-primary" : "border-ui"
                             )}>
-                                {isSelected && <div className="w-2 h-2 bg-[#0F0F13] rounded-sm" />}
+                                {isSelected && <div className="w-2 h-2 bg-app rounded-sm" />}
                             </div>
                         )}
                         <div className="flex-1 min-w-0">
@@ -133,8 +133,8 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                                     </span>
                                 )}
                             </div>
-                            <p className="text-xs font-semibold text-[#E2E8F0] truncate">{run.name}</p>
-                            <p className="text-[10px] text-[#6B7280] mt-0.5">
+                            <p className="text-xs font-semibold text-foreground truncate">{run.name}</p>
+                            <p className="text-[10px] text-muted-ui mt-0.5">
                                 {run.completedPairs}/{run.totalPairs} pairs · {new Date(run.startedAt).toLocaleString()}
                             </p>
                             {run.error && (
@@ -146,7 +146,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-[#6B7280] hover:text-[#A78BFA]"
+                                    className="h-8 w-8 text-muted-ui hover:text-brand"
                                     onClick={() => onSelectRun(run)}
                                     title="View results"
                                 >
@@ -156,7 +156,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-[#6B7280] hover:text-red-400"
+                                className="h-8 w-8 text-muted-ui hover:text-red-400"
                                 onClick={() => onDeleteRun(run.id)}
                                 title="Delete run"
                             >

@@ -6,6 +6,7 @@ import type {
     AccuracyClaim,
     AccuracyScoreDimension
 } from '@/types/project'
+import { aiAccuracyExtractClaims, aiAccuracyVerifyClaims, aiAccuracyScoreDimensions, aiAccuracyRerankChunks } from '@/lib/aiClient'
 
 // ── Score helpers ────────────────────────────────────────────────────────────
 
@@ -234,8 +235,6 @@ async function evaluatePair(
     modelName: string | undefined,
     highAccuracyMode = false
 ): Promise<AccuracyQaPairResult> {
-    const api = window.electronAPI
-
     // 2A: TF-IDF retrieval — fetch top 30 candidates (wider net for re-ranker)
     const candidateCount = highAccuracyMode ? 30 : 20
     const candidateChunks = findRelevantChunksClient(pair.question, pair.agentResponse, allChunks, 40000, candidateCount, preTokenizedChunks, documentFrequency)
@@ -244,13 +243,11 @@ async function evaluatePair(
     let relevantChunks = candidateChunks
     if (highAccuracyMode && candidateChunks.length > 0) {
         const candidatesForApi = candidateChunks.map(c => ({ id: c.id, content: c.content }))
-        const rankedIds = await api.aiAccuracyRerankChunks({
-            apiKey,
+        const rankedIds = await aiAccuracyRerankChunks({
             question: pair.question,
             agentResponse: pair.agentResponse,
             chunks: candidatesForApi,
             topK: 20,
-            modelName
         })
         // Re-order candidateChunks to match LLM ranking, then trim to 20
         const idToChunk = new Map(candidateChunks.map(c => [c.id, c]))
@@ -265,11 +262,9 @@ async function evaluatePair(
     const refChunksForApi = relevantChunks.map(c => ({ id: c.id, content: c.content }))
 
     // LLM Call 1: Extract claims (2B: pass expectedAnswer so the model can prioritise diagnostic claims)
-    let rawClaims = await api.aiAccuracyExtractClaims({
-        apiKey,
+    let rawClaims = await aiAccuracyExtractClaims({
         agentResponse: pair.agentResponse,
-        modelName,
-        expectedAnswer: pair.expectedAnswer
+        expectedAnswer: pair.expectedAnswer,
     })
     let claimExtractionRetried = false
 
@@ -286,10 +281,8 @@ async function evaluatePair(
     // If count is out of range (< 3 or > 15), retry once
     if (claimsArray.length < 3 || claimsArray.length > 15) {
         claimExtractionRetried = true
-        rawClaims = await api.aiAccuracyExtractClaims({
-            apiKey,
+        rawClaims = await aiAccuracyExtractClaims({
             agentResponse: pair.agentResponse,
-            modelName
         })
         const retriedClaims: Array<{ claimText: string; claimType: string }> = Array.isArray(rawClaims)
             ? rawClaims.filter((c: any) => typeof c?.claimText === 'string' && c.claimText.trim() !== '')
@@ -308,13 +301,13 @@ async function evaluatePair(
     }
 
     // LLM Call 2: Verify claims (2B: pass expectedAnswer; 3B: dual-pass when highAccuracyMode)
-    const verifyArgs = { apiKey, claims: claimsArray, refChunks: refChunksForApi, modelName, expectedAnswer: pair.expectedAnswer }
+    const verifyArgs = { claims: claimsArray, refChunks: refChunksForApi, expectedAnswer: pair.expectedAnswer }
     let verificationResults: VerificationResult[] = []
     if (claimsArray.length > 0) {
-        const pass1Raw = await api.aiAccuracyVerifyClaims(verifyArgs)
+        const pass1Raw = await aiAccuracyVerifyClaims(verifyArgs)
         const pass1: VerificationResult[] = Array.isArray(pass1Raw) ? pass1Raw as VerificationResult[] : []
         if (highAccuracyMode) {
-            const pass2Raw = await api.aiAccuracyVerifyClaims(verifyArgs)
+            const pass2Raw = await aiAccuracyVerifyClaims(verifyArgs)
             const pass2: VerificationResult[] = Array.isArray(pass2Raw) ? pass2Raw as VerificationResult[] : []
             verificationResults = mergeVerificationResults(pass1, pass2)
         } else {
@@ -346,14 +339,12 @@ async function evaluatePair(
         reasoning: c.reasoning
     }))
 
-    const dimensionScoresRaw = await api.aiAccuracyScoreDimensions({
-        apiKey,
+    const dimensionScoresRaw = await aiAccuracyScoreDimensions({
         question: pair.question,
         agentResponse: pair.agentResponse,
         expectedAnswer: pair.expectedAnswer,
         claimVerdicts: claimVerdictsForScoring,
         refChunks: refChunksForApi,
-        modelName
     })
     const dimensionScores: AccuracyDimensionScore[] = (
         ['factualAccuracy', 'completeness', 'faithfulness', 'relevance'] as AccuracyScoreDimension[]

@@ -67,7 +67,7 @@ export default function TestRunDialog({ open, onOpenChange, activePlan, activePr
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <PlayCircle className="h-5 w-5 text-[#A78BFA]" />
+                        <PlayCircle className="h-5 w-5 text-brand" />
                         Batch Execute Plan
                     </DialogTitle>
                     <DialogDescription>
@@ -104,7 +104,7 @@ export default function TestRunDialog({ open, onOpenChange, activePlan, activePr
                             <Label>Environment</Label>
                             <Select value={environmentId} onValueChange={setEnvironmentId}>
                                 <SelectTrigger className="bg-background">
-                                    <SelectValue placeholder="Select environment..." />
+                                    <SelectValue placeholder="Select environment…" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {environments.map((env: any) => (
@@ -120,7 +120,7 @@ export default function TestRunDialog({ open, onOpenChange, activePlan, activePr
                     <div className="space-y-2">
                         <Label>Execution Comment</Label>
                         <Textarea
-                            placeholder="Enter notes to persist on all executions..."
+                            placeholder="Enter notes to persist on all executions…"
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                             className="h-32 resize-none bg-background"
@@ -128,11 +128,11 @@ export default function TestRunDialog({ open, onOpenChange, activePlan, activePr
                     </div>
                 </div>
 
-                <DialogFooter className="bg-[#13131A] border-t border-[#2A2A3A] -mx-6 -mb-6 px-6 py-4">
+                <DialogFooter className="bg-panel border-t border-ui -mx-6 -mb-6 px-6 py-4">
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                     <Button
                         onClick={handleBatchRecord}
-                        className="bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] gap-2 font-bold"
+                        className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] gap-2 font-bold"
                         disabled={cases.length === 0}
                     >
                         <Save className="h-4 w-4" /> Save {cases.length} Executions

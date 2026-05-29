@@ -176,15 +176,26 @@ describe('electron auth', () => {
         expect(result.error).toContain('requires email verification')
     })
 
-    it('reports configured false when app auth config is missing', async () => {
+    it('enters local mode and signs in a local user when app auth config is missing', async () => {
         const auth = await loadAuthModule({})
 
         const status = await auth.authGetStatus()
-        const errorStatus = auth.getAuthErrorStatus('Supabase app configuration is missing')
 
-        expect(status.configured).toBe(false)
-        expect(errorStatus.configured).toBe(false)
-        expect(errorStatus.status).toBe('error')
+        // No cloud backend → run fully locally instead of blocking on a login gate.
+        expect(status.localMode).toBe(true)
+        expect(status.configured).toBe(true)
+        expect(status.status).toBe('signed_in')
+        expect(status.user).not.toBeNull()
+    })
+
+    it('keeps the user signed in locally when sign-out is called in local mode', async () => {
+        const auth = await loadAuthModule({})
+
+        await auth.authGetStatus()
+        const afterSignOut = await auth.authSignOut()
+
+        expect(afterSignOut.localMode).toBe(true)
+        expect(afterSignOut.status).toBe('signed_in')
     })
 
     it('times out stalled sign-up requests instead of hanging forever', async () => {

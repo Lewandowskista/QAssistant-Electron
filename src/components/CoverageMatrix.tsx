@@ -228,7 +228,7 @@ export default function CoverageMatrix() {
                                 </th>
                                 {matrix.cols.map(col => (
                                     <th key={col.id} className="min-w-[130px] border border-ui bg-panel p-3 text-center">
-                                        <div className="font-mono text-[9px] text-[#A78BFA] font-bold">{col.displayId}</div>
+                                        <div className="font-mono text-[9px] text-brand font-bold">{col.displayId}</div>
                                         <div className="mt-0.5 max-w-[120px] truncate text-[10px] font-semibold text-foreground" title={col.name}>{col.name}</div>
                                     </th>
                                 ))}
@@ -239,7 +239,7 @@ export default function CoverageMatrix() {
                             {viewMode === 'issue' && (
                                 <tr className="bg-primary/5 transition-colors hover:bg-primary/10">
                                     <td className="border border-primary/30 bg-background p-3">
-                                        <span className="text-[10px] font-bold text-[#A78BFA] uppercase tracking-widest">⚠ Coverage Gaps</span>
+                                        <span className="text-[10px] font-bold text-brand uppercase tracking-widest">⚠ Coverage Gaps</span>
                                         <p className="mt-1 text-[9px] text-muted-ui">Items with no test coverage</p>
                                     </td>
                                     {matrix.cols.map(col => {
@@ -267,7 +267,7 @@ export default function CoverageMatrix() {
                                         <td className="sticky left-0 z-10 border border-ui bg-background p-3 transition-colors group-hover:bg-panel-muted">
                                             <div className="flex flex-col gap-0.5">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-mono text-[11px] text-[#A78BFA] font-bold">{row.id}</span>
+                                                    <span className="font-mono text-[11px] text-brand font-bold">{row.id}</span>
                                                     {task?.ticketUrl && (
                                                         <a href={task.ticketUrl} target="_blank" rel="noopener noreferrer" className="text-muted-ui transition-colors hover:text-primary">
                                                             <ExternalLink className="h-3 w-3" />
@@ -318,7 +318,7 @@ export default function CoverageMatrix() {
                                                                     {cell.cases.length > 4 && <p className="mt-1 text-[9px] text-muted-ui">+{cell.cases.length - 4} more</p>}
                                                                 </>
                                                             ) : (
-                                                                <p className="text-[10px] font-bold text-[#A78BFA] uppercase">⚠ No Coverage</p>
+                                                                <p className="text-[10px] font-bold text-brand uppercase">⚠ No Coverage</p>
                                                             )}
                                                         </div>
                                                     )}

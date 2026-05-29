@@ -20,4 +20,10 @@ export type AuthStatus = {
     supabaseUrl?: string
     supabaseAnonKey?: string
     usingOfflineSession?: boolean
+    /**
+     * True when the app is running fully locally without a reachable cloud
+     * backend. In this mode the login gate is skipped and a synthetic local
+     * user is used. All cloud calls (sync, cloud snapshot) become no-ops.
+     */
+    localMode?: boolean
 }

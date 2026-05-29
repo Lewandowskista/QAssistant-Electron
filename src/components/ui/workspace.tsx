@@ -43,6 +43,36 @@ export function CompactPageHeader({
   )
 }
 
+export function FullBleedHeader({
+  icon: Icon,
+  title,
+  description,
+  status,
+  actions,
+  className,
+}: {
+  icon?: LucideIcon
+  title: string
+  description?: ReactNode
+  /** Inline status content rendered between the title and the right-aligned actions. */
+  status?: ReactNode
+  actions?: ReactNode
+  className?: string
+}) {
+  return (
+    <header className={cn("full-bleed-header", className)}>
+      {Icon ? <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" /> : null}
+      <div className="flex min-w-0 items-baseline gap-2">
+        <h1 className="full-bleed-header-title truncate">{title}</h1>
+        {description ? <span className="full-bleed-header-eyebrow truncate">{description}</span> : null}
+      </div>
+      <div className="flex-1" />
+      {status ? <div className="flex items-center gap-2">{status}</div> : null}
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    </header>
+  )
+}
+
 export function ActionToolbar({
   children,
   className,

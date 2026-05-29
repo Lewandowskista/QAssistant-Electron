@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import { getApiKey } from "@/lib/credentials"
+import { aiGenerateFlexSearch } from "@/lib/aiClient"
 import { ServerCog, Play, RefreshCw, TerminalSquare, CheckCircle2, Zap, Activity, ShieldQuestion, Globe, Layers, AlertTriangle, Sparkles } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -16,6 +17,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { SubtabBar } from "@/components/ui/subtab-bar"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 type SapTab = "Cronjobs" | "Catalog" | "FlexSearch" | "Impex" | "Ccv2"
 
@@ -69,6 +71,7 @@ export default function SapPage() {
     const activeProject = projects.find(p => p.id === activeProjectId)
     const environments = useMemo(() => activeProject?.environments ?? [], [activeProject?.environments])
     const projectSecretPrefix = activeProject ? `project:${activeProject.id}:` : ""
+    const { confirm, dialog: confirmDialog } = useConfirm()
 
     const [activeTab, setActiveTab] = useState<SapTab>("Cronjobs")
     const [selectedEnvId, setSelectedEnvId] = useState("")
@@ -207,10 +210,10 @@ export default function SapPage() {
 
     if (!activeProject) {
         return (
-            <div className="h-full flex flex-col items-center justify-center text-center opacity-60 bg-[#0F0F13]">
-                <ShieldQuestion className="h-16 w-16 mb-4 text-[#6B7280]" />
-                <h2 className="text-xl font-black uppercase tracking-widest text-[#E2E8F0]">No Project Selected</h2>
-                <p className="text-xs font-bold text-[#6B7280] mt-2">Select a project to access SAP Commerce features.</p>
+            <div className="h-full flex flex-col items-center justify-center text-center opacity-60 bg-app">
+                <ShieldQuestion className="h-16 w-16 mb-4 text-muted-ui" />
+                <h2 className="text-xl font-black uppercase tracking-widest text-foreground">No Project Selected</h2>
+                <p className="text-xs font-bold text-muted-ui mt-2">Select a project to access SAP Commerce features.</p>
             </div>
         )
     }
@@ -275,14 +278,9 @@ export default function SapPage() {
 
     const generateFlexFromNl = async () => {
         if (!nlQuery.trim()) return
-        const apiKey = await getApiKey(api, "gemini_api_key", activeProject?.id)
-        if (!apiKey) {
-            toast.error("Configure a Gemini API key in Settings to use AI-assisted query generation.")
-            return
-        }
         setNlLoading(true)
         try {
-            const result = await api.aiGenerateFlexSearch({ apiKey, naturalLanguageQuery: nlQuery.trim(), modelName: activeProject?.geminiModel })
+            const result = await aiGenerateFlexSearch({ naturalLanguageQuery: nlQuery.trim() })
             if (result && typeof result === "object" && "__isError" in result) {
                 toast.error(`AI error: ${(result as any).message}`)
                 return
@@ -350,11 +348,19 @@ export default function SapPage() {
     const runImpEx = async () => {
         if (!targetBaseUrl || !impExScript.trim()) return
 
-        if (isProductionEnv && !window.confirm(`Import ImpEx into production environment "${selectedEnv?.name}"?`)) {
+        if (isProductionEnv && !(await confirm(`Import ImpEx into production environment "${selectedEnv?.name}"?`, {
+            description: "This will run the ImpEx script against a production target. Make sure you have validated the script.",
+            confirmLabel: "Import to Production",
+            destructive: true,
+        }))) {
             return
         }
 
-        if (impExEnableCode && !window.confirm("Enable code execution for this ImpEx import? This is high risk.")) {
+        if (impExEnableCode && !(await confirm("Enable code execution for this ImpEx import?", {
+            description: "Code execution allows arbitrary Groovy/BeanShell to run on the server. This is high risk.",
+            confirmLabel: "Enable & Import",
+            destructive: true,
+        }))) {
             return
         }
 
@@ -479,8 +485,8 @@ export default function SapPage() {
     })
 
     return (
-        <div className="h-full flex flex-col animate-in fade-in duration-500 bg-[#0F0F13] overflow-hidden">
-            <header className="bg-[#13131A] border-b border-[#2A2A3A] p-4 space-y-4 flex-none">
+        <div className="h-full flex flex-col animate-in fade-in duration-500 bg-app overflow-hidden">
+            <header className="bg-panel border-b border-ui p-4 space-y-4 flex-none">
                 <SubtabBar
                     value={activeTab}
                     onChange={(value) => setActiveTab(value as SapTab)}
@@ -504,15 +510,15 @@ export default function SapPage() {
 
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-4">
-                        <div className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                            <Globe className="h-3.5 w-3.5 text-[#A78BFA]" />
+                        <div className="flex items-center gap-2 text-xs font-bold text-muted-ui uppercase tracking-wider">
+                            <Globe className="h-3.5 w-3.5 text-brand" />
                             Environment:
                         </div>
                         <Select value={selectedEnvId} onValueChange={setSelectedEnvId}>
-                            <SelectTrigger className="w-[220px] h-9 bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0] font-bold">
+                            <SelectTrigger className="w-[220px] h-9 bg-panel-muted border-ui text-xs text-foreground font-bold">
                                 <SelectValue placeholder="Select environment" />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
+                            <SelectContent className="bg-panel-muted border-ui text-foreground">
                                 {environments.map(env => (
                                     <SelectItem key={env.id} value={env.id}>{env.name}</SelectItem>
                                 ))}
@@ -524,20 +530,20 @@ export default function SapPage() {
                                 value={hacBaseUrl}
                                 onChange={e => setHacBaseUrl(e.target.value)}
                                 placeholder="HAC URL"
-                                className="w-[260px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                className="w-[260px] h-8 bg-panel-muted border-ui text-foreground text-xs"
                             />
                             <Input
                                 value={hacUser}
                                 onChange={e => setHacUser(e.target.value)}
                                 placeholder="User"
-                                className="w-[140px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                className="w-[140px] h-8 bg-panel-muted border-ui text-foreground text-xs"
                             />
                             <Input
                                 type="password"
                                 value={hacPass}
                                 onChange={e => setHacPass(e.target.value)}
                                 placeholder="Password"
-                                className="w-[160px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                className="w-[160px] h-8 bg-panel-muted border-ui text-foreground text-xs"
                             />
                         </div>
                     </div>
@@ -550,14 +556,14 @@ export default function SapPage() {
                                 "h-9 px-6 font-black text-[10px] uppercase tracking-widest gap-2 shadow-xl",
                                 isConnected
                                     ? "bg-transparent border border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/5"
-                                    : "bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]"
+                                    : "bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]"
                             )}
                         >
                             {isConnecting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : isConnected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5 fill-current" />}
                             {isConnecting ? "AUTHORIZING..." : isConnected ? "CONNECTED" : "CONNECT"}
                         </Button>
                         {isConnected && (
-                            <Button variant="ghost" onClick={handleDisconnect} className="h-9 text-[10px] font-black uppercase tracking-widest text-[#6B7280] hover:text-[#E2E8F0]">
+                            <Button variant="ghost" onClick={handleDisconnect} className="h-9 text-[10px] font-black uppercase tracking-widest text-muted-ui hover:text-foreground">
                                 Disconnect
                             </Button>
                         )}
@@ -567,10 +573,10 @@ export default function SapPage() {
                 {selectedEnv && (
                     <div className={cn(
                         "rounded-xl border px-4 py-3 text-xs flex flex-wrap items-center gap-3",
-                        isProductionEnv ? "border-[#EF4444]/30 bg-[#EF4444]/10 text-[#FECACA]" : "border-[#2A2A3A] bg-[#0F0F13] text-[#9CA3AF]"
+                        isProductionEnv ? "border-[#EF4444]/30 bg-[#EF4444]/10 text-[#FECACA]" : "border-ui bg-app text-soft"
                     )}>
-                        {isProductionEnv ? <AlertTriangle className="h-4 w-4 text-[#F87171]" /> : <Activity className="h-4 w-4 text-[#A78BFA]" />}
-                        <span className="font-bold text-[#E2E8F0]">{selectedEnv.name}</span>
+                        {isProductionEnv ? <AlertTriangle className="h-4 w-4 text-[#F87171]" /> : <Activity className="h-4 w-4 text-brand" />}
+                        <span className="font-bold text-foreground">{selectedEnv.name}</span>
                         <span className="uppercase tracking-widest">{selectedEnv.type}</span>
                         <span>HAC: {selectedEnv.hacUrl || "not configured"}</span>
                         <span>SSL bypass: {selectedEnv.ignoreSslErrors ? "enabled" : "disabled"}</span>
@@ -582,19 +588,19 @@ export default function SapPage() {
             <main className="flex-1 overflow-hidden">
                 {!isConnected ? (
                     <div className="h-full flex flex-col items-center justify-center p-12 text-center relative group">
-                        <div className="w-24 h-24 rounded-3xl bg-[#1A1A24] border border-[#2A2A3A] flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-700 shadow-2xl shadow-[#A78BFA]/5">
+                        <div className="w-24 h-24 rounded-3xl bg-panel-muted border border-ui flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-700 shadow-2xl shadow-[#A78BFA]/5">
                             <ServerCog className="h-10 w-10 text-[#6B7280]/20" strokeWidth={1.5} />
                         </div>
-                        <h3 className="text-xl font-black text-[#E2E8F0] uppercase tracking-widest">Not Connected</h3>
-                        <p className="text-sm text-[#6B7280] mt-4 max-w-sm font-medium leading-relaxed">
+                        <h3 className="text-xl font-black text-foreground uppercase tracking-widest">Not Connected</h3>
+                        <p className="text-sm text-muted-ui mt-4 max-w-sm font-medium leading-relaxed">
                             Select an SAP Commerce environment, review the target details, and connect to HAC before running queries or imports.
                         </p>
                     </div>
                 ) : (
                     <div className="h-full flex flex-col overflow-hidden">
                         {activeTab === "Cronjobs" && (
-                            <div className="flex-1 flex flex-col overflow-hidden bg-[#0F0F13]">
-                                <div className="p-4 bg-[#13131A] border-b border-[#2A2A3A] flex items-center justify-between">
+                            <div className="flex-1 flex flex-col overflow-hidden bg-app">
+                                <div className="p-4 bg-panel border-b border-ui flex items-center justify-between">
                                     <div className="flex gap-2">
                                         {(["All", "Running", "Failed", "Critical"] as const).map(filter => (
                                             <button
@@ -602,21 +608,21 @@ export default function SapPage() {
                                                 onClick={() => setCronFilter(filter)}
                                                 className={cn(
                                                     "h-7 px-3 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
-                                                    cronFilter === filter ? "bg-[#A78BFA] text-[#0F0F13]" : "text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#1A1A24]"
+                                                    cronFilter === filter ? "bg-primary text-[#0F0F13]" : "text-muted-ui hover:text-foreground hover:bg-elevated"
                                                 )}
                                             >
                                                 {filter}
                                             </button>
                                         ))}
                                     </div>
-                                    <Button variant="ghost" size="sm" onClick={fetchCronJobs} className="h-8 text-[10px] font-black uppercase text-[#A78BFA] gap-2">
+                                    <Button variant="ghost" size="sm" onClick={fetchCronJobs} className="h-8 text-[10px] font-black uppercase text-brand gap-2">
                                         <RefreshCw className="h-3 w-3" /> Refresh Cronjobs
                                     </Button>
                                 </div>
                                 <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
                                     <table className="w-full text-left">
                                         <thead>
-                                            <tr className="text-[10px] uppercase text-[#6B7280] font-black tracking-widest border-b border-[#2A2A3A]">
+                                            <tr className="text-[10px] uppercase text-muted-ui font-black tracking-widest border-b border-ui">
                                                 <th className="pb-3 px-4">Status</th>
                                                 <th className="pb-3 px-4">Job Code</th>
                                                 <th className="pb-3 px-4">Last Result</th>
@@ -624,24 +630,24 @@ export default function SapPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="text-xs">
-                                            {filteredCronJobs.map((row, index) => {
-                                                let color = "text-[#6B7280]"
+                                            {filteredCronJobs.map((row) => {
+                                                let color = "text-muted-ui"
                                                 if (row.Status === "RUNNING") color = "text-[#3B82F6]"
                                                 else if (row.Status === "SUCCESS") color = "text-[#10B981]"
                                                 else if (row.Status === "FAILURE") color = "text-[#EF4444]"
                                                 else if (row.Status === "CRITICAL") color = "text-[#E11D48]"
 
                                                 return (
-                                                    <tr key={index} className="border-b border-[#2A2A3A]/50 hover:bg-[#1A1A24]/50 transition-colors">
+                                                    <tr key={row.Code} className="border-b border-[#2A2A3A]/50 hover:bg-[#1A1A24]/50 transition-colors">
                                                         <td className="py-4 px-4 font-black">
                                                             <div className="flex items-center gap-2">
                                                                 <div className={cn("h-1.5 w-1.5 rounded-full", color.replace("text-", "bg-"))} />
                                                                 <span className={cn("text-[10px] tracking-widest font-black", color)}>{row.Status}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="py-4 px-4 font-bold text-[#E2E8F0] font-mono">{row.Code}</td>
-                                                        <td className="py-4 px-4 text-[#6B7280] font-medium">{row.LastResult || "-"}</td>
-                                                        <td className="py-4 px-4 text-[#6B7280] font-medium">{row.NextActivationTime || "-"}</td>
+                                                        <td className="py-4 px-4 font-bold text-foreground font-mono">{row.Code}</td>
+                                                        <td className="py-4 px-4 text-muted-ui font-medium">{row.LastResult || "-"}</td>
+                                                        <td className="py-4 px-4 text-muted-ui font-medium">{row.NextActivationTime || "-"}</td>
                                                     </tr>
                                                 )
                                             })}
@@ -652,15 +658,15 @@ export default function SapPage() {
                         )}
 
                         {activeTab === "FlexSearch" && (
-                            <div className="flex-1 flex flex-col overflow-hidden bg-[#0F0F13]">
-                                <div className="p-4 bg-[#13131A] border-b border-[#2A2A3A] flex items-center gap-4">
-                                    <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest whitespace-nowrap">FlexSearch Console</span>
+                            <div className="flex-1 flex flex-col overflow-hidden bg-app">
+                                <div className="p-4 bg-panel border-b border-ui flex items-center gap-4">
+                                    <span className="text-[10px] font-black text-muted-ui uppercase tracking-widest whitespace-nowrap">FlexSearch Console</span>
                                     <div className="flex-1" />
                                     <Select onValueChange={value => setFlexQuery(FLEX_TEMPLATES[value] || "")}>
-                                        <SelectTrigger className="w-[300px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[10px] font-bold text-[#6B7280] uppercase">
-                                            <SelectValue placeholder="Quick templates..." />
+                                        <SelectTrigger className="w-[300px] h-8 bg-panel-muted border-ui text-[10px] font-bold text-muted-ui uppercase">
+                                            <SelectValue placeholder="Quick templates…" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
+                                        <SelectContent className="bg-panel-muted border-ui text-foreground">
                                             <SelectItem value="products">Fetch Products</SelectItem>
                                             <SelectItem value="catalogs">Invalid Catalog Versions</SelectItem>
                                             <SelectItem value="lockedUsers">Locked Users</SelectItem>
@@ -668,42 +674,42 @@ export default function SapPage() {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="px-4 py-3 bg-[#0F0F13] border-b border-[#2A2A3A] flex items-center gap-3">
-                                    <Sparkles className="h-3.5 w-3.5 text-[#A78BFA] shrink-0" />
+                                <div className="px-4 py-3 bg-app border-b border-ui flex items-center gap-3">
+                                    <Sparkles className="h-3.5 w-3.5 text-brand shrink-0" />
                                     <Input
                                         value={nlQuery}
                                         onChange={e => setNlQuery(e.target.value)}
                                         onKeyDown={e => { if (e.key === "Enter" && !nlLoading) void generateFlexFromNl() }}
                                         placeholder='Ask AI: "find all products in staged catalog with no price"'
-                                        className="flex-1 h-8 bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0] placeholder:text-[#6B7280]/60"
+                                        className="flex-1 h-8 bg-panel-muted border-ui text-xs text-foreground placeholder:text-[#6B7280]/60"
                                     />
                                     <Button
                                         onClick={generateFlexFromNl}
                                         disabled={!nlQuery.trim() || nlLoading}
-                                        className="h-8 px-4 bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA] font-black text-[10px] uppercase gap-2 hover:bg-[#A78BFA]/20"
+                                        className="h-8 px-4 bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-brand font-black text-[10px] uppercase gap-2 hover:bg-[#A78BFA]/20"
                                         variant="ghost"
                                     >
                                         {nlLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                                        {nlLoading ? "Generating..." : "Generate"}
+                                        {nlLoading ? "Generating…" : "Generate"}
                                     </Button>
                                 </div>
-                                <div className="h-48 bg-[#0F0F13] border-b border-[#2A2A3A] p-4 relative">
+                                <div className="h-48 bg-app border-b border-ui p-4 relative">
                                     <textarea
                                         value={flexQuery}
                                         onChange={e => setFlexQuery(e.target.value)}
-                                        className="w-full h-full bg-transparent border-none text-[#A78BFA] font-mono text-sm resize-none focus:outline-none custom-scrollbar app-region-no-drag"
+                                        className="w-full h-full bg-transparent border-none text-brand font-mono text-sm resize-none focus:outline-none custom-scrollbar app-region-no-drag"
                                         placeholder="SELECT {p:pk}, {p:code} FROM {Product AS p} WHERE {p:approvalStatus} = 'approved'"
                                         spellCheck={false}
                                     />
                                     <Button
                                         onClick={runFlexSearch}
                                         disabled={!flexQuery.trim() || flexLoading}
-                                        className="absolute bottom-6 right-8 h-10 px-8 bg-[#A78BFA] text-[#0F0F13] font-black text-xs gap-2 shadow-2xl shadow-[#A78BFA]/20"
+                                        className="absolute bottom-6 right-8 h-10 px-8 bg-primary text-[#0F0F13] font-black text-xs gap-2 shadow-2xl shadow-[#A78BFA]/20"
                                     >
                                         <Play className="h-4 w-4 fill-current text-[#0F0F13]" /> Execute Query
                                     </Button>
                                 </div>
-                                {flexLoading && <div className="p-4 text-xs text-[#A78BFA]">Running query...</div>}
+                                {flexLoading && <div className="p-4 text-xs text-brand">Running query…</div>}
                                 {flexResult ? (
                                     flexResult.Error ? (
                                         <div className="p-4 text-red-400">{flexResult.Error}</div>
@@ -711,15 +717,15 @@ export default function SapPage() {
                                         <div className="flex-1 p-4 overflow-auto">
                                             <table className="w-full table-auto text-xs">
                                                 <thead>
-                                                    <tr className="bg-[#13131A]">
-                                                        {flexResult.Headers.map((header, index) => (
-                                                            <th key={index} className="px-2 py-1 text-left">{header}</th>
+                                                    <tr className="bg-panel">
+                                                        {flexResult.Headers.map((header) => (
+                                                            <th key={header} className="px-2 py-1 text-left">{header}</th>
                                                         ))}
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {flexResult.Rows.map((row, rowIndex) => (
-                                                        <tr key={rowIndex} className="hover:bg-[#1A1A24]">
+                                                        <tr key={rowIndex} className="hover:bg-elevated">
                                                             {row.map((cell, cellIndex) => (
                                                                 <td key={cellIndex} className="px-2 py-1">{cell}</td>
                                                             ))}
@@ -730,7 +736,7 @@ export default function SapPage() {
                                         </div>
                                     )
                                 ) : (
-                                    <div className="flex-1 flex flex-col items-center justify-center text-[#6B7280] opacity-40">
+                                    <div className="flex-1 flex flex-col items-center justify-center text-muted-ui opacity-40">
                                         <TerminalSquare className="h-12 w-12 mb-4" strokeWidth={1} />
                                         <p className="text-[10px] font-black uppercase tracking-[0.2em]">No results yet</p>
                                     </div>
@@ -739,28 +745,28 @@ export default function SapPage() {
                         )}
 
                         {activeTab === "Catalog" && (
-                            <div className="flex-1 flex flex-col overflow-hidden bg-[#0F0F13]">
-                                <div className="p-4 bg-[#13131A] border-b border-[#2A2A3A] flex items-center gap-4">
-                                    <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest whitespace-nowrap">Catalog Delta Engine</span>
+                            <div className="flex-1 flex flex-col overflow-hidden bg-app">
+                                <div className="p-4 bg-panel border-b border-ui flex items-center gap-4">
+                                    <span className="text-[10px] font-black text-muted-ui uppercase tracking-widest whitespace-nowrap">Catalog Delta Engine</span>
                                     <div className="flex-1" />
                                     {catalogIds.length > 0 ? (
                                         <Select value={selectedCatalog} onValueChange={setSelectedCatalog}>
-                                            <SelectTrigger className="w-[250px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[10px] font-bold text-[#6B7280]">
+                                            <SelectTrigger className="w-[250px] h-8 bg-panel-muted border-ui text-[10px] font-bold text-muted-ui">
                                                 <SelectValue placeholder="Select Catalog" />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0] text-[10px]">
+                                            <SelectContent className="bg-panel-muted border-ui text-foreground text-[10px]">
                                                 {catalogIds.map(id => (
                                                     <SelectItem key={id} value={id}>{id}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     ) : (
-                                        <span className="text-[10px] text-[#A78BFA] animate-pulse">Loading catalogs...</span>
+                                        <span className="text-[10px] text-brand animate-pulse">Loading catalogs…</span>
                                     )}
                                     <Button
                                         onClick={runCatalogDiff}
                                         disabled={!selectedCatalog || catalogDiffLoading}
-                                        className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase gap-2"
+                                        className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase gap-2"
                                     >
                                         {catalogDiffLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                                         Compare Staged vs Online
@@ -768,35 +774,35 @@ export default function SapPage() {
                                 </div>
                                 <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
                                     {!catalogDiff && !catalogDiffLoading && (
-                                        <div className="h-full flex flex-col items-center justify-center text-[#6B7280] opacity-30">
+                                        <div className="h-full flex flex-col items-center justify-center text-muted-ui opacity-30">
                                             <Layers className="h-16 w-16 mb-6" strokeWidth={1} />
                                             <h3 className="text-sm font-black uppercase tracking-widest">Select a catalog to compare</h3>
                                         </div>
                                     )}
                                     {catalogDiffLoading && (
-                                        <div className="h-full flex flex-col items-center justify-center text-[#A78BFA] gap-4">
+                                        <div className="h-full flex flex-col items-center justify-center text-brand gap-4">
                                             <RefreshCw className="h-8 w-8 animate-spin" />
-                                            <span className="text-xs font-bold uppercase tracking-widest animate-pulse">Running delta queries...</span>
+                                            <span className="text-xs font-bold uppercase tracking-widest animate-pulse">Running delta queries…</span>
                                         </div>
                                     )}
                                     {catalogDiff && (
                                         <div className="space-y-6 max-w-4xl mx-auto">
                                             <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-2xl p-6 flex flex-col items-center justify-center gap-2">
-                                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Staged Items</span>
-                                                    <span className="text-4xl font-black text-[#E2E8F0]">{catalogDiff.stagedCount}</span>
+                                                <div className="bg-panel-muted border border-ui rounded-2xl p-6 flex flex-col items-center justify-center gap-2">
+                                                    <span className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">Staged Items</span>
+                                                    <span className="text-4xl font-black text-foreground">{catalogDiff.stagedCount}</span>
                                                 </div>
-                                                <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-2xl p-6 flex flex-col items-center justify-center gap-2">
-                                                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">Online Items</span>
-                                                    <span className="text-4xl font-black text-[#A78BFA]">{catalogDiff.onlineCount}</span>
+                                                <div className="bg-panel-muted border border-ui rounded-2xl p-6 flex flex-col items-center justify-center gap-2">
+                                                    <span className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">Online Items</span>
+                                                    <span className="text-4xl font-black text-brand">{catalogDiff.onlineCount}</span>
                                                 </div>
                                             </div>
-                                            <div className="bg-[#13131A] border border-[#2A2A3A] rounded-2xl overflow-hidden shadow-xl">
-                                                <div className="px-6 py-4 border-b border-[#2A2A3A] flex items-center justify-between">
-                                                    <span className="text-xs font-bold text-[#E2E8F0] uppercase tracking-widest">Missing in Online ({catalogDiff.missingStagedToOnline?.length || 0})</span>
-                                                    <span className="text-[10px] text-[#6B7280]">Top 200 items</span>
+                                            <div className="bg-panel border border-ui rounded-2xl overflow-hidden shadow-xl">
+                                                <div className="px-6 py-4 border-b border-ui flex items-center justify-between">
+                                                    <span className="text-xs font-bold text-foreground uppercase tracking-widest">Missing in Online ({catalogDiff.missingStagedToOnline?.length || 0})</span>
+                                                    <span className="text-[10px] text-muted-ui">Top 200 items</span>
                                                 </div>
-                                                <div className="p-6 bg-[#0F0F13]">
+                                                <div className="p-6 bg-app">
                                                     {catalogDiff.missingStagedToOnline?.length === 0 ? (
                                                         <div className="flex items-center gap-3 text-[#10B981]">
                                                             <CheckCircle2 className="h-5 w-5" />
@@ -804,8 +810,8 @@ export default function SapPage() {
                                                         </div>
                                                     ) : (
                                                         <div className="flex flex-wrap gap-2">
-                                                            {catalogDiff.missingStagedToOnline?.map((code, index) => (
-                                                                <span key={index} className="px-2 py-1 bg-[#1A1A24] border border-[#2A2A3A] rounded text-[10px] font-mono text-[#E2E8F0]">
+                                                            {catalogDiff.missingStagedToOnline?.map((code) => (
+                                                                <span key={code} className="px-2 py-1 bg-panel-muted border border-ui rounded text-[10px] font-mono text-foreground">
                                                                     {code}
                                                                 </span>
                                                             ))}
@@ -821,14 +827,14 @@ export default function SapPage() {
 
                         {activeTab === "Impex" && (
                             <div className="flex-1 flex flex-col overflow-hidden">
-                                <div className="p-4 bg-[#13131A] border-b border-[#2A2A3A] flex items-center gap-4">
-                                    <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest whitespace-nowrap">ImpEx Playground</span>
+                                <div className="p-4 bg-panel border-b border-ui flex items-center gap-4">
+                                    <span className="text-[10px] font-black text-muted-ui uppercase tracking-widest whitespace-nowrap">ImpEx Playground</span>
                                     <div className="flex-1" />
                                     <Select onValueChange={value => setImpExScript(IMPEX_SNIPPETS[value] || "")}>
-                                        <SelectTrigger className="w-[220px] h-8 bg-[#1A1A24] border-[#2A2A3A] text-[10px] font-bold text-[#6B7280] uppercase">
-                                            <SelectValue placeholder="Snippet templates..." />
+                                        <SelectTrigger className="w-[220px] h-8 bg-panel-muted border-ui text-[10px] font-bold text-muted-ui uppercase">
+                                            <SelectValue placeholder="Snippet templates…" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-[#1A1A24] border-[#2A2A3A] text-[#E2E8F0]">
+                                        <SelectContent className="bg-panel-muted border-ui text-foreground">
                                             <SelectItem value="product">Insert Product</SelectItem>
                                             <SelectItem value="customer">Insert Customer</SelectItem>
                                             <SelectItem value="removeProduct">Remove Product</SelectItem>
@@ -839,41 +845,41 @@ export default function SapPage() {
                                         <Checkbox
                                             checked={impExEnableCode}
                                             onCheckedChange={value => setImpExEnableCode(!!value)}
-                                            className="h-4 w-4 border-[#2A2A3A] data-[state=checked]:bg-[#EF4444]"
+                                            className="h-4 w-4 border-ui data-[state=checked]:bg-[#EF4444]"
                                         />
                                         <span className="text-[10px] text-[#FCA5A5] uppercase tracking-widest font-bold">Enable Code Exec</span>
                                     </div>
                                     <Button
                                         variant="ghost"
                                         onClick={handleValidateImpex}
-                                        className="h-8 border-[#2A2A3A] text-[10px] font-black text-[#A78BFA] uppercase hover:bg-[#A78BFA]/5 border"
+                                        className="h-8 border-ui text-[10px] font-black text-brand uppercase hover:bg-[#A78BFA]/5 border"
                                     >
                                         Validate Syntax
                                     </Button>
                                     <Button
                                         onClick={runImpEx}
                                         disabled={impExExecuting || !impExScript.trim()}
-                                        className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase"
+                                        className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase"
                                     >
                                         {impExExecuting ? "IMPORTING..." : "Import Script"}
                                     </Button>
                                 </div>
-                                <div className="px-4 py-3 border-b border-[#2A2A3A] bg-[#0A0A0E] text-[10px] uppercase tracking-widest text-[#9CA3AF] flex flex-wrap gap-3">
+                                <div className="px-4 py-3 border-b border-ui bg-app text-[10px] uppercase tracking-widest text-soft flex flex-wrap gap-3">
                                     <span>Target: {selectedEnv?.name || "Custom target"}</span>
                                     <span>Environment Type: {selectedEnv?.type || "custom"}</span>
                                     <span className={isProductionEnv ? "text-[#FCA5A5]" : ""}>{isProductionEnv ? "Production safeguards enabled" : "Non-production target"}</span>
                                 </div>
-                                <div className="flex-1 bg-[#0F0F13] p-4">
+                                <div className="flex-1 bg-app p-4">
                                     <textarea
                                         value={impExScript}
                                         onChange={e => setImpExScript(e.target.value)}
-                                        className="w-full h-full bg-[#13131A] border border-[#2A2A3A] rounded-2xl p-6 text-[#E2E8F0] font-mono text-sm resize-none focus:outline-none selection:bg-[#A78BFA]/20 app-region-no-drag"
+                                        className="w-full h-full bg-panel border border-ui rounded-2xl p-6 text-foreground font-mono text-sm resize-none focus:outline-none selection:bg-[#A78BFA]/20 app-region-no-drag"
                                         placeholder="# ImpEx Script&#10;INSERT_UPDATE Product;code[unique=true];name[lang=en]&#10;;test_p001;High Fidelity Component"
                                         spellCheck={false}
                                     />
                                 </div>
-                                <div className="h-36 bg-[#0A0A0E] border-t border-[#2A2A3A] p-4 custom-scrollbar overflow-y-auto">
-                                    <div className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest mb-2 border-b border-[#2A2A3A]/30 pb-1">Console Log</div>
+                                <div className="h-36 bg-app border-t border-ui p-4 custom-scrollbar overflow-y-auto">
+                                    <div className="text-[9px] font-black text-muted-ui uppercase tracking-widest mb-2 border-b border-[#2A2A3A]/30 pb-1">Console Log</div>
                                     <div className="font-mono text-[10px] text-[#A78BFA]/60 leading-relaxed whitespace-pre-wrap">
                                         {impExResult || `Ready for ImpEx import.\nTarget environment: ${selectedEnv?.name || selectedEnvId || "custom target"}`}
                                     </div>
@@ -882,33 +888,33 @@ export default function SapPage() {
                         )}
 
                         {activeTab === "Ccv2" && (
-                            <div className="flex-1 overflow-auto p-4 bg-[#0F0F13] space-y-4">
+                            <div className="flex-1 overflow-auto p-4 bg-app space-y-4">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <Input
                                         placeholder="Subscription Code"
                                         value={ccv2Sub}
                                         onChange={e => setCcv2Sub(e.target.value)}
-                                        className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                        className="h-8 bg-panel-muted border border-ui text-foreground text-xs"
                                     />
                                     <Input
                                         type="password"
                                         placeholder="API Token"
                                         value={ccv2Token}
                                         onChange={e => setCcv2Token(e.target.value)}
-                                        className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                        className="h-8 bg-panel-muted border border-ui text-foreground text-xs"
                                     />
                                     <Button
                                         onClick={fetchCcv2Envs}
                                         disabled={!ccv2Sub.trim() || !ccv2Token.trim() || ccv2Loading}
-                                        className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase"
+                                        className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase"
                                     >
-                                        {ccv2Loading ? "Loading..." : "Get Environments"}
+                                        {ccv2Loading ? "Loading…" : "Get Environments"}
                                     </Button>
                                 </div>
                                 {ccv2Envs.length > 0 && (
-                                    <div className="mt-2 overflow-auto max-h-40 border border-[#2A2A3A]">
+                                    <div className="mt-2 overflow-auto max-h-40 border border-ui">
                                         <table className="w-full text-xs">
-                                            <thead className="bg-[#13131A]">
+                                            <thead className="bg-panel">
                                                 <tr>
                                                     <th className="px-2 py-1 text-left">Code</th>
                                                     <th className="px-2 py-1 text-left">Name</th>
@@ -917,10 +923,10 @@ export default function SapPage() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {ccv2Envs.map((env, index) => (
+                                                {ccv2Envs.map((env) => (
                                                     <tr
-                                                        key={index}
-                                                        className="hover:bg-[#1A1A24] cursor-pointer"
+                                                        key={env.code}
+                                                        className="hover:bg-elevated cursor-pointer"
                                                         onClick={() => {
                                                             setSelectedCcv2Env(env.code)
                                                             setCcv2Deployments([])
@@ -939,11 +945,11 @@ export default function SapPage() {
 
                                 {selectedCcv2Env && (
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-[#E2E8F0]">Selected: {selectedCcv2Env}</span>
+                                        <span className="text-[10px] text-foreground">Selected: {selectedCcv2Env}</span>
                                         <Button
                                             onClick={fetchCcv2Deployments}
                                             disabled={ccv2Loading}
-                                            className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase"
+                                            className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase"
                                         >
                                             Load Deployments
                                         </Button>
@@ -951,9 +957,9 @@ export default function SapPage() {
                                 )}
 
                                 {ccv2Deployments.length > 0 && (
-                                    <div className="mt-2 overflow-auto max-h-40 border border-[#2A2A3A] rounded-lg">
+                                    <div className="mt-2 overflow-auto max-h-40 border border-ui rounded-lg">
                                         <table className="w-full text-xs text-left">
-                                            <thead className="bg-[#13131A] text-[#6B7280] font-black tracking-widest uppercase">
+                                            <thead className="bg-panel text-muted-ui font-black tracking-widest uppercase">
                                                 <tr>
                                                     <th className="px-4 py-2">Code</th>
                                                     <th className="px-4 py-2">Env</th>
@@ -962,13 +968,13 @@ export default function SapPage() {
                                                     <th className="px-4 py-2">Strategy</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="text-[#E2E8F0] font-medium font-mono">
-                                                {ccv2Deployments.map((deployment, index) => (
-                                                    <tr key={index} className="hover:bg-[#1A1A24] border-b border-[#2A2A3A] transition-colors">
-                                                        <td className="px-4 py-2 border-r border-[#2A2A3A]">{deployment.code}</td>
-                                                        <td className="px-4 py-2 border-r border-[#2A2A3A]">{deployment.environmentCode}</td>
-                                                        <td className="px-4 py-2 border-r border-[#2A2A3A]">{deployment.buildCode}</td>
-                                                        <td className="px-4 py-2 border-r border-[#2A2A3A]">{deployment.status}</td>
+                                            <tbody className="text-foreground font-medium font-mono">
+                                                {ccv2Deployments.map((deployment) => (
+                                                    <tr key={deployment.code} className="hover:bg-elevated border-b border-ui transition-colors">
+                                                        <td className="px-4 py-2 border-r border-ui">{deployment.code}</td>
+                                                        <td className="px-4 py-2 border-r border-ui">{deployment.environmentCode}</td>
+                                                        <td className="px-4 py-2 border-r border-ui">{deployment.buildCode}</td>
+                                                        <td className="px-4 py-2 border-r border-ui">{deployment.status}</td>
                                                         <td className="px-4 py-2">{deployment.strategy}</td>
                                                     </tr>
                                                 ))}
@@ -982,25 +988,26 @@ export default function SapPage() {
                                         placeholder="Build Code"
                                         value={ccv2BuildCode}
                                         onChange={e => setCcv2BuildCode(e.target.value)}
-                                        className="h-8 bg-[#1A1A24] border border-[#2A2A3A] text-[#E2E8F0] text-xs"
+                                        className="h-8 bg-panel-muted border border-ui text-foreground text-xs"
                                     />
                                     <Button
                                         onClick={fetchCcv2Build}
                                         disabled={ccv2Loading || !ccv2BuildCode.trim()}
-                                        className="h-8 bg-[#A78BFA] text-[#0F0F13] font-black text-[10px] uppercase"
+                                        className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase"
                                     >
                                         Get Build
                                     </Button>
                                 </div>
 
                                 {ccv2BuildInfo && (
-                                    <pre className="text-xs bg-[#13131A] p-3 rounded-lg overflow-auto">{JSON.stringify(ccv2BuildInfo, null, 2)}</pre>
+                                    <pre className="text-xs bg-panel p-3 rounded-lg overflow-auto">{JSON.stringify(ccv2BuildInfo, null, 2)}</pre>
                                 )}
                             </div>
                         )}
                     </div>
                 )}
             </main>
+            {confirmDialog}
         </div>
     )
 }

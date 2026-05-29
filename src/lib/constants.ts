@@ -3,12 +3,33 @@
  * Import from here instead of scattering magic numbers throughout the codebase.
  */
 
-/** Z-index scale — use these tokens instead of z-[100] etc. */
+/**
+ * Z-index scale (single source of truth for stacking order).
+ *
+ * Use the matching `z-layer-*` utility classes in markup (defined in
+ * index.css) rather than arbitrary `z-[N]` literals, so every overlay shares
+ * one ordered scale. The numeric values here exist for the rare case where a
+ * z-index must be set via inline style or passed to a library.
+ *
+ * Order (low -> high):
+ *   STICKY    in-page sticky bars
+ *   DROPDOWN  Radix select / dropdown / popover poppers
+ *   OVERLAY   app drawers + command palette backdrops
+ *   DRAWER    drawer content that sits above its own overlay
+ *   DIALOG    Radix Dialog (overlay + content)
+ *   CONFIRM   confirm dialogs — must sit ABOVE a Dialog that triggered them
+ *   TOAST     transient toasts, above all surfaces
+ *   SKIP_LINK accessibility skip link, always reachable
+ */
 export const Z = {
+    STICKY: 30,
+    DROPDOWN: 50,
     OVERLAY: 100,
-    MODAL_BACKDROP: 200,
-    MODAL: 201,
-    TOAST: 300,
+    DRAWER: 120,
+    DIALOG: 9999,
+    CONFIRM: 10000,
+    TOAST: 10010,
+    SKIP_LINK: 10020,
 } as const
 
 /** Debounce delay for persisting project state to disk */

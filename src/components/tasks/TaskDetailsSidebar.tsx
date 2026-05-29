@@ -259,23 +259,23 @@ export function TaskDetailsSidebar({
                                     </select>
                                     <Input value={String(draft.assignee || "")} onChange={(event) => setDraft((current) => ({ ...current, assignee: event.target.value }))} placeholder="Assignee…" className="border-ui bg-panel-muted text-sm" />
                                     <Input value={String(draft.version || "")} onChange={(event) => setDraft((current) => ({ ...current, version: event.target.value }))} placeholder="Version…" className="border-ui bg-panel-muted text-sm" />
-                                    <Input type="date" value={draft.dueDate ? new Date(draft.dueDate).toISOString().slice(0, 10) : ""} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value ? new Date(event.target.value).getTime() : undefined }))} className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
-                                    <Input value={String(draft.labels || "")} onChange={(event) => setDraft((current) => ({ ...current, labels: event.target.value }))} placeholder="Labels" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
-                                    <Input value={Array.isArray(draft.components) ? draft.components.join(", ") : String(draft.components || "")} onChange={(event) => setDraft((current) => ({ ...current, components: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) }))} placeholder="Components" className="border-[#2A2A3A] bg-[#1A1A24] text-sm" />
+                                    <Input type="date" value={draft.dueDate ? new Date(draft.dueDate).toISOString().slice(0, 10) : ""} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value ? new Date(event.target.value).getTime() : undefined }))} className="border-ui bg-panel-muted text-sm" />
+                                    <Input value={String(draft.labels || "")} onChange={(event) => setDraft((current) => ({ ...current, labels: event.target.value }))} placeholder="Labels" className="border-ui bg-panel-muted text-sm" />
+                                    <Input value={Array.isArray(draft.components) ? draft.components.join(", ") : String(draft.components || "")} onChange={(event) => setDraft((current) => ({ ...current, components: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) }))} placeholder="Components" className="border-ui bg-panel-muted text-sm" />
                                 </div>
-                                <Button className="w-full bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]" onClick={handleSave}>Save Changes</Button>
+                                <Button className="w-full bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]" onClick={handleSave}>Save Changes</Button>
                             </div>
                         ) : (
                             <div className="space-y-5">
                                 <div>
                                     <SectionTitle>Acceptance Criteria</SectionTitle>
-                                    <div className="mt-2 rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4 text-sm leading-relaxed text-[#E2E8F0]">
+                                    <div className="mt-2 rounded-xl border border-ui bg-panel-muted p-4 text-sm leading-relaxed text-foreground">
                                         <FormattedText content={selectedTask.acceptanceCriteria || "No acceptance criteria yet."} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
                                     </div>
                                 </div>
                                 <div>
                                     <SectionTitle>Description</SectionTitle>
-                                    <div className="mt-2 rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4 text-sm leading-relaxed text-[#E2E8F0]">
+                                    <div className="mt-2 rounded-xl border border-ui bg-panel-muted p-4 text-sm leading-relaxed text-foreground">
                                         <FormattedText content={selectedTask.description || "No description yet."} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
                                     </div>
                                 </div>
@@ -296,7 +296,7 @@ export function TaskDetailsSidebar({
                                 <SectionTitle>Collaboration</SectionTitle>
                                 <PresenceAvatars taskId={selectedTask.id} />
                             </div>
-                            <p className="mt-2 text-xs text-[#9CA3AF]">Track handoff completeness, PR context, release state, and QA verification without leaving the drawer.</p>
+                            <p className="mt-2 text-xs text-soft">Track handoff completeness, PR context, release state, and QA verification without leaving the drawer.</p>
                         </div>
                         {activeProject ? <HandoffPanel activeProject={activeProject} task={selectedTask} /> : null}
                         {timelineEvents.length > 0 && (
@@ -312,14 +312,14 @@ export function TaskDetailsSidebar({
                     <TabsContent value="traceability" className="m-0 space-y-5">
                         <div>
                             <SectionTitle>Traceability</SectionTitle>
-                            <p className="mt-2 text-xs text-[#9CA3AF]">Coverage is derived from linked test cases, linked defects, and shared component tags.</p>
+                            <p className="mt-2 text-xs text-soft">Coverage is derived from linked test cases, linked defects, and shared component tags.</p>
                         </div>
                         {traceability ? <TraceabilityPanel traceability={traceability} /> : null}
                     </TabsContent>
 
                     <TabsContent value="comments" className="m-0 space-y-4">
                         {isLoadingTab ? (
-                            <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#A78BFA]" /></div>
+                            <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-brand" /></div>
                         ) : commentsError ? (
                             <div className="rounded-xl border border-[#EF4444]/20 bg-[#EF4444]/10 p-4 text-xs text-[#FCA5A5]">{commentsError}</div>
                         ) : comments.length === 0 ? (
@@ -330,12 +330,12 @@ export function TaskDetailsSidebar({
                         ) : (
                             <div className="space-y-4">
                                 {comments.map((comment, index) => (
-                                    <div key={index} className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-3">
+                                    <div key={index} className="rounded-xl border border-ui bg-panel-muted p-3">
                                         <div className="mb-2 flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-[#A78BFA]">{comment.authorName}</span>
-                                            <span className="text-[9px] text-[#6B7280]">{new Date(comment.createdAt).toLocaleString()}</span>
+                                            <span className="text-[10px] font-bold text-brand">{comment.authorName}</span>
+                                            <span className="text-[9px] text-muted-ui">{new Date(comment.createdAt).toLocaleString()}</span>
                                         </div>
-                                        <div className="text-xs text-[#E2E8F0]">
+                                        <div className="text-xs text-foreground">
                                             <FormattedText content={comment.body} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
                                         </div>
                                     </div>
@@ -343,9 +343,9 @@ export function TaskDetailsSidebar({
                             </div>
                         )}
                         {(selectedTask.externalId || selectedTask.sourceIssueId) && selectedTask.source !== "manual" && (
-                            <div className="flex gap-2 border-t border-[#2A2A3A] pt-4">
-                                <Input value={newComment} onChange={(event) => setNewComment(event.target.value)} placeholder="Add a comment..." className="h-10 border-[#2A2A3A] bg-[#1A1A24] text-xs" />
-                                <Button className="bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]" onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
+                            <div className="flex gap-2 border-t border-ui pt-4">
+                                <Input value={newComment} onChange={(event) => setNewComment(event.target.value)} placeholder="Add a comment…" className="h-10 border-ui bg-panel-muted text-xs" />
+                                <Button className="bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]" onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
                                     {isPostingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : "Post"}
                                 </Button>
                             </div>
@@ -359,14 +359,14 @@ export function TaskDetailsSidebar({
                             </div>
                         ) : (
                             [...selectedTask.analysisHistory].sort((left, right) => right.version - left.version).map((entry) => (
-                                <div key={entry.hash} className="rounded-xl border border-[#2A2A3A] bg-[#1A1A24] p-4">
+                                <div key={entry.hash} className="rounded-xl border border-ui bg-panel-muted p-4">
                                     <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-[10px] font-bold text-[#6B7280]">{new Date(entry.timestamp).toLocaleString()}</span>
+                                        <span className="text-[10px] font-bold text-muted-ui">{new Date(entry.timestamp).toLocaleString()}</span>
                                         <div className="flex items-center gap-1">
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
-                                                className="h-6 px-2 text-[#6B7280] hover:text-[#A78BFA]"
+                                                className="h-6 px-2 text-muted-ui hover:text-brand"
                                                 onClick={() => onViewAnalysis(entry)}
                                             >
                                                 <Eye className="h-3 w-3" />
@@ -374,14 +374,14 @@ export function TaskDetailsSidebar({
                                             <Button
                                                 size="icon"
                                                 variant="ghost"
-                                                className="h-6 w-6 text-[#6B7280] hover:text-[#EF4444]"
+                                                className="h-6 w-6 text-muted-ui hover:text-[hsl(var(--state-danger))]"
                                                 onClick={() => onDeleteAnalysis(entry)}
                                             >
                                                 <Trash2 className="h-3 w-3" />
                                             </Button>
                                         </div>
                                     </div>
-                                    <div className="text-[11px] text-[#E2E8F0]">
+                                    <div className="text-[11px] text-foreground">
                                         <FormattedText content={entry.summary} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
                                     </div>
                                 </div>
@@ -391,7 +391,7 @@ export function TaskDetailsSidebar({
 
                     <TabsContent value="activity" className="m-0 space-y-4">
                         {isLoadingTab ? (
-                            <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-[#A78BFA]" /></div>
+                            <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-brand" /></div>
                         ) : activity.length === 0 ? (
                             <div className="py-10 text-center opacity-40">
                                 <p className="text-xs font-bold uppercase tracking-wider">No activity recorded</p>

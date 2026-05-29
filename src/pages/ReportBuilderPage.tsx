@@ -235,7 +235,7 @@ export default function ReportBuilderPage() {
             <div className="mx-4 mt-4 space-y-2 rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-overlay))] p-3">
               <input
                 type="text"
-                placeholder="Template name..."
+                placeholder="Template name…"
                 value={newTemplateName}
                 onChange={(e) => setNewTemplateName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateTemplate()}

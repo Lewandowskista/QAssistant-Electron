@@ -25,20 +25,20 @@ interface SuiteSetupProps {
 function DocRow({ doc, onRemove }: { doc: ReferenceDocument; onRemove: () => void }) {
     const ext = doc.fileName.split('.').pop()?.toUpperCase() ?? 'FILE'
     return (
-        <div className="flex items-center gap-3 p-3 bg-[#13131A] border border-[#2A2A3A] rounded-lg group">
+        <div className="flex items-center gap-3 p-3 bg-panel border border-ui rounded-lg group">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#A78BFA]/10 shrink-0">
-                <FileText className="h-4 w-4 text-[#A78BFA]" />
+                <FileText className="h-4 w-4 text-brand" />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-[#E2E8F0] truncate">{doc.fileName}</p>
-                <p className="text-[9px] text-[#6B7280] mt-0.5">
+                <p className="text-xs font-semibold text-foreground truncate">{doc.fileName}</p>
+                <p className="text-[9px] text-muted-ui mt-0.5">
                     {ext} · {(doc.fileSizeBytes / 1024).toFixed(1)} KB
                     {doc.chunkCount > 0 && ` · ${doc.chunkCount} chunks`}
                 </p>
             </div>
             <Button
                 variant="ghost" size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-[#6B7280] hover:text-red-400"
+                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-ui hover:text-red-400"
                 onClick={onRemove}
             >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -62,45 +62,45 @@ function AddPairForm({ onAdd, onCancel }: { onAdd: (q: string, r: string, expect
     }
 
     return (
-        <div className="border border-[#A78BFA]/30 rounded-xl p-4 bg-[#13131A] space-y-3">
+        <div className="border border-[#A78BFA]/30 rounded-xl p-4 bg-panel space-y-3">
             <div>
-                <label className="text-[9px] font-bold text-[#6B7280] uppercase tracking-widest block mb-1.5">Question (asked to the chatbot)</label>
+                <label className="text-[9px] font-bold text-muted-ui uppercase tracking-widest block mb-1.5">Question (asked to the chatbot)</label>
                 <Textarea
                     value={question}
                     onChange={e => setQuestion(e.target.value)}
                     placeholder="What is the return policy?"
-                    className="bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0] resize-none h-20"
+                    className="bg-panel-muted border-ui text-xs text-foreground resize-none h-20"
                 />
             </div>
             <div>
-                <label className="text-[9px] font-bold text-[#6B7280] uppercase tracking-widest block mb-1.5">Agent Response (copy from the website)</label>
+                <label className="text-[9px] font-bold text-muted-ui uppercase tracking-widest block mb-1.5">Agent Response (copy from the website)</label>
                 <Textarea
                     value={response}
                     onChange={e => setResponse(e.target.value)}
                     placeholder="Paste the chatbot's response here..."
-                    className="bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0] resize-none h-28"
+                    className="bg-panel-muted border-ui text-xs text-foreground resize-none h-28"
                 />
             </div>
             <div>
-                <label className="text-[9px] font-bold text-[#6B7280] uppercase tracking-widest block mb-1.5">
+                <label className="text-[9px] font-bold text-muted-ui uppercase tracking-widest block mb-1.5">
                     Expected Answer <span className="text-[#6B7280]/60 normal-case font-normal">(optional — human-verified correct answer)</span>
                 </label>
                 <Textarea
                     value={expectedAnswer}
                     onChange={e => setExpectedAnswer(e.target.value)}
                     placeholder="Provide the correct answer as written by a human expert…"
-                    className="bg-[#1A1A24] border-[#2A2A3A] text-xs text-[#E2E8F0] resize-none h-20"
+                    className="bg-panel-muted border-ui text-xs text-foreground resize-none h-20"
                 />
             </div>
             <div className="flex items-center gap-2 justify-end">
-                <Button variant="ghost" size="sm" onClick={onCancel} className="h-8 text-[#6B7280]">
+                <Button variant="ghost" size="sm" onClick={onCancel} className="h-8 text-muted-ui">
                     <X className="h-3.5 w-3.5 mr-1" /> Cancel
                 </Button>
                 <Button
                     size="sm"
                     disabled={!question.trim() || !response.trim() || saving}
                     onClick={handleSave}
-                    className="h-8 bg-[#A78BFA] hover:bg-[#9370EA] text-[#0F0F13] font-bold"
+                    className="h-8 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
                 >
                     {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
                     Add Pair
@@ -172,8 +172,8 @@ export function SuiteSetup({
             <section>
                 <div className="flex items-center justify-between mb-3">
                     <div>
-                        <p className="text-xs font-bold text-[#E2E8F0]">Reference Documents</p>
-                        <p className="text-[10px] text-[#6B7280] mt-0.5">
+                        <p className="text-xs font-bold text-foreground">Reference Documents</p>
+                        <p className="text-[10px] text-muted-ui mt-0.5">
                             Upload the knowledge base documents that the chatbot uses.
                         </p>
                     </div>
@@ -181,7 +181,7 @@ export function SuiteSetup({
                         variant="outline" size="sm"
                         disabled={isUploadingDoc}
                         onClick={handleSelectDoc}
-                        className="h-8 text-[10px] font-bold border-[#2A2A3A] text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                        className="h-8 text-[10px] font-bold border-ui text-brand hover:bg-[#A78BFA]/10"
                     >
                         {isUploadingDoc
                             ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
@@ -200,9 +200,9 @@ export function SuiteSetup({
                 )}
 
                 {suite.referenceDocuments.length === 0 ? (
-                    <div className="border-2 border-dashed border-[#2A2A3A] rounded-xl p-8 text-center">
+                    <div className="border-2 border-dashed border-ui rounded-xl p-8 text-center">
                         <FileText className="h-8 w-8 text-[#2A2A3A] mx-auto mb-2" />
-                        <p className="text-xs text-[#6B7280]">No reference documents added yet</p>
+                        <p className="text-xs text-muted-ui">No reference documents added yet</p>
                         <p className="text-[10px] text-[#6B7280]/60 mt-1">Supports .txt, .md, .pdf, .docx</p>
                     </div>
                 ) : (
@@ -218,8 +218,8 @@ export function SuiteSetup({
             <section>
                 <div className="flex items-center justify-between mb-3">
                     <div>
-                        <p className="text-xs font-bold text-[#E2E8F0]">Q&amp;A Pairs</p>
-                        <p className="text-[10px] text-[#6B7280] mt-0.5">
+                        <p className="text-xs font-bold text-foreground">Q&amp;A Pairs</p>
+                        <p className="text-[10px] text-muted-ui mt-0.5">
                             Questions asked to the chatbot and its responses — copied from the website.
                         </p>
                     </div>
@@ -227,14 +227,14 @@ export function SuiteSetup({
                         <Button
                             variant="outline" size="sm"
                             onClick={() => setShowImportDialog(true)}
-                            className="h-8 text-[10px] font-bold border-[#2A2A3A] text-[#6B7280] hover:text-[#E2E8F0]"
+                            className="h-8 text-[10px] font-bold border-ui text-muted-ui hover:text-foreground"
                         >
                             <FilePlus className="h-3.5 w-3.5 mr-1" /> Import CSV
                         </Button>
                         <Button
                             variant="outline" size="sm"
                             onClick={() => setShowAddForm(true)}
-                            className="h-8 text-[10px] font-bold border-[#2A2A3A] text-[#A78BFA] hover:bg-[#A78BFA]/10"
+                            className="h-8 text-[10px] font-bold border-ui text-brand hover:bg-[#A78BFA]/10"
                         >
                             <Plus className="h-3.5 w-3.5 mr-1" /> Add Pair
                         </Button>
@@ -251,8 +251,8 @@ export function SuiteSetup({
                 )}
 
                 {suite.qaPairs.length === 0 && !showAddForm ? (
-                    <div className="border-2 border-dashed border-[#2A2A3A] rounded-xl p-8 text-center">
-                        <p className="text-xs text-[#6B7280]">No Q&amp;A pairs added yet</p>
+                    <div className="border-2 border-dashed border-ui rounded-xl p-8 text-center">
+                        <p className="text-xs text-muted-ui">No Q&amp;A pairs added yet</p>
                         <p className="text-[10px] text-[#6B7280]/60 mt-1">
                             Add pairs manually or import from a CSV with &quot;question&quot; and &quot;response&quot; columns.
                         </p>
@@ -260,13 +260,13 @@ export function SuiteSetup({
                 ) : (
                     <div className="space-y-2">
                         {suite.qaPairs.map((pair, idx) => (
-                            <div key={pair.id} className="flex items-start gap-3 p-3 bg-[#13131A] border border-[#2A2A3A] rounded-lg group">
-                                <span className="text-[9px] font-mono text-[#6B7280] mt-0.5 w-5 shrink-0 text-right">
+                            <div key={pair.id} className="flex items-start gap-3 p-3 bg-panel border border-ui rounded-lg group">
+                                <span className="text-[9px] font-mono text-muted-ui mt-0.5 w-5 shrink-0 text-right">
                                     {idx + 1}
                                 </span>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold text-[#E2E8F0] truncate">{pair.question}</p>
-                                    <p className="text-[10px] text-[#6B7280] truncate mt-0.5">{pair.agentResponse}</p>
+                                    <p className="text-xs font-semibold text-foreground truncate">{pair.question}</p>
+                                    <p className="text-[10px] text-muted-ui truncate mt-0.5">{pair.agentResponse}</p>
                                     {pair.expectedAnswer && (
                                         <p className="text-[9px] text-emerald-400/70 truncate mt-0.5">
                                             <span className="font-bold">Expected:</span> {pair.expectedAnswer}
@@ -278,7 +278,7 @@ export function SuiteSetup({
                                 </div>
                                 <Button
                                     variant="ghost" size="icon"
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-[#6B7280] hover:text-red-400 shrink-0"
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-ui hover:text-red-400 shrink-0"
                                     onClick={() => onRemovePair(pair.id)}
                                 >
                                     <X className="h-3.5 w-3.5" />
@@ -290,34 +290,34 @@ export function SuiteSetup({
             </section>
 
             {/* Run Evaluation */}
-            <section className="border-t border-[#2A2A3A] pt-6">
+            <section className="border-t border-ui pt-6">
                 {isEvaluating && evalProgress && (
                     <div className="mb-4 p-4 bg-[#A78BFA]/5 border border-[#A78BFA]/20 rounded-xl">
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin text-[#A78BFA]" />
-                                <span className="text-xs font-bold text-[#A78BFA]">Evaluating…</span>
+                                <Loader2 className="h-4 w-4 animate-spin text-brand" />
+                                <span className="text-xs font-bold text-brand">Evaluating…</span>
                             </div>
-                            <span className="text-[10px] text-[#6B7280]">
+                            <span className="text-[10px] text-muted-ui">
                                 {evalProgress.completed} / {evalProgress.total} pairs
                             </span>
                         </div>
-                        <div className="w-full bg-[#1A1A24] rounded-full h-1.5 overflow-hidden mb-2">
+                        <div className="w-full bg-panel-muted rounded-full h-1.5 overflow-hidden mb-2">
                             <div
-                                className="h-full bg-[#A78BFA] rounded-full transition-all duration-500"
+                                className="h-full bg-primary rounded-full transition-all duration-500"
                                 style={{ width: evalProgress.total > 0 ? `${(evalProgress.completed / evalProgress.total) * 100}%` : '0%' }}
                             />
                         </div>
                         {evalProgress.currentQuestion && (
-                            <p className="text-[10px] text-[#6B7280] truncate italic">{evalProgress.currentQuestion}</p>
+                            <p className="text-[10px] text-muted-ui truncate italic">{evalProgress.currentQuestion}</p>
                         )}
                     </div>
                 )}
 
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-xs font-bold text-[#E2E8F0]">Run Evaluation</p>
-                        <p className="text-[10px] text-[#6B7280] mt-0.5">
+                        <p className="text-xs font-bold text-foreground">Run Evaluation</p>
+                        <p className="text-[10px] text-muted-ui mt-0.5">
                             {suite.referenceDocuments.length} document{suite.referenceDocuments.length !== 1 ? 's' : ''} ·{' '}
                             {suite.qaPairs.length} Q&amp;A pair{suite.qaPairs.length !== 1 ? 's' : ''}
                         </p>
@@ -332,7 +332,7 @@ export function SuiteSetup({
                                 "flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[10px] font-bold transition-colors",
                                 suite.highAccuracyMode
                                     ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
-                                    : "border-[#2A2A3A] text-[#6B7280] hover:text-[#E2E8F0]"
+                                    : "border-ui text-muted-ui hover:text-foreground"
                             )}
                             title="High accuracy mode runs claim verification twice and merges results for greater consistency. Uses 2× API calls for verification."
                         >
@@ -345,8 +345,8 @@ export function SuiteSetup({
                             className={cn(
                                 "font-bold",
                                 canRunEval
-                                    ? "bg-[#A78BFA] hover:bg-[#9370EA] text-[#0F0F13]"
-                                    : "bg-[#2A2A3A] text-[#6B7280] cursor-not-allowed"
+                                    ? "bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13]"
+                                    : "bg-elevated text-muted-ui cursor-not-allowed"
                             )}
                         >
                             {isEvaluating
@@ -358,7 +358,7 @@ export function SuiteSetup({
                 </div>
 
                 {!canRunEval && !isEvaluating && (
-                    <p className="text-[10px] text-[#6B7280] mt-2">
+                    <p className="text-[10px] text-muted-ui mt-2">
                         {suite.referenceDocuments.length === 0 && '⚠ Add at least one reference document. '}
                         {suite.qaPairs.length === 0 && '⚠ Add at least one Q&A pair.'}
                     </p>

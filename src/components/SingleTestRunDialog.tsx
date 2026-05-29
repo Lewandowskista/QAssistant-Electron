@@ -90,11 +90,11 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl">
-                <div className="h-2 bg-[#A78BFA] w-full" />
+                <div className="h-2 bg-primary w-full" />
                 <div className="p-8">
                     <DialogHeader className="mb-6">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-[#A78BFA] mb-2">
+                            <div className="flex items-center gap-3 text-brand mb-2">
                                 <div className="p-2 bg-[#A78BFA]/10 rounded-lg">
                                     <PlayCircle className="h-6 w-6" />
                                 </div>
@@ -106,7 +106,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                             {/* Timer Badge */}
                             <div className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-full border font-mono text-sm font-bold transition-all",
-                                isActive ? "bg-[#A78BFA]/10 border-[#A78BFA]/30 text-[#A78BFA] animate-pulse" : "bg-[#2A2A3A]/50 border-[#2A2A3A] text-[#6B7280]"
+                                isActive ? "bg-[#A78BFA]/10 border-[#A78BFA]/30 text-brand animate-pulse" : "bg-[#2A2A3A]/50 border-ui text-muted-ui"
                             )}>
                                 <Clock className="h-4 w-4" />
                                 {formatTime(seconds)}
@@ -171,7 +171,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Environment</Label>
                                 <Select value={environmentId} onValueChange={setEnvironmentId}>
                                     <SelectTrigger className="h-11 bg-background font-bold">
-                                        <SelectValue placeholder="Select environment..." />
+                                        <SelectValue placeholder="Select environment…" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {environments.map((env: any) => (
@@ -208,7 +208,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Execution Notes / Evidence</Label>
                                 <Textarea
-                                    placeholder="Add any additional notes, logs, or comments..."
+                                    placeholder="Add any additional notes, logs, or comments…"
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
                                     className="h-16 resize-none bg-background text-sm italic"
@@ -246,7 +246,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                         </Button>
                         <Button
                             onClick={handleRecord}
-                            className="bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] font-black px-8 shadow-lg shadow-[#A78BFA]/20"
+                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-black px-8 shadow-lg shadow-[#A78BFA]/20"
                         >
                             <Save className="h-4 w-4 mr-2" /> Save Execution Result
                         </Button>

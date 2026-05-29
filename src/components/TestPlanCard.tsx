@@ -111,30 +111,30 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
         .map(([status, count]) => (
             <div key={status} className="flex items-center gap-1.5 px-1">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColors[status as TestCaseStatus] }} />
-                <span className="text-[10px] text-[#6B7280]">{count} {status}</span>
+                <span className="text-[10px] text-muted-ui">{count} {status}</span>
             </div>
         ))
 
     return (
         <div className={cn(
-            "bg-[#13131A] border border-[#2A2A3A] rounded-xl overflow-hidden transition-all shadow-sm",
+            "bg-panel border border-ui rounded-xl overflow-hidden transition-all shadow-sm",
             plan.isArchived ? "opacity-60" : "opacity-100"
         )}>
             {/* Header */}
             <div
-                className="flex items-center p-4 cursor-pointer hover:bg-[#1A1A24] transition-colors gap-3"
+                className="flex items-center p-4 cursor-pointer hover:bg-elevated transition-colors gap-3"
                 onClick={() => setIsCollapsed(!isCollapsed)}
             >
-                <div className="text-[#A78BFA]">
+                <div className="text-brand">
                     {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </div>
 
                 <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                        <span className="font-mono text-[14px] font-bold text-[#A78BFA] tracking-tight">{plan.displayId || 'PLAN-XXX'}</span>
-                        <span className="text-[14px] font-semibold text-[#E2E8F0] truncate">{plan.name}</span>
+                        <span className="font-mono text-[14px] font-bold text-brand tracking-tight">{plan.displayId || 'PLAN-XXX'}</span>
+                        <span className="text-[14px] font-semibold text-foreground truncate">{plan.name}</span>
                         <div className="bg-[#1E1E32] px-2 py-0.5 rounded border border-[#2A2A3A]/50 shrink-0">
-                            <span className="text-[10px] text-[#9CA3AF] uppercase font-bold">{plan.testCases.length} CASE{plan.testCases.length !== 1 ? 'S' : ''}</span>
+                            <span className="text-[10px] text-soft uppercase font-bold">{plan.testCases.length} CASE{plan.testCases.length !== 1 ? 'S' : ''}</span>
                         </div>
                         {plan.isArchived && <div className="bg-[#2D2010] px-2 py-0.5 rounded border border-[#FBBF24]/20 shrink-0 text-[10px] font-bold text-[#FBBF24] uppercase tracking-wider">ARCHIVED</div>}
                         {plan.isRegressionSuite && <div className="bg-[#10B981]/10 px-2 py-0.5 rounded border border-[#10B981]/20 shrink-0 text-[10px] font-bold text-[#10B981] uppercase tracking-wider">REGRESSION</div>}
@@ -147,23 +147,23 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
 
                 {/* Toolbar */}
                 <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-[#A78BFA] hover:bg-[#A78BFA]/10" onClick={() => onRunCases(plan)} title="Execute Plan">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-[#A78BFA]/10" onClick={() => onRunCases(plan)} title="Execute Plan">
                         <PlayCircle className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-[#A78BFA] hover:bg-[#A78BFA]/10" onClick={() => resetTestPlanStatuses(activeProjectId, plan.id)} title="Reset Statuses">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-[#A78BFA]/10" onClick={() => resetTestPlanStatuses(activeProjectId, plan.id)} title="Reset Statuses">
                         <RotateCcw className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-[#A78BFA] hover:bg-[#A78BFA]/10" onClick={() => duplicateTestPlan(activeProjectId, plan.id)} title="Duplicate Plan">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-[#A78BFA]/10" onClick={() => duplicateTestPlan(activeProjectId, plan.id)} title="Duplicate Plan">
                         <Copy className="h-4 w-4" />
                     </Button>
-                    <div className="w-[1px] h-6 bg-[#2A2A3A] mx-0.5" />
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-[#A78BFA] hover:bg-[#A78BFA]/10" onClick={() => onEditPlan(plan)} title="Edit Plan">
+                    <div className="w-[1px] h-6 bg-elevated mx-0.5" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-[#A78BFA]/10" onClick={() => onEditPlan(plan)} title="Edit Plan">
                         <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-[#A78BFA] hover:bg-[#A78BFA]/10" onClick={() => archiveTestPlan(activeProjectId, plan.id, !plan.isArchived)}>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-[#A78BFA]/10" onClick={() => archiveTestPlan(activeProjectId, plan.id, !plan.isArchived)}>
                         <Archive className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-[#6B7280] hover:text-[#F87171] hover:bg-[#EF4444]/10" onClick={() => deleteTestPlan(activeProjectId, plan.id)}>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-ui hover:text-[#F87171] hover:bg-[#EF4444]/10" onClick={() => deleteTestPlan(activeProjectId, plan.id)}>
                         <Trash2 className="h-4 w-4" />
                     </Button>
                 </div>
@@ -172,21 +172,21 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
             {/* Smart Filters + Bulk Action Toolbar */}
             {!isCollapsed && (
                 <>
-                    <div className="px-5 py-3 bg-[#13131A] border-t border-[#2A2A3A] flex flex-wrap items-center gap-4">
-                        <div className="flex items-center gap-2 text-[10px] font-black text-[#6B7280] uppercase tracking-widest mr-2">
+                    <div className="px-5 py-3 bg-panel border-t border-ui flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2 text-[10px] font-black text-muted-ui uppercase tracking-widest mr-2">
                             <Filter className="h-3.5 w-3.5" /> Filters
                         </div>
                         <Input 
-                            placeholder="Filter by title, ID or #tag..." 
+                            placeholder="Filter by title, ID or #tag…"
                             value={searchQuery} 
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="h-8 w-60 bg-[#1A1A24] border-[#2A2A3A] text-xs focus-visible:ring-indigo-500/20"
+                            className="h-8 w-60 bg-panel-muted border-ui text-xs focus-visible:ring-indigo-500/20"
                         />
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-32 h-8 bg-[#1A1A24] border-[#2A2A3A] text-[11px] font-bold">
+                            <SelectTrigger className="w-32 h-8 bg-panel-muted border-ui text-[11px] font-bold">
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#1A1A24] border-[#2A2A3A]">
+                            <SelectContent className="bg-panel-muted border-ui">
                                 <SelectItem value="all">All Statuses</SelectItem>
                                 <SelectItem value="passed">Passed</SelectItem>
                                 <SelectItem value="failed">Failed</SelectItem>
@@ -195,10 +195,10 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                             </SelectContent>
                         </Select>
                         <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                            <SelectTrigger className="w-32 h-8 bg-[#1A1A24] border-[#2A2A3A] text-[11px] font-bold">
+                            <SelectTrigger className="w-32 h-8 bg-panel-muted border-ui text-[11px] font-bold">
                                 <SelectValue placeholder="Priority" />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#1A1A24] border-[#2A2A3A]">
+                            <SelectContent className="bg-panel-muted border-ui">
                                 <SelectItem value="all">All Priorities</SelectItem>
                                 <SelectItem value="blocker">Blocker</SelectItem>
                                 <SelectItem value="major">Major</SelectItem>
@@ -220,19 +220,19 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                             <div className="flex items-center gap-3">
                                 <CheckSquare className="h-5 w-5 text-[#818CF8]" />
                                 <span className="text-xs font-black text-[#A5B4FC] uppercase tracking-widest">{selectedCaseIds.size} Selected</span>
-                                <Button variant="ghost" size="sm" onClick={() => handleSelectAll(false)} className="h-6 text-[10px] font-bold text-[#A5B4FC] hover:text-[#E2E8F0] uppercase">Deselect All</Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleSelectAll(false)} className="h-6 text-[10px] font-bold text-[#A5B4FC] hover:text-foreground uppercase">Deselect All</Button>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button variant="secondary" size="sm" onClick={() => handleBulkStatusChange('passed')} className="h-7 text-[10px] font-black uppercase bg-[#10B981]/20 text-[#10B981] hover:bg-[#10B981]/30 border-none">Pass</Button>
                                 <Button variant="secondary" size="sm" onClick={() => handleBulkStatusChange('failed')} className="h-7 text-[10px] font-black uppercase bg-[#EF4444]/20 text-[#EF4444] hover:bg-[#EF4444]/30 border-none">Fail</Button>
                                 <div className="w-[1px] h-4 bg-[#6366F1]/30 mx-1" />
-                                <Button variant="secondary" size="sm" onClick={handleBulkDelete} className="h-7 text-[10px] font-black uppercase bg-[#EF4444]/10 text-[#6B7280] hover:text-[#EF4444] border-none">Delete</Button>
+                                <Button variant="secondary" size="sm" onClick={handleBulkDelete} className="h-7 text-[10px] font-black uppercase bg-[#EF4444]/10 text-muted-ui hover:text-[hsl(var(--state-danger))] border-none">Delete</Button>
                             </div>
                         </div>
                     )}
 
                     {/* Case List */}
-                    <div className="px-5 pb-4 pl-[42px] flex flex-col gap-2 bg-[#0F0F13]/30 border-t border-[#2A2A3A]">
+                    <div className="px-5 pb-4 pl-[42px] flex flex-col gap-2 bg-[#0F0F13]/30 border-t border-ui">
                         <div className="h-2" />
                         {filteredCases.length > 0 ? (
                             filteredCases.map(tc => (
@@ -247,7 +247,7 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                                 />
                             ))
                         ) : (
-                            <div className="py-12 text-center opacity-40 italic text-sm text-[#6B7280]">
+                            <div className="py-12 text-center opacity-40 italic text-sm text-muted-ui">
                                 No test cases match the current filters.
                             </div>
                         )}
@@ -265,7 +265,7 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleSelectAll(selectedCaseIds.size !== filteredCases.length)}
-                                    className="h-8 text-[10px] font-black text-[#6B7280] hover:text-[#E2E8F0] hover:bg-transparent px-0 gap-1.5 uppercase tracking-widest ml-auto"
+                                    className="h-8 text-[10px] font-black text-muted-ui hover:text-foreground hover:bg-transparent px-0 gap-1.5 uppercase tracking-widest ml-auto"
                                 >
                                     {selectedCaseIds.size === filteredCases.length ? "Deselect All" : `Select All (${filteredCases.length})`}
                                 </Button>

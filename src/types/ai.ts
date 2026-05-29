@@ -139,6 +139,8 @@ export interface QaProjectAiContext {
     name: string
     description?: string
     geminiModel?: string
+    nimModel?: string
+    aiProvider?: 'gemini' | 'nim'
     environments: AiSafeEnvironment[]
     tasks: QaAiTask[]
     testPlans: QaAiTestPlanSummary[]
@@ -156,6 +158,8 @@ export interface DevProjectAiContext {
     name: string
     description?: string
     geminiModel?: string
+    nimModel?: string
+    aiProvider?: 'gemini' | 'nim'
     environments: AiSafeEnvironment[]
     tasks: DevAiTask[]
     handoffs: DevAiHandoff[]

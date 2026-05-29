@@ -45,15 +45,15 @@ export default function AnalysisResultDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={`max-w-3xl ${isMac ? 'max-h-[75vh]' : 'max-h-[85vh]'} flex flex-col bg-[#0F0F13] border-[#2A2A3A] text-white`}>
-                <DialogHeader className="flex flex-row items-center justify-between border-b border-[#2A2A3A] pb-4 shrink-0">
+            <DialogContent className={`max-w-3xl ${isMac ? 'max-h-[75vh]' : 'max-h-[85vh]'} flex flex-col bg-app border-ui text-white`}>
+                <DialogHeader className="flex flex-row items-center justify-between border-b border-ui pb-4 shrink-0">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shadow-lg shadow-[#A78BFA]/20">
                             <Sparkles className="h-4 w-4 text-white" />
                         </div>
                         <div>
                             <DialogTitle className="text-lg font-bold">Issue Analysis</DialogTitle>
-                            <p className="text-xs text-[#6B7280] line-clamp-1">{taskTitle}</p>
+                            <p className="text-xs text-muted-ui line-clamp-1">{taskTitle}</p>
                         </div>
                     </div>
                 </DialogHeader>
@@ -64,18 +64,18 @@ export default function AnalysisResultDialog({
                             <FormattedText content={result} projectId={projectId} />
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-[#6B7280]">
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-ui">
                             <p>No analysis result available.</p>
                         </div>
                     )}
                 </div>
 
-                <DialogFooter className="border-t border-[#2A2A3A] pt-4 flex items-center justify-between shrink-0">
+                <DialogFooter className="border-t border-ui pt-4 flex items-center justify-between shrink-0">
                     <Button
                         variant="ghost"
                         size="sm"
                         onClick={handleCopy}
-                        className="text-[#6B7280] hover:text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-2"
+                        className="text-muted-ui hover:text-brand hover:bg-[#A78BFA]/10 gap-2"
                     >
                         {copied ? (
                             <>
@@ -89,7 +89,7 @@ export default function AnalysisResultDialog({
                     </Button>
                     <Button
                         onClick={() => onOpenChange(false)}
-                        className="bg-[#A78BFA] hover:bg-[#9061F9] text-black font-bold"
+                        className="bg-primary hover:bg-[#9061F9] text-black font-bold"
                     >
                         CLOSE
                     </Button>

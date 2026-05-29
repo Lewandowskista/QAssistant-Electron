@@ -39,7 +39,7 @@ export const RichTextEditor = ({ content, onChange }: RichTextEditorProps) => {
         },
         editorProps: {
             attributes: {
-                class: 'prose prose-invert max-w-none focus:outline-none min-h-[300px] h-full p-8 text-[#E2E8F0] font-sans text-base leading-relaxed',
+                class: 'prose prose-invert max-w-none focus:outline-none min-h-[300px] h-full p-8 text-foreground font-sans text-base leading-relaxed',
             },
         },
     })

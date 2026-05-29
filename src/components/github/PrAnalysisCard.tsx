@@ -43,13 +43,13 @@ export function PrAnalysisCard({
         : []
 
     return (
-        <div className="rounded-xl border border-[#2A2A3A] bg-[#0D0D11] overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[#2A2A3A]">
+        <div className="rounded-xl border border-ui bg-[#0D0D11] overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-ui">
                 <div className="flex items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-[#A78BFA]" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">PR Analysis</span>
+                    <Sparkles className="h-3.5 w-3.5 text-brand" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">PR Analysis</span>
                     {analysis && analysis.impactedCaseIds.length > 0 && (
-                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-[#A78BFA]">
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-brand">
                             {analysis.impactedCaseIds.length} impacted
                         </span>
                     )}
@@ -59,10 +59,10 @@ export function PrAnalysisCard({
                     variant="ghost"
                     onClick={onAnalyze}
                     disabled={isAnalyzing}
-                    className="h-7 text-[10px] font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-1"
+                    className="h-7 text-[10px] font-bold text-brand hover:bg-[#A78BFA]/10 gap-1"
                 >
                     {isAnalyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    {isAnalyzing ? 'Analyzing...' : 'Analyze PR'}
+                    {isAnalyzing ? 'Analyzing…' : 'Analyze PR'}
                 </Button>
             </div>
 
@@ -70,25 +70,25 @@ export function PrAnalysisCard({
                 <div className="p-3 space-y-3">
                     <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">Summary</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">Summary</span>
                             <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-bold uppercase', riskPillClass(analysis.riskLevel))}>
                                 {analysis.riskLevel} risk
                             </span>
                         </div>
-                        <p className="text-[11px] text-[#E2E8F0] leading-relaxed">{analysis.summary}</p>
+                        <p className="text-[11px] text-foreground leading-relaxed">{analysis.summary}</p>
                         {analysis.rationale && (
-                            <p className="text-[10px] text-[#9CA3AF] leading-relaxed">{analysis.rationale}</p>
+                            <p className="text-[10px] text-soft leading-relaxed">{analysis.rationale}</p>
                         )}
                     </div>
 
                     {analysis.hotspots.length > 0 && (
                         <div className="space-y-1.5">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">Hotspots</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">Hotspots</p>
                             <div className="space-y-1.5">
                                 {analysis.hotspots.map((hotspot) => (
-                                    <div key={`${hotspot.file}:${hotspot.reason}`} className="rounded-lg border border-[#2A2A3A] bg-[#13131A] px-2.5 py-2">
-                                        <p className="text-[10px] font-mono text-[#A78BFA] break-all">{hotspot.file}</p>
-                                        <p className="mt-1 text-[10px] text-[#9CA3AF] leading-relaxed">{hotspot.reason}</p>
+                                    <div key={`${hotspot.file}:${hotspot.reason}`} className="rounded-lg border border-ui bg-panel px-2.5 py-2">
+                                        <p className="text-[10px] font-mono text-brand break-all">{hotspot.file}</p>
+                                        <p className="mt-1 text-[10px] text-soft leading-relaxed">{hotspot.reason}</p>
                                     </div>
                                 ))}
                             </div>
@@ -97,7 +97,7 @@ export function PrAnalysisCard({
 
                     {analysis.affectedAreas.length > 0 && (
                         <div className="space-y-1.5">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">Affected Areas</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">Affected Areas</p>
                             <div className="flex flex-wrap gap-1">
                                 {analysis.affectedAreas.map((area) => (
                                     <span key={area} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] uppercase">
@@ -110,12 +110,12 @@ export function PrAnalysisCard({
 
                     {analysis.qaChecks.length > 0 && (
                         <div className="space-y-1.5">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">Suggested QA Checks</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">Suggested QA Checks</p>
                             <div className="space-y-1.5">
                                 {analysis.qaChecks.map((check) => (
-                                    <div key={check} className="flex items-start gap-2 rounded-lg border border-[#2A2A3A] bg-[#13131A] px-2.5 py-2">
+                                    <div key={check} className="flex items-start gap-2 rounded-lg border border-ui bg-panel px-2.5 py-2">
                                         <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#10B981]" />
-                                        <p className="text-[10px] text-[#E2E8F0] leading-relaxed">{check}</p>
+                                        <p className="text-[10px] text-foreground leading-relaxed">{check}</p>
                                     </div>
                                 ))}
                             </div>
@@ -123,7 +123,7 @@ export function PrAnalysisCard({
                     )}
 
                     <div className="space-y-2">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">Existing Tests To Rerun</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">Existing Tests To Rerun</p>
                         {impactedCases.length > 0 ? (
                             <>
                                 <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
@@ -135,7 +135,7 @@ export function PrAnalysisCard({
                                                 onChange={() => onToggleImpactedId(testCase.id)}
                                                 className="accent-[#A78BFA]"
                                             />
-                                            <span className="text-[10px] text-[#E2E8F0] group-hover:text-[#A78BFA] transition-colors truncate">
+                                            <span className="text-[10px] text-foreground group-hover:text-[#A78BFA] transition-colors truncate">
                                                 {testCase.displayId} - {testCase.title}
                                             </span>
                                         </label>
@@ -144,7 +144,7 @@ export function PrAnalysisCard({
                                 <Button
                                     onClick={onBuildRegressionSuite}
                                     disabled={isBuildingRegressionSuite || selectedImpactedIds.size === 0}
-                                    className="w-full h-8 bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD] text-[10px] font-bold gap-2"
+                                    className="w-full h-8 bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))] text-[10px] font-bold gap-2"
                                 >
                                     {isBuildingRegressionSuite ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
                                     {isBuildingRegressionSuite ? 'Building...' : `Build Regression Suite (${selectedImpactedIds.size})`}
@@ -153,7 +153,7 @@ export function PrAnalysisCard({
                         ) : (
                             <div className="flex items-center gap-2 py-1">
                                 <CheckCircle2 className="h-3.5 w-3.5 text-[#10B981]" />
-                                <span className="text-[10px] text-[#9CA3AF]">No existing project tests matched this PR; use the suggested QA checks above.</span>
+                                <span className="text-[10px] text-soft">No existing project tests matched this PR; use the suggested QA checks above.</span>
                             </div>
                         )}
                     </div>

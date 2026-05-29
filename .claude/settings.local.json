@@ -40,7 +40,20 @@
       "Bash(find c:/Users/Stefan/EleClone/QAssistant-Electron -type f \\\\\\(-name *.sql -o -name *schema* -o -name *migration* \\\\\\))",
       "Bash(grep -c \"out_workspace_id\" out/main/chunks/*.js)",
       "Bash(npm list:*)",
-      "Bash(npm --version)"
+      "Bash(npm --version)",
+      "WebFetch(domain:docs.api.nvidia.com)",
+      "WebFetch(domain:docs.nvidia.com)",
+      "WebFetch(domain:docs.vllm.ai)",
+      "WebFetch(domain:stevescargall.com)",
+      "WebFetch(domain:build.nvidia.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:integrate.api.nvidia.com)",
+      "WebFetch(domain:www.aitoolsmentor.com)",
+      "WebFetch(domain:pasqualepillitteri.it)",
+      "WebFetch(domain:www.buildfastwithai.com)",
+      "WebFetch(domain:developer.nvidia.com)",
+      "WebFetch(domain:toolfreebie.com)",
+      "WebFetch(domain:ai.google.dev)"
     ]
   }
 }

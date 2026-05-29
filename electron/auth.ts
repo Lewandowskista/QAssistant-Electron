@@ -8,6 +8,20 @@ const CRED_AUTH_ACCESS_TOKEN = 'auth_access_token'
 const CRED_AUTH_REFRESH_TOKEN = 'auth_refresh_token'
 const CRED_AUTH_USER_JSON = 'auth_user_json'
 const CRED_AUTH_PENDING_EMAIL_LEGACY = 'auth_pending_email'
+
+// ─── Local mode ────────────────────────────────────────────────────────────────
+// When no Supabase backend is configured, the app runs fully locally: the login
+// gate is skipped and this synthetic, stable local user stands in for a real
+// authenticated user. The id is fixed so anything keyed on the user id (e.g. the
+// cloud-state user marker) stays consistent across restarts.
+const LOCAL_USER_ID = '00000000-0000-4000-8000-000000000001'
+const LOCAL_USER: AuthenticatedUser = {
+    id: LOCAL_USER_ID,
+    email: null,
+    displayName: 'Local User',
+    emailConfirmedAt: new Date(0).toISOString(),
+}
+let localMode = false
 const AUTH_INIT_TIMEOUT_MS = 10000
 const AUTH_REQUEST_TIMEOUT_MS = 10000
 const AUTH_PROFILE_TIMEOUT_MS = 5000
@@ -34,6 +48,7 @@ export type AuthStatusPayload = {
     supabaseUrl?: string
     supabaseAnonKey?: string
     usingOfflineSession?: boolean
+    localMode?: boolean
 }
 
 let supabase: SupabaseClient | null = null
@@ -150,6 +165,35 @@ function isLikelyOfflineError(message: string): boolean {
         normalized.includes('offline') ||
         normalized.includes('timed out') ||
         normalized.includes('dns')
+}
+
+const BACKEND_PROBE_TIMEOUT_MS = 6000
+
+function log(message: string) {
+    console.warn(message)
+}
+
+/**
+ * Lightweight reachability probe for a configured Supabase backend. Returns false
+ * when the host does not resolve / refuses the connection (e.g. the project was
+ * deleted), which the caller treats as a signal to drop into local mode. A 4xx/5xx
+ * HTTP response still counts as "reachable" — the server answered.
+ */
+async function isBackendReachable(url: string | undefined): Promise<boolean> {
+    if (!url) return false
+    try {
+        const base = url.replace(/\/+$/, '')
+        const res = await fetch(`${base}/auth/v1/health`, {
+            method: 'GET',
+            headers: currentConfig.anonKey ? { apikey: currentConfig.anonKey } : {},
+            signal: AbortSignal.timeout(BACKEND_PROBE_TIMEOUT_MS),
+        })
+        // Any HTTP response means the host is alive and serving.
+        return res.status > 0
+    } catch {
+        // DNS failure, connection refused, timeout → unreachable.
+        return false
+    }
 }
 
 function parseJwtExpiry(accessToken: string | null): number | null {
@@ -284,9 +328,30 @@ async function performInitAuth(): Promise<AuthStatusPayload> {
     const client = await ensureClient()
 
     if (!client || !currentConfig.url || !currentConfig.anonKey) {
-        currentUser = null
+        // No cloud backend configured → run fully locally. Skip the login gate and
+        // sign in as the synthetic local user. Cloud sync / snapshot calls will
+        // no-op because getAuthenticatedClient() returns null in this state.
+        localMode = true
+        currentUser = LOCAL_USER
         usingOfflineSession = false
-        setStatus('signed_out', { user: null })
+        setStatus('signed_in', { user: LOCAL_USER, error: null })
+        authInitialized = true
+        return getAuthStatus()
+    }
+
+    localMode = false
+
+    // A Supabase URL/key is configured, but the project may have been deleted or be
+    // otherwise unreachable. Probe it once; if it cannot be reached, fall back to
+    // local mode so the app stays usable instead of being stuck on a login screen
+    // that can never succeed.
+    const backendReachable = await isBackendReachable(currentConfig.url)
+    if (!backendReachable) {
+        log('[auth] Configured Supabase backend is unreachable — falling back to local mode')
+        localMode = true
+        currentUser = LOCAL_USER
+        usingOfflineSession = false
+        setStatus('signed_in', { user: LOCAL_USER, error: null })
         authInitialized = true
         return getAuthStatus()
     }
@@ -364,13 +429,17 @@ export async function initAuth(): Promise<AuthStatusPayload> {
 
 export function getAuthStatus(): AuthStatusPayload {
     return {
-        configured: !!(currentConfig.url && currentConfig.anonKey),
+        // In local mode we report `configured: true` so the renderer's auth gate
+        // lets the app through instead of showing the "configuration required"
+        // screen — there is simply nothing to configure.
+        configured: localMode || !!(currentConfig.url && currentConfig.anonKey),
         status: authStatus,
         user: currentUser,
         error: authError,
         supabaseUrl: currentConfig.url,
         supabaseAnonKey: currentConfig.anonKey,
         usingOfflineSession,
+        localMode,
     }
 }
 
@@ -492,6 +561,15 @@ export async function authSignUp(email: string, password: string, displayName: s
 }
 
 export async function authSignOut(): Promise<AuthStatusPayload> {
+    // In local mode there is no cloud session to end; remain signed in as the
+    // local user so the app does not bounce to an unusable login screen.
+    if (localMode) {
+        currentUser = LOCAL_USER
+        usingOfflineSession = false
+        setStatus('signed_in', { user: LOCAL_USER, error: null })
+        return getAuthStatus()
+    }
+
     const client = await ensureClient()
     if (client) {
         await client.auth.signOut().catch(() => {})
@@ -524,6 +602,9 @@ export async function getAuthenticatedClient(): Promise<SupabaseClient | null> {
     if (authStatus === 'booting') {
         await initAuth()
     }
+    // In local mode there is no usable cloud backend — callers (sync, cloud state)
+    // treat a null client as "skip cloud work and stay local".
+    if (localMode) return null
     const client = await ensureClient()
     if (!client || authStatus !== 'signed_in') return null
     return client

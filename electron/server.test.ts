@@ -47,8 +47,8 @@ const TEST_PORT = 19999
 describe('Automation API server', () => {
     const token = 'test-secret-token-abc123'
 
-    beforeAll(() => {
-        startServer(token, TEST_PORT)
+    beforeAll(async () => {
+        await startServer(token, TEST_PORT)
     })
 
     afterAll(() => {

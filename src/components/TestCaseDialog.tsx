@@ -118,10 +118,10 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl">
-                <div className="h-2 bg-[#A78BFA] w-full" />
+                <div className="h-2 bg-primary w-full" />
                 <form onSubmit={handleSubmit} className="p-8">
                     <DialogHeader className="mb-6">
-                        <div className="flex items-center gap-3 text-[#A78BFA] mb-2">
+                        <div className="flex items-center gap-3 text-brand mb-2">
                             <div className="p-2 bg-[#A78BFA]/10 rounded-lg">
                                 <FlaskConical className="h-6 w-6" />
                             </div>
@@ -259,7 +259,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                         id="case-pre"
                                         value={form.preConditions}
                                         onChange={(e) => setForm(f => ({ ...f, preConditions: e.target.value }))}
-                                        placeholder="User session active, cart populated..."
+                                        placeholder="User session active, cart populated…"
                                         className={cn("bg-background/50 resize-none min-h-[100px]", previewField === 'pre' && "hidden")}
                                     />
                                     {previewField === 'pre' && (
@@ -367,16 +367,16 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                     </div>
 
                     {editingCase && editingCase.changeLog && editingCase.changeLog.length > 0 && (
-                        <div className="mt-6 p-4 bg-[#0F0F13] border border-[#2A2A3A] rounded-lg">
-                            <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider mb-3">Change History ({editingCase.changeLog.length})</p>
+                        <div className="mt-6 p-4 bg-app border border-ui rounded-lg">
+                            <p className="text-[10px] font-bold text-muted-ui uppercase tracking-wider mb-3">Change History ({editingCase.changeLog.length})</p>
                             <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar">
                                 {[...editingCase.changeLog].reverse().map((entry, idx) => (
                                     <div key={idx} className="text-[10px] bg-[#1A1A24]/50 p-2 rounded border border-[#2A2A3A]/30">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-bold text-[#A78BFA]">{entry.field}</span>
-                                            <span className="text-[#6B7280]">{new Date(entry.timestamp).toLocaleString()}</span>
+                                            <span className="font-bold text-brand">{entry.field}</span>
+                                            <span className="text-muted-ui">{new Date(entry.timestamp).toLocaleString()}</span>
                                         </div>
-                                        <div className="text-[9px] text-[#9CA3AF] mt-1 space-y-0.5">
+                                        <div className="text-[9px] text-soft mt-1 space-y-0.5">
                                             <div><span className="text-[#EF4444]">−</span> {entry.oldValue || '(empty)'}</div>
                                             <div><span className="text-[#10B981]">+</span> {entry.newValue || '(empty)'}</div>
                                         </div>
@@ -386,11 +386,11 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                         </div>
                     )}
 
-                    <DialogFooter className="mt-10 pt-6 border-t border-[#2A2A3A] gap-2">
+                    <DialogFooter className="mt-10 pt-6 border-t border-ui gap-2">
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="font-bold">
                             Cancel
                         </Button>
-                        <Button type="submit" className="bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] font-black shadow-lg shadow-[#A78BFA]/20 px-8">
+                        <Button type="submit" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-black shadow-lg shadow-[#A78BFA]/20 px-8">
                             {editingCase ? "Update Telemetry" : "Publish Case"}
                         </Button>
                     </DialogFooter>

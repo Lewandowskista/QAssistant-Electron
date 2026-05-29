@@ -477,3 +477,24 @@ export async function dispatchWorkflow(owner: string, repo: string, workflowId: 
     })
     return { success: true }
 }
+
+export async function addPrComment(owner: string, repo: string, prNumber: number, body: string): Promise<{ id: number; htmlUrl: string }> {
+    const data = await githubFetch<any>(`/repos/${owner}/${repo}/issues/${prNumber}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ body }),
+    })
+    return { id: data.id, htmlUrl: data.html_url }
+}
+
+export async function addPrLabels(owner: string, repo: string, prNumber: number, labelNames: string[]): Promise<void> {
+    await githubFetch(`/repos/${owner}/${repo}/issues/${prNumber}/labels`, {
+        method: 'POST',
+        body: JSON.stringify({ labels: labelNames }),
+    })
+}
+
+export async function removePrLabel(owner: string, repo: string, prNumber: number, labelName: string): Promise<void> {
+    await githubFetch(`/repos/${owner}/${repo}/issues/${prNumber}/labels/${encodeURIComponent(labelName)}`, {
+        method: 'DELETE',
+    })
+}

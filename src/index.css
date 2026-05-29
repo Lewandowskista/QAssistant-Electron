@@ -240,6 +240,24 @@
     outline-offset: 2px;
   }
 
+  /*
+   * Interaction polish: remove the 300ms tap delay and the default mobile tap
+   * flash on interactive controls. Intentional per the Web Interface
+   * Guidelines; harmless on desktop, correct if ever run on a touch device.
+   */
+  :where(button, [href], [role="button"], [role="tab"], [role="menuitem"], summary, label) {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Numeric columns and tabular data align by default. */
+  table,
+  .text-data,
+  .app-mono-meta,
+  .app-metric-value {
+    font-variant-numeric: tabular-nums;
+  }
+
   .performance-mode-performance body {
     background-image: none;
   }
@@ -426,7 +444,7 @@
   }
 
   .skip-link {
-    @apply sr-only fixed left-4 top-4 z-[300] rounded-lg px-3 py-2 text-sm font-medium;
+    @apply sr-only fixed left-4 top-4 z-layer-skip-link rounded-lg px-3 py-2 text-sm font-medium;
     background-color: hsl(var(--surface-overlay));
     color: hsl(var(--foreground));
     border: 1px solid hsl(var(--border-focus));
@@ -455,8 +473,10 @@
   }
 
   .workspace-rail-item {
-    @apply flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium transition-[background-color,color,border-color,box-shadow];
+    @apply relative flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium;
     color: hsl(var(--text-secondary));
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    overflow: hidden;
   }
 
   .workspace-rail-item:hover {
@@ -469,6 +489,24 @@
     border-color: hsl(var(--border-strong));
     color: hsl(var(--text-primary));
     box-shadow: inset 0 0 0 1px hsl(var(--accent-primary-soft));
+  }
+
+  .workspace-rail-item[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 56%;
+    border-radius: 0 3px 3px 0;
+    background: hsl(var(--accent-primary));
+    box-shadow: 0 0 6px hsl(var(--accent-primary) / 0.55);
+    animation: nav-indicator-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  .performance-mode-performance .workspace-rail-item[data-active="true"]::before {
+    animation: none !important;
   }
 
   .workspace-project-button {
@@ -492,6 +530,27 @@
 
   .page-section {
     @apply app-panel p-5 md:p-6;
+  }
+
+  /*
+   * Sticky title bar for full-bleed pages (those that own their full-height
+   * shell and can't use page-scaffold/compact-page-header). Standardizes the
+   * icon + title + actions row that several pages previously hand-rolled.
+   */
+  .full-bleed-header {
+    @apply flex shrink-0 flex-wrap items-center gap-3 border-b px-5 py-3;
+    background-color: hsl(var(--surface-header) / 0.6);
+    border-color: hsl(var(--border-default));
+  }
+
+  .full-bleed-header-title {
+    @apply text-sm font-semibold tracking-tight;
+    color: hsl(var(--text-primary));
+  }
+
+  .full-bleed-header-eyebrow {
+    @apply text-[11px];
+    color: hsl(var(--text-muted));
   }
 
   .page-grid {
@@ -675,9 +734,185 @@
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
+
+  /* ── Page transition ──────────────────────────────────────────── */
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-page-in {
+    animation: page-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .performance-mode-performance .animate-page-in {
+    animation: none !important;
+  }
+
+  /* ── Top progress bar ─────────────────────────────────────────── */
+  @keyframes progress-bar-slide {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
+  }
+
+  @keyframes progress-bar-fade {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
+  .top-progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    z-index: 9999;
+    background: hsl(var(--accent-primary));
+    box-shadow: 0 0 8px hsl(var(--accent-primary) / 0.7);
+    transform-origin: left;
+    animation: progress-bar-slide 350ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .top-progress-bar.done {
+    animation: progress-bar-fade 300ms ease 100ms forwards;
+  }
+
+  /* ── Sidebar nav active indicator ────────────────────────────── */
+  .app-nav-item {
+    position: relative;
+  }
+
+  .app-nav-item[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    border-radius: 0 3px 3px 0;
+    background: hsl(var(--accent-primary));
+    box-shadow: 0 0 8px hsl(var(--accent-primary) / 0.6);
+    animation: nav-indicator-in 180ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes nav-indicator-in {
+    from {
+      height: 0%;
+      opacity: 0;
+    }
+    to {
+      height: 60%;
+      opacity: 1;
+    }
+  }
+
+  /* ── Button micro-interactions ───────────────────────────────── */
+  button:not([disabled]):active,
+  [role="button"]:not([disabled]):active {
+    transform: scale(0.97);
+  }
+
+  button,
+  [role="button"] {
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* focus rings: smooth fade-in instead of abrupt */
+  :where(button, [href], input, select, textarea, [role="button"], [role="tab"], [role="menuitem"]):focus-visible {
+    transition: outline-offset 120ms ease, outline-color 120ms ease;
+  }
+
+  /* ── Dialog / Dropdown / Drawer entrance animations ─────────── */
+  /* Radix Dialog */
+  [data-radix-dialog-overlay][data-state="open"] {
+    animation: overlay-in 200ms ease both;
+  }
+  [data-radix-dialog-overlay][data-state="closed"] {
+    animation: overlay-out 180ms ease both;
+  }
+  [data-radix-dialog-content][data-state="open"] {
+    animation: dialog-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  [data-radix-dialog-content][data-state="closed"] {
+    animation: dialog-out 180ms ease both;
+  }
+
+  @keyframes overlay-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes overlay-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+  @keyframes dialog-in {
+    from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  @keyframes dialog-out {
+    from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    to   { opacity: 0; transform: translate(-50%, -52%) scale(0.96); }
+  }
+
+  /* Radix Dropdown */
+  [data-radix-popper-content-wrapper] [data-state="open"] {
+    animation: dropdown-in 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  [data-radix-popper-content-wrapper] [data-state="closed"] {
+    animation: dropdown-out 130ms ease both;
+  }
+
+  @keyframes dropdown-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes dropdown-out {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  }
+
+  /* Inspector/settings drawer slide-in from right */
+  .inspector-drawer {
+    transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease;
+  }
+
+  /* Disable all new animations in performance mode */
+  .performance-mode-performance [data-radix-dialog-content],
+  .performance-mode-performance [data-radix-dialog-overlay],
+  .performance-mode-performance [data-radix-popper-content-wrapper] > * {
+    animation: none !important;
+    transition-duration: 0ms !important;
+  }
+  .performance-mode-performance button,
+  .performance-mode-performance [role="button"] {
+    transition-duration: 0ms !important;
+  }
 }
 
 @layer utilities {
+  /*
+   * Z-index scale — keep in sync with the Z constant in src/lib/constants.ts.
+   * Use these classes instead of arbitrary z-[N] literals so all overlays
+   * share one ordered stacking context.
+   */
+  .z-layer-sticky { z-index: 30; }
+  .z-layer-dropdown { z-index: 50; }
+  .z-layer-overlay { z-index: 100; }
+  .z-layer-drawer { z-index: 120; }
+  .z-layer-dialog { z-index: 9999; }
+  .z-layer-confirm { z-index: 10000; }
+  .z-layer-toast { z-index: 10010; }
+  .z-layer-skip-link { z-index: 10020; }
+
   .bg-\[\#0F0F13\] {
     background-color: hsl(var(--surface-app));
   }
@@ -970,6 +1205,32 @@
   .border-ui-strong {
     border-color: hsl(var(--app-line-strong));
   }
+
+  /*
+   * Named token utilities added so the legacy hardcoded-hex classes can be
+   * migrated to semantic names. Each resolves to the exact same CSS variable
+   * the legacy hex mapping above uses, so the swap is visually identical and
+   * theme-aware (light/dark) just like the hex classes were.
+   */
+  .bg-app {
+    background-color: hsl(var(--surface-app));
+  }
+
+  .bg-elevated {
+    background-color: hsl(var(--surface-elevated));
+  }
+
+  .bg-selected {
+    background-color: hsl(var(--surface-selected));
+  }
+
+  .border-ui-subtle {
+    border-color: hsl(var(--border-subtle));
+  }
+
+  .text-brand {
+    color: hsl(var(--accent-primary));
+  }
 }
 
 .app-region-drag {
@@ -980,14 +1241,22 @@
   -webkit-app-region: no-drag;
 }
 
+/*
+ * Reduced-motion is only honored when the user opts in via the
+ * "Respect system reduced-motion" setting (adds .respect-reduced-motion to
+ * <html>). By default this app shows its designed motion regardless of the OS
+ * setting, because a desktop user often has reduced-motion enabled system-wide
+ * without intending to silence in-app animation. App "performance mode" remains
+ * a separate, always-available control for disabling effects.
+ */
 @media (prefers-reduced-motion: reduce) {
-  html {
+  html.respect-reduced-motion {
     scroll-behavior: auto;
   }
 
-  *,
-  *::before,
-  *::after {
+  html.respect-reduced-motion *,
+  html.respect-reduced-motion *::before,
+  html.respect-reduced-motion *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -1011,6 +1280,12 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--app-text-muted) / 0.9);
+}
+
+/* Keep scroll momentum inside scrollable panels (no scroll-chaining to the app
+ * behind drawers, dialogs, command palette, and inspector panes). */
+.custom-scrollbar {
+  overscroll-behavior: contain;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

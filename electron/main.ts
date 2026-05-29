@@ -86,6 +86,7 @@ import {
     scheduleCloudStateUpload,
 } from './cloudState'
 import { GeminiService } from './gemini';
+import { NimService } from './nim';
 import { AiRateLimiter } from './aiRateLimiter';
 import { startServer, stopServer, setOAuthCompleteCallback, getServerPort, isServerRunning } from './server';
 import { startReminderService } from './reminders';
@@ -464,6 +465,17 @@ if (app) {
             return geminiServiceInstance;
         }
 
+        // Singleton NimService cache keyed by API key.
+        let nimServiceInstance: NimService | null = null;
+        let nimServiceKey: string | null = null;
+        function getNimService(apiKey: string): NimService {
+            if (nimServiceInstance === null || nimServiceKey !== apiKey) {
+                nimServiceInstance = new NimService(apiKey);
+                nimServiceKey = apiKey;
+            }
+            return nimServiceInstance;
+        }
+
         registerProjectHandlers(ipcMain, {
             getAllProjects,
             saveAllProjects,
@@ -529,6 +541,7 @@ if (app) {
         registerAiHandlers(ipcMain, {
             waitForAiTurn,
             getGeminiService,
+            getNimService,
             accuracy,
             errMsg,
             assertString,

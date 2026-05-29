@@ -8,14 +8,14 @@ interface TraceabilityPanelProps {
 function Section({ title, children }: { title: string; children: ReactNode }) {
     return (
         <section className="space-y-2">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">{title}</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">{title}</h3>
             {children}
         </section>
     )
 }
 
 function Empty({ children }: { children: string }) {
-    return <p className="text-xs italic text-[#6B7280]">{children}</p>
+    return <p className="text-xs italic text-muted-ui">{children}</p>
 }
 
 export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
@@ -27,21 +27,21 @@ export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
         <div className="space-y-5">
             <Section title="Workflow Summary">
                 <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Coverage</div>
-                        <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{traceability.linkedTestCases.length} linked tests</div>
+                    <div className="rounded-lg border border-ui bg-panel-muted p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Coverage</div>
+                        <div className="mt-2 text-sm font-semibold text-foreground">{traceability.linkedTestCases.length} linked tests</div>
                     </div>
-                    <div className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Evidence</div>
-                        <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{evidenceCount} linked artifacts</div>
+                    <div className="rounded-lg border border-ui bg-panel-muted p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Evidence</div>
+                        <div className="mt-2 text-sm font-semibold text-foreground">{evidenceCount} linked artifacts</div>
                     </div>
-                    <div className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">PR Context</div>
-                        <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">{linkedPrs.length} linked PRs</div>
+                    <div className="rounded-lg border border-ui bg-panel-muted p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">PR Context</div>
+                        <div className="mt-2 text-sm font-semibold text-foreground">{linkedPrs.length} linked PRs</div>
                     </div>
-                    <div className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Handoff Health</div>
-                        <div className="mt-2 text-sm font-semibold text-[#E2E8F0]">
+                    <div className="rounded-lg border border-ui bg-panel-muted p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Handoff Health</div>
+                        <div className="mt-2 text-sm font-semibold text-foreground">
                             {activeHandoff ? (activeHandoff.isComplete ? 'Ready to send' : 'Needs fields') : 'No handoff'}
                         </div>
                     </div>
@@ -54,10 +54,10 @@ export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
                 ) : (
                     <div className="space-y-2">
                         {traceability.linkedTestCases.map((testCase) => (
-                            <div key={testCase.id} className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3">
-                                <div className="text-[10px] font-bold text-[#A78BFA]">{testCase.displayId}</div>
-                                <div className="text-xs text-[#E2E8F0]">{testCase.title}</div>
-                                <div className="mt-2 text-[10px] text-[#6B7280]">
+                            <div key={testCase.id} className="rounded-lg border border-ui bg-panel-muted p-3">
+                                <div className="text-[10px] font-bold text-brand">{testCase.displayId}</div>
+                                <div className="text-xs text-foreground">{testCase.title}</div>
+                                <div className="mt-2 text-[10px] text-muted-ui">
                                     {(testCase.components || []).join(", ") || "No components"} • {testCase.status}
                                 </div>
                             </div>
@@ -72,7 +72,7 @@ export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
                 ) : (
                     <div className="space-y-2">
                         {traceability.linkedNotes.map((note) => (
-                            <div key={note.id} className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3 text-xs text-[#E2E8F0]">
+                            <div key={note.id} className="rounded-lg border border-ui bg-panel-muted p-3 text-xs text-foreground">
                                 {note.title}
                             </div>
                         ))}
@@ -86,7 +86,7 @@ export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
                 ) : (
                     <div className="space-y-2">
                         {traceability.linkedFiles.map((file) => (
-                            <div key={file.id} className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3 text-xs text-[#E2E8F0]">
+                            <div key={file.id} className="rounded-lg border border-ui bg-panel-muted p-3 text-xs text-foreground">
                                 {file.fileName}
                             </div>
                         ))}
@@ -100,7 +100,7 @@ export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
                 ) : (
                     <div className="space-y-2">
                         {linkedPrs.map((pr) => (
-                            <div key={`${pr.repoFullName}-${pr.prNumber}`} className="rounded-lg border border-[#2A2A3A] bg-[#1A1A24] p-3 text-xs text-[#E2E8F0]">
+                            <div key={`${pr.repoFullName}-${pr.prNumber}`} className="rounded-lg border border-ui bg-panel-muted p-3 text-xs text-foreground">
                                 {pr.repoFullName} #{pr.prNumber}
                             </div>
                         ))}

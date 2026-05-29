@@ -7,11 +7,11 @@ export function DetailItem({ icon: Icon, label, value }: { icon?: any, label: st
     return (
         <div className="flex items-start gap-4 h-10 px-3 bg-[#1A1A24]/40 rounded-lg border border-[#2A2A3A]/30">
             <div className="flex items-center h-full w-24 shrink-0 gap-2">
-                {Icon && <Icon className="h-3.5 w-3.5 text-[#6B7280]" />}
-                <span className="text-[11px] font-bold text-[#6B7280]">{label}</span>
+                {Icon && <Icon className="h-3.5 w-3.5 text-muted-ui" />}
+                <span className="text-[11px] font-bold text-muted-ui">{label}</span>
             </div>
             <div className="flex items-center h-full flex-1">
-                <span className="text-[11px] font-bold text-[#E2E8F0] truncate">{value}</span>
+                <span className="text-[11px] font-bold text-foreground truncate">{value}</span>
             </div>
         </div>
     )
@@ -80,15 +80,15 @@ export function MediaSection({ task, onImageClick, projectId }: { task: Task, on
     if (mediaUrls.length === 0) return null
 
     return (
-        <div className="mt-6 pt-6 border-t border-[#2A2A3A] space-y-3">
-            <h4 className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest flex items-center gap-2">
+        <div className="mt-6 pt-6 border-t border-ui space-y-3">
+            <h4 className="text-[10px] font-bold text-muted-ui uppercase tracking-widest flex items-center gap-2">
                 <ImageIcon className="h-3 w-3" /> Attached Media ({mediaUrls.length})
             </h4>
             <div className="grid grid-cols-2 gap-3">
                 {mediaUrls.map((item, idx) => (
                     <div
                         key={idx}
-                        className="group relative aspect-video bg-[#1A1A24] border border-[#2A2A3A] rounded-lg overflow-hidden cursor-pointer hover:border-[#A78BFA]/50 transition-colors"
+                        className="group relative aspect-video bg-panel-muted border border-ui rounded-lg overflow-hidden cursor-pointer hover:border-[#A78BFA]/50 transition-colors"
                         onClick={() => {
                             if (item.type === 'image') {
                                 onImageClick(proxifyMediaUrl(item.url, task.source, task.connectionId, projectId))
@@ -111,8 +111,8 @@ export function MediaSection({ task, onImageClick, projectId }: { task: Task, on
                                 }}
                             />
                         ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-[#1E1E2A]">
-                                <PlayCircle className="h-8 w-8 text-[#A78BFA] opacity-60 group-hover:opacity-100 transition-opacity" />
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-elevated">
+                                <PlayCircle className="h-8 w-8 text-brand opacity-60 group-hover:opacity-100 transition-opacity" />
                                 <span className="text-[9px] font-bold text-gray-500 uppercase">Video Link</span>
                             </div>
                         )}

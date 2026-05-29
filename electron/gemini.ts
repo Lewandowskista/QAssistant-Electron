@@ -5,8 +5,8 @@ import { normalizePullRequestAnalysisResult } from './prAnalysis'
 import type { PullRequestAnalysisResult } from './prAnalysis'
 import { sanitizeToonList, sanitizeToonScalar, ToonWriter } from './toon'
 
+const MODEL_3_5_FLASH = 'gemini-3.5-flash';
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
-const MODEL_3_FLASH = 'gemini-3-flash';
 const MODEL_3_FLASH_PREVIEW = 'gemini-3-flash-preview';
 
 // Per-feature output token limits — prevents rambling and reduces cost
@@ -63,7 +63,7 @@ type GeminiUsage = {
 export class GeminiService {
     private genAI: GoogleGenerativeAI
     private apiKey: string
-    private preferredModel: string = MODEL_3_FLASH
+    private preferredModel: string = MODEL_3_5_FLASH
 
     constructor(apiKey: string) {
         this.apiKey = apiKey
@@ -119,7 +119,7 @@ export class GeminiService {
         return Array.from(new Set([
             modelOverride,
             this.preferredModel,
-            MODEL_3_FLASH,
+            MODEL_3_5_FLASH,
             MODEL_2_5_FLASH,
             MODEL_3_FLASH_PREVIEW,
         ].filter(Boolean) as string[]));

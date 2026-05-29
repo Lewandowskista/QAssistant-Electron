@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useShallow } from "zustand/react/shallow"
 import {
@@ -49,9 +49,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
+import { SkeletonList } from "@/components/ui/skeleton"
 import { SyncStatusIndicator } from "@/components/sync/SyncStatusIndicator"
 import { cn } from "@/lib/utils"
 import { recordRendererMetric } from "@/lib/perf"
+import { Z } from "@/lib/constants"
 import { Project, useProjectStore } from "@/store/useProjectStore"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { useSyncStore } from "@/store/useSyncStore"
@@ -121,6 +123,32 @@ function matchesRole(item: NavItem, activeRole: "qa" | "dev") {
 
 function isItemActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href)
+}
+
+function TopProgressBar() {
+  const location = useLocation()
+  const [visible, setVisible] = useState(false)
+  const [done, setDone] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevPathRef = useRef(location.pathname)
+
+  useEffect(() => {
+    if (location.pathname !== prevPathRef.current) {
+      prevPathRef.current = location.pathname
+      setDone(false)
+      setVisible(true)
+      timerRef.current = setTimeout(() => {
+        setDone(true)
+        timerRef.current = setTimeout(() => setVisible(false), 450)
+      }, 80)
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [location.pathname])
+
+  if (!visible) return null
+  return <div className={`top-progress-bar${done ? " done" : ""}`} />
 }
 
 function UserActivityReporter() {
@@ -362,6 +390,7 @@ export default function MainLayout() {
   return (
     <>
       <UserActivityReporter />
+      <TopProgressBar />
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
@@ -727,9 +756,11 @@ export default function MainLayout() {
             )}
           >
             {isFullBleedRoute ? (
-              <Outlet />
+              <div key={location.pathname} className="flex flex-col flex-1 min-h-0 animate-page-in">
+                <Outlet />
+              </div>
             ) : (
-              <div className="mx-auto w-full max-w-[1600px]">
+              <div key={location.pathname} className="mx-auto w-full max-w-[1600px] animate-page-in">
                 <Outlet />
               </div>
             )}
@@ -737,11 +768,18 @@ export default function MainLayout() {
 
           <div
             className={cn(
-              "fixed inset-0 z-[100] transition-opacity duration-300",
+              "fixed inset-0 z-layer-overlay transition-opacity duration-300",
               settingsOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
             )}
           >
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSettingsOpen(false)} />
+            <div
+              role="button"
+              tabIndex={settingsOpen ? 0 : -1}
+              aria-label="Close settings"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setSettingsOpen(false)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSettingsOpen(false) }}
+            />
             <div
               className={cn(
                 "absolute right-0 top-0 flex h-full w-full max-w-[760px] flex-col border-l border-ui bg-[hsl(var(--surface-overlay))] shadow-2xl transition-transform duration-300 ease-out",
@@ -757,7 +795,7 @@ export default function MainLayout() {
               />
               <div className="min-h-0 flex-1 overflow-hidden">
                 {settingsOpen ? (
-                  <Suspense fallback={<div className="p-6 text-muted-ui">Loading…</div>}>
+                  <Suspense fallback={<SkeletonList rows={6} />}>
                     <SettingsPage />
                   </Suspense>
                 ) : null}
@@ -771,7 +809,7 @@ export default function MainLayout() {
               <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
             </Suspense>
           ) : null}
-          <Toaster theme={currentTheme} position="bottom-right" />
+          <Toaster theme={currentTheme} position="bottom-right" style={{ zIndex: Z.TOAST }} />
           {confirmDeleteDialog}
         </div>
       </div>

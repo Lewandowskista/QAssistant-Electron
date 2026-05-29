@@ -22,6 +22,7 @@ import {
 import { Bug, Clipboard, Globe, ShieldAlert, Sparkles, Loader2, AlertTriangle, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getApiKey } from "@/lib/credentials"
+import { aiFindDuplicateBugs } from "@/lib/aiClient"
 import { toast } from "sonner"
 
 interface BugReportDialogProps {
@@ -77,8 +78,6 @@ export function BugReportDialog({ open, onOpenChange, defaultEnv, prefillData }:
     const handleCheckDuplicates = async () => {
         if (!title.trim()) { setTitleError("Enter a summary first."); return }
         if (!activeProject) return
-        const apiKey = await getApiKey(api, 'gemini_api_key', activeProject.id)
-        if (!apiKey) { toast.error('Configure a Gemini API key in Settings to use duplicate detection.'); return }
 
         const openBugs = activeProject.tasks
             .filter(t => t.status !== 'done' && t.status !== 'closed' && (t.issueType?.toLowerCase().includes('bug') || t.title.startsWith('[BUG]')))
@@ -93,14 +92,12 @@ export function BugReportDialog({ open, onOpenChange, defaultEnv, prefillData }:
 
         setCheckingDuplicates(true)
         try {
-            const result = await api.aiFindDuplicateBugs({
-                apiKey,
+            const result = await aiFindDuplicateBugs({
                 newBugTitle: title,
                 newBugDescription: description,
                 newBugReproSteps: description,
                 affectedComponents: [],
                 existingBugs: openBugs,
-                modelName: activeProject.geminiModel,
             })
             setDuplicates(Array.isArray(result) ? result : [])
             setDuplicatesChecked(true)
@@ -154,7 +151,7 @@ ${description}
     }
 
     const getScoreColor = (score: number) =>
-        score >= 80 ? 'text-[#EF4444]' : score >= 60 ? 'text-[#F59E0B]' : 'text-[#A78BFA]'
+        score >= 80 ? 'text-[#EF4444]' : score >= 60 ? 'text-[#F59E0B]' : 'text-brand'
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -272,11 +269,11 @@ ${description}
                         </div>
 
                         {/* Duplicate Detection */}
-                        <div className="rounded-xl border border-[#2A2A3A] bg-[#0F0F13] overflow-hidden">
-                            <div className="flex items-center justify-between px-3 py-2 border-b border-[#2A2A3A]">
+                        <div className="rounded-xl border border-ui bg-app overflow-hidden">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-ui">
                                 <div className="flex items-center gap-2">
-                                    <Sparkles className="h-3.5 w-3.5 text-[#A78BFA]" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">AI Duplicate Check</span>
+                                    <Sparkles className="h-3.5 w-3.5 text-brand" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">AI Duplicate Check</span>
                                     {duplicatesChecked && duplicates.length === 0 && (
                                         <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#10B981]/10 text-[#10B981]">No duplicates found</span>
                                     )}
@@ -290,7 +287,7 @@ ${description}
                                     variant="ghost"
                                     onClick={handleCheckDuplicates}
                                     disabled={checkingDuplicates || !title.trim()}
-                                    className="h-7 text-[10px] font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-1.5"
+                                    className="h-7 text-[10px] font-bold text-brand hover:bg-[#A78BFA]/10 gap-1.5"
                                 >
                                     {checkingDuplicates ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                                     {checkingDuplicates ? 'Checking...' : 'Check'}
@@ -299,25 +296,25 @@ ${description}
                             {duplicates.length > 0 && (
                                 <div className="p-2 space-y-1.5">
                                     {duplicates.map(d => (
-                                        <div key={d.bugId} className="flex items-start gap-2 p-2 rounded-lg bg-[#1A1A24] border border-[#2A2A3A]">
+                                        <div key={d.bugId} className="flex items-start gap-2 p-2 rounded-lg bg-panel-muted border border-ui">
                                             <AlertTriangle className="h-3.5 w-3.5 text-[#F59E0B] shrink-0 mt-0.5" />
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
                                                     <span className={cn("text-[10px] font-black", getScoreColor(d.similarityScore))}>{d.similarityScore}%</span>
-                                                    <span className="text-xs font-semibold text-[#E2E8F0] truncate">{d.title}</span>
+                                                    <span className="text-xs font-semibold text-foreground truncate">{d.title}</span>
                                                 </div>
-                                                <p className="text-[10px] text-[#9CA3AF] mt-0.5">{d.reasoning}</p>
+                                                <p className="text-[10px] text-soft mt-0.5">{d.reasoning}</p>
                                             </div>
-                                            <ExternalLink className="h-3 w-3 text-[#6B7280] shrink-0 mt-0.5" />
+                                            <ExternalLink className="h-3 w-3 text-muted-ui shrink-0 mt-0.5" />
                                         </div>
                                     ))}
-                                    <p className="text-[10px] text-[#6B7280] px-1 pb-1">Review the above before filing. You can still proceed if this is a new issue.</p>
+                                    <p className="text-[10px] text-muted-ui px-1 pb-1">Review the above before filing. You can still proceed if this is a new issue.</p>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <DialogFooter className="pt-4 border-t border-[#2A2A3A] gap-2 bg-[#13131A]">
+                    <DialogFooter className="pt-4 border-t border-ui gap-2 bg-panel">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-600/20 px-8">
                             Report Bug

@@ -59,11 +59,11 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[450px] p-0 border-none shadow-2xl overflow-hidden">
-                <div className="h-2 bg-[#A78BFA] w-full" />
+                <div className="h-2 bg-primary w-full" />
                 <form onSubmit={handleSubmit} className="p-8">
                     <DialogHeader className="mb-6">
-                        <div className="flex items-center gap-3 text-[#A78BFA]">
-                            <div className="p-2 bg-[#A78BFA]/10 rounded-lg text-[#A78BFA]">
+                        <div className="flex items-center gap-3 text-brand">
+                            <div className="p-2 bg-[#A78BFA]/10 rounded-lg text-brand">
                                 <Layers className="h-6 w-6" />
                             </div>
                             <DialogTitle className="text-2xl font-black tracking-tight">
@@ -93,7 +93,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                                 id="plan-desc"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                placeholder="Objectives, scope, and target components..."
+                                placeholder="Objectives, scope, and target components…"
                                 className="bg-background focus-visible:ring-[#A78BFA]/30 resize-none min-h-[100px]"
                             />
                         </div>
@@ -108,7 +108,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                             onClick={() => setIsRegression(!isRegression)}
                         >
                             <div className={cn("p-2 rounded-xl ring-1 transition-all",
-                                isRegression ? "bg-[#A78BFA]/10 text-[#A78BFA] ring-[#A78BFA]/20" : "bg-[#2A2A3A] text-[#6B7280] ring-[#2A2A3A]"
+                                isRegression ? "bg-[#A78BFA]/10 text-brand ring-[#A78BFA]/20" : "bg-elevated text-muted-ui ring-[#2A2A3A]"
                             )}>
                                 <ShieldCheck className="h-5 w-5" />
                             </div>
@@ -117,7 +117,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                                 <div className="text-[10px] font-bold text-muted-foreground leading-tight">Muted plans won't appear in baseline health checks.</div>
                             </div>
                             <div className={cn("w-10 h-5 rounded-full relative transition-all p-1",
-                                isRegression ? "bg-[#A78BFA]" : "bg-[#2A2A3A]"
+                                isRegression ? "bg-primary" : "bg-elevated"
                             )}>
                                 <div className={cn("bg-[#E2E8F0] w-3 h-3 rounded-full shadow-sm transition-all",
                                     isRegression ? "translate-x-5" : "translate-x-0"
@@ -126,11 +126,11 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                         </div>
                     </div>
 
-                    <DialogFooter className="mt-8 pt-6 border-t border-[#2A2A3A] gap-2 bg-[#13131A]">
+                    <DialogFooter className="mt-8 pt-6 border-t border-ui gap-2 bg-panel">
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="font-bold">
                             Cancel
                         </Button>
-                        <Button type="submit" className="bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] font-black px-8">
+                        <Button type="submit" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-black px-8">
                             {editingPlan ? "Sync Blueprint" : "Establish Suite"}
                         </Button>
                     </DialogFooter>

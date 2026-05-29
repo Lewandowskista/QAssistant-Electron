@@ -69,7 +69,7 @@ type AccuracyRunEntry = {
 }
 
 function ChartFallback() {
-    return <div className="flex h-full items-center justify-center text-[11px] text-muted-ui italic">Loading chart...</div>
+    return <div className="flex h-full items-center justify-center text-[11px] text-muted-ui italic">Loading chart…</div>
 }
 
 function MetricCard({
@@ -441,7 +441,7 @@ export default function DashboardPage() {
                     label="AI Accuracy"
                     value={latestAccuracyRun ? `${latestAccuracyRun.aggregateScore}%` : "-"}
                     note={latestAccuracyRun ? formatAccuracyDelta(accuracyDelta) : "Run an AI Accuracy evaluation from the Tests page."}
-                    accentClassName="text-[#C4B5FD]"
+                    accentClassName="text-brand"
                 />
             </div>
 

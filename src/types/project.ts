@@ -51,6 +51,9 @@ export type TestCase = {
     estimatedMinutes?: number // estimated execution duration
     testType?: TestType       // Phase 1.3: functional, regression, smoke, etc.
     linkedDefectIds?: string[] // Phase 1.7: bug task IDs linked to this test
+    aiGenerated?: boolean
+    aiGenerationRating?: 'useful' | 'irrelevant' | 'caught_bug'
+    aiGenerationRatedAt?: number
     changeLog?: Array<{       // Phase 2.5: audit trail of changes
         timestamp: number
         field: string
@@ -389,6 +392,8 @@ export type ExploratoryObservation = {
     type: ExploratoryObservationType
     description: string
     severity?: TaskSeverity
+    attachmentPath?: string       // path in attachments dir
+    attachmentFileName?: string   // display name
 }
 
 export type ExploratorySession = {
@@ -439,6 +444,8 @@ export type Project = {
     jiraConnection?: { domain: string; email: string; projectKey: string }
 
     geminiModel?: string
+    nimModel?: string
+    aiProvider?: 'gemini' | 'nim'
     columns?: { id: string, title: string, color?: string, textColor?: string, type?: string }[]
     sourceColumns?: Partial<Record<'manual' | 'linear' | 'jira', { id: string, title: string, color?: string, textColor?: string, type?: string }[]>>
     qualityGates?: QualityGate[]

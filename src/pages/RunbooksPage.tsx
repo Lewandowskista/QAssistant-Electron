@@ -115,13 +115,13 @@ export default function RunbooksPage() {
                             aria-label="Create runbook"
                             className="h-8 w-8 text-primary hover:bg-primary/10"
                         >
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-4 w-4" aria-hidden="true" />
                         </Button>
                     </div>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-ui" aria-hidden="true" />
                         <Input
-                            placeholder="Search runbooks..."
+                            placeholder="Search runbooks…"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             aria-label="Search runbooks"
@@ -200,7 +200,7 @@ export default function RunbooksPage() {
                                                 aria-label={`Open actions for ${rb.name}`}
                                                 className="h-6 w-6 text-muted-ui hover:text-foreground"
                                             >
-                                                <MoreVertical className="h-3.5 w-3.5" />
+                                                <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-32 border-ui bg-popover text-popover-foreground">
@@ -316,7 +316,7 @@ export default function RunbooksPage() {
                                                                 className="w-full border-none bg-transparent p-0 text-sm font-semibold text-foreground focus:ring-0"
                                                             />
                                                             <textarea
-                                                                placeholder="Add description..."
+                                                                placeholder="Add description…"
                                                                 value={step.description || ''}
                                                                 onChange={(e) => updateRunbookStep(activeProjectId!, selectedRunbook.id, step.id, { description: e.target.value })}
                                                                 aria-label={`Description for ${step.title}`}
@@ -331,7 +331,7 @@ export default function RunbooksPage() {
                                                                 aria-label={`Delete step ${step.title}`}
                                                                 className="h-8 w-8 text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
                                                             >
-                                                                <Trash2 className="h-4 w-4" />
+                                                                <Trash2 className="h-4 w-4" aria-hidden="true" />
                                                             </Button>
                                                             <div className="cursor-grab p-2 text-muted-ui active:cursor-grabbing" aria-hidden="true">
                                                                 <GripVertical className="h-4 w-4" />

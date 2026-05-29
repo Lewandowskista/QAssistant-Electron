@@ -14,13 +14,15 @@ import {
     useSensors
 } from "@dnd-kit/core"
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
-import { HelpCircle, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ActionToolbar, CompactPageHeader, InlineStatusSummary, PageScaffold, SurfaceBlock } from "@/components/ui/workspace"
 import { cn } from "@/lib/utils"
 import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
 import { sanitizeProjectForQaAi, sanitizeTaskForQaAi } from "@/lib/aiUtils"
+import { aiAnalyzeIssue } from "@/lib/aiClient"
 import {
     DEFAULT_TASK_FILTERS,
     TaskBoardFilters,
@@ -37,6 +39,7 @@ import {
     sortTaskViewModels
 } from "@/lib/tasks"
 import { useLinearAutoSync } from "@/hooks/useLinearAutoSync"
+import { SkeletonList, SkeletonKanban } from "@/components/ui/skeleton"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { TaskFilterBar } from "@/components/tasks/TaskFilterBar"
 import { TaskCard } from "@/components/tasks/TaskCard"
@@ -76,15 +79,15 @@ function toLinearColumn(state: { name: string; type?: string }) : TaskBoardColum
     if (type === "completed") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#10B981]", color: "bg-[#10B981]", type: state.type }
     if (type === "canceled") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#EF4444]", color: "bg-[#EF4444]", type: state.type }
     if (type === "started") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#3B82F6]", color: "bg-[#3B82F6]", type: state.type }
-    if (type === "unstarted") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#6B7280]", color: "bg-[#6B7280]", type: state.type }
-    return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#A78BFA]", color: "bg-[#A78BFA]", type: state.type }
+    if (type === "unstarted") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-[#6B7280]", type: state.type }
+    return { id: state.name, title: state.name.toUpperCase(), textColor: "text-brand", color: "bg-primary", type: state.type }
 }
 
 function toJiraColumn(status: { name: string; category?: string }) : TaskBoardColumn {
     const category = String(status.category || "").toLowerCase()
     if (category.includes("done")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#10B981]", color: "bg-[#10B981]", type: "done" }
     if (category.includes("progress") || category.includes("indeterminate")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#3B82F6]", color: "bg-[#3B82F6]", type: "started" }
-    return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#6B7280]", color: "bg-[#6B7280]", type: "unstarted" }
+    return { id: status.name, title: status.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-[#6B7280]", type: "unstarted" }
 }
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -400,12 +403,6 @@ export default function TasksPage() {
     }
 
     const handleAnalyzeIssue = async (task: Task) => {
-        const apiKey = await getApiKey(api, "gemini_api_key", activeProjectId)
-        if (!apiKey) {
-            toast.error("Please set your Gemini API key in Settings.")
-            return
-        }
-
         setIsLoading(true)
         setTaskBeingAnalyzed(task)
         try {
@@ -418,12 +415,10 @@ export default function TasksPage() {
                 if (credentials) comments = await api.getJiraComments({ ...credentials, issueKey: task.externalId })
             }
 
-            const result = await api.aiAnalyzeIssue({
-                apiKey,
+            const result = await aiAnalyzeIssue({
                 task: sanitizeTaskForQaAi(task, activeProject?.environments || []),
                 comments,
                 project: sanitizeProjectForQaAi(activeProject ?? undefined),
-                modelName: activeProject?.geminiModel
             })
 
             const historyEntry: AnalysisEntry = {
@@ -720,7 +715,7 @@ export default function TasksPage() {
                             </SurfaceBlock>
                         ) : boardMode === "triage" ? (
                             <div className="h-full overflow-y-auto custom-scrollbar">
-                                <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-[#6B7280]">Loading triage view...</div>}>
+                                <Suspense fallback={<SkeletonList rows={8} />}>
                                     <TaskTriageView
                                         sections={triageSections}
                                         selectedTaskId={detailsId}
@@ -840,29 +835,25 @@ export default function TasksPage() {
                 />
             </Suspense>
 
-            <>
-                <div className={cn("fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm transition-opacity duration-200", isShortcutModalOpen ? "opacity-100" : "pointer-events-none opacity-0")} onClick={() => setIsShortcutModalOpen(false)} />
-                <div className={cn("fixed left-1/2 top-1/2 z-[201] -translate-x-1/2 -translate-y-1/2 transition-all duration-200", isShortcutModalOpen ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0")}>
-                    <div className="w-[380px] rounded-2xl border border-[#2A2A3A] bg-[#13131A] p-6 shadow-2xl">
-                        <div className="mb-5 flex items-center justify-between">
-                            <h3 className="text-sm font-bold uppercase tracking-widest text-[#E2E8F0]">Keyboard Shortcuts</h3>
-                            <button onClick={() => setIsShortcutModalOpen(false)} className="rounded-md p-1 text-[#6B7280] transition-colors hover:bg-[#252535] hover:text-[#E2E8F0]">
-                                <HelpCircle className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="space-y-3">
-                            {[{ keys: ["Ctrl", "/"], description: "Toggle shortcut help" }, { keys: ["Esc"], description: "Close task details / close modal" }].map(({ keys, description }) => (
-                                <div key={description} className="flex items-center justify-between border-b border-[#2A2A3A]/60 py-2 last:border-0">
-                                    <span className="text-xs text-[#9CA3AF]">{description}</span>
-                                    <div className="flex items-center gap-1">
-                                        {keys.map((key) => <kbd key={key} className="rounded border border-[#2A2A3A] bg-[#1A1A24] px-2 py-0.5 font-mono text-[10px] font-bold text-[#A78BFA]">{key}</kbd>)}
-                                    </div>
+            <Dialog open={isShortcutModalOpen} onOpenChange={setIsShortcutModalOpen}>
+                <DialogContent className="w-[380px] max-w-[380px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-sm font-bold uppercase tracking-widest text-foreground">
+                            Keyboard Shortcuts
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        {[{ keys: ["Ctrl", "/"], description: "Toggle shortcut help" }, { keys: ["Esc"], description: "Close task details / close modal" }].map(({ keys, description }) => (
+                            <div key={description} className="flex items-center justify-between border-b border-ui/60 py-2 last:border-0">
+                                <span className="text-xs text-soft">{description}</span>
+                                <div className="flex items-center gap-1">
+                                    {keys.map((key) => <kbd key={key} className="rounded border border-ui bg-panel-muted px-2 py-0.5 font-mono text-[10px] font-bold text-brand">{key}</kbd>)}
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        ))}
                     </div>
-                </div>
-            </>
+                </DialogContent>
+            </Dialog>
         </PageScaffold>
     )
 }

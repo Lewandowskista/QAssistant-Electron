@@ -26,7 +26,7 @@ function renderInlineText(text: string): ReactNode[] {
       parts.push(
         <ul key={`ul-${pi}`} className="space-y-1.5 ml-1">
           {items.map((item, li) => (
-            <li key={li} className="flex gap-2 text-sm text-[#CBD5E1] leading-relaxed">
+            <li key={li} className="flex gap-2 text-sm text-soft leading-relaxed">
               <span className="text-primary/60 mt-1.5 shrink-0">•</span>
               <span>{renderInline(item.replace(/^\s*-\s*/, ""))}</span>
             </li>
@@ -35,7 +35,7 @@ function renderInlineText(text: string): ReactNode[] {
       )
     } else {
       parts.push(
-        <p key={`p-${pi}`} className="text-sm text-[#CBD5E1] leading-relaxed">
+        <p key={`p-${pi}`} className="text-sm text-soft leading-relaxed">
           {renderInline(para.replace(/\n/g, " "))}
         </p>,
       )
@@ -59,7 +59,7 @@ function renderInline(text: string): ReactNode[] {
     }
     if (match[2]) {
       // bold
-      tokens.push(<strong key={match.index} className="font-semibold text-[#E2E8F0]">{match[2]}</strong>)
+      tokens.push(<strong key={match.index} className="font-semibold text-foreground">{match[2]}</strong>)
     } else if (match[3]) {
       // code
       tokens.push(
@@ -190,7 +190,7 @@ export default function DocsPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
           <Input
-            placeholder="Search docs..."
+            placeholder="Search docs…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-9 pl-9 text-xs rounded-lg"
@@ -235,7 +235,7 @@ export default function DocsPage() {
                       "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
                       isActive
                         ? "bg-primary/10 text-primary"
-                        : "text-[#CBD5E1] hover:bg-[hsl(var(--surface-selected)/0.5)] hover:text-foreground",
+                        : "text-soft hover:bg-[hsl(var(--surface-selected)/0.5)] hover:text-foreground",
                     )}
                     onClick={() => scrollTo(section.id)}
                   >
@@ -329,7 +329,7 @@ function SectionBlock({
           </div>
           <h2 className="text-lg font-bold text-foreground">{section.title}</h2>
         </div>
-        <p className="text-sm text-[#94A3B8] leading-relaxed mb-6">{section.description}</p>
+        <p className="text-sm text-soft leading-relaxed mb-6">{section.description}</p>
       </div>
 
       {/* Subsections */}
@@ -360,13 +360,13 @@ function SubsectionBlock({
       <div>{renderInlineText(sub.content)}</div>
       {sub.tips && sub.tips.length > 0 && (
         <div className="mt-4 space-y-2">
-          {sub.tips.map((tip, i) => (
+          {sub.tips.map((tip) => (
             <div
-              key={i}
+              key={tip}
               className="flex gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3"
             >
               <Lightbulb className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <p className="text-xs text-[#CBD5E1] leading-relaxed">{renderInline(tip)}</p>
+              <p className="text-xs text-soft leading-relaxed">{renderInline(tip)}</p>
             </div>
           ))}
         </div>

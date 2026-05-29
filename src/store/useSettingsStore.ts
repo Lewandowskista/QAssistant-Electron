@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { applyTheme } from '@/lib/theme'
 import {
     applyPerformanceModeClass,
+    applyRespectReducedMotionClass,
     deriveStoredPerformanceMode,
     type PerformanceMode,
     resolvePerformanceMode,
@@ -15,6 +16,8 @@ export interface AppSettings {
     sapCommerceContext: boolean
     minimizeToTray: boolean
     autoCheckForUpdates: boolean
+    /** When true, honor the OS prefers-reduced-motion setting. Default false. */
+    respectReducedMotion?: boolean
     reduceVisualEffects?: boolean
     allowInsecureCredentialStorage?: boolean
     deferredVersion?: string
@@ -29,6 +32,7 @@ const DEFAULTS: AppSettings = {
     sapCommerceContext: false,
     minimizeToTray: false,
     autoCheckForUpdates: true,
+    respectReducedMotion: false,
     reduceVisualEffects: false,
 }
 
@@ -75,6 +79,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         const { settings, resolvedPerformanceMode } = normalizeSettings(raw, get().systemInfo)
         applyTheme(settings.theme)
         applyPerformanceModeClass(resolvedPerformanceMode)
+        applyRespectReducedMotionClass(settings.respectReducedMotion === true)
         set({
             settings,
             loaded: true,
@@ -115,6 +120,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         set({ settings: next, resolvedPerformanceMode })
         if (patch.theme) applyTheme(patch.theme as AppSettings['theme'])
         applyPerformanceModeClass(resolvedPerformanceMode)
+        if (patch.respectReducedMotion !== undefined) {
+            applyRespectReducedMotionClass(next.respectReducedMotion === true)
+        }
         await api.writeSettingsFile(next)
     },
 }))

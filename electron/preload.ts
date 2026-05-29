@@ -99,6 +99,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiStandupSummary: (args: any) => invoke('ai-standup-summary', args),
   aiFindDuplicateBugs: (args: any) => invoke('ai-find-duplicate-bugs', args),
   aiAnalyzePullRequest: (args: any) => invoke('ai-analyze-pull-request', args),
+  nimListModels: (args: any) => invoke('nim-list-models', args),
+  nimProbeModels: (args: any) => invoke('nim-probe-models', args),
+  nimGetModelMetadata: (args?: any) => invoke('nim-get-model-metadata', args ?? {}),
   importTestResults: (args: any) => ipcRenderer.invoke('import-test-results', typeof args === 'string' ? { filePath: args } : args),
   readCsvFile: (args: any) => ipcRenderer.invoke('read-csv-file', typeof args === 'string' ? { filePath: args } : args),
   saveFileDialog: (args: any, content?: string) => ipcRenderer.invoke('save-file-dialog', typeof args === 'string' ? { defaultName: args, content } : args),
@@ -129,6 +132,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ccv2GetEnvironments: (args: any) => ipcRenderer.invoke('ccv2-get-environments', args),
   ccv2GetDeployments: (args: any) => ipcRenderer.invoke('ccv2-get-deployments', args),
   ccv2GetBuild: (args: any) => ipcRenderer.invoke('ccv2-get-build', args),
+  selectFile: (filters?: any[]) => ipcRenderer.invoke('select-file', filters),
   copyToAttachments: (sourcePath: string) => ipcRenderer.invoke('copy-to-attachments', sourcePath),
   saveBytesAttachment: (bytes: Uint8Array, fileName: string) => ipcRenderer.invoke('save-bytes-attachment', { bytes, fileName }),
   deleteAttachment: (args: any) => ipcRenderer.invoke('delete-attachment', typeof args === 'string' ? { filePath: args } : args),
@@ -204,6 +208,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   githubGetWorkflowJobs: (args: any) => ipcRenderer.invoke('github-get-workflow-jobs', args),
   githubGetWorkflowsList: (args: any) => ipcRenderer.invoke('github-get-workflows-list', args),
   githubDispatchWorkflow: (args: any) => ipcRenderer.invoke('github-dispatch-workflow', args),
+  githubAddPrComment: (args: any) => invoke('github-add-pr-comment', args),
+  githubAddPrLabels: (args: any) => invoke('github-add-pr-labels', args),
+  githubRemovePrLabel: (args: any) => invoke('github-remove-pr-label', args),
 
   // Report Builder (M1)
   generateCustomReport: (args: any) => ipcRenderer.invoke('generate-custom-report', args),

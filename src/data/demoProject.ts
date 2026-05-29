@@ -11,7 +11,7 @@ export const demoProject: Project = {
     id: 'demo-project',
     schemaVersion: PROJECT_SCHEMA_VERSION,
     name: 'Demo Workspace',
-    color: 'bg-[#A78BFA]',
+    color: 'bg-primary',
     clientName: 'Acme Retail',
     description: 'Seeded workspace that shows the intended QA-to-dev collaboration flow.',
     tasks: [

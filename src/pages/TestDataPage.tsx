@@ -66,8 +66,8 @@ export default function TestDataPage() {
 
     if (!activeProject) {
         return (
-            <div className="h-full flex flex-col items-center justify-center bg-[#0F0F13] gap-4 text-center">
-                <div className="w-20 h-20 rounded-full bg-[#1A1A24] flex items-center justify-center opacity-40">
+            <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center">
+                <div className="w-20 h-20 rounded-full bg-panel-muted flex items-center justify-center opacity-40">
                     <DatabaseZap className="h-9 w-9 text-qa-text-muted" strokeWidth={1} />
                 </div>
                 <div className="opacity-60 space-y-1">
@@ -165,9 +165,9 @@ export default function TestDataPage() {
     }
 
     return (
-        <div className="h-full flex animate-in fade-in duration-500 bg-[#0F0F13] overflow-hidden">
+        <div className="h-full flex animate-in fade-in duration-500 bg-app overflow-hidden">
             {/* Sidebar */}
-            <aside className="w-[280px] flex-none bg-[#13131A] border-r border-qa-border flex flex-col">
+            <aside className="w-[280px] flex-none bg-panel border-r border-qa-border flex flex-col">
                 <div className="p-4 border-b border-qa-border space-y-1">
                     <h3 className="text-[10px] font-black text-qa-text-muted uppercase tracking-[0.2em]">{view === 'Groups' ? 'DATA GROUPS' : 'IMPEX TEMPLATES'}</h3>
                     <p className="text-[11px] text-qa-text-muted leading-tight">Reusable test data sets</p>
@@ -177,10 +177,10 @@ export default function TestDataPage() {
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-qa-text-muted" />
                         <Input
-                            placeholder="Search records..."
+                            placeholder="Search records…"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="h-9 pl-9 bg-[#0F0F13] border-qa-border text-xs text-qa-text"
+                            className="h-9 pl-9 bg-app border-qa-border text-xs text-qa-text"
                         />
                     </div>
                 </div>
@@ -193,23 +193,27 @@ export default function TestDataPage() {
                                 onClick={() => setSelectedGroupId(group.id)}
                                 className={cn(
                                     "p-3 rounded-xl border transition-all cursor-pointer group",
-                                    selectedGroupId === group.id ? "bg-[#1A1A24] border-qa-purple/40 shadow-lg shadow-qa-purple/5" : "bg-transparent border-transparent hover:bg-[#1A1A24]/50"
+                                    selectedGroupId === group.id ? "bg-panel-muted border-qa-purple/40 shadow-lg shadow-qa-purple/5" : "bg-transparent border-transparent hover:bg-[#1A1A24]/50"
                                 )}
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs font-bold text-qa-text mb-1 truncate">
                                         <FormattedText content={group.name} projectId={activeProjectId || undefined} />
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Edit2 className="h-3.5 w-3.5 text-qa-text-muted hover:text-qa-purple" onClick={(e) => {
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity">
+                                        <button type="button" aria-label={`Edit data group ${group.name}`} className="text-qa-text-muted hover:text-qa-purple" onClick={(e) => {
                                             e.stopPropagation()
                                             handleOpenGroupModal(group)
-                                        }} />
-                                        <Trash2 className="h-3.5 w-3.5 text-qa-text-muted hover:text-red-500" onClick={(e) => {
+                                        }}>
+                                            <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                        </button>
+                                        <button type="button" aria-label={`Delete data group ${group.name}`} className="text-qa-text-muted hover:text-red-500" onClick={(e) => {
                                             e.stopPropagation();
                                             if (activeProjectId) deleteTestDataGroup(activeProjectId, group.id);
                                             if (selectedGroupId === group.id) setSelectedGroupId(null);
-                                        }} />
+                                        }}>
+                                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
@@ -227,21 +231,21 @@ export default function TestDataPage() {
                     )}
                 </div>
 
-                <div className="p-4 bg-[#0F0F13] border-t border-qa-border space-y-2">
+                <div className="p-4 bg-app border-t border-qa-border space-y-2">
                     <Button onClick={() => handleOpenGroupModal()} className={cn("w-full h-10 font-black text-xs gap-2", view === 'Groups' ? "bg-qa-purple text-[#0F0F13]" : "bg-qa-purple/10 text-qa-purple border border-qa-purple/20")}>
                         <Plus className="h-4 w-4" /> NEW DATA GROUP
                     </Button>
-                    <Button onClick={() => setView(view === 'Groups' ? 'ImpEx' : 'Groups')} className={cn("w-full h-10 font-black text-xs gap-2", view === 'ImpEx' ? "bg-qa-purple text-[#0F0F13]" : "bg-[#1A1A2E] text-qa-purple border border-qa-purple/20")}>
+                    <Button onClick={() => setView(view === 'Groups' ? 'ImpEx' : 'Groups')} className={cn("w-full h-10 font-black text-xs gap-2", view === 'ImpEx' ? "bg-qa-purple text-[#0F0F13]" : "bg-selected text-qa-purple border border-qa-purple/20")}>
                         {view === 'Groups' ? 'SAP IMPEX TEMPLATES →' : '← BACK TO DATA GROUPS'}
                     </Button>
                 </div>
             </aside>
 
             {/* Main Panel */}
-            <main className="flex-1 flex flex-col min-w-0 bg-[#0F0F13]">
+            <main className="flex-1 flex flex-col min-w-0 bg-app">
                 {!selectedGroupId && view === 'Groups' ? (
                     <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
-                        <div className="w-24 h-24 rounded-3xl bg-[#1A1A24] border border-qa-border flex items-center justify-center">
+                        <div className="w-24 h-24 rounded-3xl bg-panel-muted border border-qa-border flex items-center justify-center">
                             <DatabaseZap className="h-10 w-10 text-qa-text-muted" strokeWidth={1.5} />
                         </div>
                         <div>
@@ -261,9 +265,9 @@ export default function TestDataPage() {
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {IMPEX_TEMPLATES.map(template => (
-                                <div key={template.id} className="group p-6 bg-[#13131A] border border-qa-border rounded-[2rem] hover:border-qa-purple/50 transition-all cursor-pointer relative flex flex-col">
+                                <div key={template.id} className="group p-6 bg-panel border border-qa-border rounded-[2rem] hover:border-qa-purple/50 transition-all cursor-pointer relative flex flex-col">
                                     <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-xl bg-[#1A1A24] flex items-center justify-center border border-qa-border">
+                                        <div className="w-10 h-10 rounded-xl bg-panel-muted flex items-center justify-center border border-qa-border">
                                             <TerminalSquare className="h-5 w-5 text-qa-purple" />
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -272,7 +276,7 @@ export default function TestDataPage() {
                                         </div>
                                     </div>
                                     <p className="text-[11px] text-qa-text-muted mb-4 line-clamp-2">{template.description}</p>
-                                    <pre className="text-[10px] font-mono text-qa-text-muted bg-[#0A0A0E] p-3 rounded-xl overflow-hidden truncate flex-1">
+                                    <pre className="text-[10px] font-mono text-qa-text-muted bg-app p-3 rounded-xl overflow-hidden truncate flex-1">
                                         {template.script}
                                     </pre>
                                     <Button
@@ -290,7 +294,7 @@ export default function TestDataPage() {
                     </div>
                 ) : (
                     <div className="h-full flex flex-col animate-in fade-in duration-500">
-                        <header className="p-6 bg-[#13131A] border-b border-qa-border flex items-center justify-between">
+                        <header className="p-6 bg-panel border-b border-qa-border flex items-center justify-between">
                             <div className="flex items-center gap-4 flex-1">
                                 <h2 className="text-2xl font-black text-qa-text tracking-tight">{selectedGroup?.name}</h2>
                                 <div className="w-px h-6 bg-qa-border" />
@@ -315,7 +319,7 @@ export default function TestDataPage() {
                             </div>
                         </header>
 
-                        <div className="p-4 bg-[#13131A] border-b border-qa-border flex items-center justify-between">
+                        <div className="p-4 bg-panel border-b border-qa-border flex items-center justify-between">
                             <div className="flex gap-4">
                                 <div className="text-[10px] font-black text-qa-text-muted uppercase tracking-[0.2em] flex items-center gap-2">
                                     <Layers className="h-3 w-3 text-qa-purple" /> DATA RECORDS
@@ -347,29 +351,29 @@ export default function TestDataPage() {
                                             <div className="text-[10px] text-qa-text-muted mt-0.5 line-clamp-1">{entry.description}</div>
                                         )}
                                     </div>
-                                    <div className="flex-none flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex-none flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity">
                                         {entry.tags && (
                                             <div className="flex gap-1 mr-2">
                                                 {entry.tags.split(',').map(tag => (
-                                                    <span key={tag} className="px-1.5 py-0.5 rounded bg-[#1A1A24] border border-qa-border text-[9px] font-black text-qa-text-muted uppercase tracking-tighter">{tag.trim()}</span>
+                                                    <span key={tag} className="px-1.5 py-0.5 rounded bg-panel-muted border border-qa-border text-[9px] font-black text-qa-text-muted uppercase tracking-tighter">{tag.trim()}</span>
                                                 ))}
                                             </div>
                                         )}
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-qa-text-muted hover:text-qa-purple" onClick={() => handleOpenEntryModal(entry)}>
-                                            <Edit2 className="h-3.5 w-3.5" />
+                                        <Button variant="ghost" size="icon" aria-label="Edit record" className="h-8 w-8 text-qa-text-muted hover:text-qa-purple" onClick={() => handleOpenEntryModal(entry)}>
+                                            <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-qa-text-muted hover:text-red-500" onClick={async () => {
+                                        <Button variant="ghost" size="icon" aria-label="Delete record" className="h-8 w-8 text-qa-text-muted hover:text-red-500" onClick={async () => {
                                             if (!activeProjectId || !selectedGroupId) return;
                                             await deleteTestDataEntry(activeProjectId, selectedGroupId, entry.id);
                                         }}>
-                                            <Trash className="h-3.5 w-3.5" />
+                                            <Trash className="h-3.5 w-3.5" aria-hidden="true" />
                                         </Button>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        <footer className="p-4 bg-[#13131A] border-t border-qa-border flex items-center gap-4">
+                        <footer className="p-4 bg-panel border-t border-qa-border flex items-center gap-4">
                             <ShieldCheck className="h-4 w-4 text-emerald-500" />
                             <span className="text-[10px] font-bold text-qa-text-muted uppercase tracking-widest">
                                 {selectedGroup?.entries.length} RECORDS IN COLLECTION • VERIFIED INTEGRITY
@@ -381,7 +385,7 @@ export default function TestDataPage() {
 
             {/* Group Modal */}
             <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
-                <DialogContent className="bg-[#13131A] border-qa-border sm:max-w-[400px] rounded-[2rem]">
+                <DialogContent className="bg-panel border-qa-border sm:max-w-[400px] rounded-[2rem]">
                     <DialogHeader>
                         <DialogTitle className="text-qa-text font-black uppercase tracking-tight">
                             {editingGroupId ? 'Update Data Group' : 'Create New Data Group'}
@@ -394,17 +398,17 @@ export default function TestDataPage() {
                                 autoFocus
                                 value={groupForm.name}
                                 onChange={(e) => setGroupForm(prev => ({ ...prev, name: e.target.value }))}
-                                className="h-11 bg-[#1A1A24] border-qa-border text-qa-text font-bold rounded-xl"
+                                className="h-11 bg-panel-muted border-qa-border text-qa-text font-bold rounded-xl"
                                 placeholder="e.g. Prod Credentials"
                             />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest px-1">Category</label>
                             <Select value={groupForm.category} onValueChange={(val) => setGroupForm(prev => ({ ...prev, category: val }))}>
-                                <SelectTrigger className="h-11 bg-[#1A1A24] border-qa-border text-qa-text font-bold rounded-xl">
+                                <SelectTrigger className="h-11 bg-panel-muted border-qa-border text-qa-text font-bold rounded-xl">
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent className="bg-[#1A1A24] border-qa-border text-qa-text">
+                                <SelectContent className="bg-panel-muted border-qa-border text-qa-text">
                                     <SelectItem value="Users">Users</SelectItem>
                                     <SelectItem value="Products">Products</SelectItem>
                                     <SelectItem value="Promotions">Promotions</SelectItem>
@@ -414,7 +418,7 @@ export default function TestDataPage() {
                             </Select>
                         </div>
                     </div>
-                    <DialogFooter className="bg-[#13131A]">
+                    <DialogFooter className="bg-panel">
                         <Button variant="ghost" onClick={() => setIsGroupModalOpen(false)} className="text-qa-text-muted font-black uppercase text-xs">CANCEL</Button>
                         <Button
                             onClick={handleSaveGroup}
@@ -429,7 +433,7 @@ export default function TestDataPage() {
 
             {/* Entry Modal */}
             <Dialog open={isEntryModalOpen} onOpenChange={setIsEntryModalOpen}>
-                <DialogContent className="bg-[#13131A] border-qa-border sm:max-w-[500px] rounded-[2rem]">
+                <DialogContent className="bg-panel border-qa-border sm:max-w-[500px] rounded-[2rem]">
                     <DialogHeader>
                         <DialogTitle className="text-qa-text font-black uppercase tracking-tight">
                             {editingEntryId ? 'Update Data Entry' : 'Add New Entry'}
@@ -443,7 +447,7 @@ export default function TestDataPage() {
                                     autoFocus
                                     value={entryForm.key}
                                     onChange={(e) => setEntryForm(prev => ({ ...prev, key: e.target.value }))}
-                                    className="h-10 bg-[#1A1A24] border-qa-border text-qa-purple font-mono rounded-xl"
+                                    className="h-10 bg-panel-muted border-qa-border text-qa-purple font-mono rounded-xl"
                                     placeholder="API_KEY"
                                 />
                             </div>
@@ -452,8 +456,8 @@ export default function TestDataPage() {
                                 <Input
                                     value={entryForm.environment}
                                     onChange={(e) => setEntryForm(prev => ({ ...prev, environment: e.target.value }))}
-                                    className="h-10 bg-[#1A1A24] border-qa-border text-qa-text rounded-xl"
-                                    placeholder="All, Prod, Staging..."
+                                    className="h-10 bg-panel-muted border-qa-border text-qa-text rounded-xl"
+                                    placeholder="All, Prod, Staging…"
                                 />
                             </div>
                         </div>
@@ -462,8 +466,8 @@ export default function TestDataPage() {
                             <Input
                                 value={entryForm.value}
                                 onChange={(e) => setEntryForm(prev => ({ ...prev, value: e.target.value }))}
-                                className="h-10 bg-[#1A1A24] border-qa-border text-qa-text rounded-xl"
-                                placeholder="Sensitive data or params..."
+                                className="h-10 bg-panel-muted border-qa-border text-qa-text rounded-xl"
+                                placeholder="Sensitive data or params…"
                             />
                         </div>
                         <div className="space-y-2">
@@ -471,8 +475,8 @@ export default function TestDataPage() {
                             <Textarea
                                 value={entryForm.description}
                                 onChange={(e) => setEntryForm(prev => ({ ...prev, description: e.target.value }))}
-                                className="bg-[#1A1A24] border-qa-border text-qa-text rounded-xl min-h-[80px]"
-                                placeholder="Explain what this record is used for..."
+                                className="bg-panel-muted border-qa-border text-qa-text rounded-xl min-h-[80px]"
+                                placeholder="Explain what this record is used for…"
                             />
                         </div>
                         <div className="space-y-2">
@@ -480,12 +484,12 @@ export default function TestDataPage() {
                             <Input
                                 value={entryForm.tags}
                                 onChange={(e) => setEntryForm(prev => ({ ...prev, tags: e.target.value }))}
-                                className="h-10 bg-[#1A1A24] border-qa-border text-qa-text rounded-xl"
-                                placeholder="api, secure, legacy..."
+                                className="h-10 bg-panel-muted border-qa-border text-qa-text rounded-xl"
+                                placeholder="api, secure, legacy…"
                             />
                         </div>
                     </div>
-                    <DialogFooter className="bg-[#13131A]">
+                    <DialogFooter className="bg-panel">
                         <Button variant="ghost" onClick={() => setIsEntryModalOpen(false)} className="text-qa-text-muted font-black uppercase text-xs">CANCEL</Button>
                         <Button
                             onClick={handleSaveEntry}

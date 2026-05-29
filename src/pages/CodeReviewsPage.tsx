@@ -4,6 +4,7 @@ import { GitHubSearchItem } from '@/types/github'
 import { MessageSquare, RefreshCw, Loader2, ExternalLink, GitPullRequest, Eye, Plus, Minus, ArrowUpDown, EyeOff, ChevronDown } from 'lucide-react'
 import { cn, formatTimeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { FullBleedHeader } from '@/components/ui/workspace'
 import { useGitHubStore } from '@/store/useGitHubStore'
 import { PrDetailPanel } from '@/components/github/PrDetailPanel'
 
@@ -23,19 +24,19 @@ function ReviewItem({ item, enriched, onAcknowledge, onSelect, isSelected }: {
     isSelected?: boolean
 }) {
     return (
-        <div className={cn("flex items-center gap-2 w-full rounded-lg bg-[#13131A] border transition-colors group", isSelected ? "border-[#A78BFA]/60" : "border-[#2A2A3A] hover:border-[#3D3D5F]")}>
+        <div className={cn("flex items-center gap-2 w-full rounded-lg bg-panel border transition-colors group", isSelected ? "border-[#A78BFA]/60" : "border-ui hover:border-[#3D3D5F]")}>
         <button
             onClick={onSelect ?? (() => window.electronAPI.openUrl(item.htmlUrl))}
             className="flex-1 flex items-center gap-3 p-3 text-left"
         >
-            <GitPullRequest className={cn("h-4 w-4 shrink-0", enriched?.draft ? "text-[#6B7280]" : "text-emerald-400")} />
+            <GitPullRequest className={cn("h-4 w-4 shrink-0", enriched?.draft ? "text-muted-ui" : "text-emerald-400")} />
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[#E2E8F0] group-hover:text-[#A78BFA] transition-colors truncate">
+                    <span className="text-xs font-semibold text-foreground group-hover:text-[#A78BFA] transition-colors truncate">
                         {item.title}
                     </span>
                     {enriched?.draft && (
-                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#2A2A3A] text-[#6B7280]">Draft</span>
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-elevated text-muted-ui">Draft</span>
                     )}
                     {enriched?.mergeableState === 'clean' && (
                         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400">Ready</span>
@@ -47,7 +48,7 @@ function ReviewItem({ item, enriched, onAcknowledge, onSelect, isSelected }: {
                         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">Conflicts</span>
                     )}
                 </div>
-                <div className="flex items-center gap-2 mt-1 text-[11px] text-[#6B7280] flex-wrap">
+                <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-ui flex-wrap">
                     <span className="font-mono">{item.repoFullName}#{item.number}</span>
                     <span>·</span>
                     <img src={item.authorAvatar} className="w-3.5 h-3.5 rounded-full" alt={item.author} />
@@ -64,18 +65,18 @@ function ReviewItem({ item, enriched, onAcknowledge, onSelect, isSelected }: {
                                 <Minus className="h-2.5 w-2.5" />{enriched.deletions}
                             </span>
                             {enriched.changedFiles !== undefined && (
-                                <span className="text-[#6B7280]">{enriched.changedFiles}f</span>
+                                <span className="text-muted-ui">{enriched.changedFiles}f</span>
                             )}
                         </>
                     )}
                 </div>
             </div>
-            <ExternalLink className="h-3 w-3 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+            <ExternalLink className="h-3 w-3 text-muted-ui opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
         </button>
         {onSelect && (
             <button
                 onClick={(e) => { e.stopPropagation(); window.electronAPI.openUrl(item.htmlUrl) }}
-                className="p-2 rounded text-[#6B7280] hover:text-[#A78BFA] opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                className="p-2 rounded text-muted-ui hover:text-brand opacity-0 group-hover:opacity-100 transition-all shrink-0"
                 title="Open on GitHub"
             >
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -84,7 +85,7 @@ function ReviewItem({ item, enriched, onAcknowledge, onSelect, isSelected }: {
         {onAcknowledge && (
             <button
                 onClick={onAcknowledge}
-                className="p-2 mr-1 rounded text-[#6B7280] hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                className="p-2 mr-1 rounded text-muted-ui hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
                 title="Dismiss"
             >
                 <EyeOff className="h-3.5 w-3.5" />
@@ -180,48 +181,53 @@ function CodeReviewsContent() {
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#0F0F13]">
+        <div className="h-full flex flex-col bg-app">
             {/* Header */}
-            <div className="shrink-0 border-b border-[#2A2A3A] bg-[#13131A]/60 px-5 py-3 flex items-center gap-3">
-                <MessageSquare className="h-4 w-4 text-[#A78BFA]" />
-                <h1 className="text-sm font-bold text-[#E2E8F0]">Code Reviews</h1>
-                <div className="flex-1" />
-                {enriching && (
-                    <span className="text-[10px] text-[#6B7280] flex items-center gap-1">
+            <FullBleedHeader
+                icon={MessageSquare}
+                title="Code Reviews"
+                status={enriching ? (
+                    <span className="text-[10px] text-muted-ui flex items-center gap-1">
                         <Loader2 className="h-3 w-3 animate-spin" /> Enriching…
                     </span>
-                )}
-                <div className="flex items-center gap-1">
-                    <ArrowUpDown className="h-3 w-3 text-[#6B7280]" />
-                    {(['newest', 'oldest', 'largest'] as const).map(s => (
-                        <button
-                            key={s}
-                            onClick={() => setSortBy(s)}
-                            className={cn(
-                                "px-2 py-1 rounded text-[10px] font-bold capitalize transition-colors",
-                                sortBy === s
-                                    ? "bg-[#A78BFA]/20 text-[#A78BFA]"
-                                    : "text-[#6B7280] hover:text-[#E2E8F0]"
-                            )}
+                ) : null}
+                actions={
+                    <>
+                        <div className="flex items-center gap-1">
+                            <ArrowUpDown className="h-3 w-3 text-muted-ui" aria-hidden="true" />
+                            {(['newest', 'oldest', 'largest'] as const).map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setSortBy(s)}
+                                    aria-pressed={sortBy === s}
+                                    className={cn(
+                                        "px-2 py-1 rounded text-[10px] font-bold capitalize transition-colors",
+                                        sortBy === s
+                                            ? "bg-[#A78BFA]/20 text-brand"
+                                            : "text-muted-ui hover:text-foreground"
+                                    )}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => loadData(true)}
+                            disabled={loading}
+                            className="h-8 w-8 p-0 text-muted-ui hover:text-brand"
+                            title="Refresh"
+                            aria-label="Refresh"
                         >
-                            {s}
-                        </button>
-                    ))}
-                </div>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => loadData(true)}
-                    disabled={loading}
-                    className="h-8 w-8 p-0 text-[#6B7280] hover:text-[#A78BFA]"
-                    title="Refresh"
-                >
-                    <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-                </Button>
-                {lastUpdated && (
-                    <span className="text-[10px] text-[#6B7280]">{formatTimeAgo(lastUpdated.toISOString())}</span>
-                )}
-            </div>
+                            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} aria-hidden="true" />
+                        </Button>
+                        {lastUpdated && (
+                            <span className="text-[10px] text-muted-ui">{formatTimeAgo(lastUpdated.toISOString())}</span>
+                        )}
+                    </>
+                }
+            />
 
             {/* Content */}
             <div className="flex-1 flex overflow-hidden">
@@ -232,7 +238,7 @@ function CodeReviewsContent() {
 
                 {loading ? (
                     <div className="flex items-center justify-center py-16">
-                        <Loader2 className="h-6 w-6 text-[#A78BFA] animate-spin" />
+                        <Loader2 className="h-6 w-6 text-brand animate-spin" />
                     </div>
                 ) : (
                     <>
@@ -246,13 +252,13 @@ function CodeReviewsContent() {
                                     <>
                                         <div className="flex items-center gap-2 mb-3">
                                             <Eye className="h-3.5 w-3.5 text-amber-400" />
-                                            <h2 className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">Awaiting My Review</h2>
+                                            <h2 className="text-xs font-bold uppercase tracking-wider text-soft">Awaiting My Review</h2>
                                             <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-[10px] font-bold text-amber-400">
                                                 {unacked.length}
                                             </span>
                                         </div>
                                         {unacked.length === 0 ? (
-                                            <div className="text-center py-8 text-[#6B7280] text-xs bg-[#13131A] rounded-lg border border-[#2A2A3A]">
+                                            <div className="text-center py-8 text-muted-ui text-xs bg-panel rounded-lg border border-ui">
                                                 No reviews pending — you're all caught up!
                                             </div>
                                         ) : (
@@ -273,7 +279,7 @@ function CodeReviewsContent() {
                                             <div className="mt-3">
                                                 <button
                                                     onClick={() => setShowAcknowledged(v => !v)}
-                                                    className="flex items-center gap-1.5 text-[10px] text-[#6B7280] hover:text-[#9CA3AF] transition-colors mb-2"
+                                                    className="flex items-center gap-1.5 text-[10px] text-muted-ui hover:text-[#9CA3AF] transition-colors mb-2"
                                                 >
                                                     <ChevronDown className={cn("h-3 w-3 transition-transform", showAcknowledged && "rotate-180")} />
                                                     <EyeOff className="h-3 w-3" />
@@ -303,14 +309,14 @@ function CodeReviewsContent() {
                         {/* My Open PRs */}
                         <section>
                             <div className="flex items-center gap-2 mb-3">
-                                <GitPullRequest className="h-3.5 w-3.5 text-[#A78BFA]" />
-                                <h2 className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">My Open PRs</h2>
-                                <span className="px-1.5 py-0.5 rounded-full bg-[#A78BFA]/20 text-[10px] font-bold text-[#A78BFA]">
+                                <GitPullRequest className="h-3.5 w-3.5 text-brand" />
+                                <h2 className="text-xs font-bold uppercase tracking-wider text-soft">My Open PRs</h2>
+                                <span className="px-1.5 py-0.5 rounded-full bg-[#A78BFA]/20 text-[10px] font-bold text-brand">
                                     {myPrs.length}
                                 </span>
                             </div>
                             {myPrs.length === 0 ? (
-                                <div className="text-center py-8 text-[#6B7280] text-xs bg-[#13131A] rounded-lg border border-[#2A2A3A]">
+                                <div className="text-center py-8 text-muted-ui text-xs bg-panel rounded-lg border border-ui">
                                     No open pull requests
                                 </div>
                             ) : (

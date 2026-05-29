@@ -92,10 +92,10 @@ const DONE_COLUMN_IDS = new Set(["done", "closed", "complete", "completed", "can
 const READY_FOR_QA_STATUS_IDS = new Set(["ready for qa", "ready_for_qa"])
 const QA_RETESTING_STATUS_IDS = new Set(["qa retesting", "qa_retesting"])
 const DEFAULT_TASK_COLUMNS: TaskBoardColumn[] = [
-    { id: "backlog", title: "BACKLOG", color: "bg-[#9CA3AF]", textColor: "text-[#9CA3AF]" },
-    { id: "todo", title: "TODO", color: "bg-[#6B7280]", textColor: "text-[#6B7280]" },
+    { id: "backlog", title: "BACKLOG", color: "bg-[#9CA3AF]", textColor: "text-soft" },
+    { id: "todo", title: "TODO", color: "bg-[#6B7280]", textColor: "text-muted-ui" },
     { id: "in-progress", title: "IN PROGRESS", color: "bg-[#3B82F6]", textColor: "text-[#3B82F6]" },
-    { id: "in-review", title: "IN REVIEW", color: "bg-[#A78BFA]", textColor: "text-[#A78BFA]" },
+    { id: "in-review", title: "IN REVIEW", color: "bg-primary", textColor: "text-brand" },
     { id: "done", title: "DONE", color: "bg-[#10B981]", textColor: "text-[#10B981]" },
     { id: "canceled", title: "CANCELED", color: "bg-[#EF4444]", textColor: "text-[#EF4444]" },
     { id: "duplicate", title: "DUPLICATE", color: "bg-[#F59E0B]", textColor: "text-[#F59E0B]" }

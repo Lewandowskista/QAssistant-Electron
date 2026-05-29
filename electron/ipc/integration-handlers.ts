@@ -357,4 +357,28 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
         try { return await deps.github.dispatchWorkflow(owner, repo, workflowId, ref); }
         catch (e: any) { return { __isError: true, message: e.message }; }
     });
+    ipcMain.handle('github-add-pr-comment', async (_e: any, { owner, repo, prNumber, body }: any) => {
+        try {
+            deps.assertString(owner, 'owner', 200);
+            deps.assertString(repo, 'repo', 200);
+            deps.assertString(body, 'body', 65_536);
+            return await deps.github.addPrComment(owner, repo, Number(prNumber), body);
+        } catch (e: any) { return { __isError: true, message: e.message }; }
+    });
+    ipcMain.handle('github-add-pr-labels', async (_e: any, { owner, repo, prNumber, labelNames }: any) => {
+        try {
+            deps.assertString(owner, 'owner', 200);
+            deps.assertString(repo, 'repo', 200);
+            if (!Array.isArray(labelNames) || labelNames.length > 20) throw new Error('labelNames must be an array of at most 20 items');
+            return await deps.github.addPrLabels(owner, repo, Number(prNumber), labelNames);
+        } catch (e: any) { return { __isError: true, message: e.message }; }
+    });
+    ipcMain.handle('github-remove-pr-label', async (_e: any, { owner, repo, prNumber, labelName }: any) => {
+        try {
+            deps.assertString(owner, 'owner', 200);
+            deps.assertString(repo, 'repo', 200);
+            deps.assertString(labelName, 'labelName', 100);
+            return await deps.github.removePrLabel(owner, repo, Number(prNumber), labelName);
+        } catch (e: any) { return { __isError: true, message: e.message }; }
+    });
 }

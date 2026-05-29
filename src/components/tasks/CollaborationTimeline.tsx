@@ -27,7 +27,7 @@ export function CollaborationTimeline({ events }: CollaborationTimelineProps) {
     const memberMap = new Map(members.map(m => [m.user_id, m.display_name]))
 
     if (events.length === 0) {
-        return <div className="text-xs text-[#6B7280] italic">No collaboration activity yet.</div>
+        return <div className="text-xs text-muted-ui italic">No collaboration activity yet.</div>
     }
 
     return (
@@ -38,15 +38,15 @@ export function CollaborationTimeline({ events }: CollaborationTimelineProps) {
                     const actorName = event.actorDisplayName
                         ?? (event.actorUserId ? memberMap.get(event.actorUserId) : undefined)
                     return (
-                        <div key={event.id} className="relative pl-5 border-l border-[#2A2A3A]">
-                            <div className="absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full bg-[#A78BFA]" />
-                            <div className="bg-[#1A1A24] border border-[#2A2A3A] rounded-xl p-3 space-y-1">
+                        <div key={event.id} className="relative pl-5 border-l border-ui">
+                            <div className="absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full bg-primary" />
+                            <div className="bg-panel-muted border border-ui rounded-xl p-3 space-y-1">
                                 <div className="flex items-center justify-between gap-3">
-                                    <span className="text-xs font-bold text-[#E2E8F0]">{event.title}</span>
-                                    <span className="text-[10px] text-[#6B7280] shrink-0">{new Date(event.timestamp).toLocaleString()}</span>
+                                    <span className="text-xs font-bold text-foreground">{event.title}</span>
+                                    <span className="text-[10px] text-muted-ui shrink-0">{new Date(event.timestamp).toLocaleString()}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] uppercase tracking-wider text-[#A78BFA]">{event.actorRole}</span>
+                                    <span className="text-[10px] uppercase tracking-wider text-brand">{event.actorRole}</span>
                                     {actorName && (
                                         <div className="flex items-center gap-1">
                                             <div className={cn(
@@ -55,11 +55,11 @@ export function CollaborationTimeline({ events }: CollaborationTimelineProps) {
                                             )}>
                                                 {initials(actorName)}
                                             </div>
-                                            <span className="text-[10px] text-[#9CA3AF]">{actorName}</span>
+                                            <span className="text-[10px] text-soft">{actorName}</span>
                                         </div>
                                     )}
                                 </div>
-                                {event.details && <p className="text-[11px] text-[#9CA3AF]">{event.details}</p>}
+                                {event.details && <p className="text-[11px] text-soft">{event.details}</p>}
                             </div>
                         </div>
                     )

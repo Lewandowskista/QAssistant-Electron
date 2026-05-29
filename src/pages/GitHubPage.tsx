@@ -6,18 +6,22 @@ import { useListKeyboardNav } from '@/hooks/useListKeyboardNav'
 import {
     GitBranch, GitPullRequest, RefreshCw, Loader2, ExternalLink,
     ChevronDown, X, Search,
-    Plus, Minus, FileText, Rocket, Sparkles, Zap, CheckCircle2
+    Plus, Minus, FileText, Rocket, Sparkles, Zap, CheckCircle2,
+    MessageSquare, Tag
 } from 'lucide-react'
 import { cn, formatTimeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { PrAnalysisCard } from '@/components/github/PrAnalysisCard'
 import { RepoSelector } from '@/components/github/RepoSelector'
 import { CheckStatusIcon, mergeableLabel, ReviewSummaryBadges } from '@/components/github/StatusBadges'
 import { SubtabBar } from '@/components/ui/subtab-bar'
+import { FullBleedHeader } from '@/components/ui/workspace'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { sanitizeProjectForQaAi } from '@/lib/aiUtils'
 import { useProjectStore } from '@/store/useProjectStore'
 import { getApiKey } from '@/lib/credentials'
+import { aiAnalyzePullRequest } from '@/lib/aiClient'
 import { toast } from 'sonner'
 
 type Tab = 'pulls' | 'commits'
@@ -30,14 +34,14 @@ function PrDescription({ body }: { body: string }) {
 
     return (
         <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-2">Description</p>
-            <p className="text-[11px] text-[#9CA3AF] whitespace-pre-wrap leading-relaxed break-words">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Description</p>
+            <p className="text-[11px] text-soft whitespace-pre-wrap leading-relaxed break-words">
                 {isLong && !expanded ? body.slice(0, DESCRIPTION_TRUNCATE_LENGTH) + '…' : body}
             </p>
             {isLong && (
                 <button
                     onClick={() => setExpanded(prev => !prev)}
-                    className="mt-1.5 text-[10px] font-semibold text-[#A78BFA] hover:text-[#C4B5FD] transition-colors"
+                    className="mt-1.5 text-[10px] font-semibold text-brand hover:text-[#C4B5FD] transition-colors"
                 >
                     {expanded ? 'Show less' : 'Show more'}
                 </button>
@@ -86,6 +90,13 @@ function GitHubContent() {
     const [loadingDetail, setLoadingDetail] = useState(false)
     const [prComments, setPrComments] = useState<GitHubComment[]>([])
     const [loadingComments, setLoadingComments] = useState(false)
+
+    // QA write actions
+    const [qaCommentText, setQaCommentText] = useState('')
+    const [qaCommentExpanded, setQaCommentExpanded] = useState(false)
+    const [postingComment, setPostingComment] = useState(false)
+    const [labelDropdownOpen, setLabelDropdownOpen] = useState(false)
+    const [applyingLabel, setApplyingLabel] = useState<string | null>(null)
     const projectTestCases = activeProject?.testPlans.flatMap(tp => tp.testCases || []) || []
 
     // Load PRs + commits + secondary data when repo/filter changes
@@ -199,16 +210,13 @@ function GitHubContent() {
 
     const handleAnalyzePullRequest = async () => {
         if (!selectedPr || !selectedRepo || !activeProject) return
-        const apiKey = await getApiKey(api, 'gemini_api_key', activeProject.id)
-        if (!apiKey) { toast.error('Configure a Gemini API key in Settings.'); return }
         const allTestCases = projectTestCases.map(tc => ({
             id: tc.id, title: tc.title, sapModule: tc.sapModule, components: tc.components, tags: tc.tags,
         }))
         setAnalysisLoading(true)
         try {
             const detail = prDetail || await api.githubGetPrDetail({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: selectedPr.number })
-            const result = await api.aiAnalyzePullRequest({
-                apiKey,
+            const result = await aiAnalyzePullRequest({
                 pr: {
                     number: selectedPr.number,
                     title: selectedPr.title,
@@ -223,7 +231,6 @@ function GitHubContent() {
                 },
                 testCases: allTestCases,
                 project: sanitizeProjectForQaAi(activeProject ?? undefined),
-                modelName: activeProject.geminiModel,
             })
             setPrAnalysisResult(result)
             setSelectedImpactedIds(new Set(result.impactedCaseIds))
@@ -281,6 +288,61 @@ function GitHubContent() {
 
     const keyboardItems: Array<GitHubPullRequest | GitHubCommit> = activeTab === 'pulls' ? filteredPrs : commits
 
+    const QA_LABELS = ['qa-approved', 'qa-blocked', 'needs-retest'] as const
+
+    const handlePostQaComment = async () => {
+        if (!selectedRepo || !selectedPr || !qaCommentText.trim()) return
+        setPostingComment(true)
+        try {
+            await api.githubAddPrComment({
+                owner: selectedRepo.owner.login,
+                repo: selectedRepo.name,
+                prNumber: selectedPr.number,
+                body: qaCommentText.trim(),
+            })
+            toast.success('Comment posted')
+            setQaCommentText('')
+            setQaCommentExpanded(false)
+            const updated = await api.githubGetPrComments({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: selectedPr.number })
+            setPrComments(updated)
+        } catch (e: any) {
+            toast.error(e.message ?? 'Failed to post comment')
+        } finally {
+            setPostingComment(false)
+        }
+    }
+
+    const handleApplyQaLabel = async (labelName: string) => {
+        if (!selectedRepo || !selectedPr) return
+        setApplyingLabel(labelName)
+        setLabelDropdownOpen(false)
+        try {
+            const alreadyApplied = (prDetail?.labels ?? selectedPr.labels ?? []).some((l: any) => l.name === labelName)
+            if (alreadyApplied) {
+                await api.githubRemovePrLabel({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: selectedPr.number, labelName })
+                toast.success(`Label "${labelName}" removed`)
+            } else {
+                await api.githubAddPrLabels({ owner: selectedRepo.owner.login, repo: selectedRepo.name, prNumber: selectedPr.number, labelNames: [labelName] })
+                toast.success(`Label "${labelName}" applied`)
+            }
+            // Refresh PR list to reflect label change
+            const refreshed = await api.githubGetPullRequests({ owner: selectedRepo.owner.login, repo: selectedRepo.name, state: prFilter, forceRefresh: true })
+            setPrs(refreshed)
+            // Update prDetail labels locally
+            if (prDetail) {
+                const currentLabels: any[] = prDetail.labels ?? []
+                const newLabels = alreadyApplied
+                    ? currentLabels.filter((l: any) => l.name !== labelName)
+                    : [...currentLabels, { name: labelName, color: '5319e7' }]
+                setPrDetail({ ...prDetail, labels: newLabels })
+            }
+        } catch (e: any) {
+            toast.error(e.message ?? 'Failed to update label')
+        } finally {
+            setApplyingLabel(null)
+        }
+    }
+
     const { activeIndex: kbIndex } = useListKeyboardNav<GitHubPullRequest | GitHubCommit>({
         items: keyboardItems,
         enabled: !loadingData,
@@ -298,33 +360,35 @@ function GitHubContent() {
     })
 
     return (
-        <div className="h-full flex flex-col bg-[#0F0F13]">
+        <div className="h-full flex flex-col bg-app">
             {/* Header bar */}
-            <div className="shrink-0 border-b border-[#2A2A3A] bg-[#13131A]/60 px-5 py-3 flex items-center gap-3">
-                <GitBranch className="h-4 w-4 text-[#A78BFA]" />
-                <h1 className="text-sm font-bold text-[#E2E8F0]">GitHub</h1>
-                <div className="flex-1" />
-
-                <RepoSelector
-                    repos={repos}
-                    selectedRepo={selectedRepo}
-                    onSelect={setSelectedRepo}
-                    loading={loadingRepos}
-                />
-
-                <Button
-                    variant="ghost" size="sm"
-                    onClick={() => selectedRepo && loadRepoData(selectedRepo, true)}
-                    disabled={loadingData || !selectedRepo}
-                    className="h-8 w-8 p-0 text-[#6B7280] hover:text-[#A78BFA]"
-                    title="Refresh"
-                >
-                    <RefreshCw className={cn("h-3.5 w-3.5", loadingData && "animate-spin")} />
-                </Button>
-                {lastUpdated && (
-                    <span className="text-[10px] text-[#6B7280]">{formatTimeAgo(lastUpdated.toISOString())}</span>
-                )}
-            </div>
+            <FullBleedHeader
+                icon={GitBranch}
+                title="GitHub"
+                actions={
+                    <>
+                        <RepoSelector
+                            repos={repos}
+                            selectedRepo={selectedRepo}
+                            onSelect={setSelectedRepo}
+                            loading={loadingRepos}
+                        />
+                        <Button
+                            variant="ghost" size="sm"
+                            onClick={() => selectedRepo && loadRepoData(selectedRepo, true)}
+                            disabled={loadingData || !selectedRepo}
+                            className="h-8 w-8 p-0 text-muted-ui hover:text-brand"
+                            title="Refresh"
+                            aria-label="Refresh"
+                        >
+                            <RefreshCw aria-hidden="true" className={cn("h-3.5 w-3.5", loadingData && "animate-spin")} />
+                        </Button>
+                        {lastUpdated && (
+                            <span className="text-[10px] text-muted-ui">{formatTimeAgo(lastUpdated.toISOString())}</span>
+                        )}
+                    </>
+                }
+            />
 
             {/* Tabs */}
             <div className="shrink-0 border-b app-divider bg-[hsl(var(--surface-header)/0.62)] px-5 py-3">
@@ -343,19 +407,29 @@ function GitHubContent() {
                 {/* Main scrollable area */}
                 <div className={cn("overflow-y-auto custom-scrollbar transition-all duration-200", selectedPr ? "flex-1 min-w-0" : "w-full")}>
                     {(error || repoError) && (
-                        <div className="m-4 p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300">{error || repoError}</div>
+                        <div className="m-4 p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300 flex items-center justify-between gap-3">
+                            <span>{error || repoError}</span>
+                            {selectedRepo && (
+                                <button
+                                    className="shrink-0 px-2 py-1 rounded bg-red-900/40 hover:bg-red-900/60 text-red-200 font-medium"
+                                    onClick={() => { setError(null); loadRepoData(selectedRepo, true) }}
+                                >
+                                    Retry
+                                </button>
+                            )}
+                        </div>
                     )}
 
                     {!selectedRepo && !loadingRepos && (
                         <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-                            <GitBranch className="h-10 w-10 text-[#6B7280] opacity-40" />
-                            <p className="text-sm text-[#6B7280]">Select a repository to get started</p>
+                            <GitBranch className="h-10 w-10 text-muted-ui opacity-40" />
+                            <p className="text-sm text-muted-ui">Select a repository to get started</p>
                         </div>
                     )}
 
                     {loadingData && (
                         <div className="flex items-center justify-center py-16">
-                            <Loader2 className="h-6 w-6 text-[#A78BFA] animate-spin" />
+                            <Loader2 className="h-6 w-6 text-brand animate-spin" />
                         </div>
                     )}
 
@@ -369,19 +443,20 @@ function GitHubContent() {
                                     options={(['open', 'closed', 'all'] as const).map((item) => ({ value: item, label: item }))}
                                 />
                                 <div className="relative flex-1">
-                                    <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[#6B7280] pointer-events-none" />
+                                    <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
                                     <input
                                         type="text"
-                                        placeholder="Filter by title, author, branch, label..."
+                                        aria-label="Search pull requests"
+                                        placeholder="Filter by title, author, branch, label…"
                                         value={prSearch}
                                         onChange={e => setPrSearch(e.target.value)}
-                                        className="w-full pl-8 pr-3 py-1.5 rounded-md bg-[#13131A] border border-[#2A2A3A] text-xs text-[#E2E8F0] placeholder-[#6B7280] focus:outline-none focus:border-[#A78BFA]/60 transition-colors"
+                                        className="w-full pl-8 pr-3 py-1.5 rounded-md bg-panel border border-ui text-xs text-foreground placeholder-[#6B7280] focus:outline-none focus:border-[#A78BFA]/60 transition-colors"
                                     />
                                 </div>
                             </div>
 
                             {filteredPrs.length === 0 ? (
-                                <div className="text-center py-12 text-[#6B7280] text-xs">
+                                <div className="text-center py-12 text-muted-ui text-xs">
                                     {prSearch ? 'No matching pull requests' : 'No pull requests found'}
                                 </div>
                             ) : filteredPrs.map((pr, idx) => {
@@ -400,24 +475,24 @@ function GitHubContent() {
                                                 ? "bg-[#1E1E2E] border-[#A78BFA]/40"
                                                 : isKbActive
                                                 ? "bg-[#1A1A2A] border-[#3D3D5F]"
-                                                : "bg-[#13131A] border-[#2A2A3A] hover:border-[#3D3D5F]"
+                                                : "bg-panel border-ui hover:border-[#3D3D5F]"
                                         )}
                                     >
                                         <div className="mt-0.5 shrink-0">
                                             <GitPullRequest className={cn("h-4 w-4",
-                                                pr.draft ? "text-[#6B7280]" :
-                                                pr.state === 'open' ? "text-emerald-400" : "text-[#A78BFA]"
+                                                pr.draft ? "text-muted-ui" :
+                                                pr.state === 'open' ? "text-emerald-400" : "text-brand"
                                             )} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <span className={cn("text-xs font-semibold truncate transition-colors",
-                                                    isSelected ? "text-[#A78BFA]" : "text-[#E2E8F0] group-hover:text-[#A78BFA]"
+                                                    isSelected ? "text-brand" : "text-foreground group-hover:text-[#A78BFA]"
                                                 )}>
                                                     {pr.title}
                                                 </span>
                                                 {pr.draft && (
-                                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#2A2A3A] text-[#6B7280]">Draft</span>
+                                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-elevated text-muted-ui">Draft</span>
                                                 )}
                                                 {pr.labels?.map(label => (
                                                     <span
@@ -432,7 +507,7 @@ function GitHubContent() {
                                                     </span>
                                                 ))}
                                             </div>
-                                            <div className="flex items-center gap-2 mt-1 text-[11px] text-[#6B7280]">
+                                            <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-ui">
                                                 <span>#{pr.number}</span>
                                                 <span>·</span>
                                                 <span className="font-mono truncate max-w-[120px]">{pr.headBranch}</span>
@@ -444,13 +519,13 @@ function GitHubContent() {
                                             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                                                 <div className="flex items-center gap-1">
                                                     <img src={pr.authorAvatar} className="w-4 h-4 rounded-full" alt={pr.author} />
-                                                    <span className="text-[11px] text-[#9CA3AF]">{pr.author}</span>
+                                                    <span className="text-[11px] text-soft">{pr.author}</span>
                                                 </div>
                                                 {(pr.additions > 0 || pr.deletions > 0) && (
                                                     <div className="flex items-center gap-1.5 text-[10px] font-mono">
                                                         <span className="text-emerald-400 flex items-center gap-0.5"><Plus className="h-2.5 w-2.5" />{pr.additions}</span>
                                                         <span className="text-red-400 flex items-center gap-0.5"><Minus className="h-2.5 w-2.5" />{pr.deletions}</span>
-                                                        <span className="text-[#6B7280] flex items-center gap-0.5"><FileText className="h-2.5 w-2.5" />{pr.changedFiles}</span>
+                                                        <span className="text-muted-ui flex items-center gap-0.5"><FileText className="h-2.5 w-2.5" />{pr.changedFiles}</span>
                                                     </div>
                                                 )}
                                                 {/* Review summary badges */}
@@ -463,7 +538,7 @@ function GitHubContent() {
                                                     const depState = dep.latestStatus?.state
                                                     const depColor = depState === 'success' ? 'text-emerald-400' :
                                                         depState === 'failure' || depState === 'error' ? 'text-red-400' :
-                                                        depState === 'in_progress' ? 'text-amber-400' : 'text-[#6B7280]'
+                                                        depState === 'in_progress' ? 'text-amber-400' : 'text-muted-ui'
                                                     return (
                                                         <div className={cn("flex items-center gap-1 text-[10px]", depColor)}>
                                                             <Rocket className="h-2.5 w-2.5 shrink-0" />
@@ -489,16 +564,16 @@ function GitHubContent() {
                                 <div className="relative mb-3">
                                     <button
                                         onClick={() => setBranchDropdownOpen(prev => !prev)}
-                                        className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-[#2A2A3A] bg-[#13131A] hover:bg-[#1A1A24] transition-colors text-xs font-semibold text-[#E2E8F0] w-full"
+                                        className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-ui bg-panel hover:bg-elevated transition-colors text-xs font-semibold text-foreground w-full"
                                     >
-                                        <GitBranch className="h-3.5 w-3.5 text-[#A78BFA] shrink-0" />
+                                        <GitBranch className="h-3.5 w-3.5 text-brand shrink-0" />
                                         <span className="flex-1 text-left font-mono truncate">{selectedBranch ?? selectedRepo.defaultBranch}</span>
-                                        <ChevronDown className="h-3 w-3 text-[#6B7280] shrink-0" />
+                                        <ChevronDown className="h-3 w-3 text-muted-ui shrink-0" />
                                     </button>
                                     {branchDropdownOpen && (
                                         <>
                                             <div className="fixed inset-0 z-40" onClick={() => setBranchDropdownOpen(false)} />
-                                            <div className="absolute left-0 top-full mt-1 z-50 w-full max-h-60 overflow-y-auto bg-[#1A1A24] border border-[#2A2A3A] rounded-lg shadow-xl custom-scrollbar">
+                                            <div className="absolute left-0 top-full mt-1 z-50 w-full max-h-60 overflow-y-auto bg-panel-muted border border-ui rounded-lg shadow-xl custom-scrollbar">
                                                 {branches.map(branch => (
                                                     <button
                                                         key={branch.name}
@@ -508,14 +583,14 @@ function GitHubContent() {
                                                             if (selectedRepo) loadRepoData(selectedRepo, true, branch.name)
                                                         }}
                                                         className={cn(
-                                                            "w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[#252535] transition-colors text-left",
-                                                            selectedBranch === branch.name && "bg-[#2D2D3F]"
+                                                            "w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-elevated transition-colors text-left",
+                                                            selectedBranch === branch.name && "bg-selected"
                                                         )}
                                                     >
-                                                        <GitBranch className="h-3 w-3 text-[#6B7280] shrink-0" />
-                                                        <span className="font-mono text-[#E2E8F0] truncate flex-1">{branch.name}</span>
+                                                        <GitBranch className="h-3 w-3 text-muted-ui shrink-0" />
+                                                        <span className="font-mono text-foreground truncate flex-1">{branch.name}</span>
                                                         {branch.name === selectedRepo.defaultBranch && (
-                                                            <span className="text-[9px] text-[#6B7280] bg-[#2A2A3A] px-1.5 rounded">default</span>
+                                                            <span className="text-[9px] text-muted-ui bg-elevated px-1.5 rounded">default</span>
                                                         )}
                                                     </button>
                                                 ))}
@@ -525,25 +600,25 @@ function GitHubContent() {
                                 </div>
                             )}
                             {commits.length === 0 ? (
-                                <div className="text-center py-12 text-[#6B7280] text-xs">No commits found</div>
+                                <div className="text-center py-12 text-muted-ui text-xs">No commits found</div>
                             ) : commits.map(commit => (
                                 <button
                                     key={commit.sha}
                                     onClick={() => api.openUrl(commit.htmlUrl)}
                                     className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-[#13131A] transition-colors text-left group"
                                 >
-                                    <code className="shrink-0 text-[11px] font-mono text-[#A78BFA] bg-[#A78BFA]/10 px-1.5 py-0.5 rounded">
+                                    <code className="shrink-0 text-[11px] font-mono text-brand bg-[#A78BFA]/10 px-1.5 py-0.5 rounded">
                                         {commit.shortSha}
                                     </code>
                                     <div className="flex-1 min-w-0">
-                                        <span className="text-xs text-[#E2E8F0] truncate block">{commit.message.split('\n')[0]}</span>
+                                        <span className="text-xs text-foreground truncate block">{commit.message.split('\n')[0]}</span>
                                     </div>
                                     <div className="shrink-0 flex items-center gap-2">
                                         {commit.authorAvatar && (
                                             <img src={commit.authorAvatar} className="w-4 h-4 rounded-full" alt={commit.authorLogin} />
                                         )}
-                                        <span className="text-[11px] text-[#6B7280] whitespace-nowrap">{formatTimeAgo(commit.date)}</span>
-                                        <ExternalLink className="h-3 w-3 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        <span className="text-[11px] text-muted-ui whitespace-nowrap">{formatTimeAgo(commit.date)}</span>
+                                        <ExternalLink className="h-3 w-3 text-muted-ui opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </div>
                                 </button>
                             ))}
@@ -553,24 +628,26 @@ function GitHubContent() {
 
                 {/* Detail panel */}
                 {selectedPr && (
-                    <div className="w-[380px] shrink-0 border-l border-[#2A2A3A] flex flex-col bg-[#0D0D11] overflow-hidden">
+                    <div className="w-[380px] shrink-0 border-l border-ui flex flex-col bg-[#0D0D11] overflow-hidden">
                         {/* Panel header */}
-                        <div className="shrink-0 border-b border-[#2A2A3A] px-4 py-3 flex items-center gap-2 bg-[#13131A]/60">
-                            <span className="text-xs font-bold text-[#9CA3AF] shrink-0">#{selectedPr.number}</span>
-                            <span className="text-xs font-semibold text-[#E2E8F0] flex-1 truncate">{selectedPr.title}</span>
+                        <div className="shrink-0 border-b border-ui px-4 py-3 flex items-center gap-2 bg-[#13131A]/60">
+                            <span className="text-xs font-bold text-soft shrink-0">#{selectedPr.number}</span>
+                            <span className="text-xs font-semibold text-foreground flex-1 truncate">{selectedPr.title}</span>
                             <button
                                 onClick={() => api.openUrl(selectedPr.htmlUrl)}
-                                className="p-1.5 rounded hover:bg-[#252535] text-[#6B7280] hover:text-[#A78BFA] transition-colors shrink-0"
+                                className="p-1.5 rounded hover:bg-elevated text-muted-ui hover:text-brand transition-colors shrink-0"
                                 title="Open on GitHub"
+                                aria-label="Open on GitHub"
                             >
-                                <ExternalLink className="h-3.5 w-3.5" />
+                                <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
                             </button>
                             <button
                                 onClick={() => { setSelectedPr(null); setPrDetail(null) }}
-                                className="p-1.5 rounded hover:bg-[#252535] text-[#6B7280] hover:text-[#E2E8F0] transition-colors shrink-0"
+                                className="p-1.5 rounded hover:bg-elevated text-muted-ui hover:text-foreground transition-colors shrink-0"
                                 title="Close"
+                                aria-label="Close"
                             >
-                                <X className="h-3.5 w-3.5" />
+                                <X aria-hidden="true" className="h-3.5 w-3.5" />
                             </button>
                         </div>
 
@@ -578,18 +655,18 @@ function GitHubContent() {
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
                             {loadingDetail ? (
                                 <div className="flex justify-center py-8">
-                                    <Loader2 className="h-5 w-5 text-[#A78BFA] animate-spin" />
+                                    <Loader2 className="h-5 w-5 text-brand animate-spin" />
                                 </div>
                             ) : prDetail ? (
                                 <>
                                     {/* Branch info */}
-                                    <div className="flex items-center gap-2 text-[11px] text-[#6B7280]">
+                                    <div className="flex items-center gap-2 text-[11px] text-muted-ui">
                                         <GitBranch className="h-3 w-3 shrink-0" />
-                                        <code className="font-mono text-[#A78BFA] truncate">{prDetail.headBranch}</code>
+                                        <code className="font-mono text-brand truncate">{prDetail.headBranch}</code>
                                         <span>→</span>
                                         <code className="font-mono truncate">{prDetail.baseBranch}</code>
                                         {prDetail.draft && (
-                                            <span className="px-1.5 py-0.5 rounded bg-[#2A2A3A] text-[9px] font-bold uppercase text-[#6B7280] shrink-0">Draft</span>
+                                            <span className="px-1.5 py-0.5 rounded bg-elevated text-[9px] font-bold uppercase text-muted-ui shrink-0">Draft</span>
                                         )}
                                     </div>
 
@@ -605,26 +682,26 @@ function GitHubContent() {
 
                                     {/* CI status */}
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">CI</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">CI</span>
                                         <CheckStatusIcon status={prCheckStatuses[selectedPr.number] ?? selectedPr.checkStatus} />
-                                        <span className="text-[11px] text-[#9CA3AF] capitalize">
+                                        <span className="text-[11px] text-soft capitalize">
                                             {prCheckStatuses[selectedPr.number] ?? selectedPr.checkStatus ?? 'No checks'}
                                         </span>
                                     </div>
 
                                     {/* Diff stats */}
                                     {(prDetail.additions > 0 || prDetail.deletions > 0) && (
-                                        <div className="flex items-center gap-3 text-[11px] font-mono p-2.5 rounded bg-[#13131A] border border-[#2A2A3A]">
+                                        <div className="flex items-center gap-3 text-[11px] font-mono p-2.5 rounded bg-panel border border-ui">
                                             <span className="text-emerald-400">+{prDetail.additions}</span>
                                             <span className="text-red-400">−{prDetail.deletions}</span>
-                                            <span className="text-[#6B7280]">{prDetail.changedFiles} file{prDetail.changedFiles !== 1 ? 's' : ''}</span>
+                                            <span className="text-muted-ui">{prDetail.changedFiles} file{prDetail.changedFiles !== 1 ? 's' : ''}</span>
                                         </div>
                                     )}
 
                                     {/* Reviewers */}
                                     {prReviews[selectedPr.number]?.length > 0 && (
                                         <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-2">Reviewers</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Reviewers</p>
                                             <div className="space-y-1.5">
                                                 {Object.values(
                                                     prReviews[selectedPr.number].reduce((acc: Record<string, GitHubReview>, r) => {
@@ -634,12 +711,12 @@ function GitHubContent() {
                                                 ).map(r => (
                                                     <div key={r.user} className="flex items-center gap-2">
                                                         <img src={r.userAvatar} className="w-5 h-5 rounded-full shrink-0" alt={r.user} />
-                                                        <span className="text-[11px] text-[#E2E8F0] flex-1 truncate">{r.user}</span>
+                                                        <span className="text-[11px] text-foreground flex-1 truncate">{r.user}</span>
                                                         <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0",
                                                             r.state === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' :
                                                             r.state === 'CHANGES_REQUESTED' ? 'bg-red-500/20 text-red-400' :
-                                                            r.state === 'COMMENTED' ? 'bg-[#A78BFA]/20 text-[#A78BFA]' :
-                                                            'bg-[#2A2A3A] text-[#6B7280]'
+                                                            r.state === 'COMMENTED' ? 'bg-[#A78BFA]/20 text-brand' :
+                                                            'bg-elevated text-muted-ui'
                                                         )}>
                                                             {r.state === 'CHANGES_REQUESTED' ? 'Changes' : r.state.charAt(0) + r.state.slice(1).toLowerCase()}
                                                         </span>
@@ -652,10 +729,10 @@ function GitHubContent() {
                                     {/* Requested reviewers (not yet reviewed) */}
                                     {selectedPr.requestedReviewers.length > 0 && (
                                         <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-2">Awaiting review from</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Awaiting review from</p>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {selectedPr.requestedReviewers.map(reviewer => (
-                                                    <span key={reviewer} className="px-2 py-0.5 rounded-full bg-[#2A2A3A] text-[10px] text-[#9CA3AF]">
+                                                    <span key={reviewer} className="px-2 py-0.5 rounded-full bg-elevated text-[10px] text-soft">
                                                         {reviewer}
                                                     </span>
                                                 ))}
@@ -685,13 +762,13 @@ function GitHubContent() {
                                     />
 
                                     {/* Test Impact Analysis */}
-                                    <div className="hidden rounded-xl border border-[#2A2A3A] bg-[#0D0D11] overflow-hidden">
-                                        <div className="flex items-center justify-between px-3 py-2 border-b border-[#2A2A3A]">
+                                    <div className="hidden rounded-xl border border-ui bg-[#0D0D11] overflow-hidden">
+                                        <div className="flex items-center justify-between px-3 py-2 border-b border-ui">
                                             <div className="flex items-center gap-2">
-                                                <Sparkles className="h-3.5 w-3.5 text-[#A78BFA]" />
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">Test Impact</span>
+                                                <Sparkles className="h-3.5 w-3.5 text-brand" />
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">Test Impact</span>
                                                 {impactResult && (
-                                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-[#A78BFA]">
+                                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-brand">
                                                         {impactResult.impactedCaseIds.length} impacted
                                                     </span>
                                                 )}
@@ -701,10 +778,10 @@ function GitHubContent() {
                                                 variant="ghost"
                                                 onClick={handleTestImpactAnalysis}
                                                 disabled={impactLoading}
-                                                className="h-7 text-[10px] font-bold text-[#A78BFA] hover:bg-[#A78BFA]/10 gap-1"
+                                                className="h-7 text-[10px] font-bold text-brand hover:bg-[#A78BFA]/10 gap-1"
                                             >
                                                 {impactLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                                                {impactLoading ? 'Analyzing...' : 'Analyze'}
+                                                {impactLoading ? 'Analyzing…' : 'Analyze'}
                                             </Button>
                                         </div>
                                         {impactResult && (
@@ -717,7 +794,7 @@ function GitHubContent() {
                                                     </div>
                                                 )}
                                                 {impactResult.rationale && (
-                                                    <p className="text-[10px] text-[#9CA3AF] leading-relaxed">{impactResult.rationale}</p>
+                                                    <p className="text-[10px] text-soft leading-relaxed">{impactResult.rationale}</p>
                                                 )}
                                                 {impactResult.impactedCaseIds.length > 0 ? (
                                                     <>
@@ -736,7 +813,7 @@ function GitHubContent() {
                                                                             })}
                                                                             className="accent-[#A78BFA]"
                                                                         />
-                                                                        <span className="text-[10px] text-[#E2E8F0] group-hover:text-[#A78BFA] transition-colors truncate">
+                                                                        <span className="text-[10px] text-foreground group-hover:text-[#A78BFA] transition-colors truncate">
                                                                             {tc.displayId} — {tc.title}
                                                                         </span>
                                                                     </label>
@@ -746,7 +823,7 @@ function GitHubContent() {
                                                         <Button
                                                             onClick={handleBuildImpactRegressionSuite}
                                                             disabled={buildingRegression || impactSelectedIds.size === 0}
-                                                            className="w-full h-8 bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD] text-[10px] font-bold gap-2"
+                                                            className="w-full h-8 bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))] text-[10px] font-bold gap-2"
                                                         >
                                                             {buildingRegression ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
                                                             {buildingRegression ? 'Building...' : `Build Regression Suite (${impactSelectedIds.size})`}
@@ -764,26 +841,26 @@ function GitHubContent() {
 
                                     {/* Comments */}
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">
                                             Comments {prComments.length > 0 && `(${prComments.length})`}
                                         </p>
                                         {loadingComments ? (
                                             <div className="flex items-center gap-2 py-2">
-                                                <Loader2 className="h-3 w-3 text-[#A78BFA] animate-spin" />
-                                                <span className="text-[11px] text-[#6B7280]">Loading comments…</span>
+                                                <Loader2 className="h-3 w-3 text-brand animate-spin" />
+                                                <span className="text-[11px] text-muted-ui">Loading comments…</span>
                                             </div>
                                         ) : prComments.length === 0 ? (
-                                            <p className="text-[11px] text-[#6B7280]">No comments</p>
+                                            <p className="text-[11px] text-muted-ui">No comments</p>
                                         ) : (
                                             <div className="space-y-3">
                                                 {prComments.map(comment => (
-                                                    <div key={comment.id} className="p-2.5 rounded-lg bg-[#13131A] border border-[#2A2A3A]">
+                                                    <div key={comment.id} className="p-2.5 rounded-lg bg-panel border border-ui">
                                                         <div className="flex items-center gap-2 mb-1.5">
                                                             <img src={comment.userAvatar} className="w-4 h-4 rounded-full" alt={comment.user} />
-                                                            <span className="text-[11px] font-semibold text-[#E2E8F0]">{comment.user}</span>
-                                                            <span className="text-[10px] text-[#6B7280]">{formatTimeAgo(comment.createdAt)}</span>
+                                                            <span className="text-[11px] font-semibold text-foreground">{comment.user}</span>
+                                                            <span className="text-[10px] text-muted-ui">{formatTimeAgo(comment.createdAt)}</span>
                                                         </div>
-                                                        <p className="text-[11px] text-[#9CA3AF] whitespace-pre-wrap break-words leading-relaxed">
+                                                        <p className="text-[11px] text-soft whitespace-pre-wrap break-words leading-relaxed">
                                                             {comment.body.length > 500 ? comment.body.slice(0, 500) + '…' : comment.body}
                                                         </p>
                                                     </div>
@@ -791,9 +868,105 @@ function GitHubContent() {
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* QA Actions */}
+                                    <div className="pt-4 border-t border-ui space-y-3">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-brand">QA Actions</p>
+
+                                        {/* Post QA Comment */}
+                                        <div>
+                                            {!qaCommentExpanded ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="w-full text-[11px] border-ui text-soft hover:text-foreground hover:border-[#A78BFA]/50"
+                                                    onClick={() => setQaCommentExpanded(true)}
+                                                >
+                                                    <MessageSquare className="h-3 w-3 mr-1.5" />
+                                                    Add QA Comment
+                                                </Button>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    <Textarea
+                                                        value={qaCommentText}
+                                                        onChange={e => setQaCommentText(e.target.value)}
+                                                        placeholder="Write a QA comment…"
+                                                        className="text-[11px] min-h-[72px] resize-none bg-panel border-ui text-foreground placeholder:text-[#4B5563] focus:border-[#A78BFA]/50"
+                                                        onKeyDown={e => {
+                                                            if (e.key === 'Escape') { setQaCommentExpanded(false); setQaCommentText('') }
+                                                        }}
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            className="flex-1 text-[11px] bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
+                                                            onClick={handlePostQaComment}
+                                                            disabled={postingComment || !qaCommentText.trim()}
+                                                        >
+                                                            {postingComment ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Post'}
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-[11px] border-ui text-soft"
+                                                            onClick={() => { setQaCommentExpanded(false); setQaCommentText('') }}
+                                                        >
+                                                            Cancel
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* QA Labels */}
+                                        <div className="relative">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="w-full text-[11px] border-ui text-soft hover:text-foreground hover:border-[#A78BFA]/50"
+                                                onClick={() => setLabelDropdownOpen(v => !v)}
+                                                disabled={!!applyingLabel}
+                                            >
+                                                {applyingLabel ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Tag className="h-3 w-3 mr-1.5" />}
+                                                QA Label
+                                                <ChevronDown className="h-3 w-3 ml-auto" />
+                                            </Button>
+                                            {labelDropdownOpen && (
+                                                <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-panel-muted border border-ui rounded-xl shadow-xl overflow-hidden">
+                                                    {QA_LABELS.map(label => {
+                                                        const applied = (prDetail?.labels ?? selectedPr?.labels ?? []).some((l: any) => l.name === label)
+                                                        return (
+                                                            <button
+                                                                key={label}
+                                                                className="w-full flex items-center justify-between px-3 py-2 text-[11px] text-foreground hover:bg-elevated transition-colors"
+                                                                onClick={() => handleApplyQaLabel(label)}
+                                                            >
+                                                                <span>{label}</span>
+                                                                {applied && <CheckCircle2 className="h-3 w-3 text-[#10B981]" />}
+                                                            </button>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Current QA labels */}
+                                        {(prDetail?.labels ?? selectedPr?.labels ?? []).filter((l: any) => QA_LABELS.includes(l.name as any)).length > 0 && (
+                                            <div className="flex flex-wrap gap-1">
+                                                {(prDetail?.labels ?? selectedPr?.labels ?? [])
+                                                    .filter((l: any) => QA_LABELS.includes(l.name as any))
+                                                    .map((l: any) => (
+                                                        <span key={l.name} className="text-[10px] px-2 py-0.5 rounded-full bg-[#A78BFA]/20 text-brand font-semibold">
+                                                            {l.name}
+                                                        </span>
+                                                    ))
+                                                }
+                                            </div>
+                                        )}
+                                    </div>
                                 </>
                             ) : (
-                                <div className="text-center py-8 text-[#6B7280] text-xs">Failed to load details</div>
+                                <div className="text-center py-8 text-muted-ui text-xs">Failed to load details</div>
                             )}
                         </div>
                     </div>

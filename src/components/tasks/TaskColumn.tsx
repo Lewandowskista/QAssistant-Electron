@@ -49,8 +49,8 @@ export const TaskColumn = memo(function TaskColumn({
             <div className="flex items-start justify-between gap-2 px-1">
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                        <span className={cn("text-[10px] font-bold tracking-[0.15em]", col.textColor || "text-[#E2E8F0]")}>{col.title}</span>
-                        <span className="rounded border border-[#2A2A3A] bg-[#1A1A24] px-1.5 py-0.5 text-[10px] font-bold text-[#6B7280]">
+                        <span className={cn("text-[10px] font-bold tracking-[0.15em]", col.textColor || "text-foreground")}>{col.title}</span>
+                        <span className="rounded border border-ui bg-panel-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-ui">
                             {tasksInColumn.length}
                         </span>
                     </div>
@@ -63,7 +63,7 @@ export const TaskColumn = memo(function TaskColumn({
                     <button
                         type="button"
                         onClick={() => onFilterColumn(col.id)}
-                        className="rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-1 text-[#6B7280] hover:text-[#38BDF8]"
+                        className="rounded-md border border-ui bg-app p-1 text-muted-ui hover:text-[#38BDF8]"
                         title="Filter to this column"
                     >
                         <Filter className="h-3.5 w-3.5" />
@@ -71,7 +71,7 @@ export const TaskColumn = memo(function TaskColumn({
                     <button
                         type="button"
                         onClick={() => setCollapsed((value) => !value)}
-                        className="rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-1 text-[#6B7280] hover:text-[#E2E8F0]"
+                        className="rounded-md border border-ui bg-app p-1 text-muted-ui hover:text-foreground"
                         title={collapsed ? "Expand column" : "Collapse column"}
                     >
                         {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
@@ -106,10 +106,10 @@ export const TaskColumn = memo(function TaskColumn({
                                 <button
                                     type="button"
                                     onClick={() => onAddTask(col.id)}
-                                    className="group mt-2 flex h-20 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#2A2A3A] transition-all hover:border-[#A78BFA]/30 hover:bg-[#A78BFA]/5"
+                                    className="group mt-2 flex h-20 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ui transition-all hover:border-[#A78BFA]/30 hover:bg-[#A78BFA]/5"
                                 >
-                                    <Plus className="h-5 w-5 text-[#6B7280] transition-colors group-hover:text-[#A78BFA]" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#6B7280] group-hover:text-[#A78BFA]">New Task</span>
+                                    <Plus className="h-5 w-5 text-muted-ui transition-colors group-hover:text-[#A78BFA]" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui group-hover:text-[#A78BFA]">New Task</span>
                                 </button>
                             )}
                             <div className="h-px w-full pointer-events-none" />

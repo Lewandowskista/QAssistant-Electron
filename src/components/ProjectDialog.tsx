@@ -63,7 +63,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px] bg-[#13131A] border-[#2A2A3A]">
+            <DialogContent className="sm:max-w-[425px] bg-panel border-ui">
                 <DialogHeader>
                     <DialogTitle>{project ? "Edit Project" : "New Project"}</DialogTitle>
                 </DialogHeader>
@@ -97,7 +97,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
                             ))}
                         </div>
                     </div>
-                    <DialogFooter className="pt-4 border-t border-[#2A2A3A] bg-[#13131A]">
+                    <DialogFooter className="pt-4 border-t border-ui bg-panel">
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                             Cancel
                         </Button>

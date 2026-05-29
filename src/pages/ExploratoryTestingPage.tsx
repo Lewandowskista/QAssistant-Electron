@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Play, Square, Clock, Bug, Eye, HelpCircle, Lightbulb, Trash2, CheckCircle, Timer } from 'lucide-react'
+import { Plus, Play, Square, Clock, Bug, Eye, HelpCircle, Lightbulb, Trash2, CheckCircle, Timer, Camera, X } from 'lucide-react'
 import { useProjectStore } from '@/store/useProjectStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,6 +41,39 @@ function formatTimestamp(ts: number): string {
     return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+function ObservationThumbnail({ filePath }: { filePath: string }) {
+    const [dataUrl, setDataUrl] = useState<string | null>(null)
+    const [expanded, setExpanded] = useState(false)
+
+    useEffect(() => {
+        let cancelled = false
+        window.electronAPI.readAttachmentPreview(filePath).then(res => {
+            if (!cancelled && res?.dataUrl) setDataUrl(res.dataUrl)
+        })
+        return () => { cancelled = true }
+    }, [filePath])
+
+    if (!dataUrl) return null
+    return (
+        <>
+            <img
+                src={dataUrl}
+                alt="screenshot"
+                className="mt-1.5 h-[60px] w-[80px] object-cover rounded cursor-pointer border border-border hover:border-primary/50 transition-colors"
+                onClick={() => setExpanded(true)}
+            />
+            {expanded && (
+                <div
+                    className="fixed inset-0 z-layer-dialog flex items-center justify-center bg-black/80"
+                    onClick={() => setExpanded(false)}
+                >
+                    <img src={dataUrl} alt="screenshot full" className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
+                </div>
+            )}
+        </>
+    )
+}
+
 export default function ExploratoryTestingPage() {
     const activeProjectId = useProjectStore(s => s.activeProjectId)
     const projects = useProjectStore(s => s.projects)
@@ -68,6 +101,7 @@ export default function ExploratoryTestingPage() {
     const [obsDesc, setObsDesc] = useState('')
     const [obsSeverity, setObsSeverity] = useState<TaskSeverity | ''>('')
     const [addingObs, setAddingObs] = useState(false)
+    const [pendingAttachment, setPendingAttachment] = useState<{ filePath: string; fileName: string } | null>(null)
 
     // Inline bug filing
     const [bugDialogOpen, setBugDialogOpen] = useState(false)
@@ -123,12 +157,26 @@ export default function ExploratoryTestingPage() {
                 type: obsType,
                 description: obsDesc.trim(),
                 ...(obsSeverity ? { severity: obsSeverity as TaskSeverity } : {}),
+                ...(pendingAttachment ? { attachmentPath: pendingAttachment.filePath, attachmentFileName: pendingAttachment.fileName } : {}),
             }
             await addExploratoryObservation(activeProjectId, selectedSession.id, obs)
             setObsDesc('')
             setObsSeverity('')
+            setPendingAttachment(null)
         } finally {
             setAddingObs(false)
+        }
+    }
+
+    const handlePickScreenshot = async () => {
+        const api = window.electronAPI
+        const filePath = await api.selectFile([{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }])
+        if (!filePath) return
+        const result = await api.copyToAttachments(filePath)
+        if (result?.success && result.attachment) {
+            setPendingAttachment({ filePath: result.attachment.filePath, fileName: result.attachment.fileName })
+        } else {
+            toast.error('Failed to attach screenshot')
         }
     }
 
@@ -181,8 +229,8 @@ export default function ExploratoryTestingPage() {
             <aside className="w-[240px] shrink-0 border-r border-border flex flex-col bg-background">
                 <div className="px-3 py-3 border-b border-border flex items-center justify-between">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sessions</span>
-                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setNewSessionOpen(true)}>
-                        <Plus className="h-4 w-4" />
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" aria-label="New session" onClick={() => setNewSessionOpen(true)}>
+                        <Plus className="h-4 w-4" aria-hidden="true" />
                     </Button>
                 </div>
                 <div className="flex-1 overflow-y-auto py-1">
@@ -259,7 +307,7 @@ export default function ExploratoryTestingPage() {
                                 <div className="flex items-center gap-2 shrink-0">
                                     {isActive && (
                                         <div className="flex items-center gap-2">
-                                            <div className="text-sm font-mono tabular-nums text-yellow-500">
+                                            <div className="text-sm font-mono tabular-nums text-yellow-500" role="timer" aria-live="polite">
                                                 <Clock className="h-3.5 w-3.5 inline mr-1 mb-0.5" />
                                                 {formatDuration(elapsed)}
                                                 <span className="text-xs text-muted-foreground ml-1">/ {selectedSession.timebox}m</span>
@@ -278,8 +326,9 @@ export default function ExploratoryTestingPage() {
                                         </Button>
                                     )}
                                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
+                                        aria-label="Delete session"
                                         onClick={() => handleDeleteSession(selectedSession.id)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                                     </Button>
                                 </div>
                             </div>
@@ -316,13 +365,34 @@ export default function ExploratoryTestingPage() {
                                                     </SelectContent>
                                                 </Select>
                                             )}
-                                            <Input
-                                                className="h-8 text-xs flex-1"
-                                                placeholder="Describe your observation…"
-                                                value={obsDesc}
-                                                onChange={e => setObsDesc(e.target.value)}
-                                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddObservation() } }}
-                                            />
+                                            <div className="flex-1 flex flex-col gap-1 min-w-0">
+                                                <Input
+                                                    className="h-8 text-xs"
+                                                    placeholder="Describe your observation…"
+                                                    value={obsDesc}
+                                                    onChange={e => setObsDesc(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddObservation() } }}
+                                                />
+                                                {pendingAttachment && (
+                                                    <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/30 rounded px-2 py-0.5">
+                                                        <Camera className="h-3 w-3 shrink-0" />
+                                                        <span className="truncate flex-1">{pendingAttachment.fileName}</span>
+                                                        <button onClick={() => setPendingAttachment(null)} aria-label="Remove attachment" className="shrink-0 hover:text-foreground">
+                                                            <X className="h-3 w-3" aria-hidden="true" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-8 w-8 p-0 shrink-0"
+                                                title="Attach screenshot"
+                                                aria-label="Attach screenshot"
+                                                onClick={handlePickScreenshot}
+                                            >
+                                                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
+                                            </Button>
                                             <Button size="sm" className="h-8 text-xs px-3 shrink-0" onClick={handleAddObservation} disabled={addingObs || !obsDesc.trim()}>
                                                 Log
                                             </Button>
@@ -355,13 +425,14 @@ export default function ExploratoryTestingPage() {
                                                         {obs.type === 'bug' && isActive && (
                                                             <button
                                                                 onClick={() => handleFileBugFromObs(obs)}
-                                                                className="text-xs text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
+                                                                className="text-xs text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity ml-auto"
                                                             >
                                                                 <Bug className="h-3 w-3 inline mr-0.5" /> File Bug
                                                             </button>
                                                         )}
                                                     </div>
                                                     <p className="text-xs text-foreground mt-0.5 leading-relaxed">{obs.description}</p>
+                                                    {obs.attachmentPath && <ObservationThumbnail filePath={obs.attachmentPath} />}
                                                 </div>
                                             </div>
                                         )

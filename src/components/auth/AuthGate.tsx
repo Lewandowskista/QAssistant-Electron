@@ -47,7 +47,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
     if (!configured) {
         return (
             <AuthShell
-                icon={<Cloud className="h-8 w-8 text-[#A78BFA]" />}
+                icon={<Cloud className="h-8 w-8 text-brand" />}
                 title={heading}
                 subtitle="This build does not have a Supabase URL and anon key configured yet."
             >
@@ -63,7 +63,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
     if (status === 'booting') {
         return (
             <AuthShell
-                icon={<Loader2 className="h-8 w-8 animate-spin text-[#A78BFA]" />}
+                icon={<Loader2 className="h-8 w-8 animate-spin text-brand" />}
                 title="Restoring Session"
                 subtitle="Checking for a saved Supabase session before opening the app."
             />
@@ -72,7 +72,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
 
     return (
         <AuthShell
-            icon={<Lock className="h-8 w-8 text-[#A78BFA]" />}
+            icon={<Lock className="h-8 w-8 text-brand" />}
             title={heading}
             subtitle={mode === 'sign_up' ? 'Create an account to get started.' : 'Sign in to access the desktop app.'}
         >
@@ -81,14 +81,14 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                 {error && <InlineError error={error} />}
                 {message && <InlineMessage message={message} />}
 
-                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[#2A2A3A] bg-[#11131A] p-1">
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-ui bg-[#11131A] p-1">
                     <ModeButton active={mode === 'sign_in'} label="Sign in" onClick={() => { setMode('sign_in'); setError(null); setMessage(null) }} />
                     <ModeButton active={mode === 'sign_up'} label="Create account" onClick={() => { setMode('sign_up'); setError(null); setMessage(null) }} />
                 </div>
 
                 <div className="space-y-3">
                     <Input
-                        className="h-11 bg-[#11131A] border-[#2A2A3A] text-[#E2E8F0] placeholder:text-[#4A5568]"
+                        className="h-11 bg-[#11131A] border-ui text-foreground placeholder:text-[#4A5568]"
                         placeholder="Email address"
                         type="email"
                         autoComplete="email"
@@ -97,7 +97,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                     />
                     {mode === 'sign_up' && (
                         <Input
-                            className="h-11 bg-[#11131A] border-[#2A2A3A] text-[#E2E8F0] placeholder:text-[#4A5568]"
+                            className="h-11 bg-[#11131A] border-ui text-foreground placeholder:text-[#4A5568]"
                             placeholder="Display name"
                             autoComplete="name"
                             value={displayName}
@@ -105,7 +105,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                         />
                     )}
                     <Input
-                        className="h-11 bg-[#11131A] border-[#2A2A3A] text-[#E2E8F0] placeholder:text-[#4A5568]"
+                        className="h-11 bg-[#11131A] border-ui text-foreground placeholder:text-[#4A5568]"
                         placeholder="Password"
                         type="password"
                         autoComplete={mode === 'sign_up' ? 'new-password' : 'current-password'}
@@ -126,7 +126,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
 
                 {mode === 'sign_in' && (
                     <Button
-                        className="w-full h-11 bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] font-bold"
+                        className="w-full h-11 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
                         disabled={busyAction !== null || !email.trim() || !password}
                         onClick={() => run('sign_in', async () => {
                             const next = await signIn({ email: email.trim(), password })
@@ -143,7 +143,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                 {mode === 'sign_up' && (
                     <div className="space-y-3">
                         <Button
-                            className="w-full h-11 bg-[#A78BFA] hover:bg-[#9271e0] text-[#0F0F13] font-bold"
+                            className="w-full h-11 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
                             disabled={busyAction !== null || !email.trim() || !password || !displayName.trim()}
                             onClick={() => run('sign_up', async () => {
                                 const next = await signUp({ email: email.trim(), password, displayName: displayName.trim() })
@@ -202,13 +202,13 @@ function AuthShell({ icon, title, subtitle, children }: { icon: React.ReactNode;
     }, [])
 
     return (
-        <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1b1f2c_0%,#0b0d13_55%,#07080c_100%)] text-[#E2E8F0]">
+        <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1b1f2c_0%,#0b0d13_55%,#07080c_100%)] text-foreground">
             <header className={`h-14 flex items-center justify-between px-4 app-region-drag ${isMac ? 'pl-20' : ''}`}>
                 <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-2xl bg-[#A78BFA]/12 border border-[#A78BFA]/20 flex items-center justify-center">
-                        <FlaskConical className="h-4 w-4 text-[#A78BFA] stroke-[2.4]" />
+                        <FlaskConical className="h-4 w-4 text-brand stroke-[2.4]" />
                     </div>
-                    <span className="text-sm font-semibold tracking-tight text-[#E2E8F0]">QAssistant</span>
+                    <span className="text-sm font-semibold tracking-tight text-foreground">QAssistant</span>
                 </div>
 
                 {!isMac && (
@@ -228,19 +228,19 @@ function AuthShell({ icon, title, subtitle, children }: { icon: React.ReactNode;
 
             <div className="mx-auto flex min-h-[calc(100vh-56px)] max-w-5xl items-center justify-center px-6 py-12">
                 <div className="grid w-full max-w-4xl gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-                    <div className="rounded-[28px] border border-[#2A2A3A] bg-[#0f1118]/90 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+                    <div className="rounded-[28px] border border-ui bg-[#0f1118]/90 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
                         <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#A78BFA]/12">
                             {icon}
                         </div>
                         <h1 className="text-3xl font-black tracking-tight">{title}</h1>
-                        <p className="mt-3 max-w-lg text-sm leading-6 text-[#94A3B8]">{subtitle}</p>
+                        <p className="mt-3 max-w-lg text-sm leading-6 text-soft">{subtitle}</p>
                         <div className="mt-6">{children}</div>
                     </div>
 
-                    <div className="rounded-[28px] border border-[#2A2A3A] bg-[#11131A]/85 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.35)]">
+                    <div className="rounded-[28px] border border-ui bg-[#11131A]/85 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.35)]">
                         <div className="space-y-6">
                             <Feature icon={<ShieldCheck className="h-4 w-4 text-emerald-400" />} title="Enterprise login gate" body="The main shell stays locked until the Supabase session is valid and the desktop auth bootstrap finishes cleanly." />
-                            <Feature icon={<Cloud className="h-4 w-4 text-[#A78BFA]" />} title="Cloud-ready identity" body="Workspace sync, invite-based collaboration, and user profile hydration all reuse the same authenticated session." />
+                            <Feature icon={<Cloud className="h-4 w-4 text-brand" />} title="Cloud-ready identity" body="Workspace sync, invite-based collaboration, and user profile hydration all reuse the same authenticated session." />
                             <Feature icon={<CheckCircle2 className="h-4 w-4 text-sky-400" />} title="Local-first data stays local" body="Signing out clears cloud access while your local projects remain on disk for the next authenticated session." />
                         </div>
                     </div>
@@ -256,8 +256,8 @@ function Feature({ icon, title, body }: { icon: React.ReactNode; title: string; 
             <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#171925]">{icon}</div>
                 <div>
-                    <p className="text-sm font-bold text-[#E2E8F0]">{title}</p>
-                    <p className="mt-1 text-xs leading-5 text-[#94A3B8]">{body}</p>
+                    <p className="text-sm font-bold text-foreground">{title}</p>
+                    <p className="mt-1 text-xs leading-5 text-soft">{body}</p>
                 </div>
             </div>
         </div>
@@ -300,8 +300,8 @@ function ModeButton({ active, label, onClick }: { active: boolean; label: string
         <button
             className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
                 active
-                    ? 'bg-[#A78BFA] text-[#0F0F13]'
-                    : 'text-[#94A3B8] hover:bg-[#1A1D28] hover:text-[#E2E8F0]'
+                    ? 'bg-primary text-[#0F0F13]'
+                    : 'text-soft hover:bg-[#1A1D28] hover:text-foreground'
             }`}
             onClick={onClick}
         >

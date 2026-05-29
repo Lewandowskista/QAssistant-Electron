@@ -93,7 +93,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     if (!open) return null
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-layer-overlay flex items-start justify-center pt-[15vh] px-4 animate-in fade-in duration-200">
             <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md" onClick={() => onOpenChange(false)} />
 
             <div className="relative w-full max-w-2xl overflow-hidden rounded-[2.25rem] border bg-[hsl(var(--surface-overlay))] shadow-[0_32px_96px_-12px_rgba(0,0,0,0.5)] flex flex-col focus-visible:outline-none ring-1 ring-white/10 ring-inset">
@@ -101,7 +101,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                     <Search className="h-6 w-6 text-primary mr-4 shrink-0" />
                     <input
                         autoFocus
-                        placeholder="Search mission protocols, tests, or environments..."
+                        placeholder="Search mission protocols, tests, or environments…"
                         className="flex-1 bg-transparent border-none focus:outline-none text-xl font-bold placeholder:text-muted-foreground/30 placeholder:font-black tracking-tight"
                         value={query}
                         onChange={e => setQuery(e.target.value)}

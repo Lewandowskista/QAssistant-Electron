@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { TestCaseStatus } from "@/types/project"
+import { TestCaseStatus, TestRunSession } from "@/types/project"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -65,6 +65,46 @@ export function getFlakinessScore(executionStatuses: TestCaseStatus[], windowSiz
   // Score: (state changes / max possible changes) * 100
   const maxChanges = recent.length - 1
   return Math.round((stateChanges / maxChanges) * 100)
+}
+
+export type TestCaseFlakinessStats = {
+  testCaseId: string
+  executionCount: number
+  flakinessScore: number
+  isFlaky: boolean
+  lastFiveResults: TestCaseStatus[]
+  passRate: number
+}
+
+export function computeFlakinessStatsForProject(
+  sessions: TestRunSession[],
+  windowSize = 10
+): Map<string, TestCaseFlakinessStats> {
+  const resultsByCase = new Map<string, TestCaseStatus[]>()
+  const sortedSessions = [...sessions].sort((a, b) => a.timestamp - b.timestamp)
+
+  for (const session of sortedSessions) {
+    for (const pe of session.planExecutions) {
+      for (const ce of pe.caseExecutions) {
+        if (!resultsByCase.has(ce.testCaseId)) resultsByCase.set(ce.testCaseId, [])
+        resultsByCase.get(ce.testCaseId)!.push(ce.result)
+      }
+    }
+  }
+
+  const statsMap = new Map<string, TestCaseFlakinessStats>()
+  for (const [testCaseId, results] of resultsByCase) {
+    const passed = results.filter(r => r === 'passed').length
+    statsMap.set(testCaseId, {
+      testCaseId,
+      executionCount: results.length,
+      flakinessScore: getFlakinessScore(results, windowSize),
+      isFlaky: isFlakyTest(results, Math.min(windowSize, results.length)),
+      lastFiveResults: results.slice(-5),
+      passRate: results.length > 0 ? Math.round((passed / results.length) * 100) : 0,
+    })
+  }
+  return statsMap
 }
 
 /**

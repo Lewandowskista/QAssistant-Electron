@@ -77,17 +77,17 @@ export default function TaskSelectionDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl bg-[#0F0F13] border-[#2A2A3A] text-[#E2E8F0]">
+            <DialogContent className="sm:max-w-2xl bg-app border-ui text-foreground">
                 <DialogHeader>
-                    <DialogTitle className="text-xl font-black text-[#A78BFA]">Select Context Issues</DialogTitle>
+                    <DialogTitle className="text-xl font-black text-brand">Select Context Issues</DialogTitle>
                 </DialogHeader>
 
                 <div className="flex flex-col gap-4 mt-4">
                     <div className="flex items-center gap-3">
                         <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-ui" />
                             <input
-                                className="w-full bg-[#1A1A24] border border-[#2A2A3A] text-sm text-[#E2E8F0] h-10 pl-10 pr-4 rounded-lg focus:outline-none focus:border-[#A78BFA]/50"
+                                className="w-full bg-panel-muted border border-ui text-sm text-foreground h-10 pl-10 pr-4 rounded-lg focus:outline-none focus:border-[#A78BFA]/50"
                                 placeholder={`Search ${filteredTasks.length} issues...`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -95,26 +95,26 @@ export default function TaskSelectionDialog({
                         </div>
                         <Button
                             variant="outline"
-                            className="bg-[#1A1A24] border-[#2A2A3A] text-xs font-bold"
+                            className="bg-panel-muted border-ui text-xs font-bold"
                             onClick={handleSelectAll}
                         >
                             {filteredTasks.every(t => localSelected.has(t.id)) ? 'Deselect All' : 'Select All'}
                         </Button>
                         <Button
                             variant="ghost"
-                            className="text-[#6B7280] text-xs font-bold hover:text-[#EF4444]"
+                            className="text-muted-ui text-xs font-bold hover:text-[hsl(var(--state-danger))]"
                             onClick={() => setLocalSelected(new Set())}
                         >
                             Clear
                         </Button>
                     </div>
 
-                    <div className="h-72 overflow-y-auto custom-scrollbar border border-[#2A2A3A] rounded-xl bg-[#13131A] p-2 space-y-1">
+                    <div className="h-72 overflow-y-auto custom-scrollbar border border-ui rounded-xl bg-panel p-2 space-y-1">
                         {filteredTasks.length === 0 ? (
-                            <div className="text-center text-[#6B7280] text-sm py-10 font-bold">No issues found for {sourceFilter}.</div>
+                            <div className="text-center text-muted-ui text-sm py-10 font-bold">No issues found for {sourceFilter}.</div>
                         ) : (
                             filteredTasks.map(task => (
-                                <div key={task.id} className="flex items-start gap-3 p-3 hover:bg-[#1A1A24] rounded-lg transition-colors cursor-pointer" onClick={() => handleToggle(task.id)}>
+                                <div key={task.id} className="flex items-start gap-3 p-3 hover:bg-elevated rounded-lg transition-colors cursor-pointer" onClick={() => handleToggle(task.id)}>
                                     <Checkbox
                                         checked={localSelected.has(task.id)}
                                         onCheckedChange={() => handleToggle(task.id)}
@@ -122,23 +122,23 @@ export default function TaskSelectionDialog({
                                     />
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black uppercase text-[#A78BFA] bg-[#A78BFA]/10 px-2 py-0.5 rounded tracking-wider">
+                                            <span className="text-[10px] font-black uppercase text-brand bg-[#A78BFA]/10 px-2 py-0.5 rounded tracking-wider">
                                                 {task.sourceIssueId || task.externalId || task.source}
                                             </span>
                                             <span className={cn(
                                                 "text-[9px] font-black uppercase px-1.5 py-0.5 rounded tracking-tighter",
                                                 task.priority === 'critical' ? "bg-[#EF4444]/20 text-[#EF4444]" :
                                                     task.priority === 'high' ? "bg-[#F59E0B]/20 text-[#F59E0B]" :
-                                                        task.priority === 'medium' ? "bg-[#3B82F6]/20 text-[#3B82F6]" : "bg-[#6B7280]/20 text-[#6B7280]"
+                                                        task.priority === 'medium' ? "bg-[#3B82F6]/20 text-[#3B82F6]" : "bg-[#6B7280]/20 text-muted-ui"
                                             )}>
                                                 {task.priority || 'MED'}
                                             </span>
-                                            <span className="text-[9px] font-bold text-[#6B7280] uppercase opacity-50">
+                                            <span className="text-[9px] font-bold text-muted-ui uppercase opacity-50">
                                                 {task.status || 'TODO'}
                                             </span>
                                         </div>
-                                        <p className="text-sm font-bold text-[#E2E8F0] mt-1.5 leading-snug">{task.title}</p>
-                                        <p className="text-[11px] text-[#6B7280] mt-1 line-clamp-1 italic">{task.description || 'No description provided.'}</p>
+                                        <p className="text-sm font-bold text-foreground mt-1.5 leading-snug">{task.title}</p>
+                                        <p className="text-[11px] text-muted-ui mt-1 line-clamp-1 italic">{task.description || 'No description provided.'}</p>
                                     </div>
                                 </div>
                             ))
@@ -146,9 +146,9 @@ export default function TaskSelectionDialog({
                     </div>
                 </div>
 
-                <DialogFooter className="mt-6 border-t border-[#2A2A3A] pt-4">
-                    <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-[#6B7280]">Cancel</Button>
-                    <Button onClick={handleConfirm} className="bg-[#A78BFA] hover:bg-[#C4B5FD] text-[#0F0F13] font-bold">
+                <DialogFooter className="mt-6 border-t border-ui pt-4">
+                    <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-muted-ui">Cancel</Button>
+                    <Button onClick={handleConfirm} className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold">
                         Confirm ({localSelected.size})
                     </Button>
                 </DialogFooter>

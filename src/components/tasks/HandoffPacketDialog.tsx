@@ -175,23 +175,23 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[760px] bg-[#13131A] border-[#2A2A3A] text-[#E2E8F0]">
+            <DialogContent className="max-w-[760px] bg-panel border-ui text-foreground">
                 <DialogHeader>
                     <DialogTitle>{handoff ? 'Edit Handoff Packet' : 'Create Handoff Packet'}</DialogTitle>
-                    <DialogDescription className="text-[#6B7280]">
+                    <DialogDescription className="text-muted-ui">
                         Capture structured repro details, environment, and linked evidence for {task.title}.
                     </DialogDescription>
                 </DialogHeader>
 
                 {!handoff && (
-                    <div className="rounded-lg border border-[#2A2A3A] bg-[#0F0F13] p-3 flex items-center gap-3">
-                        <span className="text-[10px] font-black text-[#6B7280] uppercase tracking-widest shrink-0">Template</span>
+                    <div className="rounded-lg border border-ui bg-app p-3 flex items-center gap-3">
+                        <span className="text-[10px] font-black text-muted-ui uppercase tracking-widest shrink-0">Template</span>
                         <select
                             defaultValue=""
                             onChange={e => { if (e.target.value) applyTemplate(e.target.value) }}
-                            className="flex-1 h-8 rounded-md bg-[#1A1A24] border border-[#2A2A3A] px-2 text-xs text-[#E2E8F0] focus:outline-none"
+                            className="flex-1 h-8 rounded-md bg-panel-muted border border-ui px-2 text-xs text-foreground focus:outline-none"
                         >
-                            <option value="">Apply a template (optional)...</option>
+                            <option value="">Apply a template (optional)…</option>
                             {HANDOFF_TEMPLATES.map(t => (
                                 <option key={t.id} value={t.id}>{t.label}</option>
                             ))}
@@ -202,7 +202,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
                     <div className="space-y-2">
                         <Label>Type</Label>
-                        <select value={type} onChange={(event) => setType(event.target.value as HandoffType)} className="h-10 w-full rounded-md bg-[#0F0F13] border border-[#2A2A3A] px-3 text-sm">
+                        <select value={type} onChange={(event) => setType(event.target.value as HandoffType)} className="h-10 w-full rounded-md bg-app border border-ui px-3 text-sm">
                             <option value="bug_handoff">Bug Handoff</option>
                             <option value="fix_handoff">Fix Handoff</option>
                             <option value="retest_request">Retest Request</option>
@@ -210,7 +210,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                     </div>
                     <div className="space-y-2">
                         <Label>Environment</Label>
-                        <select value={environmentId} onChange={(event) => setEnvironmentId(event.target.value)} className="h-10 w-full rounded-md bg-[#0F0F13] border border-[#2A2A3A] px-3 text-sm">
+                        <select value={environmentId} onChange={(event) => setEnvironmentId(event.target.value)} className="h-10 w-full rounded-md bg-app border border-ui px-3 text-sm">
                             <option value="">Select environment</option>
                             {environments.map((environment) => (
                                 <option key={environment.id} value={environment.id}>{environment.name}</option>
@@ -219,7 +219,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                     </div>
                     <div className="space-y-2">
                         <Label>Severity</Label>
-                        <select value={severity || 'major'} onChange={(event) => setSeverity(event.target.value as Task['severity'])} className="h-10 w-full rounded-md bg-[#0F0F13] border border-[#2A2A3A] px-3 text-sm">
+                        <select value={severity || 'major'} onChange={(event) => setSeverity(event.target.value as Task['severity'])} className="h-10 w-full rounded-md bg-app border border-ui px-3 text-sm">
                             <option value="cosmetic">Cosmetic</option>
                             <option value="minor">Minor</option>
                             <option value="major">Major</option>
@@ -229,35 +229,35 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                     </div>
                     <div className="space-y-2">
                         <Label>Branch Name</Label>
-                        <Input value={branchName} onChange={(event) => setBranchName(event.target.value)} placeholder="fix/checkout-null-guard" className="bg-[#0F0F13] border-[#2A2A3A]" />
+                        <Input value={branchName} onChange={(event) => setBranchName(event.target.value)} placeholder="fix/checkout-null-guard" className="bg-app border-ui" />
                     </div>
                     <div className="space-y-2">
                         <Label>Release Version</Label>
-                        <Input value={releaseVersion} onChange={(event) => setReleaseVersion(event.target.value)} placeholder="2026.03-hotfix-1" className="bg-[#0F0F13] border-[#2A2A3A]" />
+                        <Input value={releaseVersion} onChange={(event) => setReleaseVersion(event.target.value)} placeholder="2026.03-hotfix-1" className="bg-app border-ui" />
                     </div>
 
                     <div className="md:col-span-2 space-y-2">
                         <Label>Summary</Label>
-                        <Input value={summary} onChange={(event) => setSummary(event.target.value)} className="bg-[#0F0F13] border-[#2A2A3A]" />
+                        <Input value={summary} onChange={(event) => setSummary(event.target.value)} className="bg-app border-ui" />
                     </div>
 
                     <div className="md:col-span-2 space-y-2">
                         <Label>Repro Steps</Label>
-                        <Textarea value={reproSteps} onChange={(event) => setReproSteps(event.target.value)} className="min-h-[120px] bg-[#0F0F13] border-[#2A2A3A]" />
+                        <Textarea value={reproSteps} onChange={(event) => setReproSteps(event.target.value)} className="min-h-[120px] bg-app border-ui" />
                     </div>
 
                     <div className="space-y-2">
                         <Label>Expected Result</Label>
-                        <Textarea value={expectedResult} onChange={(event) => setExpectedResult(event.target.value)} className="min-h-[110px] bg-[#0F0F13] border-[#2A2A3A]" />
+                        <Textarea value={expectedResult} onChange={(event) => setExpectedResult(event.target.value)} className="min-h-[110px] bg-app border-ui" />
                     </div>
                     <div className="space-y-2">
                         <Label>Actual Result</Label>
-                        <Textarea value={actualResult} onChange={(event) => setActualResult(event.target.value)} className="min-h-[110px] bg-[#0F0F13] border-[#2A2A3A]" />
+                        <Textarea value={actualResult} onChange={(event) => setActualResult(event.target.value)} className="min-h-[110px] bg-app border-ui" />
                     </div>
 
                     <div className="space-y-2">
                         <Label>Linked Test Cases</Label>
-                        <div className="max-h-36 overflow-y-auto rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-2 space-y-2">
+                        <div className="max-h-36 overflow-y-auto rounded-md border border-ui bg-app p-2 space-y-2">
                             {allTestCases.map((testCase) => (
                                 <label key={testCase.id} className="flex items-center gap-2 text-xs">
                                     <input type="checkbox" checked={linkedTestCaseIds.includes(testCase.id)} onChange={() => toggleValue(testCase.id, linkedTestCaseIds, setLinkedTestCaseIds)} />
@@ -269,7 +269,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
                     <div className="space-y-2">
                         <Label>Linked Notes</Label>
-                        <div className="max-h-36 overflow-y-auto rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-2 space-y-2">
+                        <div className="max-h-36 overflow-y-auto rounded-md border border-ui bg-app p-2 space-y-2">
                             {activeProject.notes.map((note) => (
                                 <label key={note.id} className="flex items-center gap-2 text-xs">
                                     <input type="checkbox" checked={linkedNoteIds.includes(note.id)} onChange={() => toggleValue(note.id, linkedNoteIds, setLinkedNoteIds)} />
@@ -281,7 +281,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
                     <div className="md:col-span-2 space-y-2">
                         <Label>Linked Files</Label>
-                        <div className="max-h-36 overflow-y-auto rounded-md border border-[#2A2A3A] bg-[#0F0F13] p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="max-h-36 overflow-y-auto rounded-md border border-ui bg-app p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
                             {activeProject.files.map((file) => (
                                 <label key={file.id} className="flex items-center gap-2 text-xs">
                                     <input type="checkbox" checked={linkedFileIds.includes(file.id)} onChange={() => toggleValue(file.id, linkedFileIds, setLinkedFileIds)} />
@@ -292,8 +292,8 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                     </div>
                 </div>
 
-                <div className="rounded-lg border border-[#2A2A3A] bg-[#0F0F13] p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B7280]">Required Before Send</p>
+                <div className="rounded-lg border border-ui bg-app p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Required Before Send</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                         {missingFields.length === 0 ? (
                             <span className="rounded-full bg-[#10B981]/10 px-2 py-1 text-[10px] font-bold uppercase text-[#10B981]">Complete</span>
@@ -307,8 +307,8 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={isSaving} className="bg-[#A78BFA] text-[#0F0F13] hover:bg-[#C4B5FD]">
-                        {isSaving ? 'Saving...' : 'Save Packet'}
+                    <Button onClick={handleSave} disabled={isSaving} className="bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]">
+                        {isSaving ? 'Saving…' : 'Save Packet'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

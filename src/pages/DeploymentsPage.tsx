@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { cn, formatTimeAgo, formatDuration } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { FullBleedHeader } from '@/components/ui/workspace'
 import { RepoSelector } from '@/components/github/RepoSelector'
 import { statusBadge, deployStatusColor } from '@/components/github/StatusBadges'
 
@@ -163,15 +164,12 @@ function DeploymentsContent() {
         : workflows
 
     return (
-        <div className="h-full flex flex-col bg-[#0F0F13]">
+        <div className="h-full flex flex-col bg-app">
             {/* Header */}
-            <div className="shrink-0 border-b border-[#2A2A3A] bg-[#13131A]/60 px-5 py-3 flex items-center gap-3">
-                <Rocket className="h-4 w-4 text-[#A78BFA]" />
-                <h1 className="text-sm font-bold text-[#E2E8F0]">Deployments</h1>
-                <div className="flex-1" />
-
-                {/* Live polling indicator */}
-                {isPolling && (
+            <FullBleedHeader
+                icon={Rocket}
+                title="Deployments"
+                status={isPolling ? (
                     <div className="flex items-center gap-1.5">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
@@ -179,41 +177,45 @@ function DeploymentsContent() {
                         </span>
                         <span className="text-[10px] text-amber-400 font-semibold">Live</span>
                     </div>
-                )}
-
-                <RepoSelector
-                    repos={repos}
-                    selectedRepo={selectedRepo}
-                    onSelect={setSelectedRepo}
-                    loading={loadingRepos}
-                />
-
-                <Button
-                    variant="ghost" size="sm"
-                    onClick={openDispatchDialog}
-                    disabled={!selectedRepo}
-                    className="h-8 px-2 text-xs text-[#6B7280] hover:text-[#A78BFA] flex items-center gap-1"
-                    title="Run workflow"
-                >
-                    <Play className="h-3 w-3" />
-                    <span className="hidden sm:inline">Run</span>
-                </Button>
-                <Button
-                    variant="ghost" size="sm"
-                    onClick={() => selectedRepo && loadRepoData(selectedRepo, true)}
-                    disabled={loadingData || !selectedRepo}
-                    className="h-8 w-8 p-0 text-[#6B7280] hover:text-[#A78BFA]"
-                    title="Refresh"
-                >
-                    <RefreshCw className={cn("h-3.5 w-3.5", loadingData && "animate-spin")} />
-                </Button>
-                {lastUpdated && (
-                    <span className="text-[10px] text-[#6B7280]">{formatTimeAgo(lastUpdated.toISOString())}</span>
-                )}
-            </div>
+                ) : null}
+                actions={
+                    <>
+                        <RepoSelector
+                            repos={repos}
+                            selectedRepo={selectedRepo}
+                            onSelect={setSelectedRepo}
+                            loading={loadingRepos}
+                        />
+                        <Button
+                            variant="ghost" size="sm"
+                            onClick={openDispatchDialog}
+                            disabled={!selectedRepo}
+                            className="h-8 px-2 text-xs text-muted-ui hover:text-brand flex items-center gap-1"
+                            title="Run workflow"
+                            aria-label="Run workflow"
+                        >
+                            <Play className="h-3 w-3" aria-hidden="true" />
+                            <span className="hidden sm:inline">Run</span>
+                        </Button>
+                        <Button
+                            variant="ghost" size="sm"
+                            onClick={() => selectedRepo && loadRepoData(selectedRepo, true)}
+                            disabled={loadingData || !selectedRepo}
+                            className="h-8 w-8 p-0 text-muted-ui hover:text-brand"
+                            title="Refresh"
+                            aria-label="Refresh"
+                        >
+                            <RefreshCw className={cn("h-3.5 w-3.5", loadingData && "animate-spin")} aria-hidden="true" />
+                        </Button>
+                        {lastUpdated && (
+                            <span className="text-[10px] text-muted-ui">{formatTimeAgo(lastUpdated.toISOString())}</span>
+                        )}
+                    </>
+                }
+            />
 
             {/* Tabs */}
-            <div className="shrink-0 border-b border-[#2A2A3A] bg-[#13131A]/40 px-5 flex items-center gap-1">
+            <div className="shrink-0 border-b border-ui bg-[#13131A]/40 px-5 flex items-center gap-1">
                 {([['workflows', 'Workflow Runs', Play], ['deployments', 'Environments', Rocket]] as const).map(([id, label, Icon]) => (
                     <button
                         key={id}
@@ -221,14 +223,14 @@ function DeploymentsContent() {
                         className={cn(
                             "flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors",
                             activeTab === id
-                                ? "border-[#A78BFA] text-[#A78BFA]"
-                                : "border-transparent text-[#6B7280] hover:text-[#E2E8F0]"
+                                ? "border-[#A78BFA] text-brand"
+                                : "border-transparent text-muted-ui hover:text-foreground"
                         )}
                     >
                         <Icon className="h-3.5 w-3.5" />
                         {label}
                         {id === 'workflows' && workflows.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-[#2A2A3A] text-[10px] font-bold">{workflows.length}</span>
+                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-elevated text-[10px] font-bold">{workflows.length}</span>
                         )}
                     </button>
                 ))}
@@ -242,7 +244,7 @@ function DeploymentsContent() {
 
                 {loadingData && (
                     <div className="flex items-center justify-center py-16">
-                        <Loader2 className="h-6 w-6 text-[#A78BFA] animate-spin" />
+                        <Loader2 className="h-6 w-6 text-brand animate-spin" />
                     </div>
                 )}
 
@@ -250,18 +252,18 @@ function DeploymentsContent() {
                     <div className="p-4 space-y-2">
                         {/* Filter input */}
                         <div className="relative mb-3">
-                            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[#6B7280] pointer-events-none" />
+                            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
                             <input
                                 type="text"
-                                placeholder="Filter by name or branch..."
+                                placeholder="Filter by name or branch…"
                                 value={workflowFilter}
                                 onChange={e => setWorkflowFilter(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 rounded-md bg-[#13131A] border border-[#2A2A3A] text-xs text-[#E2E8F0] placeholder-[#6B7280] focus:outline-none focus:border-[#A78BFA]/60 transition-colors"
+                                className="w-full pl-9 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground placeholder-[#6B7280] focus:outline-none focus:border-[#A78BFA]/60 transition-colors"
                             />
                         </div>
 
                         {filteredWorkflows.length === 0 ? (
-                            <div className="text-center py-12 text-[#6B7280] text-xs">
+                            <div className="text-center py-12 text-muted-ui text-xs">
                                 {workflowFilter ? 'No matching workflow runs' : 'No workflow runs found'}
                             </div>
                         ) : filteredWorkflows.map(run => {
@@ -276,8 +278,8 @@ function DeploymentsContent() {
                                     className={cn(
                                         "rounded-lg border transition-colors",
                                         isActive
-                                            ? "bg-[#13131A] border-amber-900/40"
-                                            : "bg-[#13131A] border-[#2A2A3A] hover:border-[#3D3D5F]"
+                                            ? "bg-panel border-amber-900/40"
+                                            : "bg-panel border-ui hover:border-[#3D3D5F]"
                                     )}
                                 >
                                     {/* Run row */}
@@ -287,13 +289,13 @@ function DeploymentsContent() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs font-semibold text-[#E2E8F0] truncate">{run.name}</span>
+                                                <span className="text-xs font-semibold text-foreground truncate">{run.name}</span>
                                                 <span className={cn("shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase", badge.bg, badge.color)}>
                                                     {badge.label}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-2 mt-1 text-[11px] text-[#6B7280]">
-                                                <code className="font-mono text-[#9CA3AF]">{run.headBranch}</code>
+                                            <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-ui">
+                                                <code className="font-mono text-soft">{run.headBranch}</code>
                                                 <span>·</span>
                                                 <span>{run.event}</span>
                                                 <span>·</span>
@@ -312,7 +314,7 @@ function DeploymentsContent() {
                                                     variant="ghost" size="sm"
                                                     onClick={() => handleRerun(run.id)}
                                                     disabled={rerunningId === run.id}
-                                                    className="h-7 px-2 text-[10px] text-[#6B7280] hover:text-[#A78BFA]"
+                                                    className="h-7 px-2 text-[10px] text-muted-ui hover:text-brand"
                                                     title="Re-run failed jobs"
                                                 >
                                                     <RotateCcw className={cn("h-3 w-3 mr-1", rerunningId === run.id && "animate-spin")} />
@@ -321,14 +323,14 @@ function DeploymentsContent() {
                                             )}
                                             <button
                                                 onClick={() => api.openUrl(run.htmlUrl)}
-                                                className="p-1.5 rounded hover:bg-[#252535] text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity"
+                                                className="p-1.5 rounded hover:bg-elevated text-muted-ui opacity-0 group-hover:opacity-100 transition-opacity"
                                                 title="View on GitHub"
                                             >
                                                 <ExternalLink className="h-3 w-3" />
                                             </button>
                                             <button
                                                 onClick={() => toggleRunExpand(run.id)}
-                                                className="p-1.5 rounded hover:bg-[#252535] text-[#6B7280] hover:text-[#E2E8F0] transition-colors"
+                                                className="p-1.5 rounded hover:bg-elevated text-muted-ui hover:text-foreground transition-colors"
                                                 title="Toggle job details"
                                             >
                                                 {isExpanded
@@ -340,14 +342,14 @@ function DeploymentsContent() {
                                     </div>
                                     {/* Expanded job details */}
                                     {isExpanded && (
-                                        <div className="border-t border-[#2A2A3A] px-3 pb-3 pt-2">
+                                        <div className="border-t border-ui px-3 pb-3 pt-2">
                                             {loadingJobs === run.id ? (
                                                 <div className="flex items-center gap-2 py-2">
-                                                    <Loader2 className="h-3 w-3 text-[#A78BFA] animate-spin" />
-                                                    <span className="text-[11px] text-[#6B7280]">Loading jobs…</span>
+                                                    <Loader2 className="h-3 w-3 text-brand animate-spin" />
+                                                    <span className="text-[11px] text-muted-ui">Loading jobs…</span>
                                                 </div>
                                             ) : jobs.length === 0 ? (
-                                                <p className="text-[11px] text-[#6B7280] py-2">No job data available</p>
+                                                <p className="text-[11px] text-muted-ui py-2">No job data available</p>
                                             ) : (
                                                 <div className="space-y-1.5">
                                                     {jobs.map(job => (
@@ -359,9 +361,9 @@ function DeploymentsContent() {
                                                                     ? <X className="h-3 w-3 text-red-400 shrink-0" />
                                                                     : job.status === 'in_progress'
                                                                     ? <Loader2 className="h-3 w-3 text-amber-400 animate-spin shrink-0" />
-                                                                    : <CircleDot className="h-3 w-3 text-[#6B7280] shrink-0" />
+                                                                    : <CircleDot className="h-3 w-3 text-muted-ui shrink-0" />
                                                                 }
-                                                                <span className="text-[11px] text-[#E2E8F0] font-semibold">{job.name}</span>
+                                                                <span className="text-[11px] text-foreground font-semibold">{job.name}</span>
                                                             </div>
                                                             {job.steps.length > 0 && (
                                                                 <div className="ml-5 space-y-0.5">
@@ -372,12 +374,12 @@ function DeploymentsContent() {
                                                                                 : step.conclusion === 'failure'
                                                                                 ? <X className="h-2.5 w-2.5 text-red-400 shrink-0" />
                                                                                 : step.conclusion === 'skipped'
-                                                                                ? <CircleDot className="h-2.5 w-2.5 text-[#6B7280] shrink-0" />
+                                                                                ? <CircleDot className="h-2.5 w-2.5 text-muted-ui shrink-0" />
                                                                                 : step.status === 'in_progress'
                                                                                 ? <Loader2 className="h-2.5 w-2.5 text-amber-400 animate-spin shrink-0" />
-                                                                                : <CircleDot className="h-2.5 w-2.5 text-[#6B7280] opacity-40 shrink-0" />
+                                                                                : <CircleDot className="h-2.5 w-2.5 text-muted-ui opacity-40 shrink-0" />
                                                                             }
-                                                                            <span className="text-[10px] text-[#9CA3AF]">{step.name}</span>
+                                                                            <span className="text-[10px] text-soft">{step.name}</span>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -397,14 +399,14 @@ function DeploymentsContent() {
                 {!loadingData && selectedRepo && activeTab === 'deployments' && (
                     <div className="p-4 space-y-5">
                         {deployments.length === 0 ? (
-                            <div className="text-center py-12 text-[#6B7280] text-xs">No deployments found</div>
+                            <div className="text-center py-12 text-muted-ui text-xs">No deployments found</div>
                         ) : Object.entries(groupByEnvironment(deployments)).map(([env, envDeps]) => (
                             <div key={env}>
                                 {/* Environment header */}
                                 <div className="flex items-center gap-2 mb-2">
-                                    <Rocket className="h-3 w-3 text-[#A78BFA]" />
-                                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF]">{env}</h3>
-                                    <span className="text-[10px] text-[#6B7280] bg-[#2A2A3A] px-1.5 py-0.5 rounded-full">{envDeps.length}</span>
+                                    <Rocket className="h-3 w-3 text-brand" />
+                                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-soft">{env}</h3>
+                                    <span className="text-[10px] text-muted-ui bg-elevated px-1.5 py-0.5 rounded-full">{envDeps.length}</span>
                                     {/* Latest status indicator */}
                                     {envDeps[0]?.latestStatus && (
                                         <span className={cn("ml-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded", deployStatusColor(envDeps[0].latestStatus.state))}>
@@ -416,31 +418,31 @@ function DeploymentsContent() {
                                     {envDeps.map(dep => (
                                         <div
                                             key={dep.id}
-                                            className="flex items-center gap-3 p-3 rounded-lg bg-[#13131A] border border-[#2A2A3A] hover:border-[#3D3D5F] transition-colors group"
+                                            className="flex items-center gap-3 p-3 rounded-lg bg-panel border border-ui hover:border-[#3D3D5F] transition-colors group"
                                         >
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 text-[11px] text-[#6B7280]">
-                                                    <code className="font-mono text-[#A78BFA]">{dep.sha}</code>
+                                                <div className="flex items-center gap-2 text-[11px] text-muted-ui">
+                                                    <code className="font-mono text-brand">{dep.sha}</code>
                                                     <span>·</span>
-                                                    <code className="font-mono text-[#9CA3AF] truncate max-w-[120px]">{dep.ref}</code>
+                                                    <code className="font-mono text-soft truncate max-w-[120px]">{dep.ref}</code>
                                                     <span>·</span>
                                                     <span>{dep.creator}</span>
                                                     <span>·</span>
                                                     <span>{formatTimeAgo(dep.createdAt)}</span>
                                                 </div>
                                                 {(commitBySha[dep.sha] ?? commitBySha[dep.sha.slice(0, 7)]) && (
-                                                    <p className="text-[11px] text-[#9CA3AF] mt-0.5 truncate">
+                                                    <p className="text-[11px] text-soft mt-0.5 truncate">
                                                         {(commitBySha[dep.sha] ?? commitBySha[dep.sha.slice(0, 7)]).message.split('\n')[0]}
                                                     </p>
                                                 )}
                                                 {dep.latestStatus?.description && (
-                                                    <p className="text-[11px] text-[#6B7280] mt-0.5 truncate">{dep.latestStatus.description}</p>
+                                                    <p className="text-[11px] text-muted-ui mt-0.5 truncate">{dep.latestStatus.description}</p>
                                                 )}
                                             </div>
                                             {dep.latestStatus?.targetUrl && (
                                                 <button
                                                     onClick={() => api.openUrl(dep.latestStatus!.targetUrl!)}
-                                                    className="p-1.5 rounded hover:bg-[#252535] text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                                    className="p-1.5 rounded hover:bg-elevated text-muted-ui opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                                                     title="Open deployment"
                                                 >
                                                     <ExternalLink className="h-3 w-3" />
@@ -458,18 +460,18 @@ function DeploymentsContent() {
             {/* Workflow Dispatch Dialog */}
             {showDispatch && (
                 <>
-                    <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowDispatch(false)} />
-                    <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-80 bg-[#1A1A24] border border-[#2A2A3A] rounded-xl shadow-2xl p-5">
-                        <h2 className="text-sm font-bold text-[#E2E8F0] mb-4 flex items-center gap-2">
-                            <Play className="h-4 w-4 text-[#A78BFA]" /> Run Workflow
+                    <div className="fixed inset-0 z-layer-dialog bg-black/60" onClick={() => setShowDispatch(false)} />
+                    <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-layer-dialog w-80 bg-panel-muted border border-ui rounded-xl shadow-2xl p-5">
+                        <h2 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+                            <Play className="h-4 w-4 text-brand" /> Run Workflow
                         </h2>
                         <div className="space-y-3">
                             <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-1 block">Workflow</label>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-1 block">Workflow</label>
                                 <select
                                     value={dispatchWorkflowId ?? ''}
                                     onChange={e => setDispatchWorkflowId(Number(e.target.value))}
-                                    className="w-full px-3 py-2 rounded-md bg-[#13131A] border border-[#2A2A3A] text-xs text-[#E2E8F0] focus:outline-none focus:border-[#A78BFA]/60"
+                                    className="w-full px-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground focus:outline-none focus:border-[#A78BFA]/60"
                                 >
                                     {availableWorkflows.length === 0 && <option value="">Loading…</option>}
                                     {availableWorkflows.map(wf => (
@@ -478,15 +480,15 @@ function DeploymentsContent() {
                                 </select>
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-1 block">Branch / Tag</label>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-1 block">Branch / Tag</label>
                                 <div className="relative">
-                                    <GitBranch className="absolute left-2.5 top-2 h-3.5 w-3.5 text-[#6B7280] pointer-events-none" />
+                                    <GitBranch className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
                                     <input
                                         type="text"
                                         value={dispatchRef}
                                         onChange={e => setDispatchRef(e.target.value)}
                                         placeholder="main"
-                                        className="w-full pl-8 pr-3 py-2 rounded-md bg-[#13131A] border border-[#2A2A3A] text-xs text-[#E2E8F0] font-mono focus:outline-none focus:border-[#A78BFA]/60"
+                                        className="w-full pl-8 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground font-mono focus:outline-none focus:border-[#A78BFA]/60"
                                     />
                                 </div>
                             </div>
@@ -494,14 +496,14 @@ function DeploymentsContent() {
                         <div className="flex items-center gap-2 mt-5">
                             <button
                                 onClick={() => setShowDispatch(false)}
-                                className="flex-1 px-3 py-2 rounded-md border border-[#2A2A3A] text-xs text-[#6B7280] hover:text-[#E2E8F0] hover:bg-[#252535] transition-colors"
+                                className="flex-1 px-3 py-2 rounded-md border border-ui text-xs text-muted-ui hover:text-foreground hover:bg-elevated transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleDispatch}
                                 disabled={dispatching || !dispatchWorkflowId || !dispatchRef}
-                                className="flex-1 px-3 py-2 rounded-md bg-[#A78BFA] text-white text-xs font-semibold hover:bg-[#9B7CF4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+                                className="flex-1 px-3 py-2 rounded-md bg-primary text-white text-xs font-semibold hover:bg-[#9B7CF4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
                             >
                                 {dispatching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                                 Run

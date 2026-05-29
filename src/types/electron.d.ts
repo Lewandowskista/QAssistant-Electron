@@ -23,6 +23,22 @@ import {
 
 type ApiResponse<T> = { success: boolean; data?: T; error?: string };
 
+export interface ModelHealthEntry {
+    status: 'up' | 'degraded' | 'down';
+    latencyMs: number;
+    error?: string;
+}
+
+export interface NimModelMetaEntry {
+    instruction: number;
+    reasoning: number;
+    coding: number;
+    speed: number;
+    contextK: number;
+    qaScore: number;
+    notes?: string;
+}
+
 export interface ElectronAPI {
     // Window controls
     minimize: () => void;
@@ -103,7 +119,7 @@ export interface ElectronAPI {
     readCsvFile: (args: { filePath: string }) => Promise<any>;
     saveFileDialog: (args: { defaultName: string; content: string } | string) => Promise<{ success: boolean; path?: string; error?: string }>;
 
-    // AI / Gemini
+    // AI / Gemini + NIM
     aiGenerateCases: (args: AiGenerateCasesRequest) => Promise<TestCase[]>;
     aiListModels: (args: { apiKey: string }) => Promise<any>;
     aiAnalyzeIssue: (args: AiAnalyzeIssueRequest) => Promise<string>;
@@ -124,6 +140,9 @@ export interface ElectronAPI {
         modelName?: string;
     }) => Promise<Array<{ bugId: string; title: string; similarityScore: number; reasoning: string }>>;
     aiAnalyzePullRequest: (args: AiAnalyzePullRequestRequest) => Promise<AiPullRequestAnalysisResult>;
+    nimListModels: (args: { apiKey: string }) => Promise<string[]>;
+    nimProbeModels: (args: { apiKey: string; models: string[] }) => Promise<Record<string, ModelHealthEntry>>;
+    nimGetModelMetadata: (args?: { models?: string[] }) => Promise<Record<string, NimModelMetaEntry>>;
 
     // Integrations (Linear)
     syncLinear: (args: any) => Promise<any>;
@@ -208,6 +227,9 @@ export interface ElectronAPI {
     githubGetWorkflowJobs: (args: { owner: string; repo: string; runId: number }) => Promise<GitHubWorkflowJob[]>;
     githubGetWorkflowsList: (args: { owner: string; repo: string }) => Promise<GitHubWorkflow[]>;
     githubDispatchWorkflow: (args: { owner: string; repo: string; workflowId: number; ref: string }) => Promise<{ success: boolean }>;
+    githubAddPrComment: (args: { owner: string; repo: string; prNumber: number; body: string }) => Promise<{ id: number; htmlUrl: string }>;
+    githubAddPrLabels: (args: { owner: string; repo: string; prNumber: number; labelNames: string[] }) => Promise<void>;
+    githubRemovePrLabel: (args: { owner: string; repo: string; prNumber: number; labelName: string }) => Promise<void>;
 
     // Reports / exports
     generateTestSummaryMarkdown: (project: any, filterPlanIds?: string[], aiResult?: string) => Promise<string>;

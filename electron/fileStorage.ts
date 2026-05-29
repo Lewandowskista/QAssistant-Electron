@@ -101,6 +101,14 @@ export async function saveFile(sourcePath: string): Promise<{ success: boolean; 
 
 export async function saveBytes(bytes: Uint8Array, fileName: string): Promise<{ success: boolean; attachment?: StoredAttachment; error?: string }> {
     try {
+        // Sanitize: strip any directory components so a crafted fileName cannot
+        // escape _attachmentsDir via path traversal (e.g. "../../evil.txt").
+        const safeName = path.basename(fileName)
+        if (!safeName || safeName === '.' || safeName === '..') {
+            return { success: false, error: 'Invalid file name.' }
+        }
+        fileName = safeName
+
         const ext = path.extname(fileName).toLowerCase()
         if (BLOCKED_EXTENSIONS.has(ext)) {
             return { success: false, error: `File type '${ext}' is not allowed for security reasons.` }
@@ -108,6 +116,12 @@ export async function saveBytes(bytes: Uint8Array, fileName: string): Promise<{ 
 
         const uniqueName = `${Date.now()}-${fileName}`
         const destPath = path.join(_attachmentsDir, uniqueName)
+
+        // Belt-and-suspenders: confirm the resolved path stays inside the attachments dir.
+        if (!path.resolve(destPath).startsWith(_attachmentsDir + path.sep) &&
+            path.resolve(destPath) !== _attachmentsDir) {
+            return { success: false, error: 'Access denied.' }
+        }
         await fs.promises.writeFile(destPath, bytes)
 
         const attachment: StoredAttachment = {
