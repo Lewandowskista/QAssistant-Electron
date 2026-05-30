@@ -53,18 +53,44 @@ function buildGenericPayload(title: string, message: string): string {
     return JSON.stringify({ title, message, timestamp: new Date().toISOString() });
 }
 
+// Only the transport-relevant fields are read here; accept a minimal shape so
+// callers that synthesize an ad-hoc webhook (e.g. the send-webhook IPC handler)
+// don't need to construct a full WebhookConfig.
+type WebhookTarget = Pick<WebhookConfig, 'url' | 'type' | 'isEnabled'>
+
+function isPrivateOrLoopback(hostname: string): boolean {
+    if (hostname === 'localhost') return true
+    // IPv6 loopback
+    if (hostname === '::1' || hostname === '[::1]') return true
+    const parts = hostname.split('.').map(Number)
+    if (parts.length !== 4 || parts.some(p => isNaN(p))) return false
+    const [a, b] = parts
+    return (
+        a === 127 ||           // 127.0.0.0/8  loopback
+        a === 10 ||            // 10.0.0.0/8   private
+        a === 0 ||             // 0.x.x.x      reserved
+        (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
+        (a === 192 && b === 168)             // 192.168.0.0/16
+    )
+}
+
 export async function sendWebhook(
-    webhook: WebhookConfig,
+    webhook: WebhookTarget,
     title: string,
     message: string,
     color = '#A78BFA'
 ): Promise<void> {
     if (!webhook.isEnabled || !webhook.url) return;
 
-    // Basic URL validation — only allow http/https
+    // Only allow http/https and block loopback/private destinations so a
+    // renderer-supplied URL can't be used to probe internal services.
     try {
         const parsed = new URL(webhook.url);
         if (!['http:', 'https:'].includes(parsed.protocol)) return;
+        if (isPrivateOrLoopback(parsed.hostname)) {
+            console.warn('[webhook] Blocked request to private/loopback address:', parsed.hostname)
+            return;
+        }
     } catch {
         return;
     }

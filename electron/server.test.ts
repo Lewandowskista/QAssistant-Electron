@@ -23,11 +23,13 @@ vi.mock('./database', () => ({
     getProjectById: () => null,
     getProjectSummaries: () => [],
     saveAllProjects: () => undefined,
+    runInTransaction: <T>(fn: () => T): T => fn(),
 }))
 
 // ── OAuth stub ───────────────────────────────────────────────────────────────
 vi.mock('./oauth', () => ({
     getPendingAuth: () => null,
+    getPendingAuthByState: () => null,
     exchangeCode: async () => ({ userId: 'u1' }),
     generateAuthUrl: () => 'https://example.com/auth',
     revokeTokens: async () => undefined,

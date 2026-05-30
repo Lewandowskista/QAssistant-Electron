@@ -137,17 +137,18 @@ export async function saveBytes(bytes: Uint8Array, fileName: string): Promise<{ 
     }
 }
 
-export function deleteFile(filePath: string): { success: boolean; error?: string } {
+export function deleteFile(filePath: string): boolean {
     try {
         const full = path.resolve(filePath)
         if (!_attachmentsDir || !full.startsWith(_attachmentsDir + path.sep)) {
-            return { success: false, error: 'Access denied' }
+            return false
         }
         if (fs.existsSync(full)) fs.unlinkSync(full)
-        return { success: true }
+        return true
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
-        return { success: false, error: e.message }
+        console.warn('[fileStorage] deleteFile failed:', e?.message ?? e)
+        return false
     }
 }
 

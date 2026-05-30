@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ActionToolbar, CompactPageHeader, InlineStatusSummary, PageScaffold, SurfaceBlock } from "@/components/ui/workspace"
 import { cn } from "@/lib/utils"
-import { getApiKey, getConnectionApiKey } from "@/lib/credentials"
+import { getConnectionApiKey } from "@/lib/credentials"
 import { sanitizeProjectForQaAi, sanitizeTaskForQaAi } from "@/lib/aiUtils"
 import { aiAnalyzeIssue } from "@/lib/aiClient"
 import {
@@ -39,7 +39,7 @@ import {
     sortTaskViewModels
 } from "@/lib/tasks"
 import { useLinearAutoSync } from "@/hooks/useLinearAutoSync"
-import { SkeletonList, SkeletonKanban } from "@/components/ui/skeleton"
+import { SkeletonList } from "@/components/ui/skeleton"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { TaskFilterBar } from "@/components/tasks/TaskFilterBar"
 import { TaskCard } from "@/components/tasks/TaskCard"
@@ -301,11 +301,6 @@ export default function TasksPage() {
         if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`
         return `${Math.floor(diffSeconds / 86400)}d ago`
     }
-
-    useEffect(() => {
-        const interval = setInterval(() => setSyncTimestamp((value) => value), 30000)
-        return () => clearInterval(interval)
-    }, [])
 
     const { lastSyncedAt } = useLinearAutoSync({
         activeProject: activeProject || null,

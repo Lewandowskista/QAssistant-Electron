@@ -20,7 +20,6 @@ import { FullBleedHeader } from '@/components/ui/workspace'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { sanitizeProjectForQaAi } from '@/lib/aiUtils'
 import { useProjectStore } from '@/store/useProjectStore'
-import { getApiKey } from '@/lib/credentials'
 import { aiAnalyzePullRequest } from '@/lib/aiClient'
 import { toast } from 'sonner'
 

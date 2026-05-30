@@ -28,6 +28,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # The electron-vite build uses esbuild/rollup, which do NOT typecheck — so
+      # without this step type errors ship silently. Covers both the renderer
+      # (tsconfig.app.json) and the main/preload process (tsconfig.node.json).
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Test
         run: npm run test
 

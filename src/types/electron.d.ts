@@ -2,7 +2,7 @@ import { Project, TestCase, Attachment } from './project';
 import { UserProfile } from './user';
 import { AuthStatus } from './auth';
 import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem, GitHubComment, GitHubWorkflowJob, GitHubWorkflow } from './github';
-import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiAnalyzePullRequestRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiPullRequestAnalysisResult, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
+import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiAnalyzePullRequestRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiPullRequestAnalysisResult, AiProvider, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
 import { CronJobEntry, FlexibleSearchResult, ImpExResult } from '@/lib/sapHac';
 import { AppUpdateState } from './update';
 import {
@@ -128,10 +128,11 @@ export interface ElectronAPI {
     aiTestRunSuggestions: (args: AiTestRunSuggestionsRequest) => Promise<string>;
     aiSmokeSubset: (args: AiSmokeSubsetRequest) => Promise<string[]>;
     aiChat: (args: AiChatRequest) => Promise<string>;
-    aiGenerateFlexSearch: (args: { apiKey: string; naturalLanguageQuery: string; modelName?: string }) => Promise<string>;
-    aiStandupSummary: (args: { apiKey: string; metrics: Record<string, unknown>; modelName?: string }) => Promise<string>;
+    aiGenerateFlexSearch: (args: { apiKey: string; provider?: AiProvider; naturalLanguageQuery: string; modelName?: string }) => Promise<string>;
+    aiStandupSummary: (args: { apiKey: string; provider?: AiProvider; metrics: Record<string, unknown>; modelName?: string }) => Promise<string>;
     aiFindDuplicateBugs: (args: {
         apiKey: string;
+        provider?: AiProvider;
         newBugTitle: string;
         newBugDescription: string;
         newBugReproSteps?: string;
@@ -258,10 +259,10 @@ export interface ElectronAPI {
 
     // AI Accuracy Testing
     readDocumentText: (args: { filePath: string }) => Promise<{ success: boolean; text?: string; chunkCount?: number; error?: string }>;
-    aiAccuracyExtractClaims: (args: { apiKey: string; agentResponse: string; modelName?: string; expectedAnswer?: string }) => Promise<Array<{ claimText: string; claimType: string }>>;
-    aiAccuracyVerifyClaims: (args: { apiKey: string; claims: Array<{ claimText: string; claimType: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string; expectedAnswer?: string }) => Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>>;
-    aiAccuracyScoreDimensions: (args: { apiKey: string; question: string; agentResponse: string; expectedAnswer?: string; claimVerdicts: Array<{ claimText: string; verdict: string; reasoning: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string }) => Promise<{ factualAccuracy: { score: number; confidence: number; reasoning: string }; completeness: { score: number; confidence: number; reasoning: string }; faithfulness: { score: number; confidence: number; reasoning: string }; relevance: { score: number; confidence: number; reasoning: string } }>;
-    aiAccuracyRerankChunks: (args: { apiKey: string; question: string; agentResponse: string; chunks: Array<{ id: string; content: string }>; topK?: number; modelName?: string }) => Promise<string[]>;
+    aiAccuracyExtractClaims: (args: { apiKey: string; provider?: AiProvider; agentResponse: string; modelName?: string; expectedAnswer?: string }) => Promise<Array<{ claimText: string; claimType: string }>>;
+    aiAccuracyVerifyClaims: (args: { apiKey: string; provider?: AiProvider; claims: Array<{ claimText: string; claimType: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string; expectedAnswer?: string }) => Promise<Array<{ claimIndex: number; verdict: string; confidence: number; sourceChunkIds: string[]; reasoning: string }>>;
+    aiAccuracyScoreDimensions: (args: { apiKey: string; provider?: AiProvider; question: string; agentResponse: string; expectedAnswer?: string; claimVerdicts: Array<{ claimText: string; verdict: string; reasoning: string }>; refChunks: Array<{ id: string; content: string }>; modelName?: string }) => Promise<{ factualAccuracy: { score: number; confidence: number; reasoning: string }; completeness: { score: number; confidence: number; reasoning: string }; faithfulness: { score: number; confidence: number; reasoning: string }; relevance: { score: number; confidence: number; reasoning: string } }>;
+    aiAccuracyRerankChunks: (args: { apiKey: string; provider?: AiProvider; question: string; agentResponse: string; chunks: Array<{ id: string; content: string }>; topK?: number; modelName?: string }) => Promise<string[]>;
 
     // System
     showNotification: (title: string, body: string) => void;
@@ -272,6 +273,7 @@ export interface ElectronAPI {
     onAppUpdateStatus: (callback: (state: AppUpdateState) => void) => () => void;
     onIpcReady: (callback: () => void) => () => void;
     onFlushPendingSave: (callback: () => void) => () => void;
+    notifyFlushComplete: () => void;
     isMinimizedToTray: () => Promise<boolean>;
     appQuit: () => void;
 

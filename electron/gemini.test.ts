@@ -21,8 +21,11 @@ const minimalProject = {
     },
 }
 
-function createService(): GeminiService & Record<string, any> {
-    return new GeminiService('test-key') as GeminiService & Record<string, any>
+// Returns the service typed loosely so tests can stub/spy on private members
+// (executeWithFallback, buildModelSequence, getModel) for white-box assertions.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createService(): any {
+    return new GeminiService('test-key')
 }
 
 describe('GeminiService TOON prompts', () => {

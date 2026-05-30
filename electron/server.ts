@@ -1,4 +1,3 @@
-// @ts-expect-error — electron default import may not match type declarations
 import electron from 'electron'
 const { app } = electron as any
 import crypto from 'crypto'
@@ -8,7 +7,7 @@ import bodyParser from 'body-parser'
 import * as oauth from './oauth'
 import { log } from './logger'
 import { enrichHandoffCompleteness, getReleaseQueue, PROJECT_SCHEMA_VERSION } from '../src/lib/collaboration'
-import { getAllProjects, getProjectById, getProjectSummaries, saveAllProjects } from './database'
+import { getAllProjects, getProjectById, getProjectSummaries, saveAllProjects, runInTransaction } from './database'
 
 // ── In-memory rate limiter — 100 requests per minute per IP ─────────────────
 const _rateLimitMap = new Map<string, { count: number; resetAt: number }>()
@@ -148,6 +147,19 @@ function buildApp(apiToken: string, port: number) {
         saveAllProjects(projects)
     }
 
+    /**
+     * Atomic read-modify-write: reads all projects, runs `mutate`, and persists —
+     * all inside one SQLite transaction so a concurrent renderer write can't be
+     * lost between our read and our save. `mutate` returns the value to send back.
+     */
+    const mutateProjects = <T>(mutate: (projects: any[]) => T): T =>
+        runInTransaction(() => {
+            const projects = readProjects()
+            const result = mutate(projects)
+            writeProjects(projects)
+            return result
+        })
+
     // ── Public health endpoint (no auth) ─────────────────────────────────────
     app_.get('/health', (_req: Request, res: Response) => {
         res.json({
@@ -173,7 +185,9 @@ function buildApp(apiToken: string, port: number) {
             return
         }
 
-        const pending = oauth.getPendingAuth()
+        // Resolve the pending session by its state so overlapping auth flows
+        // (e.g. GitHub then Linear) each match their own session.
+        const pending = oauth.getPendingAuthByState(String(state))
         const provider = pending?.provider
 
         if (!provider) {
@@ -338,55 +352,7 @@ function buildApp(apiToken: string, port: number) {
             return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` })
         }
         try {
-            const projects = readProjects()
-            let found = false
-            for (const project of projects) {
-                for (const plan of (project.testPlans || [])) {
-                    const tc = plan.testCases?.find((t: any) => t.displayId === displayId)
-                    if (tc) {
-                        tc.status = status
-                        if (actualResult) tc.actualResult = actualResult
-                        tc.updatedAt = Date.now()
-                        project.testExecutions = [{
-                            id: crypto.randomUUID(),
-                            testCaseId: tc.id,
-                            testPlanId: plan.id,
-                            result: status,
-                            actualResult: actualResult || 'Automated result',
-                            notes: notes || 'Submitted via Automation API',
-                            executedAt: Date.now(),
-                            snapshotTestCaseTitle: tc.title
-                        }, ...(project.testExecutions || [])]
-                        found = true
-                        break
-                    }
-                }
-                if (found) break
-            }
-            if (!found) return res.status(404).json({ error: `Test case '${displayId}' not found.` })
-            writeProjects(projects)
-            res.json({ success: true, message: `Result recorded for ${displayId}` })
-        } catch (e: any) {
-            res.status(500).json({ error: 'Failed to record result.', detail: e.message })
-        }
-    })
-
-    // ── POST /api/results/batch ───────────────────────────────────────────────
-    app_.post('/api/results/batch', async (req: any, res: any) => {
-        const results: any[] = req.body?.results
-        if (!Array.isArray(results) || results.length === 0) {
-            return res.status(400).json({ error: 'Request body must have a "results" array.' })
-        }
-        try {
-            const projects = readProjects()
-            const summary: any[] = []
-            for (const item of results) {
-                const { displayId, status, actualResult, notes } = item
-                if (!displayId || !status) {
-                    summary.push({ displayId, success: false, error: 'Missing displayId or status' })
-                    continue
-                }
-                let found = false
+            const found = mutateProjects((projects) => {
                 for (const project of projects) {
                     for (const plan of (project.testPlans || [])) {
                         const tc = plan.testCases?.find((t: any) => t.displayId === displayId)
@@ -400,19 +366,66 @@ function buildApp(apiToken: string, port: number) {
                                 testPlanId: plan.id,
                                 result: status,
                                 actualResult: actualResult || 'Automated result',
-                                notes: notes || 'Batch submitted via Automation API',
+                                notes: notes || 'Submitted via Automation API',
                                 executedAt: Date.now(),
                                 snapshotTestCaseTitle: tc.title
                             }, ...(project.testExecutions || [])]
-                            found = true
-                            break
+                            return true
                         }
                     }
-                    if (found) break
                 }
-                summary.push({ displayId, success: found, error: found ? undefined : 'Not found' })
-            }
-            writeProjects(projects)
+                return false
+            })
+            if (!found) return res.status(404).json({ error: `Test case '${displayId}' not found.` })
+            res.json({ success: true, message: `Result recorded for ${displayId}` })
+        } catch (e: any) {
+            res.status(500).json({ error: 'Failed to record result.', detail: e.message })
+        }
+    })
+
+    // ── POST /api/results/batch ───────────────────────────────────────────────
+    app_.post('/api/results/batch', async (req: any, res: any) => {
+        const results: any[] = req.body?.results
+        if (!Array.isArray(results) || results.length === 0) {
+            return res.status(400).json({ error: 'Request body must have a "results" array.' })
+        }
+        try {
+            const summary = mutateProjects((projects) => {
+                const out: any[] = []
+                for (const item of results) {
+                    const { displayId, status, actualResult, notes } = item
+                    if (!displayId || !status) {
+                        out.push({ displayId, success: false, error: 'Missing displayId or status' })
+                        continue
+                    }
+                    let found = false
+                    for (const project of projects) {
+                        for (const plan of (project.testPlans || [])) {
+                            const tc = plan.testCases?.find((t: any) => t.displayId === displayId)
+                            if (tc) {
+                                tc.status = status
+                                if (actualResult) tc.actualResult = actualResult
+                                tc.updatedAt = Date.now()
+                                project.testExecutions = [{
+                                    id: crypto.randomUUID(),
+                                    testCaseId: tc.id,
+                                    testPlanId: plan.id,
+                                    result: status,
+                                    actualResult: actualResult || 'Automated result',
+                                    notes: notes || 'Batch submitted via Automation API',
+                                    executedAt: Date.now(),
+                                    snapshotTestCaseTitle: tc.title
+                                }, ...(project.testExecutions || [])]
+                                found = true
+                                break
+                            }
+                        }
+                        if (found) break
+                    }
+                    out.push({ displayId, success: found, error: found ? undefined : 'Not found' })
+                }
+                return out
+            })
             res.json({ success: true, results: summary })
         } catch (e: any) {
             res.status(500).json({ error: 'Batch operation failed.', detail: e.message })
@@ -444,39 +457,40 @@ function buildApp(apiToken: string, port: number) {
         try {
             const { projectId, taskId, ...payload } = req.body || {}
             if (!projectId || !taskId) return res.status(400).json({ error: 'Required fields: projectId, taskId' })
-            const projects = readProjects()
-            const project = projects.find((item: any) => item.id === projectId)
-            if (!project) return res.status(404).json({ error: 'Project not found.' })
-            const task = (project.tasks || []).find((item: any) => item.id === taskId)
-            if (!task) return res.status(404).json({ error: 'Task not found.' })
-            const handoff = enrichHandoffCompleteness({
-                id: crypto.randomUUID(),
-                taskId,
-                type: payload.type || 'bug_handoff',
-                createdByRole: payload.createdByRole || 'qa',
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                summary: payload.summary || task.title,
-                reproSteps: payload.reproSteps || task.description || '',
-                expectedResult: payload.expectedResult || '',
-                actualResult: payload.actualResult || '',
-                environmentId: payload.environmentId,
-                environmentName: payload.environmentName,
-                severity: payload.severity || task.severity,
-                linkedTestCaseIds: payload.linkedTestCaseIds || [],
-                linkedExecutionRefs: payload.linkedExecutionRefs || [],
-                linkedNoteIds: payload.linkedNoteIds || [],
-                linkedFileIds: payload.linkedFileIds || [],
-                linkedPrs: payload.linkedPrs || [],
-                branchName: payload.branchName,
-                releaseVersion: payload.releaseVersion,
+            const result = mutateProjects((projects) => {
+                const project = projects.find((item: any) => item.id === projectId)
+                if (!project) return { status: 404, body: { error: 'Project not found.' } }
+                const task = (project.tasks || []).find((item: any) => item.id === taskId)
+                if (!task) return { status: 404, body: { error: 'Task not found.' } }
+                const handoff = enrichHandoffCompleteness({
+                    id: crypto.randomUUID(),
+                    taskId,
+                    type: payload.type || 'bug_handoff',
+                    createdByRole: payload.createdByRole || 'qa',
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                    summary: payload.summary || task.title,
+                    reproSteps: payload.reproSteps || task.description || '',
+                    expectedResult: payload.expectedResult || '',
+                    actualResult: payload.actualResult || '',
+                    environmentId: payload.environmentId,
+                    environmentName: payload.environmentName,
+                    severity: payload.severity || task.severity,
+                    linkedTestCaseIds: payload.linkedTestCaseIds || [],
+                    linkedExecutionRefs: payload.linkedExecutionRefs || [],
+                    linkedNoteIds: payload.linkedNoteIds || [],
+                    linkedFileIds: payload.linkedFileIds || [],
+                    linkedPrs: payload.linkedPrs || [],
+                    branchName: payload.branchName,
+                    releaseVersion: payload.releaseVersion,
+                })
+                project.handoffPackets = [handoff, ...(project.handoffPackets || [])]
+                task.activeHandoffId = handoff.id
+                task.collabState = 'ready_for_dev'
+                task.lastCollabUpdatedAt = Date.now()
+                return { status: 201, body: handoff }
             })
-            project.handoffPackets = [handoff, ...(project.handoffPackets || [])]
-            task.activeHandoffId = handoff.id
-            task.collabState = 'ready_for_dev'
-            task.lastCollabUpdatedAt = Date.now()
-            writeProjects(projects)
-            res.status(201).json(handoff)
+            res.status(result.status).json(result.body)
         } catch (e: any) {
             res.status(500).json({ error: e.message })
         }
@@ -484,16 +498,17 @@ function buildApp(apiToken: string, port: number) {
 
     app_.post('/api/handoffs/:id/acknowledge', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
-            const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
-            if (!target) return res.status(404).json({ error: 'Handoff not found.' })
-            const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
-            handoff.acknowledgedAt = Date.now()
-            handoff.updatedAt = Date.now()
-            const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
-            if (task) task.collabState = 'dev_acknowledged'
-            writeProjects(projects)
-            res.json({ success: true })
+            const result = mutateProjects((projects) => {
+                const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
+                if (!target) return { status: 404, body: { error: 'Handoff not found.' } }
+                const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
+                handoff.acknowledgedAt = Date.now()
+                handoff.updatedAt = Date.now()
+                const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
+                if (task) task.collabState = 'dev_acknowledged'
+                return { status: 200, body: { success: true } }
+            })
+            res.status(result.status).json(result.body)
         } catch (e: any) {
             res.status(500).json({ error: e.message })
         }
@@ -501,17 +516,18 @@ function buildApp(apiToken: string, port: number) {
 
     app_.post('/api/handoffs/:id/ready-for-qa', async (req: any, res: any) => {
         try {
-            const projects = readProjects()
-            const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
-            if (!target) return res.status(404).json({ error: 'Handoff not found.' })
-            const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
-            handoff.updatedAt = Date.now()
-            handoff.developerResponse = req.body?.developerResponse || handoff.developerResponse
-            handoff.resolutionSummary = req.body?.resolutionSummary || handoff.resolutionSummary
-            const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
-            if (task) task.collabState = 'ready_for_qa'
-            writeProjects(projects)
-            res.json({ success: true })
+            const result = mutateProjects((projects) => {
+                const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
+                if (!target) return { status: 404, body: { error: 'Handoff not found.' } }
+                const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
+                handoff.updatedAt = Date.now()
+                handoff.developerResponse = req.body?.developerResponse || handoff.developerResponse
+                handoff.resolutionSummary = req.body?.resolutionSummary || handoff.resolutionSummary
+                const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
+                if (task) task.collabState = 'ready_for_qa'
+                return { status: 200, body: { success: true } }
+            })
+            res.status(result.status).json(result.body)
         } catch (e: any) {
             res.status(500).json({ error: e.message })
         }
@@ -578,17 +594,18 @@ function buildApp(apiToken: string, port: number) {
             const passed = !!req.body?.passed
             const notes = req.body?.notes
             if (!notes) return res.status(400).json({ error: 'Required field: notes' })
-            const projects = readProjects()
-            const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
-            if (!target) return res.status(404).json({ error: 'Handoff not found.' })
-            const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
-            handoff.qaVerificationNotes = notes
-            handoff.completedAt = passed ? Date.now() : undefined
-            handoff.updatedAt = Date.now()
-            const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
-            if (task) task.collabState = passed ? 'verified' : 'ready_for_dev'
-            writeProjects(projects)
-            res.json({ success: true, passed })
+            const result = mutateProjects((projects) => {
+                const target = projects.find((project: any) => (project.handoffPackets || []).some((packet: any) => packet.id === req.params.id))
+                if (!target) return { status: 404, body: { error: 'Handoff not found.' } }
+                const handoff = target.handoffPackets.find((packet: any) => packet.id === req.params.id)
+                handoff.qaVerificationNotes = notes
+                handoff.completedAt = passed ? Date.now() : undefined
+                handoff.updatedAt = Date.now()
+                const task = (target.tasks || []).find((item: any) => item.id === handoff.taskId)
+                if (task) task.collabState = passed ? 'verified' : 'ready_for_dev'
+                return { status: 200, body: { success: true, passed } }
+            })
+            res.status(result.status).json(result.body)
         } catch (e: any) {
             res.status(500).json({ error: e.message })
         }

@@ -1,4 +1,4 @@
-import type { CollabState, HandoffPacket, Project, Task, TaskSeverity, TestCase } from "@/types/project"
+import type { CollabState, HandoffPacket, Project, Task, TaskSeverity, TestCase } from "../types/project"
 
 export type TaskDueState = "none" | "overdue" | "soon" | "future"
 export type TaskCoverageState = "linked" | "uncovered"

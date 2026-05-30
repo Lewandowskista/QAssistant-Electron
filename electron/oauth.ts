@@ -73,9 +73,20 @@ type PendingAuth = {
     codeVerifier: string
     provider: AuthProvider
     callbackPort: number
+    createdAt: number
 }
 
-let pendingAuth: PendingAuth | null = null
+// Keyed by `state` so two overlapping auth flows (e.g. GitHub then Linear, before
+// the first callback returns) don't clobber each other's PKCE verifier/state.
+const pendingAuthByState = new Map<string, PendingAuth>()
+// Pending auths expire so abandoned flows don't accumulate.
+const PENDING_AUTH_TTL_MS = 10 * 60_000
+
+function prunePendingAuth(now: number): void {
+    for (const [key, entry] of pendingAuthByState) {
+        if (now - entry.createdAt > PENDING_AUTH_TTL_MS) pendingAuthByState.delete(key)
+    }
+}
 
 // ── PKCE helpers ───────────────────────────────────────────────────────────
 
@@ -95,7 +106,9 @@ export function generateAuthUrl(provider: AuthProvider, callbackPort: number): s
     const codeVerifier = generateCodeVerifier()
     const codeChallenge = generateCodeChallenge(codeVerifier)
 
-    pendingAuth = { state, codeVerifier, provider, callbackPort }
+    const now = Date.now()
+    prunePendingAuth(now)
+    pendingAuthByState.set(state, { state, codeVerifier, provider, callbackPort, createdAt: now })
 
     const params: Record<string, string> = {
         client_id: config.clientId,
@@ -113,12 +126,25 @@ export function generateAuthUrl(provider: AuthProvider, callbackPort: number): s
     return `${config.authUrl}?${new URLSearchParams(params).toString()}`
 }
 
+/** Resolve a pending auth session by its `state` (the OAuth callback carries it). */
+export function getPendingAuthByState(state: string): PendingAuth | null {
+    return pendingAuthByState.get(state) ?? null
+}
+
+/**
+ * Back-compat: returns the most recently started pending auth. Prefer
+ * getPendingAuthByState(state) — this is ambiguous when flows overlap.
+ */
 export function getPendingAuth(): PendingAuth | null {
-    return pendingAuth
+    let latest: PendingAuth | null = null
+    for (const entry of pendingAuthByState.values()) {
+        if (!latest || entry.createdAt > latest.createdAt) latest = entry
+    }
+    return latest
 }
 
 export function clearPendingAuth(): void {
-    pendingAuth = null
+    pendingAuthByState.clear()
 }
 
 export async function exchangeCode(
@@ -127,13 +153,14 @@ export async function exchangeCode(
     state: string,
     callbackPort: number
 ): Promise<OAuthUserInfo> {
-    if (!pendingAuth || pendingAuth.state !== state || pendingAuth.provider !== provider) {
+    const pending = pendingAuthByState.get(state)
+    if (!pending || pending.state !== state || pending.provider !== provider) {
         throw new Error('OAuth state mismatch — possible CSRF attack or stale session')
     }
 
     const config = PROVIDER_CONFIG[provider]
-    const codeVerifier = pendingAuth.codeVerifier
-    clearPendingAuth()
+    const codeVerifier = pending.codeVerifier
+    pendingAuthByState.delete(state)
 
     // Exchange code for tokens
     const tokenParams: Record<string, string> = {

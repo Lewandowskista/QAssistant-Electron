@@ -3,6 +3,9 @@ import type { UserRole } from './user'
 
 export type AiRole = UserRole
 
+/** AI backend selected per-project; injected into every AI IPC call by aiClient.ts. */
+export type AiProvider = 'gemini' | 'nim'
+
 export interface AiContextSelection {
     taskIds?: string[]
     environmentIds?: string[]
@@ -169,6 +172,7 @@ export type ProjectAiContext = QaProjectAiContext | DevProjectAiContext
 
 export interface AiAnalyzeIssueRequest {
     apiKey: string
+    provider?: AiProvider
     task: QaAiTask
     comments?: any[]
     project?: QaProjectAiContext
@@ -177,6 +181,7 @@ export interface AiAnalyzeIssueRequest {
 
 export interface AiGenerateCasesRequest {
     apiKey: string
+    provider?: AiProvider
     tasks: QaAiTask[]
     sourceName: string
     project?: QaProjectAiContext
@@ -187,6 +192,7 @@ export interface AiGenerateCasesRequest {
 
 export interface AiAnalyzeProjectRequest {
     apiKey: string
+    provider?: AiProvider
     context: string
     project?: QaProjectAiContext
     modelName?: string
@@ -194,6 +200,7 @@ export interface AiAnalyzeProjectRequest {
 
 export interface AiCriticalityRequest {
     apiKey: string
+    provider?: AiProvider
     tasks: QaAiTask[]
     testPlans: QaAiTestPlanDetail[]
     executions: AiSafeExecution[]
@@ -203,6 +210,7 @@ export interface AiCriticalityRequest {
 
 export interface AiTestRunSuggestionsRequest {
     apiKey: string
+    provider?: AiProvider
     testPlans: QaAiTestPlanDetail[]
     executions: AiSafeExecution[]
     project?: QaProjectAiContext
@@ -211,6 +219,7 @@ export interface AiTestRunSuggestionsRequest {
 
 export interface AiSmokeSubsetRequest {
     apiKey: string
+    provider?: AiProvider
     candidates: QaAiTestCase[]
     doneTasks: QaAiTask[]
     project?: QaProjectAiContext
@@ -241,6 +250,7 @@ export interface AiPullRequestCommentContext {
 
 export interface AiAnalyzePullRequestRequest {
     apiKey: string
+    provider?: AiProvider
     pr: {
         number: number
         title: string
@@ -270,6 +280,7 @@ export interface AiPullRequestAnalysisResult {
 
 export interface AiChatRequest {
     apiKey: string
+    provider?: AiProvider
     userMessage: string
     history: Array<{ role: 'user' | 'assistant'; content: string }>
     role: AiRole

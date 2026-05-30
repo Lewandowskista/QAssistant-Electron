@@ -8,7 +8,10 @@
  * write-projects-file IPC, so the renderer-side store needs minimal changes.
  */
 
-import type { Attachment, Note, Project, Task, TestCase, TestPlan } from '../src/types/project'
+import type {
+    Attachment, Note, Project, Task, TaskSeverity, CollabState, Reproducibility, Frequency,
+    TestCase, TestPlan,
+} from '../src/types/project'
 import { importLegacyCredential, getCredentialStorageStatus } from './credentialService'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -31,6 +34,16 @@ export function initDatabase(dbPath: string): void {
 
     createSchema()
     runMigrations()
+}
+
+/**
+ * Run `fn` inside a single SQLite transaction. better-sqlite3 is synchronous, so
+ * the transaction executes atomically with respect to all other writers — use this
+ * to make a read-modify-write (e.g. the automation API updating a result) safe
+ * against concurrent renderer-driven writes to the same DB.
+ */
+export function runInTransaction<T>(fn: () => T): T {
+    return getDb().transaction(fn)()
 }
 
 export function getDb(): DB {
@@ -641,6 +654,27 @@ function bool(v: number | null | undefined): boolean {
     return v === 1
 }
 
+/**
+ * Coerce an untyped DB string column into a known union, falling back when the
+ * stored value is outside the union (e.g. a record synced from a newer schema or
+ * edited out-of-band). Returns `fallback` (which may be undefined) on mismatch so
+ * a stray value never reaches the renderer's discriminated-union logic untyped.
+ */
+function asEnum<T extends string>(value: string | null | undefined, allowed: readonly T[], fallback: T): T
+function asEnum<T extends string>(value: string | null | undefined, allowed: readonly T[], fallback?: undefined): T | undefined
+function asEnum<T extends string>(value: string | null | undefined, allowed: readonly T[], fallback?: T): T | undefined {
+    if (value != null && (allowed as readonly string[]).includes(value)) return value as T
+    if (value != null) console.warn(`[db] Unexpected enum value '${value}' (allowed: ${allowed.join('|')}); using fallback '${fallback ?? 'undefined'}'`)
+    return fallback
+}
+
+const TASK_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
+const TASK_SEVERITIES: readonly TaskSeverity[] = ['cosmetic', 'minor', 'major', 'critical', 'blocker']
+const TASK_SOURCES = ['manual', 'linear', 'jira'] as const
+const COLLAB_STATES: readonly CollabState[] = ['draft', 'ready_for_dev', 'dev_acknowledged', 'in_fix', 'ready_for_qa', 'qa_retesting', 'verified', 'closed']
+const REPRODUCIBILITIES: readonly Reproducibility[] = ['always', 'sometimes', 'rarely', 'once', 'unable']
+const FREQUENCIES: readonly Frequency[] = ['everytime', 'often', 'occasionally', 'once']
+
 export async function migrateLegacyEnvironmentSecretsToSecureStore(): Promise<{ migrated: number; skipped: number }> {
     const database = getDb()
     const alreadyMigrated = database
@@ -714,7 +748,7 @@ type ProjectRow = {
 function rowToProject(row: ProjectRow): Project {
     return {
         id: row.id,
-        schemaVersion: row.schema_version,
+        schemaVersion: row.schema_version ?? undefined,
         name: row.name,
         color: row.color,
         clientName: row.client_name ?? undefined,
@@ -790,8 +824,8 @@ function rowToTask(row: TaskRow): Task {
         title: row.title,
         description: row.description,
         status: row.status,
-        priority: row.priority,
-        severity: row.severity ?? undefined,
+        priority: asEnum(row.priority, TASK_PRIORITIES, 'medium'),
+        severity: asEnum(row.severity, TASK_SEVERITIES),
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         version: row.version ?? undefined,
         sourceIssueId: row.source_issue_id ?? undefined,
@@ -803,17 +837,17 @@ function rowToTask(row: TaskRow): Task {
         labels: row.labels ?? undefined,
         components: p<string[]>(row.components_json) ?? [],
         dueDate: row.due_date ?? undefined,
-        source: row.source ?? undefined,
+        source: asEnum(row.source, TASK_SOURCES),
         connectionId: row.connection_id ?? undefined,
         attachmentUrls: p<string[]>(row.attachment_urls_json) ?? undefined,
         analysisHistory: p(row.analysis_history_json) ?? [],
         linkedTestCaseId: row.linked_test_case_id ?? undefined,
         linkedDefectIds: p<string[]>(row.linked_defect_ids_json) ?? [],
-        collabState: row.collab_state,
+        collabState: asEnum(row.collab_state, COLLAB_STATES),
         activeHandoffId: row.active_handoff_id ?? undefined,
         lastCollabUpdatedAt: row.last_collab_updated_at ?? undefined,
-        reproducibility: row.reproducibility ?? undefined,
-        frequency: row.frequency ?? undefined,
+        reproducibility: asEnum(row.reproducibility, REPRODUCIBILITIES),
+        frequency: asEnum(row.frequency, FREQUENCIES),
         affectedEnvironments: p<string[]>(row.affected_environments_json),
         sprint: p(row.sprint_json),
         createdAt: row.created_at,
@@ -1034,7 +1068,7 @@ function hydrateProject(projectRow: ProjectRow): Project {
                     snapshotTestPlanName: pe.snapshot_test_plan_name,
                     caseExecutions: caseExecRows.map((ce: any) => ({
                         id: ce.id, testCaseId: ce.test_case_id, result: ce.result,
-                        actualResult: ce.actual_result, notes: ce.notes, snapshotTitle: ce.snapshot_title,
+                        actualResult: ce.actual_result, notes: ce.notes, snapshotTestCaseTitle: ce.snapshot_title ?? '',
                         snapshotPreConditions: ce.snapshot_pre_conditions ?? undefined,
                         snapshotSteps: ce.snapshot_steps ?? undefined,
                         snapshotTestData: ce.snapshot_test_data ?? undefined,
@@ -1055,7 +1089,7 @@ function hydrateProject(projectRow: ProjectRow): Project {
     proj.testExecutions = legacyExecRows.map((e: any) => ({
         id: e.id, testCaseId: e.test_case_id, testPlanId: e.test_plan_id,
         result: e.result, actualResult: e.actual_result, notes: e.notes,
-        executedAt: e.executed_at, snapshotTitle: e.snapshot_title,
+        executedAt: e.executed_at, snapshotTestCaseTitle: e.snapshot_title ?? '',
         snapshotPreConditions: e.snapshot_pre_conditions ?? undefined,
         snapshotSteps: e.snapshot_steps ?? undefined,
         snapshotTestData: e.snapshot_test_data ?? undefined,
@@ -1683,7 +1717,6 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
             @sap_module, @source_issue_id, @tags_json, @components_json, @assigned_to,
             @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json, @updated_at)
     `)
-    const deleteStaleCases = database.prepare('DELETE FROM test_cases WHERE test_plan_id = ? AND project_id = ?')
     const touchProject = database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
 
     database.transaction(() => {
@@ -1700,8 +1733,11 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
             created_at: plan.createdAt,
             updated_at: plan.updatedAt,
         })
-        deleteStaleCases.run(plan.id, projectId)
-        for (const tc of plan.testCases ?? []) {
+        // Upsert each case in the payload, then remove any cases that are no longer
+        // present (identified by ID). This avoids the previous DELETE-all + full
+        // reinsert pattern that rewrote every test case on every single edit.
+        const cases = plan.testCases ?? []
+        for (const tc of cases) {
             upsertCase.run({
                 id: tc.id,
                 test_plan_id: plan.id,
@@ -1726,6 +1762,22 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
                 change_log_json: j(tc.changeLog),
                 updated_at: tc.updatedAt,
             })
+        }
+        if (cases.length > 0) {
+            // Delete rows whose IDs are not in the current payload.
+            // SQLite's IN clause has a variable-binding limit; chunk if needed.
+            const ids = cases.map((tc: any) => tc.id as string)
+            const CHUNK = 500
+            for (let i = 0; i < ids.length; i += CHUNK) {
+                const chunk = ids.slice(i, i + CHUNK)
+                const placeholders = chunk.map(() => '?').join(',')
+                database.prepare(
+                    `DELETE FROM test_cases WHERE test_plan_id = ? AND project_id = ? AND id NOT IN (${placeholders})`
+                ).run(plan.id, projectId, ...chunk)
+            }
+        } else {
+            // No cases in payload — remove all cases for this plan.
+            database.prepare('DELETE FROM test_cases WHERE test_plan_id = ? AND project_id = ?').run(plan.id, projectId)
         }
         touchProject.run(Date.now(), projectId)
     })()
@@ -2548,7 +2600,10 @@ export function getTaskById(taskId: string): any | null {
     const taskRow = database.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as TaskRow | undefined
     if (!taskRow) return null
 
-    const task = rowToTask(taskRow)
+    // Enriched, join-shaped result: rowToTask() returns a Task, but the renderer's
+    // post-sync refresh also wants the task's handoffs/events attached. Widen to any
+    // so we can decorate it with fields that aren't part of the base Task type.
+    const task: any = rowToTask(taskRow)
 
     const handoffRows = database.prepare('SELECT * FROM handoff_packets WHERE task_id = ? ORDER BY rowid').all(taskId) as any[]
     task.handoffPackets = handoffRows.map((h: any) => ({

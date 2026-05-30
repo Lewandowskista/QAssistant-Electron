@@ -899,7 +899,7 @@ if (app) {
             Menu.setApplicationMenu(null);
         }
 
-        app.on('before-quit', (event) => {
+        app.on('before-quit', (event: any) => {
             (app as any).isQuiting = true;
             if (idleCpuSampler) {
                 clearInterval(idleCpuSampler);
@@ -907,14 +907,24 @@ if (app) {
             }
             stopReminderService();
             teardownSync().catch(e => console.error('[main] sync teardown failed:', e));
-            // Ask renderer to flush any debounced pending save before closing the DB
+            // Ask renderer to flush any debounced pending save before closing the DB.
+            // Wait for the renderer's completion ack rather than a fixed delay, so a
+            // large pending save isn't truncated; fall back to a timeout in case the
+            // renderer is wedged or never acks.
             if (mainWindow && !mainWindow.isDestroyed()) {
                 event.preventDefault();
-                mainWindow.webContents.send('flush-pending-save');
-                setTimeout(() => {
+                let finished = false;
+                const finishQuit = () => {
+                    if (finished) return;
+                    finished = true;
+                    ipcMain.removeListener('flush-pending-save-complete', finishQuit);
                     closeDatabase();
                     app.exit(0);
-                }, 500);
+                };
+                ipcMain.once('flush-pending-save-complete', finishQuit);
+                mainWindow.webContents.send('flush-pending-save');
+                // Fallback: don't hang the quit indefinitely if the ack never arrives.
+                setTimeout(finishQuit, 3000);
             } else {
                 closeDatabase();
             }

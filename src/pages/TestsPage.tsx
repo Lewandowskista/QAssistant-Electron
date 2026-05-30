@@ -79,12 +79,11 @@ export default function TestsPage() {
     const activeRole = useUserStore(s => s.profile?.activeRole ?? 'qa')
     const activeProject = useActiveProject()
     const activeProjectId = useActiveProjectId()
-    const { addTestCase, addTestPlan, batchAddTestCasesToPlan, deleteLegacyExecution, updateTestCase } = useProjectStore(useShallow((state) => ({
+    const { addTestCase, addTestPlan, batchAddTestCasesToPlan, deleteLegacyExecution } = useProjectStore(useShallow((state) => ({
         addTestCase: state.addTestCase,
         addTestPlan: state.addTestPlan,
         batchAddTestCasesToPlan: state.batchAddTestCasesToPlan,
         deleteLegacyExecution: state.deleteLegacyExecution,
-        updateTestCase: state.updateTestCase,
     })))
     const testPlans = activeProject?.testPlans || []
     const projectExecutions = activeProject?.testExecutions || []

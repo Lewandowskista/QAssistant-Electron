@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
-import { getApiKey } from "@/lib/credentials"
 import { aiGenerateFlexSearch } from "@/lib/aiClient"
 import { ServerCog, Play, RefreshCw, TerminalSquare, CheckCircle2, Zap, Activity, ShieldQuestion, Globe, Layers, AlertTriangle, Sparkles } from "lucide-react"
 import { Input } from "@/components/ui/input"
