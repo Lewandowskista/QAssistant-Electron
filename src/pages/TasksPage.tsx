@@ -302,11 +302,6 @@ export default function TasksPage() {
         return `${Math.floor(diffSeconds / 86400)}d ago`
     }
 
-    useEffect(() => {
-        const interval = setInterval(() => setSyncTimestamp((value) => value), 30000)
-        return () => clearInterval(interval)
-    }, [])
-
     const { lastSyncedAt } = useLinearAutoSync({
         activeProject: activeProject || null,
         sourceMode,

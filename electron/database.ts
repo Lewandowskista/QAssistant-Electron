@@ -1717,7 +1717,6 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
             @sap_module, @source_issue_id, @tags_json, @components_json, @assigned_to,
             @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json, @updated_at)
     `)
-    const deleteStaleCases = database.prepare('DELETE FROM test_cases WHERE test_plan_id = ? AND project_id = ?')
     const touchProject = database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
 
     database.transaction(() => {
@@ -1734,8 +1733,11 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
             created_at: plan.createdAt,
             updated_at: plan.updatedAt,
         })
-        deleteStaleCases.run(plan.id, projectId)
-        for (const tc of plan.testCases ?? []) {
+        // Upsert each case in the payload, then remove any cases that are no longer
+        // present (identified by ID). This avoids the previous DELETE-all + full
+        // reinsert pattern that rewrote every test case on every single edit.
+        const cases = plan.testCases ?? []
+        for (const tc of cases) {
             upsertCase.run({
                 id: tc.id,
                 test_plan_id: plan.id,
@@ -1760,6 +1762,22 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
                 change_log_json: j(tc.changeLog),
                 updated_at: tc.updatedAt,
             })
+        }
+        if (cases.length > 0) {
+            // Delete rows whose IDs are not in the current payload.
+            // SQLite's IN clause has a variable-binding limit; chunk if needed.
+            const ids = cases.map((tc: any) => tc.id as string)
+            const CHUNK = 500
+            for (let i = 0; i < ids.length; i += CHUNK) {
+                const chunk = ids.slice(i, i + CHUNK)
+                const placeholders = chunk.map(() => '?').join(',')
+                database.prepare(
+                    `DELETE FROM test_cases WHERE test_plan_id = ? AND project_id = ? AND id NOT IN (${placeholders})`
+                ).run(plan.id, projectId, ...chunk)
+            }
+        } else {
+            // No cases in payload — remove all cases for this plan.
+            database.prepare('DELETE FROM test_cases WHERE test_plan_id = ? AND project_id = ?').run(plan.id, projectId)
         }
         touchProject.run(Date.now(), projectId)
     })()

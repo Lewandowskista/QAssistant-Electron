@@ -140,10 +140,22 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
         return await deps.saveBytes(new TextEncoder().encode(md), fileName);
     });
 
+    // Sensitive files that must never be served to the renderer even when they
+    // reside under APP_DATA_DIR — credentials, the SQLite DB, and settings all
+    // live in the same directory and could be exfiltrated by a crafted path.
+    const SENSITIVE_FILENAMES = new Set(['credentials.json', 'credentials.json.tmp', 'qassistant.db', 'settings.json', 'user.json'])
+    function isSensitiveFile(fp: string): boolean {
+        return SENSITIVE_FILENAMES.has(deps.path.basename(fp).toLowerCase())
+    }
+
     ipcMain.handle('read-json-file', async (_e: any, { filePath }: any) => {
         try {
             if (!deps.isPathWithin(filePath, deps.APP_DATA_DIR) && !deps.isPathWithin(filePath, deps.ATTACHMENTS_DIR)) {
                 return { success: false, error: 'Access denied: Path outside application data directory' };
+            }
+            if (isSensitiveFile(filePath)) {
+                console.warn('Blocked read-json-file attempt on sensitive file:', filePath);
+                return { success: false, error: 'Access denied' };
             }
             const content = await deps.fsp.readFile(filePath, 'utf8');
             return { success: true, data: JSON.parse(content) };
@@ -154,6 +166,10 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
         if (deps.fs.existsSync(filePath)) {
             if (!deps.isPathWithin(filePath, deps.APP_DATA_DIR) && !deps.isPathWithin(filePath, deps.ATTACHMENTS_DIR)) {
                 console.warn('Blocked attempt to open file outside app data:', filePath);
+                return;
+            }
+            if (isSensitiveFile(filePath)) {
+                console.warn('Blocked open-file attempt on sensitive file:', filePath);
                 return;
             }
             deps.shell.openPath(filePath);

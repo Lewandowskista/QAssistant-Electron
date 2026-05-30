@@ -156,8 +156,28 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
     });
 
     // SAP HAC Handlers
+    const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0'])
+    /**
+     * Validate that a renderer-supplied SAP HAC baseUrl is a safe, non-loopback HTTPS URL.
+     * Without this, a compromised renderer could redirect the main process's authenticated
+     * SAP session cookies to an arbitrary server (SSRF / credential exfiltration).
+     */
+    function assertSapHacBaseUrl(url: string): void {
+        let parsed: URL
+        try { parsed = new URL(url) } catch {
+            throw new Error(`Invalid SAP HAC URL: ${url}`)
+        }
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+            throw new Error(`SAP HAC URL must use http or https (got ${parsed.protocol})`)
+        }
+        if (LOOPBACK_HOSTNAMES.has(parsed.hostname.toLowerCase())) {
+            throw new Error(`SAP HAC URL must not target localhost or loopback addresses`)
+        }
+    }
+
     const sapHacInstances = new Map<string, any>();
     const getSapHac = (baseUrl: string, ignoreSsl = false) => {
+        assertSapHacBaseUrl(baseUrl)
         if (sapHacInstances.has(baseUrl)) {
             // Move to end of Map iteration order to implement LRU eviction
             const existing = sapHacInstances.get(baseUrl);
