@@ -26,7 +26,14 @@ export async function aiChat(args: {
     modelName?: string
 }): Promise<string> {
     const { apiKey, provider, modelName } = await resolveAiArgs()
-    return api().aiChat({ apiKey, provider, modelName: args.modelName ?? modelName, ...args })
+    return api().aiChat({
+        apiKey,
+        provider,
+        ...args,
+        history: args.history ?? [],
+        role: args.role ?? 'qa',
+        modelName: args.modelName ?? modelName,
+    })
 }
 
 export async function aiGenerateCases(args: {

@@ -5,6 +5,7 @@ type KeytarModule = {
     setPassword: (service: string, account: string, password: string) => Promise<void>
     getPassword: (service: string, account: string) => Promise<string | null>
     deletePassword: (service: string, account: string) => Promise<boolean>
+    findCredentials: (service: string) => Promise<Array<{ account: string; password: string }>>
 }
 
 let keytar: KeytarModule | null = null
@@ -105,7 +106,12 @@ async function saveToFile(): Promise<void> {
             console.warn('[QAssistant] safeStorage encryption is unavailable on this system. Credentials are being stored unencrypted. Consider upgrading your OS keyring or running the app with a desktop session.')
             encrypted = Buffer.from(content, 'utf8')
         }
-        fs.writeFileSync(storagePath, encrypted)
+        // Atomic write: a crash mid-write would otherwise corrupt the credentials
+        // store and wipe every saved secret on next launch. Write to a temp file
+        // and rename over the target (rename is atomic on the same filesystem).
+        const tmpPath = `${storagePath}.tmp`
+        fs.writeFileSync(tmpPath, encrypted)
+        fs.renameSync(tmpPath, storagePath)
     } catch (e) {
         console.error('Failed to save credentials to file:', e)
     }

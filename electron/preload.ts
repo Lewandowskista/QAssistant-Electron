@@ -132,7 +132,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ccv2GetEnvironments: (args: any) => ipcRenderer.invoke('ccv2-get-environments', args),
   ccv2GetDeployments: (args: any) => ipcRenderer.invoke('ccv2-get-deployments', args),
   ccv2GetBuild: (args: any) => ipcRenderer.invoke('ccv2-get-build', args),
-  selectFile: (filters?: any[]) => ipcRenderer.invoke('select-file', filters),
   copyToAttachments: (sourcePath: string) => ipcRenderer.invoke('copy-to-attachments', sourcePath),
   saveBytesAttachment: (bytes: Uint8Array, fileName: string) => ipcRenderer.invoke('save-bytes-attachment', { bytes, fileName }),
   deleteAttachment: (args: any) => ipcRenderer.invoke('delete-attachment', typeof args === 'string' ? { filePath: args } : args),
@@ -269,6 +268,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('flush-pending-save', listener);
     return () => ipcRenderer.removeListener('flush-pending-save', listener);
   },
+  // Renderer → main: signal that the pre-quit flush write has completed, so the
+  // main process can close the DB and exit immediately instead of waiting out a
+  // fixed timeout.
+  notifyFlushComplete: () => ipcRenderer.send('flush-pending-save-complete'),
   onIpcReady: (callback: () => void) => {
     const listener = () => callback();
     ipcRenderer.once('ipc-ready', listener);

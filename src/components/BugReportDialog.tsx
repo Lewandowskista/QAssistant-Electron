@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/select"
 import { Bug, Clipboard, Globe, ShieldAlert, Sparkles, Loader2, AlertTriangle, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getApiKey } from "@/lib/credentials"
 import { aiFindDuplicateBugs } from "@/lib/aiClient"
 import { toast } from "sonner"
 
@@ -45,7 +44,6 @@ export function BugReportDialog({ open, onOpenChange, defaultEnv, prefillData }:
     const { projects, activeProjectId, addTask } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
     const environments = activeProject?.environments || []
-    const api = window.electronAPI
 
     const [title, setTitle] = useState("")
     const [titleError, setTitleError] = useState("")

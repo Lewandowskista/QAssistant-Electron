@@ -53,8 +53,13 @@ function buildGenericPayload(title: string, message: string): string {
     return JSON.stringify({ title, message, timestamp: new Date().toISOString() });
 }
 
+// Only the transport-relevant fields are read here; accept a minimal shape so
+// callers that synthesize an ad-hoc webhook (e.g. the send-webhook IPC handler)
+// don't need to construct a full WebhookConfig.
+type WebhookTarget = Pick<WebhookConfig, 'url' | 'type' | 'isEnabled'>
+
 export async function sendWebhook(
-    webhook: WebhookConfig,
+    webhook: WebhookTarget,
     title: string,
     message: string,
     color = '#A78BFA'

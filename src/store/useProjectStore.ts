@@ -594,11 +594,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         // multiple times (e.g. after import), and stacking listeners causes duplicate saves.
         if (!_flushListenerRegistered && window.electronAPI.onFlushPendingSave) {
             _flushListenerRegistered = true
-            window.electronAPI.onFlushPendingSave(() => {
-                if (_debounceSaveTimer !== null) {
-                    clearTimeout(_debounceSaveTimer)
-                    _debounceSaveTimer = null
-                    saveProjectsToDisk(useProjectStore.getState().projects)
+            window.electronAPI.onFlushPendingSave(async () => {
+                try {
+                    if (_debounceSaveTimer !== null) {
+                        clearTimeout(_debounceSaveTimer)
+                        _debounceSaveTimer = null
+                        await saveProjectsToDisk(useProjectStore.getState().projects)
+                    }
+                } finally {
+                    // Always ack so the main process can finish quitting promptly,
+                    // whether or not there was a pending save to flush.
+                    window.electronAPI.notifyFlushComplete?.()
                 }
             })
         }

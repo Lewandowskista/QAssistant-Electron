@@ -5,7 +5,7 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
     isPathWithin: (target: string, base: string) => boolean
     saveFile: (sourcePath: string) => Promise<any>
     saveBytes: (bytes: Uint8Array, fileName: string) => Promise<any>
-    deleteFile: (filePath: string) => Promise<boolean>
+    deleteFile: (filePath: string) => boolean | Promise<boolean>
     report: any
     reportBuilder: any
     bugReport: any
@@ -218,6 +218,14 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
     });
 
     // File/CSV Handlers
+    //
+    // TRUST BOUNDARY: read-csv-file and import-test-results read an arbitrary path
+    // supplied by the renderer. By design these are "user picks any file via the
+    // native dialog" flows, so the path is NOT constrained to the app data dir
+    // (unlike read-json-file / open-file). We defend with an extension allowlist
+    // and a size cap so a malicious/compromised renderer can't read an unbounded
+    // file into memory.
+    const MAX_IMPORT_FILE_BYTES = 25 * 1024 * 1024; // 25MB
     ipcMain.handle('read-csv-file', async (_e: any, { filePath }: any) => {
         try {
             deps.assertString(filePath, 'filePath', 1000);
@@ -226,6 +234,11 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
             const ALLOWED_EXTENSIONS = ['.csv', '.txt', '.tsv'];
             if (!ALLOWED_EXTENSIONS.includes(ext)) {
                 return { success: false, error: `File type '${ext}' is not allowed. Only CSV/TXT/TSV files may be imported.` };
+            }
+            const stat = await deps.fsp.stat(resolvedPath).catch(() => null);
+            if (!stat || !stat.isFile()) return { success: false, error: 'File not found.' };
+            if (stat.size > MAX_IMPORT_FILE_BYTES) {
+                return { success: false, error: `File exceeds the ${Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024))}MB import limit.` };
             }
             const content = deps.fs.readFileSync(resolvedPath, 'utf8');
             // If it looks like a design doc (not strictly CSV), just return the raw string
@@ -252,6 +265,11 @@ export function registerFileHandlers(ipcMain: Electron.IpcMain, deps: {
             const ext = deps.path.extname(resolvedPath).toLowerCase();
             if (!['.xml', '.json'].includes(ext)) {
                 return { success: false, error: `Unsupported file type '${ext}'. Use JUnit XML (.xml) or Playwright JSON (.json).` };
+            }
+            const stat = await deps.fsp.stat(resolvedPath).catch(() => null);
+            if (!stat || !stat.isFile()) return { success: false, error: 'File not found.' };
+            if (stat.size > MAX_IMPORT_FILE_BYTES) {
+                return { success: false, error: `File exceeds the ${Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024))}MB import limit.` };
             }
             const content = await deps.fsp.readFile(resolvedPath, 'utf8');
 

@@ -231,8 +231,6 @@ async function evaluatePair(
     preTokenizedChunks: Map<string, Set<string>>,
     documentFrequency: Map<string, number>,
     runId: string,
-    apiKey: string,
-    modelName: string | undefined,
     highAccuracyMode = false
 ): Promise<AccuracyQaPairResult> {
     // 2A: TF-IDF retrieval — fetch top 30 candidates (wider net for re-ranker)
@@ -396,8 +394,10 @@ async function evaluatePair(
  */
 export async function runAccuracyEvaluation(
     suite: AccuracyTestSuite,
-    apiKey: string,
-    modelName: string | undefined,
+    // apiKey/modelName are resolved per-call inside aiClient (resolveAiArgs); kept in the
+    // signature because callers still gate on key presence and pass the active model.
+    _apiKey: string,
+    _modelName: string | undefined,
     onProgress: EvalProgressCallback,
     signal?: AbortSignal
 ): Promise<AccuracyEvalRun> {
@@ -436,7 +436,7 @@ export async function runAccuracyEvaluation(
         if (signal?.aborted) throw new Error('Evaluation cancelled')
         onProgress(completedCount, totalPairs, pair.question)
         try {
-            const result = await evaluatePair(pair, allChunks, preTokenizedChunks, documentFrequency, runId, apiKey, modelName, suite.highAccuracyMode ?? false)
+            const result = await evaluatePair(pair, allChunks, preTokenizedChunks, documentFrequency, runId, suite.highAccuracyMode ?? false)
             pairResults[index] = result
         } catch (err) {
             // 1B: Isolate pair failures — produce a sentinel result so other pairs still complete
