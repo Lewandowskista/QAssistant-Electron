@@ -38,3 +38,6 @@ QAssistant_CS_Ref/
 # Python caches
 __pycache__/
 *.py[cod]
+
+# TypeScript incremental build info
+*.tsbuildinfo
