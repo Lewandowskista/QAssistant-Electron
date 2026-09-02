@@ -133,6 +133,7 @@ export default function TasksPage() {
 
     const [activeTask, setActiveTask] = useState<Task | null>(null)
     const [detailsId, setDetailsId] = useState<string | null>(null)
+    const [detailsInitialTab, setDetailsInitialTab] = useState<string | null>(null)
     const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false)
     const [currentAnalysisResult, setCurrentAnalysisResult] = useState<string | null>(null)
     const [taskBeingAnalyzed, setTaskBeingAnalyzed] = useState<Task | null>(null)
@@ -538,6 +539,16 @@ export default function TasksPage() {
         if (task?.ticketUrl) api.openUrl(task.ticketUrl)
     }, [tasks, api])
 
+    const handleSelectTask = useCallback((taskId: string | null) => {
+        setDetailsInitialTab(null)
+        setDetailsId(taskId)
+    }, [])
+
+    const handleCreateHandoff = useCallback((taskId: string) => {
+        setDetailsInitialTab("collaboration")
+        setDetailsId(taskId)
+    }, [])
+
     const handleAddTask = useCallback((status?: string) => {
         setNewTaskStatus(status || "todo")
         setIsNewTaskModalOpen(true)
@@ -714,7 +725,7 @@ export default function TasksPage() {
                                     <TaskTriageView
                                         sections={triageSections}
                                         selectedTaskId={detailsId}
-                                        onSelectTask={setDetailsId}
+                                        onSelectTask={handleSelectTask}
                                         onAnalyzeTask={handleAnalyzeIssue}
                                     />
                                 </Suspense>
@@ -730,11 +741,12 @@ export default function TasksPage() {
                                                 col={col}
                                                 tasksInColumn={tasksByColumn[col.id] || []}
                                                 selectedTaskId={detailsId}
-                                                setSelectedTaskId={setDetailsId}
+                                                setSelectedTaskId={handleSelectTask}
                                                 sourceMode={effectiveSource}
                                                 onAddTask={handleAddTask}
                                                 onAnalyzeTask={handleAnalyzeTaskById}
                                                 onOpenExternal={openExternalTask}
+                                                onCreateHandoff={handleCreateHandoff}
                                                 onCopyReference={handleCopyReference}
                                                 onFilterColumn={handleFilterColumn}
                                                 dragDisabled={sortMode !== "manual"}
@@ -758,7 +770,8 @@ export default function TasksPage() {
                         selectedTask={selectedTask}
                         activeProject={activeProject ?? undefined}
                         currentColumns={currentColumns}
-                        onClose={() => setDetailsId(null)}
+                        initialTab={detailsInitialTab}
+                        onClose={() => handleSelectTask(null)}
                         onUpdateTask={handleUpdateTask}
                         onAnalyze={handleAnalyzeIssue}
                         isAnalyzing={isLoading}

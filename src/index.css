@@ -464,16 +464,16 @@
   }
 
   .workspace-rail-section {
-    @apply px-3 py-3;
+    @apply px-3 py-2;
   }
 
   .workspace-rail-heading {
-    @apply px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.24em];
+    @apply px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.24em];
     color: hsl(var(--text-muted));
   }
 
   .workspace-rail-item {
-    @apply relative flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium;
+    @apply relative flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-[3px] text-sm font-medium;
     color: hsl(var(--text-secondary));
     transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
     overflow: hidden;
@@ -510,7 +510,7 @@
   }
 
   .workspace-project-button {
-    @apply flex w-full min-w-0 items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-[background-color,color,border-color];
+    @apply flex w-full min-w-0 items-center gap-3 rounded-2xl border px-3 py-2 text-left transition-[background-color,color,border-color];
     background-color: hsl(var(--surface-card-alt) / 0.7);
     border-color: hsl(var(--border-default));
   }

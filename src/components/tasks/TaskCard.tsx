@@ -12,6 +12,7 @@ import {
   GripVertical,
   Minus,
   Microscope,
+  Send,
   User,
 } from "lucide-react"
 
@@ -30,6 +31,7 @@ interface TaskCardProps {
   onAnalyze?: () => void
   onOpenExternal?: () => void
   onOpenHandoff?: () => void
+  onCreateHandoff?: () => void
   onCopyReference?: () => void
   dragHandleProps?: Record<string, unknown>
   dragDisabled?: boolean
@@ -102,6 +104,7 @@ export const TaskCard = memo(function TaskCard({
   onAnalyze,
   onOpenExternal,
   onOpenHandoff,
+  onCreateHandoff,
   onCopyReference,
   dragHandleProps,
   dragDisabled,
@@ -170,6 +173,19 @@ export const TaskCard = memo(function TaskCard({
                 }}
               >
                 <ExternalLink className="h-3 w-3" />
+              </button>
+            ) : null}
+            {onCreateHandoff && !taskView?.hasActiveHandoff ? (
+              <button
+                type="button"
+                aria-label="Create handoff"
+                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-primary"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onCreateHandoff()
+                }}
+              >
+                <Send className="h-3 w-3" />
               </button>
             ) : null}
             {taskView?.hasActiveHandoff ? (
@@ -252,6 +268,7 @@ export function SortableTaskCard({
   onAnalyze,
   onOpenExternal,
   onOpenHandoff,
+  onCreateHandoff,
   onCopyReference,
   dragDisabled,
 }: {
@@ -262,6 +279,7 @@ export function SortableTaskCard({
   onAnalyze?: () => void
   onOpenExternal?: () => void
   onOpenHandoff?: () => void
+  onCreateHandoff?: () => void
   onCopyReference?: () => void
   dragDisabled?: boolean
 }) {
@@ -285,6 +303,7 @@ export function SortableTaskCard({
         onAnalyze={onAnalyze}
         onOpenExternal={onOpenExternal}
         onOpenHandoff={onOpenHandoff}
+        onCreateHandoff={onCreateHandoff}
         onCopyReference={onCopyReference}
         dragHandleProps={listeners}
         dragDisabled={dragDisabled}

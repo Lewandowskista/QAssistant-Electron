@@ -19,6 +19,7 @@ interface TaskColumnProps {
     onAddTask: (status?: string) => void
     onAnalyzeTask: (taskId: string) => void
     onOpenExternal: (taskId: string) => void
+    onCreateHandoff?: (taskId: string) => void
     onCopyReference: (taskId: string) => void
     onFilterColumn: (status: string) => void
     dragDisabled?: boolean
@@ -34,6 +35,7 @@ export const TaskColumn = memo(function TaskColumn({
     onAddTask,
     onAnalyzeTask,
     onOpenExternal,
+    onCreateHandoff,
     onCopyReference,
     onFilterColumn,
     dragDisabled,
@@ -98,6 +100,7 @@ export const TaskColumn = memo(function TaskColumn({
                                     onAnalyze={() => onAnalyzeTask(taskView.task.id)}
                                     onOpenExternal={() => onOpenExternal(taskView.task.id)}
                                     onOpenHandoff={() => setSelectedTaskId(taskView.task.id)}
+                                    onCreateHandoff={onCreateHandoff ? () => onCreateHandoff(taskView.task.id) : undefined}
                                     onCopyReference={() => onCopyReference(taskView.task.id)}
                                     dragDisabled={dragDisabled}
                                 />

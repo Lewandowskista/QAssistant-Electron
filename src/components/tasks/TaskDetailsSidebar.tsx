@@ -44,6 +44,7 @@ interface TaskDetailsSidebarProps {
     onDeleteAnalysis: (entry: AnalysisEntry) => void
     onDelete: () => void
     api: any
+    initialTab?: string | null
 }
 
 function SectionTitle({ children }: { children: string }) {
@@ -62,7 +63,8 @@ export function TaskDetailsSidebar({
     onViewAnalysis,
     onDeleteAnalysis,
     onDelete,
-    api
+    api,
+    initialTab
 }: TaskDetailsSidebarProps) {
     const [activeTab, setActiveTab] = useState("overview")
     const [isEditing, setIsEditing] = useState(false)
@@ -93,6 +95,12 @@ export function TaskDetailsSidebar({
         setIsEditing(false)
         setActiveTab("overview")
     }, [selectedTask?.id])
+
+    // Honor a caller-requested tab (e.g. the task card's "Create handoff" shortcut).
+    // Declared after the reset effect so it wins when both run for a task change.
+    useEffect(() => {
+        if (initialTab) setActiveTab(initialTab)
+    }, [initialTab, selectedTask?.id])
 
     const traceability = useMemo(() => {
         if (!activeProject || !selectedTask) return null

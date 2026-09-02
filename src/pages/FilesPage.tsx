@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react"
 import { useProjectStore, Attachment } from "@/store/useProjectStore"
-import { Trash2, Upload, FileIcon, Search, File, ExternalLink, ClipboardPaste } from "lucide-react"
+import { Trash2, Upload, FileIcon, Search, File, ExternalLink, ClipboardPaste, MoreVertical, Link2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
 import { ActionToolbar, CompactPageHeader, InlineStatusSummary, PageScaffold } from "@/components/ui/workspace"
@@ -21,7 +31,7 @@ export default function FilesPage() {
     const [searchQuery, setSearchQuery] = useState("")
     const [linkedTaskFilter, setLinkedTaskFilter] = useState("all")
     const [isDragging, setIsDragging] = useState(false)
-    const [contextMenu, setContextMenu] = useState<{ fileId: string; x: number; y: number } | null>(null)
+    const [openMenuFileId, setOpenMenuFileId] = useState<string | null>(null)
     const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
 
     // Combine project files and note attachments
@@ -40,14 +50,25 @@ export default function FilesPage() {
         )
     })
 
-    const openContextMenu = (event: { clientX: number; clientY: number; preventDefault: () => void; stopPropagation: () => void }, fileId: string) => {
-        event.preventDefault()
-        event.stopPropagation()
-        setContextMenu({
-            fileId,
-            x: event.clientX,
-            y: event.clientY
-        })
+    const handleOpenFile = (file: Attachment) => {
+        api.openFile(file.filePath)
+    }
+
+    const handleLinkFileToTask = async (file: Attachment, taskId: string) => {
+        if (!activeProjectId || !taskId) return
+        await linkArtifact(activeProjectId, { sourceType: 'task', sourceId: taskId, targetType: 'file', targetId: file.id, label: 'documents' })
+        toast.success('File linked to task.')
+    }
+
+    const handleDeleteFile = async (file: Attachment) => {
+        if (!activeProjectId) return
+        const linkedHandoffs = (activeProject?.handoffPackets || []).filter((packet) => packet.linkedFileIds.includes(file.id))
+        if (linkedHandoffs.length > 0) {
+            toast.error('This file is linked to an active handoff. Remove the handoff link first.')
+            return
+        }
+        await deleteProjectFile(activeProjectId, file.id)
+        api.deleteAttachment(file.filePath)
     }
 
     useEffect(() => {
@@ -242,14 +263,57 @@ export default function FilesPage() {
                             <div
                                 key={file.id}
                                 className="group bg-panel border border-ui rounded-2xl p-4 hover:border-qa-accent/50 transition-all cursor-pointer relative overflow-hidden shadow-sm"
-                                onContextMenu={(event) => openContextMenu(event, file.id)}
-                                onMouseDown={(event) => {
-                                    if (event.button !== 2) return
-                                    openContextMenu(event, file.id)
+                                onContextMenu={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    setOpenMenuFileId(file.id)
                                 }}
-                                title="Right-click for file actions"
                             >
                                 <div className="absolute top-0 left-0 w-full h-1 bg-qa-accent/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <DropdownMenu open={openMenuFileId === file.id} onOpenChange={(open) => setOpenMenuFileId(open ? file.id : null)}>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            aria-label={`File actions for ${file.fileName}`}
+                                            className="absolute right-1.5 top-1.5 z-10 h-7 w-7 text-muted-ui opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                                            onClick={(event) => event.stopPropagation()}
+                                        >
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onSelect={() => handleOpenFile(file)}>
+                                            <ExternalLink />
+                                            Open file
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSub>
+                                            <DropdownMenuSubTrigger>
+                                                <Link2 />
+                                                Link to task
+                                            </DropdownMenuSubTrigger>
+                                            <DropdownMenuSubContent>
+                                                {(activeProject?.tasks || []).length === 0 ? (
+                                                    <DropdownMenuItem disabled>No tasks in this project</DropdownMenuItem>
+                                                ) : (
+                                                    (activeProject?.tasks || []).map((task) => (
+                                                        <DropdownMenuItem key={task.id} onSelect={() => { void handleLinkFileToTask(file, task.id) }}>
+                                                            <span className="truncate">{task.title}</span>
+                                                        </DropdownMenuItem>
+                                                    ))
+                                                )}
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="text-state-danger focus:text-state-danger"
+                                            onSelect={() => { void handleDeleteFile(file) }}
+                                        >
+                                            <Trash2 />
+                                            Delete file
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                                 <div className="flex flex-col items-center text-center">
                                     <div
                                         className="w-12 h-12 rounded-xl bg-panel-muted flex items-center justify-center mb-3 text-brand overflow-hidden"
@@ -291,70 +355,6 @@ export default function FilesPage() {
                     </div>
                 )}
             </main>
-
-            {contextMenu && (
-                <div className="fixed inset-0 z-50" onMouseDown={() => setContextMenu(null)}>
-                    <div
-                        className="absolute min-w-48 rounded-xl border border-ui bg-panel p-2 shadow-2xl"
-                        style={{ left: contextMenu.x, top: contextMenu.y }}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onContextMenu={(event) => event.preventDefault()}
-                    >
-                        {(() => {
-                            const file = filtered.find((item) => item.id === contextMenu.fileId)
-                            if (!file) return null
-
-                            return (
-                                <div className="flex flex-col gap-2">
-                                    <select
-                                        defaultValue=""
-                                        onChange={async (event) => {
-                                            const taskId = event.target.value
-                                            if (!activeProjectId || !taskId) return
-                                            await linkArtifact(activeProjectId, { sourceType: 'task', sourceId: taskId, targetType: 'file', targetId: file.id, label: 'documents' })
-                                            toast.success('File linked to task.')
-                                            setContextMenu(null)
-                                        }}
-                                        className="h-9 rounded-md bg-panel-muted border border-ui px-2 text-xs text-foreground"
-                                    >
-                                        <option value="">Link to task</option>
-                                        {(activeProject?.tasks || []).map((task) => (
-                                            <option key={task.id} value={task.id}>{task.title}</option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        onClick={() => {
-                                            api.openFile(file.filePath)
-                                            setContextMenu(null)
-                                        }}
-                                        className="flex items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-2 text-xs text-foreground hover:border-qa-accent/30 hover:text-brand"
-                                    >
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                        Open file
-                                    </button>
-                                    <button
-                                        onClick={async () => {
-                                            if (!activeProjectId) return
-                                            const linkedHandoffs = (activeProject?.handoffPackets || []).filter((packet) => packet.linkedFileIds.includes(file.id))
-                                            if (linkedHandoffs.length > 0) {
-                                                toast.error('This file is linked to an active handoff. Remove the handoff link first.')
-                                                return
-                                            }
-                                            await deleteProjectFile(activeProjectId, file.id)
-                                            api.deleteAttachment(file.filePath)
-                                            setContextMenu(null)
-                                        }}
-                                        className="flex items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-2 text-xs text-foreground hover:border-state-danger-border hover:text-[hsl(var(--state-danger))]"
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                        Delete file
-                                    </button>
-                                </div>
-                            )
-                        })()}
-                    </div>
-                </div>
-            )}
 
             {/* Upload Overlay */}
             {isDragging && (

@@ -2,32 +2,17 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useShallow } from "zustand/react/shallow"
 import {
-  Activity,
-  BarChart3,
-  BookOpen,
-  CheckSquare,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
-  Code,
-  Compass,
   Copy,
-  Database,
   Edit2,
-  FileText,
   FlaskConical,
   Globe,
-  GitBranch,
-  LayoutDashboard,
-  ListChecks,
-  MessageSquare,
   Minus,
   Pin,
   Plus,
-  Rocket,
-  Search,
-  ServerCog,
   Settings,
   Sparkles,
   Square,
@@ -39,7 +24,6 @@ import { Toaster } from "sonner"
 
 import { ProjectDialog } from "@/components/ProjectDialog"
 import { useConfirm } from "@/components/ConfirmDialog"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,55 +31,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
-import { SkeletonList } from "@/components/ui/skeleton"
 import { SyncStatusIndicator } from "@/components/sync/SyncStatusIndicator"
 import { cn } from "@/lib/utils"
 import { recordRendererMetric } from "@/lib/perf"
 import { Z } from "@/lib/constants"
+import { PRIMARY_ITEMS, UTILITY_ITEMS, isItemActive, matchesRole } from "@/lib/navigation"
 import { Project, useProjectStore } from "@/store/useProjectStore"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { useSyncStore } from "@/store/useSyncStore"
 import { useUserStore } from "@/store/useUserStore"
 
-const SettingsPage = lazy(() => import("@/pages/SettingsPage"))
 const CommandPalette = lazy(() => import("@/components/CommandPalette"))
 const AiCopilot = lazy(() => import("@/components/AiCopilot"))
 
 const EMPTY_ENVIRONMENTS: Project["environments"] = []
 
-type NavItem = {
-  name: string
-  href: string
-  icon: typeof LayoutDashboard
-  roles?: Array<"qa" | "dev">
-}
-
-const PRIMARY_ITEMS: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Tasks", href: "/tasks", icon: CheckSquare },
-  { name: "Tests", href: "/tests", icon: FlaskConical, roles: ["qa"] },
-  { name: "Code Reviews", href: "/code-reviews", icon: MessageSquare, roles: ["dev"] },
-  { name: "Notes", href: "/notes", icon: FileText },
-  { name: "Files", href: "/files", icon: FileText },
-  { name: "Release Queue", href: "/release-queue", icon: ClipboardCheck },
-  { name: "Activity Feed", href: "/activity", icon: Activity },
-]
-
-const UTILITY_ITEMS: NavItem[] = [
-  { name: "Exploratory", href: "/exploratory", icon: Compass, roles: ["qa"] },
-  { name: "Test Data", href: "/test-data", icon: Database, roles: ["qa"] },
-  { name: "Checklists", href: "/checklists", icon: ListChecks, roles: ["qa"] },
-  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["qa"] },
-  { name: "GitHub", href: "/github", icon: GitBranch },
-  { name: "Environments", href: "/environments", icon: Globe },
-  { name: "API", href: "/api", icon: Code },
-  { name: "Runbooks", href: "/runbooks", icon: BookOpen },
-  { name: "Deployments", href: "/deployments", icon: Rocket, roles: ["dev"] },
-  { name: "SAP HAC", href: "/sap", icon: ServerCog, roles: ["qa"] },
-  { name: "Docs", href: "/docs", icon: BookOpen },
-]
+const RAIL_COLLAPSED_KEY = "qassistant.railCollapsed"
 
 const FULL_BLEED_ROUTES = [
   "/notes",
@@ -116,14 +67,6 @@ const FULL_BLEED_ROUTES = [
   "/reports",
   "/docs",
 ]
-
-function matchesRole(item: NavItem, activeRole: "qa" | "dev") {
-  return !item.roles || item.roles.includes(activeRole)
-}
-
-function isItemActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href)
-}
 
 function TopProgressBar() {
   const location = useLocation()
@@ -235,12 +178,16 @@ export default function MainLayout() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | undefined>(undefined)
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [isPinned, setIsPinned] = useState(isPinnedStore)
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
-  const [railCollapsed, setRailCollapsed] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
+  const [railCollapsed, setRailCollapsedState] = useState(() => {
+    try { return localStorage.getItem(RAIL_COLLAPSED_KEY) === "true" } catch { return false }
+  })
+  const setRailCollapsed = (next: boolean) => {
+    setRailCollapsedState(next)
+    try { localStorage.setItem(RAIL_COLLAPSED_KEY, String(next)) } catch { /* per-window convenience only */ }
+  }
   const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().includes("MAC"))
   const [paletteMounted, setPaletteMounted] = useState(false)
   const [copilotMounted, setCopilotMounted] = useState(false)
@@ -263,7 +210,7 @@ export default function MainLayout() {
       navigate("/tasks")
     })
     const removeMaxListener = api.onMaximizedStatus?.((status: boolean) => setIsMaximized(status))
-    const removeSettingsListener = api.onOpenSettings?.(() => setSettingsOpen(true))
+    const removeSettingsListener = api.onOpenSettings?.(() => navigate("/settings"))
     const removeIpcReadyListener = api.onIpcReady?.(() => {
       const { projects: currentProjects } = useProjectStore.getState()
       if (currentProjects.length === 0) loadProjects()
@@ -354,7 +301,7 @@ export default function MainLayout() {
         navigate("/tasks")
       } else if (isCtrl && event.key === ",") {
         event.preventDefault()
-        setSettingsOpen(true)
+        navigate("/settings")
       } else if (event.key === "F1") {
         event.preventDefault()
         navigate("/docs")
@@ -375,13 +322,8 @@ export default function MainLayout() {
     await saveSettings({ alwaysOnTop: next })
   }
 
-  const filteredPrimaryItems = PRIMARY_ITEMS
-    .filter((item) => matchesRole(item, activeRole))
-    .filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
-
-  const filteredUtilityItems = UTILITY_ITEMS
-    .filter((item) => matchesRole(item, activeRole))
-    .filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredPrimaryItems = PRIMARY_ITEMS.filter((item) => matchesRole(item, activeRole))
+  const filteredUtilityItems = UTILITY_ITEMS.filter((item) => matchesRole(item, activeRole))
 
   const activeNavItem = [...PRIMARY_ITEMS, ...UTILITY_ITEMS]
     .filter((item) => matchesRole(item, activeRole))
@@ -407,7 +349,7 @@ export default function MainLayout() {
           <div className="workspace-rail-section border-b app-divider">
             <div className={cn("flex items-center gap-3", railCollapsed ? "justify-center" : "justify-between")}>
               <div className={cn("flex min-w-0 items-center gap-3", railCollapsed && "justify-center")}>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10">
                   <FlaskConical className="h-4 w-4 text-primary stroke-[2.4]" />
                 </div>
                 {!railCollapsed ? (
@@ -431,7 +373,7 @@ export default function MainLayout() {
             </div>
           </div>
 
-          <div className="workspace-rail-section space-y-3 border-b app-divider">
+          <div className="workspace-rail-section space-y-2 border-b app-divider">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button type="button" className="workspace-project-button">
@@ -516,38 +458,12 @@ export default function MainLayout() {
                 ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
-
-            <Button
-              variant="ghost"
-              className={cn("w-full justify-start gap-2", railCollapsed && "justify-center px-0")}
-              onClick={() => {
-                setEditingProject(undefined)
-                setDialogOpen(true)
-              }}
-              aria-label="Create a new project"
-            >
-              <Plus className="h-4 w-4" />
-              {!railCollapsed ? <span>New Project</span> : null}
-            </Button>
-
-            {!railCollapsed ? (
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-3 h-3.5 w-3.5 text-muted-ui" />
-                <Input
-                  aria-label="Search navigation"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search workspace…"
-                  className="h-10 pl-9 text-sm"
-                />
-              </div>
-            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
             <div className="workspace-rail-section">
               {!railCollapsed ? <div className="workspace-rail-heading">Work</div> : null}
-              <div className="space-y-1">
+              <div className="space-y-0">
                 {filteredPrimaryItems.map((item) => (
                   <Link
                     key={item.href}
@@ -566,7 +482,7 @@ export default function MainLayout() {
 
             <div className="workspace-rail-section">
               {!railCollapsed ? <div className="workspace-rail-heading">Utilities</div> : null}
-              <div className="space-y-1">
+              <div className="space-y-0">
                 {filteredUtilityItems.map((item) => (
                   <Link
                     key={item.href}
@@ -585,14 +501,25 @@ export default function MainLayout() {
           </div>
 
           <div className="workspace-rail-section border-t app-divider">
-            <div className={cn("space-y-3", railCollapsed && "flex flex-col items-center")}>
+            <div className={cn("space-y-2", railCollapsed && "flex flex-col items-center")}>
               <SyncStatusIndicator />
+
+              <Link
+                to="/settings"
+                data-active={location.pathname.startsWith("/settings")}
+                className={cn("workspace-rail-item w-full", railCollapsed && "justify-center")}
+                aria-label="Settings"
+                title={railCollapsed ? "Settings" : undefined}
+              >
+                <Settings className="h-4 w-4 shrink-0" />
+                {!railCollapsed ? <span className="truncate">Settings</span> : null}
+              </Link>
 
               <button
                 type="button"
                 className={cn("workspace-rail-item w-full", railCollapsed && "justify-center")}
-                onClick={() => setSettingsOpen(true)}
-                aria-label="Open account and settings"
+                onClick={() => navigate("/settings?section=account")}
+                aria-label="Open account settings"
               >
                 {connectedIdentity?.avatarUrl ? (
                   <img src={connectedIdentity.avatarUrl} className="h-7 w-7 rounded-full shrink-0" alt="" />
@@ -700,7 +627,7 @@ export default function MainLayout() {
                 type="button"
                 aria-label="Open settings"
                 className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-ui transition-colors hover:bg-panel-muted hover:text-primary"
-                onClick={() => setSettingsOpen(true)}
+                onClick={() => navigate("/settings")}
               >
                 <Settings className="h-4 w-4" />
               </button>
@@ -765,43 +692,6 @@ export default function MainLayout() {
               </div>
             )}
           </main>
-
-          <div
-            className={cn(
-              "fixed inset-0 z-layer-overlay transition-opacity duration-300",
-              settingsOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-            )}
-          >
-            <div
-              role="button"
-              tabIndex={settingsOpen ? 0 : -1}
-              aria-label="Close settings"
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setSettingsOpen(false)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSettingsOpen(false) }}
-            />
-            <div
-              className={cn(
-                "absolute right-0 top-0 flex h-full w-full max-w-[760px] flex-col border-l border-ui bg-[hsl(var(--surface-overlay))] shadow-2xl transition-transform duration-300 ease-out",
-                settingsOpen ? "translate-x-0" : "translate-x-full"
-              )}
-              style={{ overscrollBehavior: "contain" }}
-            >
-              <SideDrawerHeader
-                icon={Settings}
-                title="Settings"
-                subtitle="Application preferences, integrations, and diagnostics"
-                onClose={() => setSettingsOpen(false)}
-              />
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {settingsOpen ? (
-                  <Suspense fallback={<SkeletonList rows={6} />}>
-                    <SettingsPage />
-                  </Suspense>
-                ) : null}
-              </div>
-            </div>
-          </div>
 
           <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} project={editingProject} />
           {paletteMounted ? (

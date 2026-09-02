@@ -22,6 +22,7 @@ import { useConfirm } from "@/components/ConfirmDialog"
 import { CompactPageHeader, InlineStatusSummary, PageScaffold, SettingsSectionNav, SurfaceBlock } from "@/components/ui/workspace"
 import { toast } from "sonner"
 import { sanitizeProjectForPersistence } from "@/lib/projectSanitization"
+import type { LucideIcon } from "lucide-react"
 import { safeInvoke } from "@/lib/safeInvoke"
 import type { PerformanceMode } from "@/lib/performanceMode"
 
@@ -29,22 +30,45 @@ import type { PerformanceMode } from "@/lib/performanceMode"
 type StatusState = { msg: string; ok: boolean } | null
 type CredentialStorageStatus = Awaited<ReturnType<typeof window.electronAPI.getCredentialStorageStatus>>
 
-const SETTINGS_SECTIONS = [
-    { id: "account", label: "Account", icon: User },
-    { id: "appearance", label: "Appearance", icon: Sun },
-    { id: "general", label: "General", icon: Database },
-    { id: "automation", label: "Automation API", icon: Share2 },
-    { id: "linear", label: "Linear", icon: Zap },
-    { id: "jira", label: "Jira", icon: Globe },
-    { id: "gemini", label: "Google AI Studio", icon: Cpu },
-    { id: "nim", label: "NVIDIA NIM", icon: Cpu },
-    { id: "ccv2", label: "CCv2", icon: Server },
-    { id: "sharing", label: "Project Sharing", icon: Upload },
-    { id: "webhooks", label: "Webhooks", icon: Bell },
-    { id: "updates", label: "Updates", icon: Download },
-    { id: "docs", label: "Documentation", icon: BookOpen },
-    { id: "diagnostics", label: "Diagnostics", icon: Search },
-] as const
+const SETTINGS_GROUPS: Array<{ label: string; sections: Array<{ id: string; label: string; icon: LucideIcon }> }> = [
+    {
+        label: "Workspace",
+        sections: [
+            { id: "account", label: "Account", icon: User },
+            { id: "appearance", label: "Appearance", icon: Sun },
+            { id: "general", label: "General", icon: Database },
+        ],
+    },
+    {
+        label: "Integrations",
+        sections: [
+            { id: "linear", label: "Linear", icon: Zap },
+            { id: "jira", label: "Jira", icon: Globe },
+            { id: "ccv2", label: "CCv2", icon: Server },
+            { id: "sharing", label: "Project Sharing", icon: Upload },
+            { id: "webhooks", label: "Webhooks", icon: Bell },
+            { id: "automation", label: "Automation API", icon: Share2 },
+        ],
+    },
+    {
+        label: "AI",
+        sections: [
+            { id: "gemini", label: "Google AI Studio", icon: Cpu },
+            { id: "nim", label: "NVIDIA NIM", icon: Cpu },
+        ],
+    },
+    {
+        label: "App",
+        sections: [
+            { id: "updates", label: "Updates", icon: Download },
+            { id: "docs", label: "Documentation", icon: BookOpen },
+            { id: "diagnostics", label: "Diagnostics", icon: Search },
+        ],
+    },
+]
+
+const SETTINGS_SECTIONS: Array<{ id: string; label: string; icon: LucideIcon }> =
+    SETTINGS_GROUPS.flatMap((group) => group.sections)
 
 function StatusBanner({ s }: { s: StatusState }) {
     if (!s) return null
@@ -896,16 +920,21 @@ export default function SettingsPage() {
 
                 <div className="settings-layout min-h-0 flex-1">
                     <div className="min-h-0 overflow-y-auto custom-scrollbar pr-1">
-                        <div className="sticky top-0">
-                            <SettingsSectionNav
-                                items={SETTINGS_SECTIONS.map((section) => ({
-                                    id: section.id,
-                                    label: section.label,
-                                    icon: section.icon,
-                                }))}
-                                value={activeSection}
-                                onChange={handleSectionChange}
-                            />
+                        <div className="sticky top-0 space-y-3">
+                            {SETTINGS_GROUPS.map((group) => (
+                                <div key={group.label}>
+                                    <div className="app-section-label px-3 pb-1.5">{group.label}</div>
+                                    <SettingsSectionNav
+                                        items={group.sections.map((section) => ({
+                                            id: section.id,
+                                            label: section.label,
+                                            icon: section.icon,
+                                        }))}
+                                        value={activeSection}
+                                        onChange={handleSectionChange}
+                                    />
+                                </div>
+                            ))}
                         </div>
                     </div>
 
