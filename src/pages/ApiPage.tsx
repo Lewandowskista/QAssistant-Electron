@@ -389,7 +389,7 @@ export default function ApiPage() {
                         Variables
                     </button>
                     {varsOpen && (
-                        <div className="absolute top-full left-4 mt-1 z-50 bg-panel-muted border border-ui rounded-xl p-3 shadow-xl text-[11px] font-mono text-soft grid grid-cols-2 gap-x-6 gap-y-1 min-w-[380px]">
+                        <div className="absolute top-full left-4 mt-1 z-layer-dropdown bg-panel-muted border border-ui rounded-xl p-3 shadow-xl text-[11px] font-mono text-soft grid grid-cols-2 gap-x-6 gap-y-1 min-w-[380px]">
                             {[
                                 ['{{baseUrl}}', 'Environment base URL'],
                                 ['{{hacUrl}}', 'HAC URL'],

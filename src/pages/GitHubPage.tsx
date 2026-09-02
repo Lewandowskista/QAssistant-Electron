@@ -571,7 +571,7 @@ function GitHubContent() {
                                     </button>
                                     {branchDropdownOpen && (
                                         <>
-                                            <div className="fixed inset-0 z-40" onClick={() => setBranchDropdownOpen(false)} />
+                                            <div className="fixed inset-0 z-layer-sticky" onClick={() => setBranchDropdownOpen(false)} />
                                             <div className="absolute left-0 top-full mt-1 z-50 w-full max-h-60 overflow-y-auto bg-panel-muted border border-ui rounded-lg shadow-xl custom-scrollbar">
                                                 {branches.map(branch => (
                                                     <button

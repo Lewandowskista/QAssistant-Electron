@@ -4,6 +4,7 @@ import { useSyncStore } from "@/store/useSyncStore"
 import { Activity, CheckCircle2, XCircle, GitPullRequest, Paperclip, StickyNote, Play, ShieldCheck, ShieldX, Package, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { FullBleedHeader } from "@/components/ui/workspace"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format } from "date-fns"
 import type { CollaborationEvent, CollaborationEventType } from "@/types/project"
 import type { WorkspaceMember } from "@/types/sync"
@@ -163,28 +164,37 @@ export default function ActivityFeedPage() {
                                 aria-label="Search activity events"
                                 className="h-8 rounded-lg border border-ui bg-app px-3 text-xs text-foreground placeholder:text-muted-ui focus:outline-none focus:border-qa-accent/40 w-52"
                             />
-                            <select
+                            <Select
                                 value={typeFilter}
-                                onChange={e => setTypeFilter(e.target.value as CollaborationEventType | "all")}
-                                aria-label="Filter by event type"
-                                className="h-8 rounded-lg border border-ui bg-app px-2 text-xs text-foreground focus:outline-none"
+                                onValueChange={value => setTypeFilter(value as CollaborationEventType | "all")}
                             >
-                                {EVENT_TYPE_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                            </select>
-                            {members.length > 0 && (
-                                <select
-                                    value={memberFilter}
-                                    onChange={e => setMemberFilter(e.target.value)}
-                                    aria-label="Filter by member"
-                                    className="h-8 rounded-lg border border-ui bg-app px-2 text-xs text-foreground focus:outline-none"
+                                <SelectTrigger
+                                    aria-label="Filter by event type"
+                                    className="h-8 w-auto min-w-40 rounded-lg border-ui bg-app px-2 text-xs"
                                 >
-                                    <option value="all">All Members</option>
-                                    {members.map(m => (
-                                        <option key={m.user_id} value={m.user_id}>{m.display_name}</option>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {EVENT_TYPE_OPTIONS.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
                                     ))}
-                                </select>
+                                </SelectContent>
+                            </Select>
+                            {members.length > 0 && (
+                                <Select value={memberFilter} onValueChange={setMemberFilter}>
+                                    <SelectTrigger
+                                        aria-label="Filter by member"
+                                        className="h-8 w-auto min-w-36 rounded-lg border-ui bg-app px-2 text-xs"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all" className="text-xs">All members</SelectItem>
+                                        {members.map(m => (
+                                            <SelectItem key={m.user_id} value={m.user_id} className="text-xs">{m.display_name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             )}
                             <div className="flex rounded-lg border border-ui bg-app p-0.5">
                                 {ROLE_FILTERS.map(role => (

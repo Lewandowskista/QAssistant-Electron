@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ActionToolbar, CompactPageHeader, InlineStatusSummary, PageScaffold } from "@/components/ui/workspace"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -202,12 +203,17 @@ export default function FilesPage() {
                         className="h-9 pl-9 bg-panel-muted border-ui text-sm text-foreground"
                     />
                 </div>
-                <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="h-9 rounded-md bg-panel-muted border border-ui px-3 text-sm text-foreground">
-                    <option value="all">All tasks</option>
-                    {(activeProject?.tasks || []).map((task) => (
-                        <option key={task.id} value={task.id}>{task.title}</option>
-                    ))}
-                </select>
+                <Select value={linkedTaskFilter} onValueChange={setLinkedTaskFilter}>
+                    <SelectTrigger aria-label="Filter by linked task" className="h-9 w-56 rounded-md border-ui bg-panel-muted px-3">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All tasks</SelectItem>
+                        {(activeProject?.tasks || []).map((task) => (
+                            <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </ActionToolbar>
 
             {/* Drop Zone / Content */}

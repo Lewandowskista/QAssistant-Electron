@@ -134,7 +134,7 @@ export function MentionTextarea({
             {/* Mention picker */}
             {mentionQuery !== null && filtered.length > 0 && (
                 <div
-                    className="absolute z-50 left-0 mt-1 w-64 rounded-xl border border-ui bg-panel shadow-2xl overflow-hidden"
+                    className="absolute z-layer-dropdown left-0 mt-1 w-64 rounded-xl border border-ui bg-panel shadow-2xl overflow-hidden"
                     onClick={e => e.stopPropagation()}
                 >
                     <div className="px-3 py-1.5 text-[11px] font-bold text-muted-ui uppercase tracking-wider border-b border-ui">

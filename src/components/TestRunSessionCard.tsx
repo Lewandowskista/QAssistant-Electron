@@ -68,7 +68,7 @@ export default function TestRunSessionCard({ session, activeProjectId }: TestRun
                         </div>
                         {session.isArchived && (
                             <div className="bg-state-warning-soft px-[6px] py-[2px] rounded border border-state-warning-border self-center">
-                                <span className="text-[11px] font-bold text-state-warning uppercase tracking-widest">ARCHIVED</span>
+                                <span className="text-[11px] font-semibold text-state-warning">Archived</span>
                             </div>
                         )}
                     </div>

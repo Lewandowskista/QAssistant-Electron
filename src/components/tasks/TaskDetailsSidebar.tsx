@@ -238,7 +238,7 @@ export function TaskDetailsSidebar({
 
             <Tabs value={activeTab} onValueChange={loadTabContent} variant="underline" className="flex min-h-0 flex-1 flex-col">
                 <div className="overflow-x-auto border-b border-ui custom-scrollbar">
-                    <TabsList>
+                    <TabsList aria-label="Task details sections">
                         <TabsTrigger value="overview">Overview</TabsTrigger>
                         <TabsTrigger value="collaboration">Collaboration</TabsTrigger>
                         <TabsTrigger value="traceability">Traceability</TabsTrigger>

@@ -93,7 +93,7 @@ export function GitHubScopeGuard({ children }: Props) {
                     <AlertTriangle className="h-10 w-10 text-state-warning opacity-60" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-semibold text-foreground mb-1">Additional Permissions Needed</h2>
+                    <h2 className="text-lg font-semibold text-foreground mb-1">Additional permissions needed</h2>
                     <p className="text-sm text-muted-ui max-w-md mb-4">
                         Your GitHub connection needs repository access to enable Dev features. Please re-connect to grant the required permissions.
                     </p>

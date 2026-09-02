@@ -32,8 +32,8 @@ export function RepoSelector({ repos, selectedRepo, onSelect, loading }: RepoSel
             </button>
             {open && (
                 <>
-                    <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-50 w-80 max-h-80 overflow-y-auto bg-panel-muted border border-ui rounded-lg shadow-xl custom-scrollbar">
+                    <div className="fixed inset-0 z-layer-sticky" onClick={() => setOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-layer-dropdown w-80 max-h-80 overflow-y-auto bg-panel-muted border border-ui rounded-lg shadow-xl custom-scrollbar">
                         {loading ? (
                             <div className="p-4 flex items-center justify-center">
                                 <Loader2 className="h-4 w-4 text-brand animate-spin" />

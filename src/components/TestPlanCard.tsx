@@ -147,24 +147,24 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
 
                 {/* Toolbar */}
                 <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => onRunCases(plan)} title="Execute Plan">
-                        <PlayCircle className="h-5 w-5" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => onRunCases(plan)} title="Execute Plan" aria-label="Execute plan">
+                        <PlayCircle className="h-5 w-5" aria-hidden="true" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => resetTestPlanStatuses(activeProjectId, plan.id)} title="Reset Statuses">
-                        <RotateCcw className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => resetTestPlanStatuses(activeProjectId, plan.id)} title="Reset Statuses" aria-label="Reset plan statuses">
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => duplicateTestPlan(activeProjectId, plan.id)} title="Duplicate Plan">
-                        <Copy className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => duplicateTestPlan(activeProjectId, plan.id)} title="Duplicate Plan" aria-label="Duplicate plan">
+                        <Copy className="h-4 w-4" aria-hidden="true" />
                     </Button>
                     <div className="w-[1px] h-6 bg-elevated mx-0.5" />
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => onEditPlan(plan)} title="Edit Plan">
-                        <Edit2 className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => onEditPlan(plan)} title="Edit Plan" aria-label="Edit plan">
+                        <Edit2 className="h-4 w-4" aria-hidden="true" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => archiveTestPlan(activeProjectId, plan.id, !plan.isArchived)}>
-                        <Archive className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-brand hover:bg-qa-accent/10" onClick={() => archiveTestPlan(activeProjectId, plan.id, !plan.isArchived)} aria-label={plan.isArchived ? "Restore plan from archive" : "Archive plan"}>
+                        <Archive className="h-4 w-4" aria-hidden="true" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-ui hover:text-state-danger hover:bg-state-danger-soft" onClick={() => deleteTestPlan(activeProjectId, plan.id)}>
-                        <Trash2 className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-ui hover:text-state-danger hover:bg-state-danger-soft" onClick={() => deleteTestPlan(activeProjectId, plan.id)} aria-label="Delete plan">
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </Button>
                 </div>
             </div>

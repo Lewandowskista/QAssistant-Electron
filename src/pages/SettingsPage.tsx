@@ -11,6 +11,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { useProjectStore } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
 import { useAuthStore } from "@/store/useAuthStore"
@@ -76,21 +77,6 @@ function StatusBanner({ s }: { s: StatusState }) {
         <div className={`mt-3 rounded-xl border px-4 py-2.5 text-xs font-semibold ${s.ok ? 'app-status-success' : 'app-status-danger'}`}>
             {s.msg}
         </div>
-    )
-}
-
-function Toggle({ on, onToggle, label }: { on: boolean; onToggle: () => void; label?: string }) {
-    return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label={label}
-            onClick={onToggle}
-            className={`h-6 w-11 rounded-full border transition-colors flex-none ${on ? 'border-primary/30 bg-primary' : 'border-ui bg-panel-muted'}`}
-        >
-            <div className={`h-4 w-4 rounded-full bg-white shadow transition-transform mx-1 ${on ? 'translate-x-5' : 'translate-x-0'}`} />
-        </button>
     )
 }
 
@@ -903,7 +889,7 @@ export default function SettingsPage() {
                                             ? 'Plaintext fallback is currently allowed on this device. Secret fields remain in a degraded security mode.'
                                             : 'Plaintext fallback is blocked until you explicitly allow this degraded mode.'}
                                     </p>
-                                    <Toggle
+                                    <Switch
                                         on={allowInsecureCredentialStorage}
                                         onToggle={async () => {
                                             const next = !allowInsecureCredentialStorage
@@ -1058,7 +1044,7 @@ export default function SettingsPage() {
                             <p className="text-sm font-semibold text-foreground">Light Mode</p>
                             <p className="text-xs text-muted-ui mt-0.5">Switch between dark and light interface theme.</p>
                         </div>
-                        <Toggle on={theme === 'light'} onToggle={toggleTheme} />
+                        <Switch on={theme === 'light'} onToggle={toggleTheme} />
                     </div>
                     <div className="mt-4 space-y-3">
                         <div>
@@ -1093,7 +1079,7 @@ export default function SettingsPage() {
                             <p className="text-sm font-semibold text-foreground">Respect System Reduced Motion</p>
                             <p className="text-xs text-muted-ui mt-0.5">When on, honor your OS &ldquo;reduce motion&rdquo; setting and disable animations. Off (default) keeps the app&rsquo;s designed motion regardless of the system preference.</p>
                         </div>
-                        <Toggle
+                        <Switch
                             on={respectReducedMotion}
                             label="Respect system reduced-motion setting"
                             onToggle={() => { void saveSetting({ respectReducedMotion: !respectReducedMotion }) }}
@@ -1110,7 +1096,7 @@ export default function SettingsPage() {
                                 <p className="text-sm font-semibold text-foreground">SAP Commerce Context</p>
                                 <p className="text-xs text-muted-ui mt-0.5">Include SAP Hybris domain knowledge in AI prompts for platform-aware test generation.</p>
                             </div>
-                            <Toggle on={sapContext} onToggle={async () => {
+                            <Switch on={sapContext} onToggle={async () => {
                                 const next = !sapContext; setSapContext(next)
                                 await saveSetting({ sapCommerceContext: next })
                             }} />
@@ -1123,7 +1109,7 @@ export default function SettingsPage() {
                                 </p>
                                 <p className="text-xs text-muted-ui mt-0.5">When closing the window, keep the app running in the system tray.</p>
                             </div>
-                            <Toggle on={minimizeToTray} onToggle={async () => {
+                            <Switch on={minimizeToTray} onToggle={async () => {
                                 const next = !minimizeToTray; setMinimizeToTray(next)
                                 await saveSetting({ minimizeToTray: next })
                             }} />
@@ -1140,7 +1126,7 @@ export default function SettingsPage() {
                             <p className="text-sm font-semibold text-foreground">Enable Automation API</p>
                             <p className="text-xs text-muted-ui mt-0.5">Starts a local HTTP server your test runners can call.</p>
                         </div>
-                        <Toggle on={apiEnabled} onToggle={handleApiToggle} />
+                        <Switch on={apiEnabled} onToggle={handleApiToggle} />
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-4">
@@ -1525,7 +1511,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Toggle on={wh.isEnabled} onToggle={async () => {
+                                    <Switch on={wh.isEnabled} onToggle={async () => {
                                         const updated = webhooks.map(w => w.id === wh.id ? { ...w, isEnabled: !w.isEnabled } : w)
                                         setWebhooks(updated)
                                         await saveSetting({ webhooks: updated })
@@ -1590,7 +1576,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 ].map(({ key, label }) => (
                                     <div key={key} className="flex items-center justify-between">
                                         <span className="text-xs text-soft">{label}</span>
-                                        <Toggle on={(webhookForm as any)[key]} onToggle={() => setWebhookForm(f => ({ ...f, [key]: !(f as any)[key] }))} />
+                                        <Switch on={(webhookForm as any)[key]} onToggle={() => setWebhookForm(f => ({ ...f, [key]: !(f as any)[key] }))} />
                                     </div>
                                 ))}
                             </div>
@@ -1663,7 +1649,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 <p className="text-sm font-semibold text-foreground">Check automatically on startup</p>
                                 <p className="text-[11px] text-muted-ui mt-1">Recommended for release builds. You can still check manually below.</p>
                             </div>
-                            <Toggle on={autoCheckForUpdates} onToggle={handleAutoCheckForUpdatesToggle} />
+                            <Switch on={autoCheckForUpdates} onToggle={handleAutoCheckForUpdatesToggle} />
                         </div>
 
                         {appUpdateState.downloadProgressPercent !== undefined && (

@@ -874,8 +874,8 @@ export default function TestsPage() {
                                                                             >
                                                                                 <Trash2 className="h-4 w-4" />
                                                                             </Button>
-                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-ui">
-                                                                                <ExternalLink className="h-4 w-4" />
+                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-ui" aria-label="Open execution details">
+                                                                                <ExternalLink className="h-4 w-4" aria-hidden="true" />
                                                                             </Button>
                                                                         </div>
                                                                     </div>
@@ -1329,8 +1329,8 @@ export default function TestsPage() {
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" />
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Open test case">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" aria-hidden="true" />
                                                                 </Button>
                                                             </div>
                                                         ))
@@ -1367,8 +1367,8 @@ export default function TestsPage() {
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" />
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Open test case">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" aria-hidden="true" />
                                                                 </Button>
                                                             </div>
                                                         ))
@@ -1414,8 +1414,8 @@ export default function TestsPage() {
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" />
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Open test case">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" aria-hidden="true" />
                                                                 </Button>
                                                             </div>
                                                         ))

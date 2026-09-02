@@ -238,7 +238,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         )}
                         <div className="flex flex-wrap gap-2">
                             {missingFields.length === 0 ? (
-                                <span className="px-2 py-1 rounded-md bg-state-success-soft border border-state-success-border text-[11px] text-state-success font-bold">SEND-READY</span>
+                                <span className="px-2 py-1 rounded-md bg-state-success-soft border border-state-success-border text-[11px] text-state-success font-semibold">Ready to send</span>
                             ) : missingFields.map((field) => (
                                 <span key={field} className="px-2 py-1 rounded-md bg-state-danger-soft border border-state-danger-border text-[11px] text-state-danger font-bold">
                                     Missing {field}
