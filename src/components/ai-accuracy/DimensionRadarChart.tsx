@@ -15,26 +15,26 @@ export function DimensionRadarChart({ dimensionScores }: DimensionRadarChartProp
     return (
         <ResponsiveContainer width="100%" height={220}>
             <RadarChart data={data} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
-                <PolarGrid stroke="#2A2A3A" />
+                <PolarGrid stroke="hsl(var(--border-default))" />
                 <PolarAngleAxis
                     dataKey="dimension"
-                    tick={{ fill: '#6B7280', fontSize: 10, fontWeight: 700 }}
+                    tick={{ fill: 'hsl(var(--text-muted))', fontSize: 10, fontWeight: 700 }}
                 />
                 <Radar
                     name="Score"
                     dataKey="score"
-                    stroke="#A78BFA"
-                    fill="#A78BFA"
+                    stroke="hsl(var(--accent-primary))"
+                    fill="hsl(var(--accent-primary))"
                     fillOpacity={0.2}
                     strokeWidth={2}
                 />
                 <Tooltip
                     contentStyle={{
-                        backgroundColor: '#13131A',
-                        border: '1px solid #2A2A3A',
+                        backgroundColor: 'hsl(var(--surface-card))',
+                        border: '1px solid hsl(var(--border-default))',
                         borderRadius: 8,
                         fontSize: 11,
-                        color: '#E2E8F0'
+                        color: 'hsl(var(--text-primary))'
                     }}
                     formatter={(value) => [`${value}/100`, 'Score']}
                 />

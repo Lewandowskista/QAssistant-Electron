@@ -158,7 +158,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                 <div className="max-h-[calc(92vh-140px)] space-y-6 overflow-y-auto p-6">
                     <section className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Source</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Source</Label>
                             <div className="flex rounded-lg border border-ui bg-panel-muted p-1">
                                 {(["manual", "linear", "jira"] as const).map((source) => (
                                     <Button
@@ -167,7 +167,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setNewTaskSource(source)}
-                                        className={cn("h-8 text-[11px] font-bold", newTaskSource === source ? "bg-[#2A2A3A]/80 text-brand" : "text-muted-ui hover:text-foreground")}
+                                        className={cn("h-8 text-[11px] font-bold", newTaskSource === source ? "bg-surface-elevated/80 text-brand" : "text-muted-ui hover:text-foreground")}
                                     >
                                         {source.charAt(0).toUpperCase() + source.slice(1)}
                                     </Button>
@@ -195,14 +195,14 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                     </SelectContent>
                                 </Select>
                                 {noExternalConnections && (
-                                    <p className="mt-3 text-[11px] text-[#F59E0B]">No {newTaskSource} connections configured. Add one in Settings before creating upstream work.</p>
+                                    <p className="mt-3 text-[11px] text-state-warning">No {newTaskSource} connections configured. Add one in Settings before creating upstream work.</p>
                                 )}
                             </div>
                         )}
                     </section>
 
                     <section className="space-y-3">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Template</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Template</Label>
                         <div className="grid grid-cols-4 gap-2">
                             {(["bug", "story", "investigation", "retest_request"] as const).map((template) => (
                                 <Button
@@ -210,7 +210,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                     type="button"
                                     variant="ghost"
                                     onClick={() => applyTemplate(template)}
-                                    className={cn("h-10 rounded-xl border border-ui bg-app text-[11px] font-bold text-soft", taskTemplate === template && "border-[#A78BFA]/40 bg-[#A78BFA]/10 text-brand")}
+                                    className={cn("h-10 rounded-xl border border-ui bg-app text-[11px] font-bold text-soft", taskTemplate === template && "border-qa-accent/40 bg-qa-accent/10 text-brand")}
                                 >
                                     {template.replace("_", " ")}
                                 </Button>
@@ -219,7 +219,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="space-y-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Core Details</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Core Details</Label>
                         <Input
                             autoFocus
                             value={newTaskTitle}
@@ -242,10 +242,10 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="space-y-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Triage Metadata</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Triage Metadata</Label>
                         <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Status</Label>
+                                <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Status</Label>
                                 <Select value={newTaskStatus} onValueChange={(value: TaskStatus) => setNewTaskStatus(value)}>
                                     <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
                                     <SelectContent className="border-ui bg-panel-muted">
@@ -254,7 +254,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Priority</Label>
+                                <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Priority</Label>
                                 <Select value={newTaskPriority} onValueChange={(value: any) => setNewTaskPriority(value)}>
                                     <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
                                     <SelectContent className="border-ui bg-panel-muted">
@@ -266,7 +266,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Severity</Label>
+                                <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Severity</Label>
                                 <Select value={newTaskSeverity} onValueChange={(value: any) => setNewTaskSeverity(value)}>
                                     <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
                                     <SelectContent className="border-ui bg-panel-muted">
@@ -291,7 +291,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="rounded-xl border border-ui bg-app p-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Collaboration Hints</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Collaboration Hints</Label>
                         <p className="mt-2 text-[11px] leading-relaxed text-soft">
                             Use components and acceptance criteria if this task should link back to tests. For bug and retest work, add enough context so the handoff packet can be completed with minimal rework.
                         </p>
@@ -305,7 +305,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     <Button
                         onClick={handleConfirm}
                         disabled={isSubmitting || !newTaskTitle.trim() || (newTaskSource !== "manual" && (!newTaskConnectionId || noExternalConnections))}
-                        className="h-10 bg-primary px-8 text-xs font-bold text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]"
+                        className="h-10 bg-primary px-8 text-xs font-bold text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]"
                     >
                         {isSubmitting ? "CREATING..." : newTaskSource === "manual" ? "CREATE TASK" : `CREATE IN ${newTaskSource.toUpperCase()}`}
                     </Button>

@@ -6,7 +6,9 @@
 import { useState, useEffect } from 'react'
 import { useProjectStore } from '@/store/useProjectStore'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, Download, Copy, Eye } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
+import { FullBleedHeader } from '@/components/ui/workspace'
+import { Plus, Trash2, Download, Copy, Eye, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { safeInvoke } from '@/lib/safeInvoke'
@@ -46,6 +48,12 @@ const DEFAULT_TEMPLATES = [
 ]
 
 const REPORT_FORMATS = ['html', 'pdf', 'markdown', 'csv'] as const
+const FORMAT_LABELS: Record<(typeof REPORT_FORMATS)[number], string> = {
+  html: 'HTML',
+  pdf: 'PDF',
+  markdown: 'Markdown',
+  csv: 'CSV',
+}
 const AVAILABLE_SECTIONS = [
   { type: 'overview_stats', label: 'Overview Stats' },
   { type: 'status_breakdown', label: 'Status Breakdown' },
@@ -75,7 +83,7 @@ export default function ReportBuilderPage() {
     }
   }, [project?.id])
 
-  if (!project) return <div className="p-4">No project selected</div>
+  if (!project) return <div className="h-full flex items-center justify-center text-muted-ui bg-app">Select a project to build reports.</div>
 
   const handleCreateTemplate = async () => {
     if (!newTemplateName.trim()) return
@@ -202,15 +210,27 @@ export default function ReportBuilderPage() {
   }
 
   return (
-    <div className="flex h-full bg-[hsl(var(--surface-overlay))] text-[hsl(var(--text-primary))]">
+    <div className="flex h-full flex-col bg-[hsl(var(--surface-overlay))] text-[hsl(var(--text-primary))]">
+      <FullBleedHeader
+        icon={FileText}
+        title="Report Builder"
+        description="Create, edit, and export custom report templates"
+        actions={
+          <Button size="sm" className="gap-1.5" onClick={() => setIsCreating(true)}>
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" /> New template
+          </Button>
+        }
+      />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* Left: Template List */}
       <div className="w-80 flex flex-col flex-none border-r border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[hsl(var(--border-default))]">
-          <h2 className="text-base font-semibold tracking-tight">Templates</h2>
+          <h2 className="app-section-label">Templates</h2>
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setShowDefaults(!showDefaults)}
+              aria-pressed={showDefaults}
               className={cn(
                 'rounded-full px-3 py-1 text-xs font-medium transition-colors',
                 showDefaults
@@ -218,15 +238,18 @@ export default function ReportBuilderPage() {
                   : 'bg-transparent text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--border-default))]'
               )}
             >
-              {showDefaults ? 'Hide Defaults' : 'Show Defaults'}
+              {showDefaults ? 'Hide defaults' : 'Show defaults'}
             </button>
-            <button
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 rounded-full"
               onClick={() => setIsCreating(!isCreating)}
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--border-default))] text-[hsl(var(--text-primary))] transition-colors hover:bg-[hsl(var(--border-strong))]"
               title="New template"
+              aria-label="New template"
             >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
           </div>
         </div>
 
@@ -252,7 +275,7 @@ export default function ReportBuilderPage() {
           {/* Default templates section */}
           {showDefaults && (
             <div className="px-4 pt-4">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))]">Default Templates</p>
+              <p className="app-section-label mb-2">Default templates</p>
               <div className="space-y-2">
                 {DEFAULT_TEMPLATES.map((template, idx) => (
                   <div
@@ -263,13 +286,15 @@ export default function ReportBuilderPage() {
                       <div className="font-medium text-sm leading-tight">{template.name}</div>
                       <div className="mt-0.5 text-xs text-[hsl(var(--text-secondary))] leading-snug">{template.description}</div>
                     </div>
-                    <button
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-1.5"
                       onClick={() => handleCreateFromDefault(template)}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-md border border-[hsl(var(--border-default))] bg-transparent px-3 py-1.5 text-xs font-medium text-[hsl(var(--text-primary))] transition-colors hover:bg-[hsl(var(--surface-elevated))]"
                     >
-                      <Copy className="h-3 w-3" />
-                      Use Template
-                    </button>
+                      <Copy className="h-3 w-3" aria-hidden="true" />
+                      Use template
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -279,7 +304,7 @@ export default function ReportBuilderPage() {
           {/* Saved templates section */}
           {templates.length > 0 && (
             <div className={cn('px-4 pb-4', showDefaults ? 'mt-4 pt-4 border-t border-[hsl(var(--border-default))]' : 'pt-4')}>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))]">Saved Templates</p>
+              <p className="app-section-label mb-2">Saved templates</p>
               <div className="space-y-1.5">
                 {templates.map((template) => (
                   <div
@@ -301,7 +326,7 @@ export default function ReportBuilderPage() {
                         e.stopPropagation()
                         handleDeleteTemplate(template.id)
                       }}
-                      className="flex-none opacity-0 group-hover:opacity-100 flex h-6 w-6 items-center justify-center rounded text-red-400 hover:bg-red-400/10 transition-all"
+                      className="flex-none opacity-0 group-hover:opacity-100 flex h-6 w-6 items-center justify-center rounded text-state-danger hover:bg-state-danger-soft transition-all"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -314,12 +339,9 @@ export default function ReportBuilderPage() {
           {templates.length === 0 && !showDefaults && (
             <div className="px-4 pt-8 text-center text-sm text-[hsl(var(--text-secondary))]">
               <p className="mb-3">No saved templates yet.</p>
-              <button
-                onClick={() => setShowDefaults(true)}
-                className="text-xs text-[hsl(var(--text-secondary))] underline underline-offset-2 hover:text-[hsl(var(--text-primary))] transition-colors"
-              >
+              <Button variant="link" size="sm" onClick={() => setShowDefaults(true)}>
                 Browse default templates
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -332,19 +354,19 @@ export default function ReportBuilderPage() {
             {/* Sticky header */}
             <div className="flex-none flex items-center justify-between gap-4 border-b border-[hsl(var(--border-default))] px-6 py-4 bg-[hsl(var(--surface-overlay))]">
               <div>
-                <h1 className="text-lg font-semibold leading-tight">{selectedTemplate.name}</h1>
+                <h2 className="text-lg font-semibold leading-tight">{selectedTemplate.name}</h2>
                 <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{selectedTemplate.description || 'Custom report template'}</p>
               </div>
               <Button onClick={handleExportReport} className="gap-2 whitespace-nowrap flex-none">
                 <Download className="h-4 w-4" />
-                Export {(selectedTemplate.format || 'html').toUpperCase()}
+                Export {FORMAT_LABELS[(selectedTemplate.format || 'html') as keyof typeof FORMAT_LABELS] ?? selectedTemplate.format}
               </Button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
               {/* Format Selection */}
               <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))] mb-3">Export Format</h3>
+                <h3 className="app-section-label mb-3">Export format</h3>
                 <div className="flex flex-wrap gap-2">
                   {REPORT_FORMATS.map((format) => (
                     <button
@@ -357,7 +379,7 @@ export default function ReportBuilderPage() {
                           : 'border border-[hsl(var(--border-default))] text-[hsl(var(--text-secondary))] hover:border-[hsl(var(--border-strong))] hover:text-[hsl(var(--text-primary))]'
                       )}
                     >
-                      {format.toUpperCase()}
+                      {FORMAT_LABELS[format]}
                     </button>
                   ))}
                 </div>
@@ -366,7 +388,7 @@ export default function ReportBuilderPage() {
               {/* Sections Configuration */}
               <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))]">Sections</h3>
+                  <h3 className="app-section-label">Sections</h3>
                   <span className="text-xs text-[hsl(var(--text-secondary))]">
                     {selectedTemplate.sections?.filter((s: any) => s.enabled).length} / {selectedTemplate.sections?.length} enabled
                   </span>
@@ -397,7 +419,7 @@ export default function ReportBuilderPage() {
 
               {/* Add More Sections */}
               <div className="rounded-lg border border-[hsl(var(--border-default))] bg-[hsl(var(--surface-card-alt))] p-4">
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--text-secondary))] mb-3">Add Sections</h3>
+                <h3 className="app-section-label mb-3">Add sections</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {AVAILABLE_SECTIONS.map((section) => {
                     const exists = selectedTemplate.sections?.some((s: any) => s.type === section.type)
@@ -413,7 +435,7 @@ export default function ReportBuilderPage() {
                             : 'border border-[hsl(var(--border-default))] text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--surface-overlay))] hover:border-[hsl(var(--border-strong))]'
                         )}
                       >
-                        <span className={cn('mr-1', exists ? 'text-green-500' : 'text-[hsl(var(--text-secondary))]')}>
+                        <span className={cn('mr-1', exists ? 'text-state-success' : 'text-[hsl(var(--text-secondary))]')}>
                           {exists ? '✓' : '+'}
                         </span>
                         {section.label}
@@ -425,19 +447,20 @@ export default function ReportBuilderPage() {
             </div>
           </div>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-4 text-[hsl(var(--text-secondary))]">
-            <div className="text-center max-w-xs">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[hsl(var(--surface-card-alt))] border border-[hsl(var(--border-default))]">
-                <Eye className="h-7 w-7 opacity-60" />
-              </div>
-              <div className="text-base font-semibold text-[hsl(var(--text-primary))] mb-1">No template selected</div>
-              <p className="text-sm leading-relaxed mb-5">Select a template from the left or create a new one to get started</p>
-              {templates.length === 0 && (
-                <Button variant="outline" onClick={() => setShowDefaults(true)}>View Default Templates</Button>
-              )}
-            </div>
+          <div className="flex h-full items-center justify-center p-8">
+            <EmptyState
+              icon={Eye}
+              title="No template selected"
+              description="Select a template from the list or create a new one to get started."
+              actions={
+                templates.length === 0 ? (
+                  <Button variant="outline" onClick={() => setShowDefaults(true)}>View default templates</Button>
+                ) : undefined
+              }
+            />
           </div>
         )}
+      </div>
       </div>
     </div>
   )

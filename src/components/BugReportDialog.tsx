@@ -149,7 +149,7 @@ ${description}
     }
 
     const getScoreColor = (score: number) =>
-        score >= 80 ? 'text-[#EF4444]' : score >= 60 ? 'text-[#F59E0B]' : 'text-brand'
+        score >= 80 ? 'text-state-danger' : score >= 60 ? 'text-state-warning' : 'text-brand'
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,8 +157,8 @@ ${description}
                 <div className="h-2 bg-red-500 w-full" />
                 <div className="p-8 space-y-6">
                     <DialogHeader>
-                        <div className="flex items-center gap-3 text-red-500 mb-2">
-                            <div className="p-2 bg-red-500/10 rounded-lg">
+                        <div className="flex items-center gap-3 text-state-danger mb-2">
+                            <div className="p-2 bg-state-danger-soft rounded-lg">
                                 <Bug className="h-6 w-6" />
                             </div>
                             <DialogTitle className="text-2xl font-black tracking-tight">Rapid Bug Report</DialogTitle>
@@ -178,9 +178,9 @@ ${description}
                                 placeholder="Short, descriptive title of the issue"
                                 value={title}
                                 onChange={e => { setTitle(e.target.value); if (e.target.value.trim()) setTitleError(""); setDuplicatesChecked(false); setDuplicates([]) }}
-                                className={cn("bg-background/50 focus-visible:ring-red-500/40 focus-visible:border-red-500/50 font-semibold", titleError && "border-red-500/70")}
+                                className={cn("bg-background/50 focus-visible:ring-red-500/40 focus-visible:border-state-danger/50 font-semibold", titleError && "border-state-danger/70")}
                             />
-                            {titleError && <p className="text-xs text-red-400 px-1">{titleError}</p>}
+                            {titleError && <p className="text-xs text-state-danger px-1">{titleError}</p>}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -189,7 +189,7 @@ ${description}
                                     <Globe className="h-3 w-3" /> Target Environment
                                 </Label>
                                 <Select value={selectedEnvId} onValueChange={setSelectedEnvId}>
-                                    <SelectTrigger className="bg-background/50 border-red-500/20">
+                                    <SelectTrigger className="bg-background/50 border-state-danger-border">
                                         <SelectValue placeholder="Select env" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -271,12 +271,12 @@ ${description}
                             <div className="flex items-center justify-between px-3 py-2 border-b border-ui">
                                 <div className="flex items-center gap-2">
                                     <Sparkles className="h-3.5 w-3.5 text-brand" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">AI Duplicate Check</span>
+                                    <span className="text-[11px] font-bold uppercase tracking-widest text-muted-ui">AI Duplicate Check</span>
                                     {duplicatesChecked && duplicates.length === 0 && (
-                                        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#10B981]/10 text-[#10B981]">No duplicates found</span>
+                                        <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-state-success-soft text-state-success">No duplicates found</span>
                                     )}
                                     {duplicates.length > 0 && (
-                                        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#F59E0B]/10 text-[#F59E0B]">{duplicates.length} possible duplicate{duplicates.length !== 1 ? 's' : ''}</span>
+                                        <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-state-warning-soft text-state-warning">{duplicates.length} possible duplicate{duplicates.length !== 1 ? 's' : ''}</span>
                                     )}
                                 </div>
                                 <Button
@@ -285,7 +285,7 @@ ${description}
                                     variant="ghost"
                                     onClick={handleCheckDuplicates}
                                     disabled={checkingDuplicates || !title.trim()}
-                                    className="h-7 text-[10px] font-bold text-brand hover:bg-[#A78BFA]/10 gap-1.5"
+                                    className="h-7 text-[11px] font-bold text-brand hover:bg-qa-accent/10 gap-1.5"
                                 >
                                     {checkingDuplicates ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                                     {checkingDuplicates ? 'Checking...' : 'Check'}
@@ -295,18 +295,18 @@ ${description}
                                 <div className="p-2 space-y-1.5">
                                     {duplicates.map(d => (
                                         <div key={d.bugId} className="flex items-start gap-2 p-2 rounded-lg bg-panel-muted border border-ui">
-                                            <AlertTriangle className="h-3.5 w-3.5 text-[#F59E0B] shrink-0 mt-0.5" />
+                                            <AlertTriangle className="h-3.5 w-3.5 text-state-warning shrink-0 mt-0.5" />
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <span className={cn("text-[10px] font-black", getScoreColor(d.similarityScore))}>{d.similarityScore}%</span>
+                                                    <span className={cn("text-[11px] font-black", getScoreColor(d.similarityScore))}>{d.similarityScore}%</span>
                                                     <span className="text-xs font-semibold text-foreground truncate">{d.title}</span>
                                                 </div>
-                                                <p className="text-[10px] text-soft mt-0.5">{d.reasoning}</p>
+                                                <p className="text-[11px] text-soft mt-0.5">{d.reasoning}</p>
                                             </div>
                                             <ExternalLink className="h-3 w-3 text-muted-ui shrink-0 mt-0.5" />
                                         </div>
                                     ))}
-                                    <p className="text-[10px] text-muted-ui px-1 pb-1">Review the above before filing. You can still proceed if this is a new issue.</p>
+                                    <p className="text-[11px] text-muted-ui px-1 pb-1">Review the above before filing. You can still proceed if this is a new issue.</p>
                                 </div>
                             )}
                         </div>
@@ -314,7 +314,7 @@ ${description}
 
                     <DialogFooter className="pt-4 border-t border-ui gap-2 bg-panel">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                        <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-600/20 px-8">
+                        <Button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 text-primary-foreground font-bold shadow-lg shadow-red-600/20 px-8">
                             Report Bug
                         </Button>
                     </DialogFooter>

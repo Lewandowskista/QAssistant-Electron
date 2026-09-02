@@ -304,7 +304,7 @@
   }
 
   .app-section-label {
-    @apply text-[10px] font-semibold uppercase tracking-[0.24em];
+    @apply text-[11px] font-semibold uppercase tracking-[0.24em];
     color: hsl(var(--text-muted));
   }
 
@@ -464,16 +464,16 @@
   }
 
   .workspace-rail-section {
-    @apply px-3 py-3;
+    @apply px-3 py-2;
   }
 
   .workspace-rail-heading {
-    @apply px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.24em];
+    @apply px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.24em];
     color: hsl(var(--text-muted));
   }
 
   .workspace-rail-item {
-    @apply relative flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium;
+    @apply relative flex min-w-0 items-center gap-3 rounded-xl border border-transparent px-3 py-[3px] text-sm font-medium;
     color: hsl(var(--text-secondary));
     transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
     overflow: hidden;
@@ -510,7 +510,7 @@
   }
 
   .workspace-project-button {
-    @apply flex w-full min-w-0 items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-[background-color,color,border-color];
+    @apply flex w-full min-w-0 items-center gap-3 rounded-2xl border px-3 py-2 text-left transition-[background-color,color,border-color];
     background-color: hsl(var(--surface-card-alt) / 0.7);
     border-color: hsl(var(--border-default));
   }
@@ -913,271 +913,6 @@
   .z-layer-toast { z-index: 10010; }
   .z-layer-skip-link { z-index: 10020; }
 
-  .bg-\[\#0F0F13\] {
-    background-color: hsl(var(--surface-app));
-  }
-
-  .bg-\[\#0F0F13\]\/80 {
-    background-color: hsl(var(--app-bg) / 0.82);
-  }
-
-  .bg-\[\#0A0A0D\] {
-    background-color: hsl(var(--background));
-  }
-
-  .bg-\[\#0A0A0E\] {
-    background-color: hsl(var(--surface-app));
-  }
-
-  .bg-\[\#13131A\] {
-    background-color: hsl(var(--surface-card));
-  }
-
-  .bg-\[\#13131A\]\/50 {
-    background-color: hsl(var(--app-panel) / 0.55);
-  }
-
-  .bg-\[\#1A1A24\] {
-    background-color: hsl(var(--surface-card-alt));
-  }
-
-  .bg-\[\#1A1A2E\],
-  .bg-\[\#2D2D3F\] {
-    background-color: hsl(var(--surface-selected));
-  }
-
-  .bg-\[\#1A1A24\]\/30 {
-    background-color: hsl(var(--app-panel-strong) / 0.3);
-  }
-
-  .bg-\[\#1A1A24\]\/50 {
-    background-color: hsl(var(--app-panel-strong) / 0.5);
-  }
-
-  .bg-\[\#1A1A24\]\/60 {
-    background-color: hsl(var(--app-panel-strong) / 0.6);
-  }
-
-  .bg-\[\#252535\] {
-    background-color: hsl(var(--surface-elevated));
-  }
-
-  .bg-\[\#1E1E2A\],
-  .bg-\[\#2A2A3A\] {
-    background-color: hsl(var(--surface-elevated));
-  }
-
-  .bg-\[\#1F1F24\] {
-    background-color: hsl(var(--surface-card-alt));
-  }
-
-  .bg-\[\#3D3D5F\] {
-    background-color: hsl(var(--border-strong));
-  }
-
-  .bg-\[\#422006\]\/30,
-  .bg-\[\#1C1210\] {
-    background-color: hsl(var(--state-warning-soft));
-  }
-
-  .border-\[\#2A2A3A\] {
-    border-color: hsl(var(--border-default));
-  }
-
-  .border-\[\#1F1F24\] {
-    border-color: hsl(var(--border-subtle));
-  }
-
-  .border-\[\#2A2A3A\]\/50 {
-    border-color: hsl(var(--app-line) / 0.5);
-  }
-
-  .border-\[\#3A3A52\] {
-    border-color: hsl(var(--border-strong));
-  }
-
-  .border-\[\#A78BFA\]\/20 {
-    border-color: hsl(var(--accent-primary) / 0.2);
-  }
-
-  .border-\[\#A78BFA\]\/30 {
-    border-color: hsl(var(--accent-primary) / 0.3);
-  }
-
-  .border-\[\#A78BFA\]\/40,
-  .border-\[\#A78BFA\]\/50 {
-    border-color: hsl(var(--accent-primary) / 0.4);
-  }
-
-  .border-\[\#7C2D12\] {
-    border-color: hsl(var(--state-warning-border));
-  }
-
-  .text-\[\#E2E8F0\] {
-    color: hsl(var(--text-primary));
-  }
-
-  .text-\[\#CBD5E1\],
-  .text-\[\#D1D5DB\],
-  .text-\[\#9CA3AF\],
-  .text-\[\#94A3B8\],
-  .text-\[\#8E9196\] {
-    color: hsl(var(--text-secondary));
-  }
-
-  .text-\[\#9CA3AF\] {
-    color: hsl(var(--text-secondary));
-  }
-
-  .text-\[\#64748b\],
-  .text-\[\#6B7280\] {
-    color: hsl(var(--text-muted));
-  }
-
-  .text-\[\#4B5563\],
-  .text-\[\#A3A3A3\] {
-    color: hsl(var(--text-muted));
-  }
-
-  .text-\[\#A78BFA\] {
-    color: hsl(var(--accent-primary));
-  }
-
-  .text-\[\#C4B5FD\] {
-    color: hsl(var(--accent-primary));
-  }
-
-  .text-\[\#0F0F13\] {
-    color: hsl(var(--primary-foreground));
-  }
-
-  .bg-\[\#A78BFA\] {
-    background-color: hsl(var(--primary));
-  }
-
-  .bg-\[\#A78BFA\]\/10 {
-    background-color: hsl(var(--accent-primary-soft));
-  }
-
-  .bg-\[\#A78BFA\]\/20 {
-    background-color: hsl(var(--accent-primary) / 0.2);
-  }
-
-  .text-\[\#10B981\] {
-    color: hsl(var(--state-success));
-  }
-
-  .bg-\[\#10B981\]\/10 {
-    background-color: hsl(var(--state-success-soft));
-  }
-
-  .border-\[\#10B981\]\/20 {
-    border-color: hsl(var(--state-success-border));
-  }
-
-  .text-\[\#EF4444\] {
-    color: hsl(var(--state-danger));
-  }
-
-  .bg-\[\#EF4444\]\/10 {
-    background-color: hsl(var(--state-danger-soft));
-  }
-
-  .border-\[\#EF4444\]\/20 {
-    border-color: hsl(var(--state-danger-border));
-  }
-
-  .text-\[\#F59E0B\] {
-    color: hsl(var(--state-warning));
-  }
-
-  .bg-\[\#F59E0B\]\/10 {
-    background-color: hsl(var(--state-warning-soft));
-  }
-
-  .border-\[\#F59E0B\]\/20 {
-    border-color: hsl(var(--state-warning-border));
-  }
-
-  .text-\[\#3B82F6\] {
-    color: hsl(var(--state-info));
-  }
-
-  .bg-\[\#3B82F6\]\/10 {
-    background-color: hsl(var(--state-info-soft));
-  }
-
-  .border-\[\#3B82F6\]\/20 {
-    border-color: hsl(var(--state-info-border));
-  }
-
-  .text-\[\#FDBA74\] {
-    color: hsl(var(--state-warning));
-  }
-
-  .hover\:bg-\[\#1A1A24\]:hover,
-  .hover\:bg-\[\#1A1A24\]\/50:hover,
-  .hover\:bg-\[\#1E1E2A\]:hover,
-  .hover\:bg-\[\#252535\]:hover,
-  .hover\:bg-\[\#2A2A3A\]:hover,
-  .hover\:bg-white\/10:hover {
-    background-color: hsl(var(--surface-elevated));
-  }
-
-  .hover\:bg-\[\#A78BFA\]\/10:hover,
-  .hover\:bg-\[\#F59E0B\]\/10:hover,
-  .hover\:bg-\[\#EF4444\]\/10:hover,
-  .hover\:bg-red-950\/30:hover {
-    background-color: hsl(var(--surface-selected));
-  }
-
-  .hover\:bg-\[\#9271e0\]:hover,
-  .hover\:bg-\[\#9370EA\]:hover,
-  .hover\:bg-\[\#C4B5FD\]:hover {
-    background-color: hsl(var(--accent-primary-strong));
-  }
-
-  .hover\:text-\[\#E2E8F0\]:hover {
-    color: hsl(var(--text-primary));
-  }
-
-  .hover\:text-\[\#A78BFA\]:hover {
-    color: hsl(var(--accent-primary));
-  }
-
-  .hover\:text-\[\#EF4444\]:hover {
-    color: hsl(var(--state-danger));
-  }
-
-  .hover\:border-\[\#A78BFA\]\/20:hover,
-  .hover\:border-\[\#A78BFA\]\/30:hover,
-  .hover\:border-\[\#A78BFA\]\/50:hover {
-    border-color: hsl(var(--accent-primary) / 0.3);
-  }
-
-  .focus\:border-\[\#A78BFA\]\/40:focus,
-  .focus\:border-\[\#A78BFA\]\/50:focus,
-  .focus-visible\:border-\[\#A78BFA\]\/50:focus-visible {
-    border-color: hsl(var(--border-focus));
-  }
-
-  .focus\:ring-\[\#A78BFA\]\/50:focus,
-  .focus-visible\:ring-\[\#A78BFA\]\/20:focus-visible {
-    --tw-ring-color: hsl(var(--accent-primary) / 0.22);
-  }
-
-  .focus\:ring-primary\/50:focus {
-    --tw-ring-color: hsl(var(--accent-primary) / 0.22);
-  }
-
-  .data-\[state\=checked\]\:bg-\[\#A78BFA\][data-state="checked"] {
-    background-color: hsl(var(--primary));
-  }
-
-  .data-\[state\=checked\]\:text-\[\#0F0F13\][data-state="checked"] {
-    color: hsl(var(--primary-foreground));
-  }
-
   .font-mono-ui {
     font-family: "Roboto Mono", monospace;
   }
@@ -1207,10 +942,9 @@
   }
 
   /*
-   * Named token utilities added so the legacy hardcoded-hex classes can be
-   * migrated to semantic names. Each resolves to the exact same CSS variable
-   * the legacy hex mapping above uses, so the swap is visually identical and
-   * theme-aware (light/dark) just like the hex classes were.
+   * Named token utilities for the most common surfaces. Prefer these (or the
+   * tailwind.config semantic colors: surface-*, line-*, text-*, state-*,
+   * qa-accent) — never arbitrary hex classes, which break theme switching.
    */
   .bg-app {
     background-color: hsl(var(--surface-app));

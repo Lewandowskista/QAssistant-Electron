@@ -74,8 +74,8 @@ export function GitHubScopeGuard({ children }: Props) {
     if (error) {
         return (
             <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center p-8">
-                <div className="w-20 h-20 rounded-full bg-red-950/40 flex items-center justify-center">
-                    <AlertTriangle className="h-10 w-10 text-red-400 opacity-60" />
+                <div className="w-20 h-20 rounded-full bg-state-danger-soft flex items-center justify-center">
+                    <AlertTriangle className="h-10 w-10 text-state-danger opacity-60" />
                 </div>
                 <div>
                     <h2 className="text-lg font-semibold text-foreground mb-1">GitHub Connection Error</h2>
@@ -89,16 +89,16 @@ export function GitHubScopeGuard({ children }: Props) {
     if (!hasScope) {
         return (
             <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center p-8">
-                <div className="w-20 h-20 rounded-full bg-amber-950/40 flex items-center justify-center">
-                    <AlertTriangle className="h-10 w-10 text-amber-400 opacity-60" />
+                <div className="w-20 h-20 rounded-full bg-state-warning-soft flex items-center justify-center">
+                    <AlertTriangle className="h-10 w-10 text-state-warning opacity-60" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-semibold text-foreground mb-1">Additional Permissions Needed</h2>
+                    <h2 className="text-lg font-semibold text-foreground mb-1">Additional permissions needed</h2>
                     <p className="text-sm text-muted-ui max-w-md mb-4">
                         Your GitHub connection needs repository access to enable Dev features. Please re-connect to grant the required permissions.
                     </p>
                     <Button
-                        className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
+                        className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold"
                         onClick={() => window.electronAPI.oauthStart('github')}
                     >
                         <ExternalLink className="h-4 w-4 mr-2" />

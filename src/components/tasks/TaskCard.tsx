@@ -12,6 +12,7 @@ import {
   GripVertical,
   Minus,
   Microscope,
+  Send,
   User,
 } from "lucide-react"
 
@@ -30,16 +31,17 @@ interface TaskCardProps {
   onAnalyze?: () => void
   onOpenExternal?: () => void
   onOpenHandoff?: () => void
+  onCreateHandoff?: () => void
   onCopyReference?: () => void
   dragHandleProps?: Record<string, unknown>
   dragDisabled?: boolean
 }
 
 const priorityConfig = {
-  critical: { icon: AlertCircle, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
-  high: { icon: ChevronUp, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "HIGH" },
-  medium: { icon: Minus, color: "text-amber-300", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "MEDIUM" },
-  low: { icon: ChevronDown, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" },
+  critical: { icon: AlertCircle, color: "text-state-danger", bg: "bg-state-danger-soft", border: "border-state-danger-border", label: "CRITICAL" },
+  high: { icon: ChevronUp, color: "text-state-warning", bg: "bg-state-warning-soft", border: "border-state-warning-border", label: "HIGH" },
+  medium: { icon: Minus, color: "text-state-warning", bg: "bg-state-warning-soft", border: "border-state-warning-border", label: "MEDIUM" },
+  low: { icon: ChevronDown, color: "text-state-success", bg: "bg-state-success-soft", border: "border-state-success-border", label: "LOW" },
 } as const
 
 function labelList(task: Task) {
@@ -56,9 +58,9 @@ function sourceLabel(task: Task) {
 }
 
 function sourceClasses(task: Task) {
-  if (task.source === "jira") return "bg-blue-500/10 border-blue-500/20 text-blue-300"
+  if (task.source === "jira") return "bg-state-info-soft border-state-info-border text-state-info"
   if (task.source === "linear") return "bg-primary/10 border-primary/20 text-primary"
-  return "bg-amber-500/10 border-amber-500/20 text-amber-300"
+  return "bg-state-warning-soft border-state-warning-border text-state-warning"
 }
 
 function taskHint(task: Task, taskView?: TaskViewModel) {
@@ -102,6 +104,7 @@ export const TaskCard = memo(function TaskCard({
   onAnalyze,
   onOpenExternal,
   onOpenHandoff,
+  onCreateHandoff,
   onCopyReference,
   dragHandleProps,
   dragDisabled,
@@ -129,9 +132,9 @@ export const TaskCard = memo(function TaskCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className={cn("rounded border px-1.5 py-1", sourceClasses(task))}>
-              <span className="text-[9px] font-black">{sourceLabel(task)}</span>
+              <span className="text-[11px] font-black">{sourceLabel(task)}</span>
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-tight text-muted-ui">
+            <span className="text-[11px] font-bold uppercase tracking-tight text-muted-ui">
               {task.sourceIssueId || task.externalId || "Draft"}
             </span>
           </div>
@@ -163,13 +166,26 @@ export const TaskCard = memo(function TaskCard({
               <button
                 type="button"
                 aria-label="Open source ticket"
-                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-sky-300"
+                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-state-info"
                 onClick={(event) => {
                   event.stopPropagation()
                   onOpenExternal?.()
                 }}
               >
                 <ExternalLink className="h-3 w-3" />
+              </button>
+            ) : null}
+            {onCreateHandoff && !taskView?.hasActiveHandoff ? (
+              <button
+                type="button"
+                aria-label="Create handoff"
+                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-primary"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onCreateHandoff()
+                }}
+              >
+                <Send className="h-3 w-3" />
               </button>
             ) : null}
             {taskView?.hasActiveHandoff ? (
@@ -199,7 +215,7 @@ export const TaskCard = memo(function TaskCard({
           </div>
         </div>
 
-        <h4 className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground transition-colors group-hover:text-white">
+        <h4 className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground transition-colors group-hover:text-foreground">
           {task.title}
         </h4>
 
@@ -207,7 +223,7 @@ export const TaskCard = memo(function TaskCard({
 
         <div className="flex flex-wrap gap-1.5">
           {(task.priority === "critical" || task.severity === "blocker" || task.severity === "critical") ? (
-            <div className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black", config.bg, config.color, config.border)}>
+            <div className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-black", config.bg, config.color, config.border)}>
               <PriorityIcon className="h-2.5 w-2.5" />
               {task.severity === "blocker" ? "BLOCKER" : config.label}
             </div>
@@ -217,7 +233,7 @@ export const TaskCard = memo(function TaskCard({
         </div>
 
         {(metadataLabels.length > 0 || hiddenMetaCount > 0) ? (
-          <p className="text-[10px] text-muted-ui">
+          <p className="text-[11px] text-muted-ui">
             {[...metadataLabels, hiddenMetaCount > 0 ? `+${hiddenMetaCount}` : null].filter(Boolean).join(" • ")}
           </p>
         ) : null}
@@ -226,15 +242,15 @@ export const TaskCard = memo(function TaskCard({
           <div className="flex items-center gap-2">
             <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-primary/20 bg-primary/10">
               {task.assignee ? (
-                <span className="text-[8px] font-bold text-primary">{task.assignee.substring(0, 2).toUpperCase()}</span>
+                <span className="text-[11px] font-bold text-primary">{task.assignee.substring(0, 2).toUpperCase()}</span>
               ) : (
                 <User className="h-2.5 w-2.5 text-muted-ui" />
               )}
             </div>
-            <span className="max-w-[90px] truncate text-[10px] font-semibold text-soft">{task.assignee || "Unassigned"}</span>
+            <span className="max-w-[90px] truncate text-[11px] font-semibold text-soft">{task.assignee || "Unassigned"}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[9px] font-medium text-muted-ui">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-ui">
             <Clock3 className="h-3 w-3 opacity-60" />
             {new Date(task.updatedAt || Date.now()).toLocaleDateString([], { month: "short", day: "numeric" })}
           </div>
@@ -252,6 +268,7 @@ export function SortableTaskCard({
   onAnalyze,
   onOpenExternal,
   onOpenHandoff,
+  onCreateHandoff,
   onCopyReference,
   dragDisabled,
 }: {
@@ -262,6 +279,7 @@ export function SortableTaskCard({
   onAnalyze?: () => void
   onOpenExternal?: () => void
   onOpenHandoff?: () => void
+  onCreateHandoff?: () => void
   onCopyReference?: () => void
   dragDisabled?: boolean
 }) {
@@ -285,6 +303,7 @@ export function SortableTaskCard({
         onAnalyze={onAnalyze}
         onOpenExternal={onOpenExternal}
         onOpenHandoff={onOpenHandoff}
+        onCreateHandoff={onCreateHandoff}
         onCopyReference={onCopyReference}
         dragHandleProps={listeners}
         dragDisabled={dragDisabled}

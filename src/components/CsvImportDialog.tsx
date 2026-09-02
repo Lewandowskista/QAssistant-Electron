@@ -83,14 +83,14 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
 
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                     {error && (
-                        <div className="mb-6 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 flex gap-3 text-[#EF4444]">
+                        <div className="mb-6 p-4 rounded-xl bg-state-danger-soft border border-state-danger-border flex gap-3 text-state-danger">
                             <AlertCircle className="h-5 w-5 flex-none" />
                             <p className="text-sm font-medium">{error}</p>
                         </div>
                     )}
 
                     {step === 'upload' && (
-                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-ui hover:border-[#A78BFA]/50 rounded-2xl bg-panel-muted transition-colors group cursor-pointer"
+                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-ui hover:border-qa-accent/50 rounded-2xl bg-panel-muted transition-colors group cursor-pointer"
                             onClick={() => fileInputRef.current?.click()}>
                             <input
                                 type="file"
@@ -99,7 +99,7 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
                                 accept=".csv,.xlsx"
                                 onChange={handleFileSelect}
                             />
-                            <div className="h-16 w-16 bg-[#A78BFA]/10 text-brand rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                            <div className="h-16 w-16 bg-qa-accent/10 text-brand rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                                 <UploadCloud className="h-8 w-8" />
                             </div>
                             <h3 className="text-lg font-bold text-foreground mb-2">Click or Drag File to Upload</h3>
@@ -118,7 +118,7 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm font-black text-brand">{parsedData.rows.length}</p>
-                                    <p className="text-[10px] uppercase font-bold text-muted-ui">Rows Found</p>
+                                    <p className="text-[11px] uppercase font-bold text-muted-ui">Rows Found</p>
                                 </div>
                             </div>
 
@@ -126,13 +126,13 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-panel-muted border-b border-ui">
                                         <tr>
-                                            <th className="px-4 py-3 font-bold text-[10px] text-muted-ui uppercase tracking-wider w-1/2">File Column</th>
-                                            <th className="px-4 py-3 font-bold text-[10px] text-muted-ui uppercase tracking-wider w-1/2">QAssistant Field</th>
+                                            <th className="px-4 py-3 font-bold text-[11px] text-muted-ui uppercase tracking-wider w-1/2">File Column</th>
+                                            <th className="px-4 py-3 font-bold text-[11px] text-muted-ui uppercase tracking-wider w-1/2">QAssistant Field</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[#2A2A3A]/50 bg-app">
+                                    <tbody className="divide-y divide-line/50 bg-app">
                                         {parsedData.headers.map((header, idx) => (
-                                            <tr key={idx} className="hover:bg-[#1A1A24]/30 transition-colors">
+                                            <tr key={idx} className="hover:bg-surface-alt/30 transition-colors">
                                                 <td className="px-4 py-3 text-xs font-mono font-medium text-foreground truncate max-w-[250px]">
                                                     {header}
                                                 </td>
@@ -171,7 +171,7 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
                             <Button variant="outline" onClick={defaultState} className="border-ui text-foreground text-xs font-bold min-w-[100px]">
                                 START OVER
                             </Button>
-                            <Button onClick={handleConfirmImport} className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-black text-xs gap-2 min-w-[140px]">
+                            <Button onClick={handleConfirmImport} className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-black text-xs gap-2 min-w-[140px]">
                                 IMPORT TESTS <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>

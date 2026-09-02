@@ -19,7 +19,7 @@ export function TaskTriageView({ sections, selectedTaskId, onSelectTask, onAnaly
                                 <h3 className="text-sm font-semibold text-foreground">{section.title}</h3>
                                 <p className="text-[11px] text-muted-ui">{section.description}</p>
                             </div>
-                            <div className="rounded-lg border border-[#A78BFA]/20 bg-[#A78BFA]/10 px-2.5 py-1 text-xs font-black text-brand">
+                            <div className="rounded-lg border border-qa-accent/20 bg-qa-accent/10 px-2.5 py-1 text-xs font-black text-brand">
                                 {section.tasks.length}
                             </div>
                         </div>

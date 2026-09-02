@@ -45,11 +45,11 @@ export default function AnalysisResultDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={`max-w-3xl ${isMac ? 'max-h-[75vh]' : 'max-h-[85vh]'} flex flex-col bg-app border-ui text-white`}>
+            <DialogContent className={`max-w-3xl ${isMac ? 'max-h-[75vh]' : 'max-h-[85vh]'} flex flex-col bg-app border-ui text-primary-foreground`}>
                 <DialogHeader className="flex flex-row items-center justify-between border-b border-ui pb-4 shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shadow-lg shadow-[#A78BFA]/20">
-                            <Sparkles className="h-4 w-4 text-white" />
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-qa-accent to-qa-accent-hover flex items-center justify-center shadow-lg shadow-qa-accent/20">
+                            <Sparkles className="h-4 w-4 text-primary-foreground" />
                         </div>
                         <div>
                             <DialogTitle className="text-lg font-bold">Issue Analysis</DialogTitle>
@@ -75,7 +75,7 @@ export default function AnalysisResultDialog({
                         variant="ghost"
                         size="sm"
                         onClick={handleCopy}
-                        className="text-muted-ui hover:text-brand hover:bg-[#A78BFA]/10 gap-2"
+                        className="text-muted-ui hover:text-brand hover:bg-qa-accent/10 gap-2"
                     >
                         {copied ? (
                             <>
@@ -89,7 +89,7 @@ export default function AnalysisResultDialog({
                     </Button>
                     <Button
                         onClick={() => onOpenChange(false)}
-                        className="bg-primary hover:bg-[#9061F9] text-black font-bold"
+                        className="bg-primary hover:bg-qa-accent text-primary-foreground font-bold"
                     >
                         CLOSE
                     </Button>

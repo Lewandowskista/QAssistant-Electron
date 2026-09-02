@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Project, Task, HandoffPacket, HandoffType } from '@/types/project'
 import { getHandoffMissingFields } from '@/lib/collaboration'
@@ -16,6 +17,9 @@ type HandoffTemplate = {
     expectedResultTemplate: string
     actualResultTemplate: string
 }
+
+/** Sentinel for the "no environment selected" option (Radix Select forbids empty item values). */
+const NO_ENVIRONMENT = '__none__'
 
 const HANDOFF_TEMPLATES: HandoffTemplate[] = [
     {
@@ -185,47 +189,65 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
                 {!handoff && (
                     <div className="rounded-lg border border-ui bg-app p-3 flex items-center gap-3">
-                        <span className="text-[10px] font-black text-muted-ui uppercase tracking-widest shrink-0">Template</span>
-                        <select
-                            defaultValue=""
-                            onChange={e => { if (e.target.value) applyTemplate(e.target.value) }}
-                            className="flex-1 h-8 rounded-md bg-panel-muted border border-ui px-2 text-xs text-foreground focus:outline-none"
-                        >
-                            <option value="">Apply a template (optional)…</option>
-                            {HANDOFF_TEMPLATES.map(t => (
-                                <option key={t.id} value={t.id}>{t.label}</option>
-                            ))}
-                        </select>
+                        <span className="text-[11px] font-black text-muted-ui uppercase tracking-widest shrink-0">Template</span>
+                        <Select onValueChange={value => { if (value) applyTemplate(value) }}>
+                            <SelectTrigger aria-label="Apply a handoff template" className="h-8 flex-1 rounded-md border-ui bg-panel-muted px-2 text-xs">
+                                <SelectValue placeholder="Apply a template (optional)…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {HANDOFF_TEMPLATES.map(t => (
+                                    <SelectItem key={t.id} value={t.id} className="text-xs">{t.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
                     <div className="space-y-2">
-                        <Label>Type</Label>
-                        <select value={type} onChange={(event) => setType(event.target.value as HandoffType)} className="h-10 w-full rounded-md bg-app border border-ui px-3 text-sm">
-                            <option value="bug_handoff">Bug Handoff</option>
-                            <option value="fix_handoff">Fix Handoff</option>
-                            <option value="retest_request">Retest Request</option>
-                        </select>
+                        <Label htmlFor="handoff-type">Type</Label>
+                        <Select value={type} onValueChange={(value) => setType(value as HandoffType)}>
+                            <SelectTrigger id="handoff-type" className="h-10 w-full rounded-md border-ui bg-app px-3">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="bug_handoff">Bug Handoff</SelectItem>
+                                <SelectItem value="fix_handoff">Fix Handoff</SelectItem>
+                                <SelectItem value="retest_request">Retest Request</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label>Environment</Label>
-                        <select value={environmentId} onChange={(event) => setEnvironmentId(event.target.value)} className="h-10 w-full rounded-md bg-app border border-ui px-3 text-sm">
-                            <option value="">Select environment</option>
-                            {environments.map((environment) => (
-                                <option key={environment.id} value={environment.id}>{environment.name}</option>
-                            ))}
-                        </select>
+                        <Label htmlFor="handoff-environment">Environment</Label>
+                        <Select
+                            value={environmentId || NO_ENVIRONMENT}
+                            onValueChange={(value) => setEnvironmentId(value === NO_ENVIRONMENT ? '' : value)}
+                        >
+                            <SelectTrigger id="handoff-environment" className="h-10 w-full rounded-md border-ui bg-app px-3">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={NO_ENVIRONMENT}>Select environment</SelectItem>
+                                {environments.map((environment) => (
+                                    <SelectItem key={environment.id} value={environment.id}>{environment.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label>Severity</Label>
-                        <select value={severity || 'major'} onChange={(event) => setSeverity(event.target.value as Task['severity'])} className="h-10 w-full rounded-md bg-app border border-ui px-3 text-sm">
-                            <option value="cosmetic">Cosmetic</option>
-                            <option value="minor">Minor</option>
-                            <option value="major">Major</option>
-                            <option value="critical">Critical</option>
-                            <option value="blocker">Blocker</option>
-                        </select>
+                        <Label htmlFor="handoff-severity">Severity</Label>
+                        <Select value={severity || 'major'} onValueChange={(value) => setSeverity(value as Task['severity'])}>
+                            <SelectTrigger id="handoff-severity" className="h-10 w-full rounded-md border-ui bg-app px-3">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="cosmetic">Cosmetic</SelectItem>
+                                <SelectItem value="minor">Minor</SelectItem>
+                                <SelectItem value="major">Major</SelectItem>
+                                <SelectItem value="critical">Critical</SelectItem>
+                                <SelectItem value="blocker">Blocker</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="space-y-2">
                         <Label>Branch Name</Label>
@@ -293,12 +315,12 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                 </div>
 
                 <div className="rounded-lg border border-ui bg-app p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Required Before Send</p>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-ui">Required Before Send</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                         {missingFields.length === 0 ? (
-                            <span className="rounded-full bg-[#10B981]/10 px-2 py-1 text-[10px] font-bold uppercase text-[#10B981]">Complete</span>
+                            <span className="rounded-full bg-state-success-soft px-2 py-1 text-[11px] font-bold uppercase text-state-success">Complete</span>
                         ) : missingFields.map((field) => (
-                            <span key={field} className="rounded-full bg-[#EF4444]/10 px-2 py-1 text-[10px] font-bold uppercase text-[#EF4444]">
+                            <span key={field} className="rounded-full bg-state-danger-soft px-2 py-1 text-[11px] font-bold uppercase text-state-danger">
                                 Missing {field}
                             </span>
                         ))}
@@ -307,7 +329,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={isSaving} className="bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]">
+                    <Button onClick={handleSave} disabled={isSaving} className="bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]">
                         {isSaving ? 'Saving…' : 'Save Packet'}
                     </Button>
                 </DialogFooter>

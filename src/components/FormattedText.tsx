@@ -49,7 +49,7 @@ export default function FormattedText({ content, className, compact = false, sou
                 remarkPlugins={[remarkGfm]}
                 components={{
                     // Override default styles to match app theme
-                    h1: ({ node: _node, ...props }) => <h1 className={cn("text-xl font-bold text-brand border-b border-[#A78BFA]/20 pb-2", compact ? "mb-2 mt-4" : "mb-4 mt-6")} {...props} />,
+                    h1: ({ node: _node, ...props }) => <h1 className={cn("text-xl font-bold text-brand border-b border-qa-accent/20 pb-2", compact ? "mb-2 mt-4" : "mb-4 mt-6")} {...props} />,
                     h2: ({ node: _node, ...props }) => <h2 className={cn("text-lg font-bold text-brand flex items-center gap-2", compact ? "mb-1.5 mt-3" : "mb-3 mt-5")} {...props} />,
                     h3: ({ node: _node, ...props }) => <h3 className={cn("text-base font-bold text-[hsl(var(--text-primary))]", compact ? "mb-1 mt-2" : "mb-2 mt-4")} {...props} />,
                     p: ({ node: _node, ...props }) => <p className={cn("leading-relaxed text-[hsl(var(--text-primary))]", compact ? "mb-1.5 last:mb-0" : "mb-3 last:mb-0")} {...props} />,
@@ -93,10 +93,10 @@ export default function FormattedText({ content, className, compact = false, sou
                         )
                     },
                     blockquote: ({ node: _node, ...props }) => (
-                        <blockquote className={cn("rounded-r border-l-4 border-[#A78BFA]/40 bg-[hsl(var(--surface-card-alt))/0.6] py-2 pl-4 italic text-[hsl(var(--text-secondary))]", compact ? "my-2" : "my-4")} {...props} />
+                        <blockquote className={cn("rounded-r border-l-4 border-qa-accent/40 bg-[hsl(var(--surface-card-alt))/0.6] py-2 pl-4 italic text-[hsl(var(--text-secondary))]", compact ? "my-2" : "my-4")} {...props} />
                     ),
                     strong: ({ node: _node, ...props }) => <strong className="font-bold text-brand" {...props} />,
-                    a: ({ node: _node, ...props }) => <a className="text-[#3B82F6] hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />
+                    a: ({ node: _node, ...props }) => <a className="text-state-info hover:underline transition-colors" target="_blank" rel="noopener noreferrer" {...props} />
                 }}
             >
                 {markdown}
