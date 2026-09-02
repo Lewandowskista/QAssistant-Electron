@@ -11,6 +11,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { useProjectStore } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
 import { useAuthStore } from "@/store/useAuthStore"
@@ -22,6 +23,7 @@ import { useConfirm } from "@/components/ConfirmDialog"
 import { CompactPageHeader, InlineStatusSummary, PageScaffold, SettingsSectionNav, SurfaceBlock } from "@/components/ui/workspace"
 import { toast } from "sonner"
 import { sanitizeProjectForPersistence } from "@/lib/projectSanitization"
+import type { LucideIcon } from "lucide-react"
 import { safeInvoke } from "@/lib/safeInvoke"
 import type { PerformanceMode } from "@/lib/performanceMode"
 
@@ -29,22 +31,45 @@ import type { PerformanceMode } from "@/lib/performanceMode"
 type StatusState = { msg: string; ok: boolean } | null
 type CredentialStorageStatus = Awaited<ReturnType<typeof window.electronAPI.getCredentialStorageStatus>>
 
-const SETTINGS_SECTIONS = [
-    { id: "account", label: "Account", icon: User },
-    { id: "appearance", label: "Appearance", icon: Sun },
-    { id: "general", label: "General", icon: Database },
-    { id: "automation", label: "Automation API", icon: Share2 },
-    { id: "linear", label: "Linear", icon: Zap },
-    { id: "jira", label: "Jira", icon: Globe },
-    { id: "gemini", label: "Google AI Studio", icon: Cpu },
-    { id: "nim", label: "NVIDIA NIM", icon: Cpu },
-    { id: "ccv2", label: "CCv2", icon: Server },
-    { id: "sharing", label: "Project Sharing", icon: Upload },
-    { id: "webhooks", label: "Webhooks", icon: Bell },
-    { id: "updates", label: "Updates", icon: Download },
-    { id: "docs", label: "Documentation", icon: BookOpen },
-    { id: "diagnostics", label: "Diagnostics", icon: Search },
-] as const
+const SETTINGS_GROUPS: Array<{ label: string; sections: Array<{ id: string; label: string; icon: LucideIcon }> }> = [
+    {
+        label: "Workspace",
+        sections: [
+            { id: "account", label: "Account", icon: User },
+            { id: "appearance", label: "Appearance", icon: Sun },
+            { id: "general", label: "General", icon: Database },
+        ],
+    },
+    {
+        label: "Integrations",
+        sections: [
+            { id: "linear", label: "Linear", icon: Zap },
+            { id: "jira", label: "Jira", icon: Globe },
+            { id: "ccv2", label: "CCv2", icon: Server },
+            { id: "sharing", label: "Project Sharing", icon: Upload },
+            { id: "webhooks", label: "Webhooks", icon: Bell },
+            { id: "automation", label: "Automation API", icon: Share2 },
+        ],
+    },
+    {
+        label: "AI",
+        sections: [
+            { id: "gemini", label: "Google AI Studio", icon: Cpu },
+            { id: "nim", label: "NVIDIA NIM", icon: Cpu },
+        ],
+    },
+    {
+        label: "App",
+        sections: [
+            { id: "updates", label: "Updates", icon: Download },
+            { id: "docs", label: "Documentation", icon: BookOpen },
+            { id: "diagnostics", label: "Diagnostics", icon: Search },
+        ],
+    },
+]
+
+const SETTINGS_SECTIONS: Array<{ id: string; label: string; icon: LucideIcon }> =
+    SETTINGS_GROUPS.flatMap((group) => group.sections)
 
 function StatusBanner({ s }: { s: StatusState }) {
     if (!s) return null
@@ -52,21 +77,6 @@ function StatusBanner({ s }: { s: StatusState }) {
         <div className={`mt-3 rounded-xl border px-4 py-2.5 text-xs font-semibold ${s.ok ? 'app-status-success' : 'app-status-danger'}`}>
             {s.msg}
         </div>
-    )
-}
-
-function Toggle({ on, onToggle, label }: { on: boolean; onToggle: () => void; label?: string }) {
-    return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label={label}
-            onClick={onToggle}
-            className={`h-6 w-11 rounded-full border transition-colors flex-none ${on ? 'border-primary/30 bg-primary' : 'border-ui bg-panel-muted'}`}
-        >
-            <div className={`h-4 w-4 rounded-full bg-white shadow transition-transform mx-1 ${on ? 'translate-x-5' : 'translate-x-0'}`} />
-        </button>
     )
 }
 
@@ -144,7 +154,7 @@ function ConnCard({ label, subtitle, onEdit, onDelete }: { label: string; subtit
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" className="h-8 px-3 text-primary hover:bg-primary/10 text-xs" onClick={onEdit}><Edit2 className="h-3 w-3 mr-1" />Edit</Button>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-ui hover:text-red-400 hover:bg-red-500/10" onClick={onDelete}><X className="h-3.5 w-3.5" /></Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-ui hover:text-state-danger hover:bg-state-danger-soft" onClick={onDelete}><X className="h-3.5 w-3.5" /></Button>
             </div>
         </div>
     )
@@ -161,7 +171,7 @@ function FormPanel({ title, onSave, onTest, onCancel, children, status }: {
             <div className="flex items-center gap-2 pt-1">
                 <Button size="sm" className="h-8" onClick={onSave}><Check className="h-3.5 w-3.5 mr-1" />Save</Button>
                 {onTest && <Button variant="outline" size="sm" className="h-8" onClick={onTest}>Test</Button>}
-                <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-500/10" onClick={onCancel}>Cancel</Button>
+                <Button variant="ghost" size="sm" className="h-8 text-state-danger hover:bg-state-danger-soft" onClick={onCancel}>Cancel</Button>
             </div>
             <StatusBanner s={status} />
         </div>
@@ -866,20 +876,20 @@ export default function SettingsPage() {
                 />
 
                 {credStorageStatus?.encrypted === false && (
-                    <SurfaceBlock className="flex-none border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
+                    <SurfaceBlock className="flex-none border-state-warning/40 bg-state-warning-soft px-4 py-3">
                         <div className="flex items-start gap-3">
-                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-state-warning" />
                             <div className="flex-1 space-y-3">
-                                <p className="text-xs leading-relaxed text-yellow-300">
+                                <p className="text-xs leading-relaxed text-state-warning">
                                     <span className="font-bold">Credentials are stored unencrypted.</span> Your OS keyring and Electron safeStorage are both unavailable on this system. API keys and tokens can only be written to disk in plaintext.
                                 </p>
                                 <div className="flex items-center justify-between gap-4">
-                                    <p className="text-[11px] leading-relaxed text-yellow-200/90">
+                                    <p className="text-[11px] leading-relaxed text-state-warning/90">
                                         {credStorageStatus?.acknowledged
                                             ? 'Plaintext fallback is currently allowed on this device. Secret fields remain in a degraded security mode.'
                                             : 'Plaintext fallback is blocked until you explicitly allow this degraded mode.'}
                                     </p>
-                                    <Toggle
+                                    <Switch
                                         on={allowInsecureCredentialStorage}
                                         onToggle={async () => {
                                             const next = !allowInsecureCredentialStorage
@@ -896,16 +906,21 @@ export default function SettingsPage() {
 
                 <div className="settings-layout min-h-0 flex-1">
                     <div className="min-h-0 overflow-y-auto custom-scrollbar pr-1">
-                        <div className="sticky top-0">
-                            <SettingsSectionNav
-                                items={SETTINGS_SECTIONS.map((section) => ({
-                                    id: section.id,
-                                    label: section.label,
-                                    icon: section.icon,
-                                }))}
-                                value={activeSection}
-                                onChange={handleSectionChange}
-                            />
+                        <div className="sticky top-0 space-y-3">
+                            {SETTINGS_GROUPS.map((group) => (
+                                <div key={group.label}>
+                                    <div className="app-section-label px-3 pb-1.5">{group.label}</div>
+                                    <SettingsSectionNav
+                                        items={group.sections.map((section) => ({
+                                            id: section.id,
+                                            label: section.label,
+                                            icon: section.icon,
+                                        }))}
+                                        value={activeSection}
+                                        onChange={handleSectionChange}
+                                    />
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -925,7 +940,7 @@ export default function SettingsPage() {
                             </p>
                         </div>
                         {!auth.localMode && (
-                            <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={handleSupabaseSignOut}>
+                            <Button variant="ghost" size="sm" className="h-8 text-state-danger hover:bg-state-danger-soft font-bold" onClick={handleSupabaseSignOut}>
                                 <LogOut className="h-3.5 w-3.5 mr-1" />Sign Out
                             </Button>
                         )}
@@ -939,8 +954,8 @@ export default function SettingsPage() {
                                 onClick={() => setRole(r)}
                                 className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${
                                     (profile?.activeRole ?? 'qa') === r
-                                        ? 'bg-primary text-[#0F0F13] border-[#A78BFA]'
-                                        : 'bg-transparent text-soft border-ui hover:border-[#A78BFA]/50'
+                                        ? 'bg-primary text-primary-foreground border-qa-accent'
+                                        : 'bg-transparent text-soft border-ui hover:border-qa-accent/50'
                                 }`}
                             >
                                 {r === 'qa' ? 'QA Engineer' : 'Developer'}
@@ -967,7 +982,7 @@ export default function SettingsPage() {
                                             {identity.email && <p className="text-xs text-muted-ui">{identity.email}</p>}
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={() => handleOAuthDisconnect('github')}>
+                                    <Button variant="ghost" size="sm" className="h-8 text-state-danger hover:bg-state-danger-soft font-bold" onClick={() => handleOAuthDisconnect('github')}>
                                         <LogOut className="h-3.5 w-3.5 mr-1" />Disconnect
                                     </Button>
                                 </div>
@@ -975,7 +990,7 @@ export default function SettingsPage() {
                                 <button
                                     onClick={() => handleOAuthConnect('github')}
                                     disabled={oauthConnecting === 'github'}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-ui text-sm text-soft hover:border-[#A78BFA]/50 hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-ui text-sm text-soft hover:border-qa-accent/50 hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-wait"
                                 >
                                     {oauthConnecting === 'github' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                                     {oauthConnecting === 'github' ? 'Opening browser…' : 'Connect with GitHub'}
@@ -998,7 +1013,7 @@ export default function SettingsPage() {
                                             {identity.email && <p className="text-xs text-muted-ui">{identity.email}</p>}
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={() => handleOAuthDisconnect('linear')}>
+                                    <Button variant="ghost" size="sm" className="h-8 text-state-danger hover:bg-state-danger-soft font-bold" onClick={() => handleOAuthDisconnect('linear')}>
                                         <LogOut className="h-3.5 w-3.5 mr-1" />Disconnect
                                     </Button>
                                 </div>
@@ -1006,7 +1021,7 @@ export default function SettingsPage() {
                                 <button
                                     onClick={() => handleOAuthConnect('linear')}
                                     disabled={oauthConnecting === 'linear'}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-ui text-sm text-soft hover:border-[#A78BFA]/50 hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-ui text-sm text-soft hover:border-qa-accent/50 hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-wait"
                                 >
                                     {oauthConnecting === 'linear' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                                     {oauthConnecting === 'linear' ? 'Opening browser…' : 'Connect with Linear'}
@@ -1029,7 +1044,7 @@ export default function SettingsPage() {
                             <p className="text-sm font-semibold text-foreground">Light Mode</p>
                             <p className="text-xs text-muted-ui mt-0.5">Switch between dark and light interface theme.</p>
                         </div>
-                        <Toggle on={theme === 'light'} onToggle={toggleTheme} />
+                        <Switch on={theme === 'light'} onToggle={toggleTheme} />
                     </div>
                     <div className="mt-4 space-y-3">
                         <div>
@@ -1047,8 +1062,8 @@ export default function SettingsPage() {
                                     onClick={() => { void saveSetting({ performanceMode: option.value }) }}
                                     className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
                                         performanceMode === option.value
-                                            ? 'border-[#A78BFA]/40 bg-[#A78BFA]/10 text-foreground'
-                                            : 'border-ui text-soft hover:border-[#A78BFA]/30 hover:text-foreground'
+                                            ? 'border-qa-accent/40 bg-qa-accent/10 text-foreground'
+                                            : 'border-ui text-soft hover:border-qa-accent/30 hover:text-foreground'
                                     }`}
                                 >
                                     {option.label}
@@ -1064,7 +1079,7 @@ export default function SettingsPage() {
                             <p className="text-sm font-semibold text-foreground">Respect System Reduced Motion</p>
                             <p className="text-xs text-muted-ui mt-0.5">When on, honor your OS &ldquo;reduce motion&rdquo; setting and disable animations. Off (default) keeps the app&rsquo;s designed motion regardless of the system preference.</p>
                         </div>
-                        <Toggle
+                        <Switch
                             on={respectReducedMotion}
                             label="Respect system reduced-motion setting"
                             onToggle={() => { void saveSetting({ respectReducedMotion: !respectReducedMotion }) }}
@@ -1081,20 +1096,20 @@ export default function SettingsPage() {
                                 <p className="text-sm font-semibold text-foreground">SAP Commerce Context</p>
                                 <p className="text-xs text-muted-ui mt-0.5">Include SAP Hybris domain knowledge in AI prompts for platform-aware test generation.</p>
                             </div>
-                            <Toggle on={sapContext} onToggle={async () => {
+                            <Switch on={sapContext} onToggle={async () => {
                                 const next = !sapContext; setSapContext(next)
                                 await saveSetting({ sapCommerceContext: next })
                             }} />
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-[#A78BFA]/5 border border-[#A78BFA]/10 rounded-xl">
+                        <div className="flex items-center justify-between p-3 bg-qa-accent/5 border border-qa-accent/10 rounded-xl">
                             <div>
                                 <p className="text-sm font-semibold text-foreground flex items-center gap-2">
                                     Minimize to Tray
-                                    <span className="text-[9px] px-1.5 py-0.5 bg-[#A78BFA]/20 text-brand rounded-md font-black uppercase tracking-wider">New</span>
+                                    <span className="text-[11px] px-1.5 py-0.5 bg-qa-accent/20 text-brand rounded-md font-black uppercase tracking-wider">New</span>
                                 </p>
                                 <p className="text-xs text-muted-ui mt-0.5">When closing the window, keep the app running in the system tray.</p>
                             </div>
-                            <Toggle on={minimizeToTray} onToggle={async () => {
+                            <Switch on={minimizeToTray} onToggle={async () => {
                                 const next = !minimizeToTray; setMinimizeToTray(next)
                                 await saveSetting({ minimizeToTray: next })
                             }} />
@@ -1111,7 +1126,7 @@ export default function SettingsPage() {
                             <p className="text-sm font-semibold text-foreground">Enable Automation API</p>
                             <p className="text-xs text-muted-ui mt-0.5">Starts a local HTTP server your test runners can call.</p>
                         </div>
-                        <Toggle on={apiEnabled} onToggle={handleApiToggle} />
+                        <Switch on={apiEnabled} onToggle={handleApiToggle} />
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-4">
@@ -1121,7 +1136,7 @@ export default function SettingsPage() {
                                 <Input value={apiPort} onChange={e => setApiPort(e.target.value)} className={`${inp} w-28 font-mono text-center`} />
                                 <Button variant="outline" size="sm" className="h-10 border-ui text-soft font-bold" onClick={handleSavePort}>Save Port</Button>
                             </div>
-                            <p className="text-[10px] text-muted-ui mt-1">Default: 5248 · Restart or toggle to apply</p>
+                            <p className="text-[11px] text-muted-ui mt-1">Default: 5248 · Restart or toggle to apply</p>
                         </div>
                         <div>
                             <FieldLabel>API Key</FieldLabel>
@@ -1141,19 +1156,19 @@ export default function SettingsPage() {
                                 <Button variant="ghost" size="sm" className="h-8 px-3 text-soft gap-1.5 text-xs" onClick={handleCopyKey} disabled={!apiKey}>
                                     <Copy className="h-3 w-3" />Copy Key
                                 </Button>
-                                <Button variant="ghost" size="sm" className="h-8 px-3 text-red-400 gap-1.5 text-xs hover:bg-red-950/30" onClick={handleRegenerateKey}>
+                                <Button variant="ghost" size="sm" className="h-8 px-3 text-state-danger gap-1.5 text-xs hover:bg-state-danger-soft" onClick={handleRegenerateKey}>
                                     <RefreshCw className="h-3 w-3" />Regenerate Key
                                 </Button>
                             </div>
-                            <p className="text-[10px] text-muted-ui mt-1">Header: <code className="font-mono bg-panel-muted px-1 rounded">Authorization: Bearer &lt;key&gt;</code></p>
+                            <p className="text-[11px] text-muted-ui mt-1">Header: <code className="font-mono bg-panel-muted px-1 rounded">Authorization: Bearer &lt;key&gt;</code></p>
                         </div>
                     </div>
 
                     <StatusBanner s={automationStatus} />
 
                     <div className="mt-4 bg-background border border-ui rounded-xl p-4">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-ui mb-2">Endpoints</p>
-                        <pre className="text-[10px] font-mono text-soft leading-5 whitespace-pre-wrap">{`GET  /api/projects
+                        <p className="text-[11px] font-black uppercase tracking-widest text-muted-ui mb-2">Endpoints</p>
+                        <pre className="text-[11px] font-mono text-soft leading-5 whitespace-pre-wrap">{`GET  /api/projects
 GET  /api/projects/{id}/testplans
 GET  /api/projects/{id}/testcases
 GET  /api/projects/{id}/testcases?planId={guid}
@@ -1161,7 +1176,7 @@ GET  /api/projects/{id}/testcases/{tcId}
 GET  /api/projects/{id}/executions
 POST /api/projects/{id}/executions
 POST /api/projects/{id}/executions/batch`}</pre>
-                        <p className="text-[10px] text-muted-ui mt-2">POST body: <code className="font-mono">{"{ testCaseDisplayId, result, actualResult, notes }"}</code></p>
+                        <p className="text-[11px] text-muted-ui mt-2">POST body: <code className="font-mono">{"{ testCaseDisplayId, result, actualResult, notes }"}</code></p>
                     </div>
                 </Sec>
 
@@ -1206,7 +1221,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                         <button
                                             type="button"
                                             onClick={fillLinearFromOAuth}
-                                            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#A78BFA]/40 text-xs text-brand hover:bg-[#A78BFA]/10 transition-colors font-semibold"
+                                            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed border-qa-accent/40 text-xs text-brand hover:bg-qa-accent/10 transition-colors font-semibold"
                                         >
                                             <Zap className="h-3.5 w-3.5" />
                                             Use OAuth token from {profile.identities.find(i => i.provider === 'linear')?.username}
@@ -1220,7 +1235,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     </div>
                                     <div><FieldLabel>Team ID</FieldLabel>
                                         <Input value={linearForm.teamId} onChange={e => setLinearForm(f => ({ ...f, teamId: e.target.value }))} placeholder="Your Linear Team ID" className={inp} />
-                                        <p className="text-[10px] text-muted-ui mt-1">linear.app → Settings → Team → copy the ID from the URL</p>
+                                        <p className="text-[11px] text-muted-ui mt-1">linear.app → Settings → Team → copy the ID from the URL</p>
                                     </div>
                                 </div>
                             </FormPanel>
@@ -1274,7 +1289,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     </div>
                                     <div><FieldLabel>Project Key</FieldLabel>
                                         <Input value={jiraForm.projectKey} onChange={e => setJiraForm(f => ({ ...f, projectKey: e.target.value }))} placeholder="e.g. QA, DEV, PROJ" className={inp} />
-                                        <p className="text-[10px] text-muted-ui mt-1">The short key shown before issue numbers e.g. QA-123</p>
+                                        <p className="text-[11px] text-muted-ui mt-1">The short key shown before issue numbers e.g. QA-123</p>
                                     </div>
                                 </div>
                             </FormPanel>
@@ -1338,7 +1353,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 mt-3">
-                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold h-9" onClick={saveGemini}>Save Gemini Settings</Button>
+                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9" onClick={saveGemini}>Save Gemini Settings</Button>
                         <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={checkGeminiModels} disabled={modelsLoading}>
                             {modelsLoading ? 'Fetching…' : availableModels.length > 0 ? 'Refresh Models' : 'Check Available Models'}
                         </Button>
@@ -1378,25 +1393,25 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 </select>
                                 {/* Score legend */}
                                 {Object.keys(nimModelMeta).length > 0 && (
-                                    <p className="text-[10px] text-muted-ui mt-1 leading-tight">
+                                    <p className="text-[11px] text-muted-ui mt-1 leading-tight">
                                         QA = composite QA score &nbsp;·&nbsp; I = instruction-following &nbsp;·&nbsp; R = reasoning &nbsp;·&nbsp; C = coding (0–100)
                                     </p>
                                 )}
                                 {/* Suggestion banner — shown after health check */}
                                 {nimSuggestedModel && (
-                                    <div className="mt-2 rounded-md border border-[#A78BFA]/40 bg-[#A78BFA]/8 px-3 py-2 flex items-start gap-2">
+                                    <div className="mt-2 rounded-md border border-qa-accent/40 bg-qa-accent/8 px-3 py-2 flex items-start gap-2">
                                         <span className="text-brand text-xs font-bold shrink-0 mt-0.5">✦ Best for QA</span>
                                         <div className="flex-1 min-w-0">
-                                            <span className="text-[11px] text-[#E5E7EB] font-semibold break-all">{nimSuggestedModel}</span>
+                                            <span className="text-[11px] text-foreground font-semibold break-all">{nimSuggestedModel}</span>
                                             {nimModelMeta[nimSuggestedModel] && (
-                                                <span className="ml-2 text-[10px] text-soft">
+                                                <span className="ml-2 text-[11px] text-soft">
                                                     QA:{nimModelMeta[nimSuggestedModel].qaScore}&nbsp;
                                                     {nimHealthMap[nimSuggestedModel]?.latencyMs ? `· ${nimHealthMap[nimSuggestedModel].latencyMs}ms` : ''}
                                                     {nimModelMeta[nimSuggestedModel].notes ? ` · ${nimModelMeta[nimSuggestedModel].notes}` : ''}
                                                 </span>
                                             )}
                                             <button
-                                                className="ml-2 text-[10px] text-brand underline hover:text-[#C4B5FD] cursor-pointer"
+                                                className="ml-2 text-[11px] text-brand underline hover:text-qa-accent cursor-pointer"
                                                 onClick={() => setNimModel(nimSuggestedModel)}
                                                 type="button"
                                             >Use this</button>
@@ -1415,7 +1430,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 mt-3">
-                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold h-9" onClick={saveNim}>Save NIM Settings</Button>
+                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9" onClick={saveNim}>Save NIM Settings</Button>
                         <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={checkNimModels} disabled={nimModelsLoading}>
                             {nimModelsLoading ? 'Fetching…' : nimAvailableModels.length > 0 ? 'Refresh Models' : 'Check Available Models'}
                         </Button>
@@ -1425,7 +1440,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             </Button>
                         )}
                         {activeProject?.aiProvider === 'nim' && (
-                            <span className="text-xs text-green-400 font-semibold ml-1">✓ Active provider for this project</span>
+                            <span className="text-xs text-state-success font-semibold ml-1">✓ Active provider for this project</span>
                         )}
                         {activeProject?.aiProvider !== 'nim' && nimKey && (
                             <Button variant="ghost" size="sm" className="h-9 text-muted-ui text-xs" onClick={async () => {
@@ -1446,20 +1461,20 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         <div>
                             <FieldLabel>Subscription Code</FieldLabel>
                             <Input value={ccv2Sub} onChange={e => setCcv2Sub(e.target.value)} placeholder="Your CCv2 subscription code" className={inp} />
-                            <p className="text-[10px] text-muted-ui mt-1">Found in the SAP Commerce Cloud Portal under your project settings</p>
+                            <p className="text-[11px] text-muted-ui mt-1">Found in the SAP Commerce Cloud Portal under your project settings</p>
                         </div>
                         <div>
                             <FieldLabel>API Token</FieldLabel>
                             <Input type={showSecrets ? 'text' : 'password'} value={ccv2Token} onChange={e => setCcv2Token(e.target.value)} placeholder="Bearer token from the CCv2 portal" className={inp} />
-                            <p className="text-[10px] text-muted-ui mt-1">Generate in Cloud Portal → API Token Management</p>
+                            <p className="text-[11px] text-muted-ui mt-1">Generate in Cloud Portal → API Token Management</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 mt-4">
-                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold h-9" onClick={saveCcv2}>Save Credentials</Button>
+                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9" onClick={saveCcv2}>Save Credentials</Button>
                         <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={testCcv2} disabled={ccv2Testing}>
                             {ccv2Testing ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : null}Test Connection
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-9 text-red-400 hover:bg-red-950/30 font-bold" onClick={disconnectCcv2}>Disconnect</Button>
+                        <Button variant="ghost" size="sm" className="h-9 text-state-danger hover:bg-state-danger-soft font-bold" onClick={disconnectCcv2}>Disconnect</Button>
                     </div>
                     <StatusBanner s={ccv2Status} />
                 </Sec>
@@ -1489,22 +1504,22 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         {webhooks.map(wh => (
                             <div key={wh.id} className="flex items-center justify-between bg-app border border-ui rounded-xl px-4 py-3">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-2 h-2 rounded-full ${wh.isEnabled ? 'bg-[#10B981] animate-pulse' : 'bg-[#6B7280]'}`} />
+                                    <div className={`w-2 h-2 rounded-full ${wh.isEnabled ? 'bg-state-success animate-pulse' : 'bg-line-strong'}`} />
                                     <div>
                                         <p className="text-sm font-semibold text-foreground">{wh.name}</p>
                                         <p className="text-xs text-muted-ui mt-0.5">{wh.type} · {wh.url.slice(0, 50)}{wh.url.length > 50 ? '…' : ''}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Toggle on={wh.isEnabled} onToggle={async () => {
+                                    <Switch on={wh.isEnabled} onToggle={async () => {
                                         const updated = webhooks.map(w => w.id === wh.id ? { ...w, isEnabled: !w.isEnabled } : w)
                                         setWebhooks(updated)
                                         await saveSetting({ webhooks: updated })
                                     }} />
-                                    <Button variant="ghost" size="sm" className="h-8 px-3 text-brand hover:bg-[#A78BFA]/10 text-xs font-bold" onClick={() => {
+                                    <Button variant="ghost" size="sm" className="h-8 px-3 text-brand hover:bg-qa-accent/10 text-xs font-bold" onClick={() => {
                                         setWebhookForm({ open: true, editId: wh.id, name: wh.name, url: wh.url, type: wh.type, notifyOnTestPlanFail: wh.notifyOnTestPlanFail, notifyOnHighPriorityDone: wh.notifyOnHighPriorityDone, notifyOnDueDate: wh.notifyOnDueDate, notifyOnAiAnalysis: wh.notifyOnAiAnalysis, notifyOnHandoffSent: !!wh.notifyOnHandoffSent, notifyOnReadyForQa: !!wh.notifyOnReadyForQa, notifyOnVerificationFailed: !!wh.notifyOnVerificationFailed, notifyOnPrLinkedToHandoff: !!wh.notifyOnPrLinkedToHandoff })
                                     }}><Edit2 className="h-3 w-3 mr-1" />Edit</Button>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-ui hover:text-red-400 hover:bg-red-950/30" onClick={async () => {
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-ui hover:text-state-danger hover:bg-state-danger-soft" onClick={async () => {
                                         const updated = webhooks.filter(w => w.id !== wh.id)
                                         setWebhooks(updated)
                                         await saveSetting({ webhooks: updated })
@@ -1548,7 +1563,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 )}
                             </div>
                             <div className="border border-ui rounded-xl p-3 space-y-2">
-                                <p className="text-[10px] font-black text-muted-ui uppercase tracking-widest mb-2">Notify On</p>
+                                <p className="text-[11px] font-black text-muted-ui uppercase tracking-widest mb-2">Notify On</p>
                                 {[
                                     { key: 'notifyOnTestPlanFail', label: 'Test Plan Run Failure' },
                                     { key: 'notifyOnHighPriorityDone', label: 'High-Priority Task Completed' },
@@ -1561,12 +1576,12 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 ].map(({ key, label }) => (
                                     <div key={key} className="flex items-center justify-between">
                                         <span className="text-xs text-soft">{label}</span>
-                                        <Toggle on={(webhookForm as any)[key]} onToggle={() => setWebhookForm(f => ({ ...f, [key]: !(f as any)[key] }))} />
+                                        <Switch on={(webhookForm as any)[key]} onToggle={() => setWebhookForm(f => ({ ...f, [key]: !(f as any)[key] }))} />
                                     </div>
                                 ))}
                             </div>
                             <div className="flex items-center gap-2 pt-1">
-                                <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold h-8" onClick={async () => {
+                                <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-8" onClick={async () => {
                                     if (!webhookForm.name.trim() || !webhookForm.url.trim()) { flash(setWebhookStatus, 'Name and URL are required.', false); return }
                                     const { open: _, editId, ...rest } = webhookForm
                                     let updated: WebhookConfig[]
@@ -1587,14 +1602,14 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                             url: webhookForm.url,
                                             type: webhookForm.type,
                                             isEnabled: true,
-                                        }, '✅ Test Notification', 'Webhook connection test from QAssistant.', '#A78BFA')
+                                        }, '✅ Test Notification', 'Webhook connection test from QAssistant.', '#0481BE')
                                         if (!result.success) throw new Error(result.error || 'Webhook test failed.')
                                         flash(setWebhookStatus, 'Test notification sent!', true)
                                     } catch (e: any) {
                                         flash(setWebhookStatus, `Test failed: ${e.message}`, false)
                                     } finally { setWebhookTesting(false) }
                                 }}>{webhookTesting ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : null}Test</Button>
-                                <Button variant="ghost" size="sm" className="h-8 text-red-400 hover:bg-red-950/30 font-bold" onClick={() => setWebhookForm(f => ({ ...f, open: false }))}>Cancel</Button>
+                                <Button variant="ghost" size="sm" className="h-8 text-state-danger hover:bg-state-danger-soft font-bold" onClick={() => setWebhookForm(f => ({ ...f, open: false }))}>Cancel</Button>
                             </div>
                             <StatusBanner s={webhookStatus} />
                         </div>
@@ -1613,18 +1628,18 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Current Version</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Current Version</p>
                                 <p className="text-sm font-semibold text-foreground mt-1">{appUpdateState.currentVersion || appVersion || 'Unknown'}</p>
                             </div>
                         </div>
 
                         <div className="grid sm:grid-cols-2 gap-3">
                             <div className="bg-background border border-ui-subtle rounded-xl px-4 py-3">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Status</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Status</p>
                                 <p className="text-sm font-semibold text-foreground mt-1">{formatUpdateStatus(appUpdateState)}</p>
                             </div>
                             <div className="bg-background border border-ui-subtle rounded-xl px-4 py-3">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Last Check</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Last Check</p>
                                 <p className="text-sm font-semibold text-foreground mt-1">{formatUpdateCheckTime(appUpdateState.lastCheckedAt)}</p>
                             </div>
                         </div>
@@ -1634,7 +1649,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 <p className="text-sm font-semibold text-foreground">Check automatically on startup</p>
                                 <p className="text-[11px] text-muted-ui mt-1">Recommended for release builds. You can still check manually below.</p>
                             </div>
-                            <Toggle on={autoCheckForUpdates} onToggle={handleAutoCheckForUpdatesToggle} />
+                            <Switch on={autoCheckForUpdates} onToggle={handleAutoCheckForUpdatesToggle} />
                         </div>
 
                         {appUpdateState.downloadProgressPercent !== undefined && (
@@ -1651,13 +1666,13 @@ POST /api/projects/{id}/executions/batch`}</pre>
 
                         {appUpdateState.releaseNotes && (
                             <div className="bg-background border border-ui-subtle rounded-xl px-4 py-3">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui mb-2">Release Notes</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui mb-2">Release Notes</p>
                                 <p className="text-xs text-soft whitespace-pre-wrap">{appUpdateState.releaseNotes}</p>
                             </div>
                         )}
 
                         {sysInfo?.platform === 'darwin' && (
-                            <div className="rounded-xl border border-[#7C2D12] bg-[#1C1210] px-4 py-3 text-xs text-[#FDBA74]">
+                            <div className="rounded-xl border border-state-warning-border bg-state-warning-soft px-4 py-3 text-xs text-state-warning">
                                 macOS release artifacts can be published, but production in-app auto-update still requires Apple signing and notarization to be fully reliable.
                             </div>
                         )}
@@ -1665,7 +1680,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
                                 size="sm"
-                                className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold h-9"
+                                className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9"
                                 onClick={handleCheckForUpdates}
                                 disabled={appUpdateState.status === 'checking' || appUpdateState.status === 'downloading'}
                             >
@@ -1686,7 +1701,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-9 text-[#F59E0B] hover:bg-[#F59E0B]/10 font-bold"
+                                        className="h-9 text-state-warning hover:bg-state-warning-soft font-bold"
                                         onClick={handleLaterUpdate}
                                     >
                                         Later
@@ -1707,7 +1722,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-9 text-[#F59E0B] hover:bg-[#F59E0B]/10 font-bold"
+                                        className="h-9 text-state-warning hover:bg-state-warning-soft font-bold"
                                         onClick={handleLaterUpdate}
                                     >
                                         Later
@@ -1721,10 +1736,10 @@ POST /api/projects/{id}/executions/batch`}</pre>
                 {/* ── HELP & DOCUMENTATION ────────────────────────────────── */}
                 <Sec id="docs" title="Help & Documentation" icon={<BookOpen className="h-4 w-4" />} activeSection={activeSection}>
                     <p className="text-xs text-muted-ui mb-4">Complete documentation for every feature, integration, and keyboard shortcut in QAssistant.</p>
-                    <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold h-9 gap-2" onClick={() => navigate('/docs')}>
+                    <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9 gap-2" onClick={() => navigate('/docs')}>
                         <BookOpen className="h-3.5 w-3.5" /> Open Documentation
                     </Button>
-                    <p className="text-[10px] text-muted-ui mt-2">Tip: Press F1 anywhere to open docs.</p>
+                    <p className="text-[11px] text-muted-ui mt-2">Tip: Press F1 anywhere to open docs.</p>
                 </Sec>
 
                 {/* ── DIAGNOSTICS ──────────────────────────────────────────── */}
@@ -1740,7 +1755,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             { label: 'Node.js', value: sysInfo?.nodeVersion },
                         ].filter(i => i.value).map(item => (
                             <div key={item.label} className="bg-app border border-ui rounded-xl px-4 py-3">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">{item.label}</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">{item.label}</p>
                                 <p className="text-sm font-semibold text-foreground mt-0.5">{item.value}</p>
                             </div>
                         ))}
@@ -1763,7 +1778,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 { label: 'Granular Handoff Writes', value: perfMetrics.counters.granularHandoffWrites, unit: '' },
                             ].filter(item => item.value !== undefined).map(item => (
                                 <div key={item.label} className="bg-app border border-ui rounded-xl px-4 py-3">
-                                    <p className="text-[10px] font-bold uppercase text-muted-ui">{item.label}</p>
+                                    <p className="text-[11px] font-bold uppercase text-muted-ui">{item.label}</p>
                                     <p className="text-sm font-semibold text-foreground mt-0.5">
                                         {typeof item.value === 'number' ? Math.round(item.value * 100) / 100 : item.value}{item.unit ? ` ${item.unit}` : ''}
                                     </p>
@@ -1773,12 +1788,12 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     )}
                     {dataPath && (
                         <div className="bg-app border border-ui rounded-xl px-4 py-3 mb-4">
-                            <p className="text-[10px] font-bold uppercase text-muted-ui mb-1">Data Storage Path</p>
+                            <p className="text-[11px] font-bold uppercase text-muted-ui mb-1">Data Storage Path</p>
                             <p className="text-[11px] font-mono text-brand break-all">{dataPath}</p>
                         </div>
                     )}
                     <div className="bg-app border border-ui rounded-xl px-4 py-3 mb-4">
-                        <p className="text-[10px] font-bold uppercase text-muted-ui mb-2">Intel Mac Profiling Checklist</p>
+                        <p className="text-[11px] font-bold uppercase text-muted-ui mb-2">Intel Mac Profiling Checklist</p>
                         <ol className="space-y-1 text-xs text-soft list-decimal ml-4">
                             <li>Cold-launch the packaged macOS x64 app and capture App Ready, Window Ready, and First Route Interactive.</li>
                             <li>Swipe between macOS Spaces with the app visible and watch for dropped-frame jank.</li>
@@ -1791,7 +1806,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     {activeProject && (
                         <div className="bg-app border border-ui rounded-xl px-4 py-3 mb-4">
                             <div className="flex items-center justify-between mb-2">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Stored Credentials</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Stored Credentials</p>
                                 <div className="flex items-center gap-2">
                                     <Button variant="outline" size="sm" className="h-8 border-ui text-soft font-bold" onClick={refreshStoredCreds}>Refresh</Button>
                                 </div>
@@ -1802,7 +1817,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     <div key={k} className="flex items-center justify-between bg-background border border-ui-subtle rounded-md px-3 py-2">
                                         <div className="text-sm text-foreground">{k}</div>
                                         <div className="flex items-center gap-2">
-                                            <Button variant="ghost" size="sm" className="h-7 text-red-400" onClick={async () => {
+                                            <Button variant="ghost" size="sm" className="h-7 text-state-danger" onClick={async () => {
                                                 const prefix = `project:${activeProject.id}:`
                                                 await api.secureStoreDelete(`${prefix}${k}`)
                                                 refreshStoredCreds()
@@ -1817,7 +1832,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold gap-2" onClick={() => api.openFile(dataPath)}>
                             <Search className="h-3.5 w-3.5" />Open Data Folder
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-9 text-red-400 hover:bg-red-950/30 font-bold gap-2"
+                        <Button variant="ghost" size="sm" className="h-9 text-state-danger hover:bg-state-danger-soft font-bold gap-2"
                             onClick={async () => {
                                 const ok = await confirmDialog('Permanently delete all project data?', { description: 'This action cannot be undone. All projects, test cases, tasks, notes, and runs will be erased.', confirmLabel: 'Purge All Data', destructive: true })
                                 if (ok) api.writeProjectsFile([])
@@ -1830,7 +1845,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     <div className="mt-4 bg-app border border-ui rounded-xl px-4 py-3">
                         <div className="flex items-center justify-between mb-2">
                             <div>
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Orphaned Attachments</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Orphaned Attachments</p>
                                 <p className="text-[11px] text-muted-ui mt-0.5">Files in the attachments folder no longer referenced by any project.</p>
                             </div>
                             <Button
@@ -1845,10 +1860,10 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         </div>
                         {orphanScanResult && (
                             orphanScanResult.orphaned.length === 0 ? (
-                                <p className="text-xs text-[#10B981] font-medium">No orphaned files found.</p>
+                                <p className="text-xs text-state-success font-medium">No orphaned files found.</p>
                             ) : (
                                 <div className="space-y-2">
-                                    <p className="text-xs text-[#F59E0B] font-medium">
+                                    <p className="text-xs text-state-warning font-medium">
                                         {orphanScanResult.orphaned.length} orphaned file{orphanScanResult.orphaned.length !== 1 ? 's' : ''} — {(orphanScanResult.totalSize / 1024).toFixed(1)} KB total
                                     </p>
                                     <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1">
@@ -1862,7 +1877,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 text-red-400 hover:bg-red-950/30 font-bold gap-2"
+                                        className="h-8 text-state-danger hover:bg-state-danger-soft font-bold gap-2"
                                         onClick={handleDeleteOrphans}
                                         disabled={orphanDeleting}
                                     >

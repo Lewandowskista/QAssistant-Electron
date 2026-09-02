@@ -191,23 +191,23 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
             <div className="rounded-xl border border-ui bg-panel-muted p-4 space-y-3">
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-ui font-bold">Collaboration State</p>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-ui font-bold">Collaboration State</p>
                         <div className="text-sm font-semibold text-foreground">{workflowSummary.stateLabel}</div>
                     </div>
-                    <Button variant="outline" className="border-[#A78BFA]/20 text-brand" onClick={() => setDialogOpen(true)}>
+                    <Button variant="outline" className="border-qa-accent/20 text-brand" onClick={() => setDialogOpen(true)}>
                         {activeHandoff ? 'Edit Handoff' : 'Create Handoff'}
                     </Button>
                 </div>
                 <div className={cn(
                     "rounded-xl border p-3",
-                    workflowSummary.attentionLevel === 'danger' && "border-[#EF4444]/30 bg-[#EF4444]/10",
-                    workflowSummary.attentionLevel === 'warning' && "border-[#F59E0B]/30 bg-[#F59E0B]/10",
-                    workflowSummary.attentionLevel === 'info' && "border-[#38BDF8]/20 bg-[#38BDF8]/5",
-                    workflowSummary.attentionLevel === 'success' && "border-[#10B981]/30 bg-[#10B981]/10",
+                    workflowSummary.attentionLevel === 'danger' && "border-state-danger-border bg-state-danger-soft",
+                    workflowSummary.attentionLevel === 'warning' && "border-state-warning-border bg-state-warning-soft",
+                    workflowSummary.attentionLevel === 'info' && "border-state-info-border bg-state-info-soft",
+                    workflowSummary.attentionLevel === 'success' && "border-state-success-border bg-state-success-soft",
                 )}>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-ui font-bold">Next Recommended Action</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-ui font-bold">Next Recommended Action</p>
                     <p className="mt-2 text-sm font-semibold text-foreground">{workflowSummary.nextAction}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-soft">
+                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-soft">
                         <span>Owner: <span className="text-foreground">{workflowSummary.ownerLabel}</span></span>
                         <span>Verification: <span className="text-foreground">{workflowSummary.verificationLabel}</span></span>
                         <span>Linked tests: <span className="text-foreground">{workflowSummary.linkedTestCount}</span></span>
@@ -217,7 +217,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                     {workflowSummary.warnings.length > 0 && (
                         <div className="mt-3 space-y-1">
                             {workflowSummary.warnings.map((warning) => (
-                                <p key={warning} className="text-xs text-[#FCA5A5]">
+                                <p key={warning} className="text-xs text-state-danger">
                                     {warning}
                                 </p>
                             ))}
@@ -238,9 +238,9 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         )}
                         <div className="flex flex-wrap gap-2">
                             {missingFields.length === 0 ? (
-                                <span className="px-2 py-1 rounded-md bg-[#10B981]/10 border border-[#10B981]/20 text-[10px] text-[#10B981] font-bold">SEND-READY</span>
+                                <span className="px-2 py-1 rounded-md bg-state-success-soft border border-state-success-border text-[11px] text-state-success font-semibold">Ready to send</span>
                             ) : missingFields.map((field) => (
-                                <span key={field} className="px-2 py-1 rounded-md bg-[#EF4444]/10 border border-[#EF4444]/20 text-[10px] text-[#EF4444] font-bold">
+                                <span key={field} className="px-2 py-1 rounded-md bg-state-danger-soft border border-state-danger-border text-[11px] text-state-danger font-bold">
                                     Missing {field}
                                 </span>
                             ))}
@@ -248,7 +248,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         {activeHandoff.linkedPrs.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                                 {activeHandoff.linkedPrs.map((pr) => (
-                                    <span key={`${pr.repoFullName}#${pr.prNumber}`} className="px-2 py-1 rounded-md bg-app border border-ui text-[10px] text-[#38BDF8]">
+                                    <span key={`${pr.repoFullName}#${pr.prNumber}`} className="px-2 py-1 rounded-md bg-app border border-ui text-[11px] text-state-info">
                                         {pr.repoFullName}#{pr.prNumber}
                                     </span>
                                 ))}
@@ -262,7 +262,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
 
             {role === 'qa' && (
                 <div className="space-y-3">
-                    <Button className="w-full bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13]" onClick={handleSendToDeveloper}>
+                    <Button className="w-full bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground" onClick={handleSendToDeveloper}>
                         Send to Developer
                     </Button>
                     <Button variant="outline" className="w-full border-ui text-foreground" onClick={handleStartRetest} disabled={(task.collabState || 'draft') !== 'ready_for_qa'}>
@@ -270,8 +270,8 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                     </Button>
                     <MentionTextarea value={qaNotes} onChange={setQaNotes} placeholder="QA verification notes… (@ to mention)" rows={3} />
                     <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" className="border-[#10B981]/20 text-[#10B981]" onClick={() => handleVerify(true)}>Verify Fix</Button>
-                        <Button variant="outline" className="border-[#EF4444]/20 text-[#EF4444]" onClick={() => handleVerify(false)}>Fail Verification</Button>
+                        <Button variant="outline" className="border-state-success-border text-state-success" onClick={() => handleVerify(true)}>Verify Fix</Button>
+                        <Button variant="outline" className="border-state-danger-border text-state-danger" onClick={() => handleVerify(false)}>Fail Verification</Button>
                     </div>
                 </div>
             )}
@@ -279,11 +279,11 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
             {role === 'dev' && activeHandoff && (
                 <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" className="border-[#F59E0B]/20 text-[#F59E0B]" onClick={handleAcknowledge}>Acknowledge</Button>
-                        <Button variant="outline" className="border-[#38BDF8]/20 text-[#38BDF8]" onClick={handleStartFix}>Start Fix</Button>
+                        <Button variant="outline" className="border-state-warning-border text-state-warning" onClick={handleAcknowledge}>Acknowledge</Button>
+                        <Button variant="outline" className="border-state-info-border text-state-info" onClick={handleStartFix}>Start Fix</Button>
                     </div>
                     <MentionTextarea value={devResponse} onChange={setDevResponse} placeholder="Developer response or resolution summary… (@ to mention)" rows={3} />
-                    <Button className="w-full bg-[#10B981] hover:bg-[#34D399] text-[#0F0F13]" onClick={handleReturnToQa}>
+                    <Button className="w-full bg-state-success hover:bg-state-success text-primary-foreground" onClick={handleReturnToQa}>
                         Return to QA
                     </Button>
                 </div>

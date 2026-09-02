@@ -1,172 +1,201 @@
-import { useState, useEffect, useMemo } from "react"
-import { useProjectStore } from "@/store/useProjectStore"
-import {
-    Search,
-    FlaskConical,
-    LayoutDashboard,
-    Settings,
-    Plus,
-    Target,
-    Activity,
-    Globe,
-    ClipboardCheck,
-} from "lucide-react"
+import { useMemo } from "react"
+import { Command } from "cmdk"
 import { useNavigate } from "react-router-dom"
-import { cn } from "@/lib/utils"
+import {
+    ClipboardCheck,
+    FlaskConical,
+    FolderKanban,
+    Globe,
+    Moon,
+    Plus,
+    Search,
+    Settings,
+    Sun,
+} from "lucide-react"
+
+import { PRIMARY_ITEMS, UTILITY_ITEMS, matchesRole } from "@/lib/navigation"
+import { useTheme } from "@/hooks/useTheme"
+import { useProjectStore } from "@/store/useProjectStore"
+import { useUserStore } from "@/store/useUserStore"
 
 interface CommandPaletteProps {
     open: boolean
     onOpenChange: (open: boolean) => void
 }
 
+/**
+ * Command palette on cmdk: fuzzy filtering, listbox semantics, and item
+ * labels that always match the sidebar (both read from lib/navigation).
+ */
 export default function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     const navigate = useNavigate()
-    const isMac = navigator.userAgent.toUpperCase().includes('MAC')
-    const projects = useProjectStore(state => state.projects)
-    const activeProjectId = useProjectStore(state => state.activeProjectId)
-    const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId])
+    const isMac = navigator.userAgent.toUpperCase().includes("MAC")
+    const { theme, toggleTheme } = useTheme()
 
-    const [query, setQuery] = useState("")
-    const [selectedIndex, setSelectedIndex] = useState(0)
+    const projects = useProjectStore((state) => state.projects)
+    const activeProjectId = useProjectStore((state) => state.activeProjectId)
+    const setActiveProject = useProjectStore((state) => state.setActiveProject)
+    const setEnvironmentDefault = useProjectStore((state) => state.setEnvironmentDefault)
+    const seedDemoProject = useProjectStore((state) => state.seedDemoProject)
+    const activeProject = useMemo(
+        () => projects.find((project) => project.id === activeProjectId),
+        [projects, activeProjectId]
+    )
 
-    const commands = useMemo(() => {
-        const base = [
-            { id: 'dash', title: 'Go to Dashboard', icon: LayoutDashboard, action: () => navigate('/') },
-            { id: 'tasks', title: 'Open Operational Board', icon: Target, action: () => navigate('/tasks') },
-            { id: 'tests', title: 'Open Quality Core', icon: FlaskConical, action: () => navigate('/tests') },
-            { id: 'release-queue', title: 'Open Release Queue', icon: ClipboardCheck, action: () => navigate('/release-queue') },
-            { id: 'envs', title: 'Infrastructure Monitor', icon: Activity, action: () => navigate('/environments') },
-            { id: 'settings', title: 'Control Center Settings', icon: Settings, action: () => navigate('/settings') },
-            { id: 'add-task', title: 'Create New Task', icon: Plus, action: () => navigate('/tasks') },
-        ]
+    const activeRole = (useUserStore((state) => state.profile?.activeRole) ?? "qa") as "qa" | "dev"
 
-        if (activeProject) {
-            activeProject.testPlans.slice(0, 5).forEach(plan => {
-                base.push({
-                    id: `plan-${plan.id}`,
-                    title: `Test Plan: ${plan.name}`,
-                    icon: FlaskConical,
-                    action: () => navigate('/tests')
-                })
-            })
+    const navItems = useMemo(
+        () => [...PRIMARY_ITEMS, ...UTILITY_ITEMS].filter((item) => matchesRole(item, activeRole)),
+        [activeRole]
+    )
 
-            activeProject.environments.slice(0, 3).forEach(env => {
-                base.push({
-                    id: `env-${env.id}`,
-                    title: `Environment: ${env.name}`,
-                    icon: Globe,
-                    action: () => navigate('/environments')
-                })
-            })
-        }
+    const run = (action: () => void) => {
+        onOpenChange(false)
+        action()
+    }
 
-        return base.filter(c => c.title.toLowerCase().includes(query.toLowerCase()))
-    }, [query, activeProject, navigate])
-
-    useEffect(() => {
-        setSelectedIndex(0)
-    }, [query])
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (!open || commands.length === 0) return
-
-            if (e.key === 'ArrowDown') {
-                e.preventDefault()
-                setSelectedIndex(i => (i + 1) % commands.length)
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault()
-                setSelectedIndex(i => (i - 1 + commands.length) % commands.length)
-            } else if (e.key === 'Enter') {
-                e.preventDefault()
-                commands[selectedIndex]?.action()
-                onOpenChange(false)
-            } else if (e.key === 'Escape') {
-                onOpenChange(false)
-            }
-        }
-
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [open, commands, selectedIndex, onOpenChange])
-
-    if (!open) return null
+    const itemClass =
+        "flex cursor-pointer select-none items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-soft data-[selected=true]:bg-surface-selected data-[selected=true]:text-foreground"
+    const groupClass =
+        "[&_[cmdk-group-heading]]:app-section-label [&_[cmdk-group-heading]]:px-4 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3"
 
     return (
-        <div className="fixed inset-0 z-layer-overlay flex items-start justify-center pt-[15vh] px-4 animate-in fade-in duration-200">
-            <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md" onClick={() => onOpenChange(false)} />
-
-            <div className="relative w-full max-w-2xl overflow-hidden rounded-[2.25rem] border bg-[hsl(var(--surface-overlay))] shadow-[0_32px_96px_-12px_rgba(0,0,0,0.5)] flex flex-col focus-visible:outline-none ring-1 ring-white/10 ring-inset">
-                <div className="flex items-center px-8 border-b border-border/50 h-20 bg-[hsl(var(--surface-header)/0.72)]">
-                    <Search className="h-6 w-6 text-primary mr-4 shrink-0" />
-                    <input
-                        autoFocus
-                        placeholder="Search mission protocols, tests, or environments…"
-                        className="flex-1 bg-transparent border-none focus:outline-none text-xl font-bold placeholder:text-muted-foreground/30 placeholder:font-black tracking-tight"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                    />
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/50 rounded-xl text-[10px] font-black uppercase text-muted-foreground opacity-60">
-                        <span>ESC</span>
-                        <span className="opacity-30">to close</span>
-                    </div>
-                </div>
-
-                <div className="max-h-[450px] overflow-y-auto p-4 custom-scrollbar">
-                    {commands.length > 0 ? (
-                        <div className="space-y-1">
-                            {commands.map((cmd, idx) => (
-                                <div
-                                    key={cmd.id}
-                                    onMouseEnter={() => setSelectedIndex(idx)}
-                                    onClick={() => {
-                                        cmd.action()
-                                        onOpenChange(false)
-                                    }}
-                                    className={cn(
-                                        "flex items-center gap-4 px-6 py-4 rounded-2xl cursor-pointer transition-all duration-150 select-none",
-                                        idx === selectedIndex
-                                            ? "bg-primary text-[hsl(var(--text-inverse))] shadow-xl shadow-[hsl(var(--accent-primary)/0.2)] translate-x-2"
-                                            : "hover:bg-muted/50 text-muted-foreground"
-                                    )}
-                                >
-                                    <cmd.icon className={cn("h-5 w-5", idx === selectedIndex ? "text-[hsl(var(--text-inverse))]" : "text-primary")} />
-                                    <span className="font-bold tracking-tight">{cmd.title}</span>
-                                    {idx === selectedIndex && (
-                                        <div className="ml-auto text-[10px] font-black uppercase tracking-widest opacity-60 animate-in slide-in-from-right-2">
-                                            Execute
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-20 flex flex-col items-center justify-center text-center opacity-30">
-                            <p className="text-sm font-black uppercase tracking-widest">No matching results</p>
-                        </div>
-                    )}
-                </div>
-
-                <div className="p-4 bg-muted/20 border-t border-border/50 flex items-center justify-between text-[10px] font-black text-muted-foreground uppercase opacity-60 tracking-tighter">
-                    <div className="flex items-center gap-6 px-4">
-                        <div className="flex items-center gap-2">
-                            <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">↑↓</div>
-                            <span>Navigate</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">↵</div>
-                            <span>Select</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">{isMac ? '⌘+1-5' : 'Ctrl+1-5'}</div>
-                            <span>Quick Nav</span>
-                        </div>
-                    </div>
-                    <div className="px-4">
-                        Mission Logic Core v1.2
-                    </div>
-                </div>
+        <Command.Dialog
+            open={open}
+            onOpenChange={onOpenChange}
+            label="Command palette"
+            className="fixed left-1/2 top-[15vh] z-layer-dialog w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-ui bg-[hsl(var(--surface-overlay))] shadow-2xl"
+            overlayClassName="fixed inset-0 z-layer-overlay bg-black/60 backdrop-blur-sm"
+        >
+            <div className="flex items-center gap-3 border-b border-ui px-4">
+                <Search className="h-4 w-4 shrink-0 text-muted-ui" aria-hidden="true" />
+                <Command.Input
+                    autoFocus
+                    placeholder="Search pages, projects, and actions…"
+                    className="h-12 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-ui focus:outline-none"
+                />
+                <kbd className="rounded-md border border-ui bg-panel-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-ui">esc</kbd>
             </div>
-        </div>
+
+            <Command.List className="max-h-[360px] overflow-y-auto custom-scrollbar p-2">
+                <Command.Empty className="py-10 text-center text-sm text-muted-ui">
+                    No results. Try a page name like “Files” or an action like “New task”.
+                </Command.Empty>
+
+                <Command.Group heading="Go to" className={groupClass}>
+                    {navItems.map((item) => (
+                        <Command.Item key={item.href} value={`go to ${item.name}`} onSelect={() => run(() => navigate(item.href))} className={itemClass}>
+                            <item.icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                            <span>{item.name}</span>
+                        </Command.Item>
+                    ))}
+                    <Command.Item value="go to Settings" onSelect={() => run(() => navigate("/settings"))} className={itemClass}>
+                        <Settings className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span>Settings</span>
+                    </Command.Item>
+                </Command.Group>
+
+                <Command.Group heading="Actions" className={groupClass}>
+                    <Command.Item
+                        value="new task create task"
+                        onSelect={() =>
+                            run(() => {
+                                const { projects: currentProjects, activeProjectId: currentActiveProjectId } = useProjectStore.getState()
+                                if (currentProjects.length > 0 && !currentActiveProjectId) setActiveProject(currentProjects[0].id)
+                                navigate("/tasks")
+                            })
+                        }
+                        className={itemClass}
+                    >
+                        <Plus className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span>New task</span>
+                    </Command.Item>
+                    <Command.Item
+                        value="new project create project"
+                        onSelect={() => run(() => window.dispatchEvent(new Event("open-project-dialog")))}
+                        className={itemClass}
+                    >
+                        <FolderKanban className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span>New project</span>
+                    </Command.Item>
+                    <Command.Item
+                        value="toggle theme light dark appearance"
+                        onSelect={() => run(() => { void toggleTheme() })}
+                        className={itemClass}
+                    >
+                        {theme === "dark"
+                            ? <Sun className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                            : <Moon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
+                        <span>Switch to {theme === "dark" ? "light" : "dark"} theme</span>
+                    </Command.Item>
+                    {projects.length === 0 ? (
+                        <Command.Item
+                            value="load demo project"
+                            onSelect={() => run(() => { void seedDemoProject() })}
+                            className={itemClass}
+                        >
+                            <ClipboardCheck className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                            <span>Load demo project</span>
+                        </Command.Item>
+                    ) : null}
+                </Command.Group>
+
+                {projects.length > 1 ? (
+                    <Command.Group heading="Switch project" className={groupClass}>
+                        {projects.map((project) => (
+                            <Command.Item
+                                key={project.id}
+                                value={`switch project ${project.name}`}
+                                onSelect={() => run(() => setActiveProject(project.id))}
+                                className={itemClass}
+                            >
+                                <span className={`h-4 w-1.5 shrink-0 rounded-full ${project.color}`} aria-hidden="true" />
+                                <span className="truncate">{project.name}</span>
+                                {project.id === activeProjectId ? <span className="ml-auto text-[11px] text-muted-ui">Active</span> : null}
+                            </Command.Item>
+                        ))}
+                    </Command.Group>
+                ) : null}
+
+                {activeProject && activeProject.environments.length > 1 ? (
+                    <Command.Group heading="Switch environment" className={groupClass}>
+                        {activeProject.environments.map((environment) => (
+                            <Command.Item
+                                key={environment.id}
+                                value={`switch environment ${environment.name}`}
+                                onSelect={() => run(() => { if (activeProjectId) void setEnvironmentDefault(activeProjectId, environment.id) })}
+                                className={itemClass}
+                            >
+                                <Globe className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                                <span className="truncate">{environment.name}</span>
+                                {environment.isDefault ? <span className="ml-auto text-[11px] text-muted-ui">Active</span> : null}
+                            </Command.Item>
+                        ))}
+                    </Command.Group>
+                ) : null}
+
+                {activeProject && activeProject.testPlans.length > 0 ? (
+                    <Command.Group heading="Test plans" className={groupClass}>
+                        {activeProject.testPlans.slice(0, 5).map((plan) => (
+                            <Command.Item
+                                key={plan.id}
+                                value={`test plan ${plan.name}`}
+                                onSelect={() => run(() => navigate("/tests"))}
+                                className={itemClass}
+                            >
+                                <FlaskConical className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                                <span className="truncate">{plan.name}</span>
+                            </Command.Item>
+                        ))}
+                    </Command.Group>
+                ) : null}
+            </Command.List>
+
+            <div className="flex items-center gap-4 border-t border-ui bg-panel-muted/60 px-4 py-2 text-xs text-muted-ui">
+                <span><kbd className="rounded border border-ui bg-panel px-1">↑↓</kbd> navigate</span>
+                <span><kbd className="rounded border border-ui bg-panel px-1">↵</kbd> select</span>
+                <span className="ml-auto"><kbd className="rounded border border-ui bg-panel px-1">{isMac ? "⌘" : "Ctrl"}+1–5</kbd> quick nav</span>
+            </div>
+        </Command.Dialog>
     )
 }

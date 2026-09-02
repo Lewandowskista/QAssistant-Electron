@@ -17,7 +17,7 @@ function toneClasses(tone: BadgeTone) {
 
 export function TaskStateBadge({ label, tone }: { label: string; tone: BadgeTone }) {
     return (
-        <StatusBadge tone={toneClasses(tone) as any} className={cn("px-2 py-1 text-[9px] tracking-[0.12em]")}>
+        <StatusBadge tone={toneClasses(tone) as any} className={cn("px-2 py-1 text-[11px] tracking-[0.12em]")}>
             {label}
         </StatusBadge>
     )

@@ -36,7 +36,7 @@ export function EvalResults({ run }: EvalResultsProps) {
                     <span className="text-3xl font-black" style={{ color: getScoreColor(run.aggregateScore) }}>
                         {run.aggregateScore}
                     </span>
-                    <span className="text-[9px] font-bold text-muted-ui uppercase tracking-wider mt-0.5">
+                    <span className="text-[11px] font-bold text-muted-ui uppercase tracking-wider mt-0.5">
                         /100
                     </span>
                 </div>
@@ -45,18 +45,18 @@ export function EvalResults({ run }: EvalResultsProps) {
                         <span className={cn("text-xs font-bold px-2.5 py-1 rounded-full", getScoreBg(run.aggregateScore))}>
                             {getScoreLabel(run.aggregateScore)}
                         </span>
-                        <span className="text-[10px] text-muted-ui">
+                        <span className="text-[11px] text-muted-ui">
                             {run.completedPairs} of {run.totalPairs} pairs evaluated
                         </span>
                         {failedCount > 0 && (
-                            <span className="text-[10px] font-medium text-red-400 flex items-center gap-1">
+                            <span className="text-[11px] font-medium text-state-danger flex items-center gap-1">
                                 <AlertCircle className="w-3 h-3" />
                                 {failedCount} failed
                             </span>
                         )}
                     </div>
                     <p className="text-sm font-semibold text-foreground">{run.name}</p>
-                    <p className="text-[10px] text-muted-ui mt-0.5">
+                    <p className="text-[11px] text-muted-ui mt-0.5">
                         Completed {new Date(run.completedAt ?? run.startedAt).toLocaleString()}
                     </p>
                 </div>
@@ -73,29 +73,29 @@ export function EvalResults({ run }: EvalResultsProps) {
             {/* Radar chart */}
             {run.aggregateDimensions.length > 0 && (
                 <div className="bg-panel border border-ui rounded-2xl p-5">
-                    <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest mb-3">Score Overview</p>
+                    <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-3">Score Overview</p>
                     <DimensionRadarChart dimensionScores={run.aggregateDimensions} />
                 </div>
             )}
 
             {/* Per-pair results */}
             <div>
-                <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest mb-3">
+                <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-3">
                     Individual Results ({run.qaPairResults.length})
                 </p>
                 <div className="space-y-2">
                     {run.qaPairResults.map((result, idx) =>
                         result.status === 'failed' ? (
-                            <div key={result.id} className="bg-panel border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
-                                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                            <div key={result.id} className="bg-panel border border-state-danger-border rounded-xl p-4 flex items-start gap-3">
+                                <AlertCircle className="w-4 h-4 text-state-danger mt-0.5 shrink-0" />
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-xs font-bold text-red-400">Evaluation Failed</span>
-                                        <span className="text-[10px] text-muted-ui">Pair {idx + 1}</span>
+                                        <span className="text-xs font-bold text-state-danger">Evaluation Failed</span>
+                                        <span className="text-[11px] text-muted-ui">Pair {idx + 1}</span>
                                     </div>
                                     <p className="text-xs text-muted-ui truncate">{result.question}</p>
                                     {result.error && (
-                                        <p className="text-[11px] text-red-400/70 mt-1 font-mono">{result.error}</p>
+                                        <p className="text-[11px] text-state-danger/70 mt-1 font-mono">{result.error}</p>
                                     )}
                                 </div>
                             </div>

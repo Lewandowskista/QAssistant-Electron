@@ -14,14 +14,14 @@ function PrDescription({ body }: { body: string }) {
 
     return (
         <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Description</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Description</p>
             <p className="text-[11px] text-soft whitespace-pre-wrap leading-relaxed break-words">
                 {isLong && !expanded ? body.slice(0, DESCRIPTION_TRUNCATE_LENGTH) + '…' : body}
             </p>
             {isLong && (
                 <button
                     onClick={() => setExpanded(prev => !prev)}
-                    className="mt-1.5 text-[10px] font-semibold text-brand hover:text-[#C4B5FD] transition-colors"
+                    className="mt-1.5 text-[11px] font-semibold text-brand hover:text-qa-accent transition-colors"
                 >
                     {expanded ? 'Show less' : 'Show more'}
                 </button>
@@ -85,9 +85,9 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
     }, [owner, repo, prNumber])
 
     return (
-        <div className="w-[380px] shrink-0 border-l border-ui flex flex-col bg-[#0D0D11] overflow-hidden">
+        <div className="w-[380px] shrink-0 border-l border-ui flex flex-col bg-app overflow-hidden">
             {/* Panel header */}
-            <div className="shrink-0 border-b border-ui px-4 py-3 flex items-center gap-2 bg-[#13131A]/60">
+            <div className="shrink-0 border-b border-ui px-4 py-3 flex items-center gap-2 bg-surface/60">
                 <span className="text-xs font-bold text-soft shrink-0">#{prNumber}</span>
                 <span className="text-xs font-semibold text-foreground flex-1 truncate">{prTitle}</span>
                 <button
@@ -121,7 +121,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                             <span>→</span>
                             <code className="font-mono truncate">{detail.baseBranch}</code>
                             {detail.draft && (
-                                <span className="px-1.5 py-0.5 rounded bg-elevated text-[9px] font-bold uppercase text-muted-ui shrink-0">Draft</span>
+                                <span className="px-1.5 py-0.5 rounded bg-elevated text-[11px] font-bold uppercase text-muted-ui shrink-0">Draft</span>
                             )}
                         </div>
 
@@ -137,7 +137,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
 
                         {/* CI status */}
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">CI</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">CI</span>
                             <CheckStatusIcon status={checkStatus ?? detail.checkStatus} />
                             <span className="text-[11px] text-soft capitalize">
                                 {checkStatus ?? detail.checkStatus ?? 'No checks'}
@@ -146,7 +146,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
 
                         {activeProject && (
                             <div className="rounded-lg border border-ui bg-panel p-3 space-y-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Link to Handoff</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Link to Handoff</p>
                                 <select value={selectedHandoffId} onChange={(event) => setSelectedHandoffId(event.target.value)} className="w-full h-9 rounded-md bg-app border border-ui px-2 text-xs text-foreground">
                                     <option value="">Select handoff…</option>
                                     {(activeProject.handoffPackets || []).map((handoff) => {
@@ -157,7 +157,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                                 <div className="flex gap-2">
                                     <Button
                                         size="sm"
-                                        className="flex-1 bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]"
+                                        className="flex-1 bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]"
                                         disabled={!selectedHandoffId}
                                         onClick={async () => {
                                             const handoff = (activeProject.handoffPackets || []).find((item) => item.id === selectedHandoffId)
@@ -175,7 +175,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        className="border-[#10B981]/20 text-[#10B981]"
+                                        className="border-state-success-border text-state-success"
                                         disabled={!selectedHandoffId || ((checkStatus ?? detail.checkStatus) !== 'success' && detail.state !== 'closed')}
                                         onClick={async () => {
                                             const handoff = (activeProject.handoffPackets || []).find((item) => item.id === selectedHandoffId)
@@ -198,14 +198,14 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                                         .filter((handoff) => handoff.linkedPrs.some((pr) => pr.prNumber === prNumber && pr.repoFullName === `${owner}/${repo}`))
                                         .map((handoff) => {
                                             const task = activeProject.tasks.find((item) => item.id === handoff.taskId)
-                                            return <span key={handoff.id} className="px-2 py-1 rounded-md bg-app border border-ui text-[10px] text-[#38BDF8]">{task?.title || handoff.summary}</span>
+                                            return <span key={handoff.id} className="px-2 py-1 rounded-md bg-app border border-ui text-[11px] text-state-info">{task?.title || handoff.summary}</span>
                                         })}
                                 </div>
                             </div>
                         )}
                         {!activeProject && (
                             <div className="rounded-lg border border-ui bg-panel p-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-1.5">Link to Handoff</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-1.5">Link to Handoff</p>
                                 <p className="text-[11px] text-soft">
                                     Select a project from the sidebar to link this PR to a handoff.
                                 </p>
@@ -215,8 +215,8 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                         {/* Diff stats */}
                         {(detail.additions > 0 || detail.deletions > 0) && (
                             <div className="flex items-center gap-3 text-[11px] font-mono p-2.5 rounded bg-panel border border-ui">
-                                <span className="text-emerald-400">+{detail.additions}</span>
-                                <span className="text-red-400">−{detail.deletions}</span>
+                                <span className="text-state-success">+{detail.additions}</span>
+                                <span className="text-state-danger">−{detail.deletions}</span>
                                 <span className="text-muted-ui">{detail.changedFiles} file{detail.changedFiles !== 1 ? 's' : ''}</span>
                             </div>
                         )}
@@ -224,7 +224,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                         {/* Reviewers */}
                         {reviews.length > 0 && (
                             <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Reviewers</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Reviewers</p>
                                 <div className="space-y-1.5">
                                     {Object.values(
                                         reviews.reduce((acc: Record<string, GitHubReview>, r) => {
@@ -235,10 +235,10 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                                         <div key={r.user} className="flex items-center gap-2">
                                             <img src={r.userAvatar} className="w-5 h-5 rounded-full shrink-0" alt={r.user} />
                                             <span className="text-[11px] text-foreground flex-1 truncate">{r.user}</span>
-                                            <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0",
-                                                r.state === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                r.state === 'CHANGES_REQUESTED' ? 'bg-red-500/20 text-red-400' :
-                                                r.state === 'COMMENTED' ? 'bg-[#A78BFA]/20 text-brand' :
+                                            <span className={cn("text-[11px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0",
+                                                r.state === 'APPROVED' ? 'bg-state-success/20 text-state-success' :
+                                                r.state === 'CHANGES_REQUESTED' ? 'bg-state-danger/20 text-state-danger' :
+                                                r.state === 'COMMENTED' ? 'bg-qa-accent/20 text-brand' :
                                                 'bg-elevated text-muted-ui'
                                             )}>
                                                 {r.state === 'CHANGES_REQUESTED' ? 'Changes' : r.state.charAt(0) + r.state.slice(1).toLowerCase()}
@@ -252,10 +252,10 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                         {/* Requested reviewers (not yet reviewed) */}
                         {detail.requestedReviewers.length > 0 && (
                             <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Awaiting review from</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Awaiting review from</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {detail.requestedReviewers.map(reviewer => (
-                                        <span key={reviewer} className="px-2 py-0.5 rounded-full bg-elevated text-[10px] text-soft">
+                                        <span key={reviewer} className="px-2 py-0.5 rounded-full bg-elevated text-[11px] text-soft">
                                             {reviewer}
                                         </span>
                                     ))}
@@ -270,7 +270,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
 
                         {/* Comments */}
                         <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">
                                 Comments {comments.length > 0 && `(${comments.length})`}
                             </p>
                             {loadingComments ? (
@@ -287,7 +287,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                                             <div className="flex items-center gap-2 mb-1.5">
                                                 <img src={comment.userAvatar} className="w-4 h-4 rounded-full" alt={comment.user} />
                                                 <span className="text-[11px] font-semibold text-foreground">{comment.user}</span>
-                                                <span className="text-[10px] text-muted-ui">{formatTimeAgo(comment.createdAt)}</span>
+                                                <span className="text-[11px] text-muted-ui">{formatTimeAgo(comment.createdAt)}</span>
                                             </div>
                                             <p className="text-[11px] text-soft whitespace-pre-wrap break-words leading-relaxed">
                                                 {comment.body.length > 500 ? comment.body.slice(0, 500) + '…' : comment.body}

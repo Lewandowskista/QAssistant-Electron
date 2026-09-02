@@ -4,8 +4,13 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * StatusBadge: the state pill — reserved for lifecycle/severity states
+ * (success/warning/danger/info/accent). For generic labels or counts use
+ * ui/badge's <Badge> instead.
+ */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]",
+  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]",
   {
     variants: {
       tone: {

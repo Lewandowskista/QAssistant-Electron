@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { cn, formatTimeAgo, formatDuration } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FullBleedHeader } from '@/components/ui/workspace'
 import { RepoSelector } from '@/components/github/RepoSelector'
 import { statusBadge, deployStatusColor } from '@/components/github/StatusBadges'
@@ -175,7 +176,7 @@ function DeploymentsContent() {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
                         </span>
-                        <span className="text-[10px] text-amber-400 font-semibold">Live</span>
+                        <span className="text-[11px] text-state-warning font-semibold">Live</span>
                     </div>
                 ) : null}
                 actions={
@@ -208,14 +209,14 @@ function DeploymentsContent() {
                             <RefreshCw className={cn("h-3.5 w-3.5", loadingData && "animate-spin")} aria-hidden="true" />
                         </Button>
                         {lastUpdated && (
-                            <span className="text-[10px] text-muted-ui">{formatTimeAgo(lastUpdated.toISOString())}</span>
+                            <span className="text-[11px] text-muted-ui">{formatTimeAgo(lastUpdated.toISOString())}</span>
                         )}
                     </>
                 }
             />
 
             {/* Tabs */}
-            <div className="shrink-0 border-b border-ui bg-[#13131A]/40 px-5 flex items-center gap-1">
+            <div className="shrink-0 border-b border-ui bg-surface/40 px-5 flex items-center gap-1">
                 {([['workflows', 'Workflow Runs', Play], ['deployments', 'Environments', Rocket]] as const).map(([id, label, Icon]) => (
                     <button
                         key={id}
@@ -223,14 +224,14 @@ function DeploymentsContent() {
                         className={cn(
                             "flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors",
                             activeTab === id
-                                ? "border-[#A78BFA] text-brand"
+                                ? "border-qa-accent text-brand"
                                 : "border-transparent text-muted-ui hover:text-foreground"
                         )}
                     >
                         <Icon className="h-3.5 w-3.5" />
                         {label}
                         {id === 'workflows' && workflows.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-elevated text-[10px] font-bold">{workflows.length}</span>
+                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-elevated text-[11px] font-bold">{workflows.length}</span>
                         )}
                     </button>
                 ))}
@@ -239,7 +240,7 @@ function DeploymentsContent() {
             {/* Content */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {(error || repoError) && (
-                    <div className="m-4 p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300">{error || repoError}</div>
+                    <div className="m-4 p-3 rounded-lg bg-state-danger-soft border border-state-danger-border text-xs text-state-danger">{error || repoError}</div>
                 )}
 
                 {loadingData && (
@@ -258,7 +259,7 @@ function DeploymentsContent() {
                                 placeholder="Filter by name or branch…"
                                 value={workflowFilter}
                                 onChange={e => setWorkflowFilter(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground placeholder-[#6B7280] focus:outline-none focus:border-[#A78BFA]/60 transition-colors"
+                                className="w-full pl-9 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground placeholder-text-muted focus:outline-none focus:border-qa-accent/60 transition-colors"
                             />
                         </div>
 
@@ -278,8 +279,8 @@ function DeploymentsContent() {
                                     className={cn(
                                         "rounded-lg border transition-colors",
                                         isActive
-                                            ? "bg-panel border-amber-900/40"
-                                            : "bg-panel border-ui hover:border-[#3D3D5F]"
+                                            ? "bg-panel border-state-warning-border"
+                                            : "bg-panel border-ui hover:border-ui-strong"
                                     )}
                                 >
                                     {/* Run row */}
@@ -290,7 +291,7 @@ function DeploymentsContent() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-semibold text-foreground truncate">{run.name}</span>
-                                                <span className={cn("shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase", badge.bg, badge.color)}>
+                                                <span className={cn("shrink-0 px-1.5 py-0.5 rounded text-[11px] font-bold uppercase", badge.bg, badge.color)}>
                                                     {badge.label}
                                                 </span>
                                             </div>
@@ -314,11 +315,11 @@ function DeploymentsContent() {
                                                     variant="ghost" size="sm"
                                                     onClick={() => handleRerun(run.id)}
                                                     disabled={rerunningId === run.id}
-                                                    className="h-7 px-2 text-[10px] text-muted-ui hover:text-brand"
+                                                    className="h-7 px-2 text-[11px] text-muted-ui hover:text-brand"
                                                     title="Re-run failed jobs"
                                                 >
                                                     <RotateCcw className={cn("h-3 w-3 mr-1", rerunningId === run.id && "animate-spin")} />
-                                                    <span className="text-[10px]">Re-run</span>
+                                                    <span className="text-[11px]">Re-run</span>
                                                 </Button>
                                             )}
                                             <button
@@ -356,11 +357,11 @@ function DeploymentsContent() {
                                                         <div key={job.id}>
                                                             <div className="flex items-center gap-2 py-1">
                                                                 {job.conclusion === 'success'
-                                                                    ? <Check className="h-3 w-3 text-emerald-400 shrink-0" />
+                                                                    ? <Check className="h-3 w-3 text-state-success shrink-0" />
                                                                     : job.conclusion === 'failure'
-                                                                    ? <X className="h-3 w-3 text-red-400 shrink-0" />
+                                                                    ? <X className="h-3 w-3 text-state-danger shrink-0" />
                                                                     : job.status === 'in_progress'
-                                                                    ? <Loader2 className="h-3 w-3 text-amber-400 animate-spin shrink-0" />
+                                                                    ? <Loader2 className="h-3 w-3 text-state-warning animate-spin shrink-0" />
                                                                     : <CircleDot className="h-3 w-3 text-muted-ui shrink-0" />
                                                                 }
                                                                 <span className="text-[11px] text-foreground font-semibold">{job.name}</span>
@@ -370,16 +371,16 @@ function DeploymentsContent() {
                                                                     {job.steps.map((step, si) => (
                                                                         <div key={si} className="flex items-center gap-1.5">
                                                                             {step.conclusion === 'success'
-                                                                                ? <Check className="h-2.5 w-2.5 text-emerald-400 shrink-0" />
+                                                                                ? <Check className="h-2.5 w-2.5 text-state-success shrink-0" />
                                                                                 : step.conclusion === 'failure'
-                                                                                ? <X className="h-2.5 w-2.5 text-red-400 shrink-0" />
+                                                                                ? <X className="h-2.5 w-2.5 text-state-danger shrink-0" />
                                                                                 : step.conclusion === 'skipped'
                                                                                 ? <CircleDot className="h-2.5 w-2.5 text-muted-ui shrink-0" />
                                                                                 : step.status === 'in_progress'
-                                                                                ? <Loader2 className="h-2.5 w-2.5 text-amber-400 animate-spin shrink-0" />
+                                                                                ? <Loader2 className="h-2.5 w-2.5 text-state-warning animate-spin shrink-0" />
                                                                                 : <CircleDot className="h-2.5 w-2.5 text-muted-ui opacity-40 shrink-0" />
                                                                             }
-                                                                            <span className="text-[10px] text-soft">{step.name}</span>
+                                                                            <span className="text-[11px] text-soft">{step.name}</span>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -405,11 +406,11 @@ function DeploymentsContent() {
                                 {/* Environment header */}
                                 <div className="flex items-center gap-2 mb-2">
                                     <Rocket className="h-3 w-3 text-brand" />
-                                    <h3 className="text-[10px] font-bold uppercase tracking-wider text-soft">{env}</h3>
-                                    <span className="text-[10px] text-muted-ui bg-elevated px-1.5 py-0.5 rounded-full">{envDeps.length}</span>
+                                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-soft">{env}</h3>
+                                    <span className="text-[11px] text-muted-ui bg-elevated px-1.5 py-0.5 rounded-full">{envDeps.length}</span>
                                     {/* Latest status indicator */}
                                     {envDeps[0]?.latestStatus && (
-                                        <span className={cn("ml-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded", deployStatusColor(envDeps[0].latestStatus.state))}>
+                                        <span className={cn("ml-1 text-[11px] font-bold uppercase px-1.5 py-0.5 rounded", deployStatusColor(envDeps[0].latestStatus.state))}>
                                             {envDeps[0].latestStatus.state}
                                         </span>
                                     )}
@@ -418,7 +419,7 @@ function DeploymentsContent() {
                                     {envDeps.map(dep => (
                                         <div
                                             key={dep.id}
-                                            className="flex items-center gap-3 p-3 rounded-lg bg-panel border border-ui hover:border-[#3D3D5F] transition-colors group"
+                                            className="flex items-center gap-3 p-3 rounded-lg bg-panel border border-ui hover:border-ui-strong transition-colors group"
                                         >
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 text-[11px] text-muted-ui">
@@ -458,20 +459,20 @@ function DeploymentsContent() {
             </div>
 
             {/* Workflow Dispatch Dialog */}
-            {showDispatch && (
-                <>
-                    <div className="fixed inset-0 z-layer-dialog bg-black/60" onClick={() => setShowDispatch(false)} />
-                    <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-layer-dialog w-80 bg-panel-muted border border-ui rounded-xl shadow-2xl p-5">
-                        <h2 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
-                            <Play className="h-4 w-4 text-brand" /> Run Workflow
-                        </h2>
+            <Dialog open={showDispatch} onOpenChange={(next) => { if (!next) setShowDispatch(false) }}>
+                <DialogContent className="w-80 bg-panel-muted border border-ui p-5">
+                    <DialogHeader>
+                        <DialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                            <Play className="h-4 w-4 text-brand" /> Run workflow
+                        </DialogTitle>
+                    </DialogHeader>
                         <div className="space-y-3">
                             <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-1 block">Workflow</label>
+                                <label className="app-field-label">Workflow</label>
                                 <select
                                     value={dispatchWorkflowId ?? ''}
                                     onChange={e => setDispatchWorkflowId(Number(e.target.value))}
-                                    className="w-full px-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground focus:outline-none focus:border-[#A78BFA]/60"
+                                    className="w-full px-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground focus:outline-none focus:border-qa-accent/60"
                                 >
                                     {availableWorkflows.length === 0 && <option value="">Loading…</option>}
                                     {availableWorkflows.map(wf => (
@@ -480,7 +481,7 @@ function DeploymentsContent() {
                                 </select>
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-1 block">Branch / Tag</label>
+                                <label className="app-field-label">Branch / tag</label>
                                 <div className="relative">
                                     <GitBranch className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
                                     <input
@@ -488,7 +489,7 @@ function DeploymentsContent() {
                                         value={dispatchRef}
                                         onChange={e => setDispatchRef(e.target.value)}
                                         placeholder="main"
-                                        className="w-full pl-8 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground font-mono focus:outline-none focus:border-[#A78BFA]/60"
+                                        className="w-full pl-8 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground font-mono focus:outline-none focus:border-qa-accent/60"
                                     />
                                 </div>
                             </div>
@@ -503,15 +504,14 @@ function DeploymentsContent() {
                             <button
                                 onClick={handleDispatch}
                                 disabled={dispatching || !dispatchWorkflowId || !dispatchRef}
-                                className="flex-1 px-3 py-2 rounded-md bg-primary text-white text-xs font-semibold hover:bg-[#9B7CF4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+                                className="flex-1 px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-qa-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
                             >
                                 {dispatching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                                 Run
                             </button>
                         </div>
-                    </div>
-                </>
-            )}
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

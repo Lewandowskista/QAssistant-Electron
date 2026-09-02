@@ -13,7 +13,7 @@ interface RunComparisonViewProps {
 function DeltaBadge({ delta }: { delta: number }) {
     if (Math.abs(delta) < 1) {
         return (
-            <span className="flex items-center gap-0.5 text-[10px] font-bold text-muted-ui">
+            <span className="flex items-center gap-0.5 text-[11px] font-bold text-muted-ui">
                 <Minus className="h-3 w-3" /> 0
             </span>
         )
@@ -21,8 +21,8 @@ function DeltaBadge({ delta }: { delta: number }) {
     const positive = delta > 0
     return (
         <span className={cn(
-            "flex items-center gap-0.5 text-[10px] font-bold",
-            positive ? "text-emerald-400" : "text-red-400"
+            "flex items-center gap-0.5 text-[11px] font-bold",
+            positive ? "text-state-success" : "text-state-danger"
         )}>
             {positive
                 ? <TrendingUp className="h-3 w-3" />
@@ -70,7 +70,7 @@ export function RunComparisonView({ baseRun, compareRun, onClose }: RunCompariso
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">Run Comparison</p>
+                <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">Run Comparison</p>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-ui" onClick={onClose}>
                     <X className="h-4 w-4" />
                 </Button>
@@ -83,9 +83,9 @@ export function RunComparisonView({ baseRun, compareRun, onClose }: RunCompariso
                     { label: 'Compare', run: compareRun }
                 ].map(({ label, run }) => (
                     <div key={run.id} className="bg-panel border border-ui rounded-xl p-4">
-                        <p className="text-[9px] font-bold text-muted-ui uppercase tracking-widest mb-1">{label}</p>
+                        <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-1">{label}</p>
                         <p className="text-xs font-semibold text-foreground truncate">{run.name}</p>
-                        <p className="text-[10px] text-muted-ui mt-0.5">
+                        <p className="text-[11px] text-muted-ui mt-0.5">
                             {new Date(run.startedAt).toLocaleString()}
                         </p>
                         <div className="mt-2">
@@ -95,7 +95,7 @@ export function RunComparisonView({ baseRun, compareRun, onClose }: RunCompariso
                             >
                                 {run.aggregateScore}
                             </span>
-                            <span className="text-[10px] text-muted-ui ml-1">/100 · {getScoreLabel(run.aggregateScore)}</span>
+                            <span className="text-[11px] text-muted-ui ml-1">/100 · {getScoreLabel(run.aggregateScore)}</span>
                         </div>
                     </div>
                 ))}
@@ -107,13 +107,13 @@ export function RunComparisonView({ baseRun, compareRun, onClose }: RunCompariso
                 Math.abs(overallDelta) < 1
                     ? "bg-panel border-ui"
                     : overallDelta > 0
-                        ? "bg-emerald-500/5 border-emerald-500/20"
-                        : "bg-red-500/5 border-red-500/20"
+                        ? "bg-state-success-soft border-state-success-border"
+                        : "bg-state-danger-soft border-state-danger-border"
             )}>
                 <div className="flex-1">
-                    <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest mb-1">Overall Change</p>
+                    <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-1">Overall Change</p>
                     <div className="flex items-center gap-2">
-                        <span className="text-3xl font-black" style={{ color: overallDelta >= 0 ? '#10B981' : '#EF4444' }}>
+                        <span className="text-3xl font-black" style={{ color: overallDelta >= 0 ? 'hsl(var(--state-success))' : 'hsl(var(--state-danger))' }}>
                             {overallDelta > 0 ? '+' : ''}{overallDelta}
                         </span>
                         <span className="text-xs text-muted-ui">points</span>
@@ -121,21 +121,21 @@ export function RunComparisonView({ baseRun, compareRun, onClose }: RunCompariso
                 </div>
                 <div className="text-right">
                     <ScoreCell score={baseRun.aggregateScore} />
-                    <span className="text-[10px] text-muted-ui mx-1">→</span>
+                    <span className="text-[11px] text-muted-ui mx-1">→</span>
                     <ScoreCell score={compareRun.aggregateScore} />
                 </div>
             </div>
 
             {/* Dimension breakdown */}
             <div className="bg-panel border border-ui rounded-xl overflow-hidden">
-                <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest px-4 pt-4 pb-2">Dimension Breakdown</p>
+                <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest px-4 pt-4 pb-2">Dimension Breakdown</p>
                 <table className="w-full text-xs">
                     <thead>
                         <tr className="border-b border-ui">
-                            <th className="text-left px-4 py-2 text-[9px] font-bold text-muted-ui uppercase tracking-widest">Dimension</th>
-                            <th className="text-center px-3 py-2 text-[9px] font-bold text-muted-ui uppercase tracking-widest">Base</th>
-                            <th className="text-center px-3 py-2 text-[9px] font-bold text-muted-ui uppercase tracking-widest">Compare</th>
-                            <th className="text-center px-3 py-2 text-[9px] font-bold text-muted-ui uppercase tracking-widest">Δ</th>
+                            <th className="text-left px-4 py-2 text-[11px] font-bold text-muted-ui uppercase tracking-widest">Dimension</th>
+                            <th className="text-center px-3 py-2 text-[11px] font-bold text-muted-ui uppercase tracking-widest">Base</th>
+                            <th className="text-center px-3 py-2 text-[11px] font-bold text-muted-ui uppercase tracking-widest">Compare</th>
+                            <th className="text-center px-3 py-2 text-[11px] font-bold text-muted-ui uppercase tracking-widest">Δ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -158,7 +158,7 @@ export function RunComparisonView({ baseRun, compareRun, onClose }: RunCompariso
             {/* Per-pair regressions & improvements */}
             {pairDeltas.length > 0 && (
                 <div>
-                    <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest mb-3">
+                    <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-3">
                         Per-Pair Changes ({pairDeltas.length} matched)
                     </p>
                     <div className="space-y-1.5">
@@ -168,7 +168,7 @@ export function RunComparisonView({ baseRun, compareRun, onClose }: RunCompariso
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs text-foreground truncate">{p.question}</p>
                                 </div>
-                                <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-muted-ui">
+                                <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-muted-ui">
                                     <ScoreCell score={p.baseScore} />
                                     <span>→</span>
                                     <ScoreCell score={p.compareScore} />

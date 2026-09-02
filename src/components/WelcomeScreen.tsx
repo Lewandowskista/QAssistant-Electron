@@ -10,8 +10,8 @@ const features = [
         icon: Handshake,
         title: "QA ↔ Dev Handoff Workflow",
         description: "Structured bug handoffs with typed templates, acknowledgement tracking, and a full evidence trail — so nothing falls through the cracks.",
-        color: "text-violet-400",
-        bg: "bg-violet-400/10 border-violet-400/20",
+        color: "text-qa-accent",
+        bg: "bg-qa-accent/10 border-qa-accent/20",
     },
     {
         icon: Sparkles,
@@ -24,15 +24,15 @@ const features = [
         icon: GitPullRequest,
         title: "Coverage & Traceability",
         description: "See exactly which tasks have test coverage and which don't. The coverage matrix links tasks → test cases → executions → handoffs end to end.",
-        color: "text-emerald-400",
-        bg: "bg-emerald-400/10 border-emerald-400/20",
+        color: "text-state-success",
+        bg: "bg-state-success-soft border-state-success-border",
     },
     {
         icon: ShieldCheck,
         title: "Release Quality Gates",
         description: "Configurable GO / NO-GO gates evaluate pass rate, critical bugs, and coverage before each deployment — right from the dashboard.",
-        color: "text-amber-400",
-        bg: "bg-amber-400/10 border-amber-400/20",
+        color: "text-state-warning",
+        bg: "bg-state-warning-soft border-state-warning-border",
     },
 ]
 

@@ -27,29 +27,29 @@ export function getScoreColor(score: number): string {
 }
 
 export function getScoreBg(score: number): string {
-    if (score >= 90) return 'bg-emerald-500/10 text-emerald-400'
-    if (score >= 70) return 'bg-blue-500/10 text-blue-400'
-    if (score >= 50) return 'bg-amber-500/10 text-amber-400'
-    return 'bg-red-500/10 text-red-400'
+    if (score >= 90) return 'bg-state-success-soft text-state-success'
+    if (score >= 70) return 'bg-state-info-soft text-state-info'
+    if (score >= 50) return 'bg-state-warning-soft text-state-warning'
+    return 'bg-state-danger-soft text-state-danger'
 }
 
 export function getVerdictColor(verdict: string): string {
     switch (verdict) {
-        case 'supported': return 'text-emerald-400'
-        case 'contradicted': return 'text-red-400'
-        case 'partially_supported': return 'text-amber-400'
-        case 'unverifiable': return 'text-slate-400'
-        default: return 'text-slate-400'
+        case 'supported': return 'text-state-success'
+        case 'contradicted': return 'text-state-danger'
+        case 'partially_supported': return 'text-state-warning'
+        case 'unverifiable': return 'text-muted-ui'
+        default: return 'text-muted-ui'
     }
 }
 
 export function getVerdictBg(verdict: string): string {
     switch (verdict) {
-        case 'supported': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-        case 'contradicted': return 'bg-red-500/10 text-red-400 border-red-500/20'
-        case 'partially_supported': return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-        case 'unverifiable': return 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-        default: return 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+        case 'supported': return 'bg-state-success-soft text-state-success border-state-success-border'
+        case 'contradicted': return 'bg-state-danger-soft text-state-danger border-state-danger-border'
+        case 'partially_supported': return 'bg-state-warning-soft text-state-warning border-state-warning-border'
+        case 'unverifiable': return 'bg-surface-elevated/60 text-muted-ui border-line/50'
+        default: return 'bg-surface-elevated/60 text-muted-ui border-line/50'
     }
 }
 

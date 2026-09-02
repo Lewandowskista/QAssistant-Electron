@@ -126,7 +126,7 @@ export function TaskFilterBar({
                     <SlidersHorizontal className="h-3.5 w-3.5" />
                     More
                     {activeFilterCount > 0 && (
-                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary">
+                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold leading-none text-primary">
                             {activeFilterCount}
                         </span>
                     )}
@@ -321,7 +321,7 @@ export function TaskFilterBar({
                         type="button"
                         variant={filters.onlyActive ? "default" : "outline"}
                         onClick={() => setFilters((current) => ({ ...current, onlyActive: !current.onlyActive }))}
-                        className={filters.onlyActive ? "h-9 bg-slate-800 text-sky-300" : "h-9 border-ui bg-background text-foreground"}
+                        className={filters.onlyActive ? "h-9 bg-elevated text-state-info" : "h-9 border-ui bg-background text-foreground"}
                     >
                         Only Active
                     </Button>
@@ -339,14 +339,14 @@ export function TaskFilterBar({
                                     <button
                                         type="button"
                                         onClick={() => onApplyPreset?.(preset.name)}
-                                        className="text-[11px] font-medium text-foreground hover:text-white"
+                                        className="text-[11px] font-medium text-foreground hover:text-foreground"
                                     >
                                         {preset.name}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => onDeletePreset?.(preset.name)}
-                                        className="rounded-full p-0.5 text-muted-ui hover:bg-red-500/10 hover:text-red-400"
+                                        className="rounded-full p-0.5 text-muted-ui hover:bg-state-danger-soft hover:text-state-danger"
                                     >
                                         <X className="h-2.5 w-2.5" />
                                     </button>
@@ -362,7 +362,7 @@ export function TaskFilterBar({
                                             if (event.key === "Escape") onCancelPreset?.()
                                         }}
                                         placeholder="Preset name…"
-                                        className="h-8 w-36 border-ui bg-background px-2 text-[10px]"
+                                        className="h-8 w-36 border-ui bg-background px-2 text-[11px]"
                                     />
                                     <Button type="button" size="sm" onClick={onSavePreset} className="h-8 bg-primary px-2 text-primary-foreground">
                                         Save

@@ -85,16 +85,16 @@ export default function TestRunDialog({ open, onOpenChange, activePlan, activePr
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="passed">
-                                        <span className="text-green-400 font-bold">Passed</span>
+                                        <span className="text-state-success font-bold">Passed</span>
                                     </SelectItem>
                                     <SelectItem value="failed">
-                                        <span className="text-red-400 font-bold">Failed</span>
+                                        <span className="text-state-danger font-bold">Failed</span>
                                     </SelectItem>
                                     <SelectItem value="blocked">
-                                        <span className="text-amber-400 font-bold">Blocked</span>
+                                        <span className="text-state-warning font-bold">Blocked</span>
                                     </SelectItem>
                                     <SelectItem value="skipped">
-                                        <span className="text-zinc-400 font-bold">Skipped</span>
+                                        <span className="text-muted-ui font-bold">Skipped</span>
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
@@ -132,7 +132,7 @@ export default function TestRunDialog({ open, onOpenChange, activePlan, activePr
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                     <Button
                         onClick={handleBatchRecord}
-                        className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] gap-2 font-bold"
+                        className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground gap-2 font-bold"
                         disabled={cases.length === 0}
                     >
                         <Save className="h-4 w-4" /> Save {cases.length} Executions

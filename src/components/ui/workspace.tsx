@@ -61,7 +61,13 @@ export function FullBleedHeader({
 }) {
   return (
     <header className={cn("full-bleed-header", className)}>
-      {Icon ? <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" /> : null}
+      {/* Same 32px icon chip the topbar uses, so this band's title shares a
+          left edge with the topbar's title directly above it. */}
+      {Icon ? (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-ui bg-panel-muted">
+          <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+        </div>
+      ) : null}
       <div className="flex min-w-0 items-baseline gap-2">
         <h1 className="full-bleed-header-title truncate">{title}</h1>
         {description ? <span className="full-bleed-header-eyebrow truncate">{description}</span> : null}
