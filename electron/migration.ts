@@ -8,13 +8,30 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { saveAllProjects } from './database'
+import { getDb, saveAllProjects } from './database'
 import { log } from './logger'
 
 /**
- * Runs the migration if needed.
+ * True if the SQLite database already holds at least one project.
+ *
+ * If the check itself fails we report `true` (i.e. "assume populated") so the
+ * import is skipped: leaving the legacy JSON in place is recoverable, whereas
+ * overwriting live data is not.
+ */
+function databaseHasProjects(): boolean {
+    try {
+        return getDb().prepare('SELECT 1 FROM projects LIMIT 1').get() !== undefined
+    } catch (e) {
+        log.error('[migration] Could not check for existing projects — skipping import:', e)
+        return true
+    }
+}
+
+/**
+ * Runs the migration if needed. Requires initDatabase() to have been called —
+ * the database is reached through the module-level singleton in ./database.
+ *
  * @param projectsJsonPath  Path to the old projects.json file
- * @param db                The already-initialised database instance (unused directly — saveAllProjects uses the module-level singleton)
  */
 export function migrateJsonToSqlite(projectsJsonPath: string): { migrated: boolean; count: number } {
     // Only migrate if the JSON file exists
@@ -40,6 +57,19 @@ export function migrateJsonToSqlite(projectsJsonPath: string): { migrated: boole
         // Nothing to migrate — just rename the empty file
         renameLegacy(projectsJsonPath)
         return { migrated: true, count: 0 }
+    }
+
+    // Only import into an empty database. The rename below normally makes this a
+    // one-shot operation, but a legacy file can reappear — restored from a backup,
+    // or recreated by an older build the user downgraded to and then upgraded from.
+    // saveAllProjects() upserts by id, so importing stale JSON over live data would
+    // silently overwrite newer projects. Leave the file in place instead.
+    if (databaseHasProjects()) {
+        log.warn(
+            `[migration] SQLite already contains projects — skipping import of ${path.basename(projectsJsonPath)} ` +
+            'to avoid overwriting newer data. The legacy file has been left in place.',
+        )
+        return { migrated: false, count: 0 }
     }
 
     try {
