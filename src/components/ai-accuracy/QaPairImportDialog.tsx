@@ -150,15 +150,15 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                                 <p className="text-xs font-bold text-foreground mb-1">
                                     File: <span className="text-brand">{parsedData.fileName}</span>
                                 </p>
-                                <p className="text-[10px] text-muted-ui">{parsedData.rows.length} rows detected</p>
+                                <p className="text-[11px] text-muted-ui">{parsedData.rows.length} rows detected</p>
                             </div>
                             <div className="space-y-3">
-                                <p className="text-[9px] font-bold text-muted-ui uppercase tracking-widest">Map Columns</p>
+                                <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">Map Columns</p>
                                 {QA_FIELDS.map(field => (
                                     <div key={field.id} className="flex items-center gap-3">
                                         <span className="text-xs font-semibold text-foreground w-36 shrink-0">
                                             {field.label}
-                                            {!field.required && <span className="text-[9px] text-muted-ui font-normal ml-1">(optional)</span>}
+                                            {!field.required && <span className="text-[11px] text-muted-ui font-normal ml-1">(optional)</span>}
                                         </span>
                                         <Select value={getMappedField(field.id)} onValueChange={val => setFieldMapping(field.id, val)}>
                                             <SelectTrigger className="flex-1 h-9 bg-panel-muted border-ui text-xs">
@@ -177,10 +177,10 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                             {/* Preview */}
                             {previewPairs().length > 0 && (
                                 <div>
-                                    <p className="text-[9px] font-bold text-muted-ui uppercase tracking-widest mb-2">Preview (first 5 rows)</p>
+                                    <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-2">Preview (first 5 rows)</p>
                                     <div className="space-y-2">
                                         {previewPairs().map((p, i) => (
-                                            <div key={i} className="bg-panel border border-ui rounded-lg p-2.5 text-[10px]">
+                                            <div key={i} className="bg-panel border border-ui rounded-lg p-2.5 text-[11px]">
                                                 <p className="text-soft truncate"><span className="text-muted-ui font-bold">Q:</span> {p.question || <em className="text-muted-ui">—</em>}</p>
                                                 <p className="text-soft truncate mt-0.5"><span className="text-muted-ui font-bold">A:</span> {p.agentResponse || <em className="text-muted-ui">—</em>}</p>
                                             </div>

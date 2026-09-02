@@ -4,6 +4,8 @@ import { useProjectStore, TestDataEntry, TestDataGroup } from "@/store/useProjec
 import { toast } from "sonner"
 import { DatabaseZap, Plus, Trash2, Search, TerminalSquare, Layers, ShieldCheck, Trash, Edit2, Download, Upload, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/empty-state"
+import { FullBleedHeader } from "@/components/ui/workspace"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -66,14 +68,12 @@ export default function TestDataPage() {
 
     if (!activeProject) {
         return (
-            <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center">
-                <div className="w-20 h-20 rounded-full bg-panel-muted flex items-center justify-center opacity-40">
-                    <DatabaseZap className="h-9 w-9 text-qa-text-muted" strokeWidth={1} />
-                </div>
-                <div className="opacity-60 space-y-1">
-                    <p className="text-sm font-bold text-qa-text uppercase tracking-widest">No Project Selected</p>
-                    <p className="text-xs text-qa-text-muted">Select a project to manage test data.</p>
-                </div>
+            <div className="h-full flex items-center justify-center bg-app p-6">
+                <EmptyState
+                    icon={DatabaseZap}
+                    title="No project selected"
+                    description="Select a project to manage test data."
+                />
             </div>
         )
     }
@@ -165,12 +165,17 @@ export default function TestDataPage() {
     }
 
     return (
-        <div className="h-full flex animate-in fade-in duration-500 bg-app overflow-hidden">
+        <div className="h-full flex flex-col animate-in fade-in duration-500 bg-app overflow-hidden">
+            <FullBleedHeader
+                icon={DatabaseZap}
+                title="Test Data"
+                description="Reusable test data sets"
+            />
+            <div className="flex flex-1 min-h-0 overflow-hidden">
             {/* Sidebar */}
             <aside className="w-[280px] flex-none bg-panel border-r border-qa-border flex flex-col">
-                <div className="p-4 border-b border-qa-border space-y-1">
-                    <h3 className="text-[10px] font-black text-qa-text-muted uppercase tracking-[0.2em]">{view === 'Groups' ? 'DATA GROUPS' : 'IMPEX TEMPLATES'}</h3>
-                    <p className="text-[11px] text-qa-text-muted leading-tight">Reusable test data sets</p>
+                <div className="p-4 border-b border-qa-border">
+                    <h3 className="app-section-label">{view === 'Groups' ? 'Data groups' : 'ImpEx templates'}</h3>
                 </div>
 
                 <div className="p-3">
@@ -216,15 +221,15 @@ export default function TestDataPage() {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
+                                <div className="flex items-center justify-between text-[11px] font-medium">
                                     <span className="text-qa-accent">{group.category}</span>
-                                    <span className="text-qa-text-muted">{group.entries.length} RECORDS</span>
+                                    <span className="text-qa-text-muted">{group.entries.length} records</span>
                                 </div>
                             </div>
                         ))
                     ) : (
                         [...new Set(IMPEX_TEMPLATES.map(t => t.category))].map(cat => (
-                            <div key={cat} className="p-3 rounded-xl border border-transparent hover:bg-surface-alt/50 cursor-pointer text-xs font-bold text-qa-accent uppercase tracking-widest">
+                            <div key={cat} className="p-3 rounded-xl border border-transparent hover:bg-surface-alt/50 cursor-pointer text-xs font-medium text-qa-accent">
                                 {cat}
                             </div>
                         ))
@@ -232,11 +237,11 @@ export default function TestDataPage() {
                 </div>
 
                 <div className="p-4 bg-app border-t border-qa-border space-y-2">
-                    <Button onClick={() => handleOpenGroupModal()} className={cn("w-full h-10 font-black text-xs gap-2", view === 'Groups' ? "bg-qa-accent text-primary-foreground" : "bg-qa-accent/10 text-qa-accent border border-qa-accent/20")}>
-                        <Plus className="h-4 w-4" /> NEW DATA GROUP
+                    <Button onClick={() => handleOpenGroupModal()} className={cn("w-full h-10 text-xs gap-2", view === 'Groups' ? "bg-qa-accent text-primary-foreground" : "bg-qa-accent/10 text-qa-accent border border-qa-accent/20")}>
+                        <Plus className="h-4 w-4" /> New data group
                     </Button>
-                    <Button onClick={() => setView(view === 'Groups' ? 'ImpEx' : 'Groups')} className={cn("w-full h-10 font-black text-xs gap-2", view === 'ImpEx' ? "bg-qa-accent text-primary-foreground" : "bg-selected text-qa-accent border border-qa-accent/20")}>
-                        {view === 'Groups' ? 'SAP IMPEX TEMPLATES →' : '← BACK TO DATA GROUPS'}
+                    <Button onClick={() => setView(view === 'Groups' ? 'ImpEx' : 'Groups')} className={cn("w-full h-10 text-xs gap-2", view === 'ImpEx' ? "bg-qa-accent text-primary-foreground" : "bg-selected text-qa-accent border border-qa-accent/20")}>
+                        {view === 'Groups' ? 'SAP ImpEx templates →' : '← Back to data groups'}
                     </Button>
                 </div>
             </aside>
@@ -244,23 +249,21 @@ export default function TestDataPage() {
             {/* Main Panel */}
             <main className="flex-1 flex flex-col min-w-0 bg-app">
                 {!selectedGroupId && view === 'Groups' ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
-                        <div className="w-24 h-24 rounded-3xl bg-panel-muted border border-qa-border flex items-center justify-center">
-                            <DatabaseZap className="h-10 w-10 text-qa-text-muted" strokeWidth={1.5} />
-                        </div>
-                        <div>
-                            <p className="text-sm font-black uppercase tracking-[0.2em] text-qa-text">Select Data Collection</p>
-                            <p className="text-xs font-bold text-qa-text-muted mt-2">Store and replicate reusable test environments</p>
-                        </div>
+                    <div className="h-full flex items-center justify-center p-6">
+                        <EmptyState
+                            icon={DatabaseZap}
+                            title="Select a data collection"
+                            description="Store and replicate reusable test environments."
+                        />
                     </div>
                 ) : view === 'ImpEx' ? (
                     <div className="h-full flex flex-col p-8 space-y-8 animate-in slide-in-from-right-4 duration-500 overflow-y-auto custom-scrollbar">
                         <header className="flex items-center justify-between border-b border-qa-border pb-6">
                             <div>
-                                <h2 className="text-2xl font-black text-qa-accent uppercase tracking-tight">SAP Commerce ImpEx Templates</h2>
-                                <p className="text-xs font-bold text-qa-text-muted mt-1 uppercase tracking-widest">Ready-made ImpEx snippets</p>
+                                <h2 className="text-xl font-semibold text-qa-text tracking-tight">SAP Commerce ImpEx templates</h2>
+                                <p className="text-xs text-qa-text-muted mt-1">Ready-made ImpEx snippets</p>
                             </div>
-                            <Button onClick={() => setView('Groups')} variant="outline" className="h-9 border-qa-border text-qa-text-muted font-black text-[10px] uppercase">← BACK TO GROUPS</Button>
+                            <Button onClick={() => setView('Groups')} variant="outline" className="h-9 border-qa-border text-qa-text-muted text-xs">← Back to groups</Button>
                         </header>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -271,12 +274,12 @@ export default function TestDataPage() {
                                             <TerminalSquare className="h-5 w-5 text-qa-accent" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-black text-qa-text truncate">{template.name}</div>
-                                            <div className="text-[9px] font-black text-qa-text-muted uppercase tracking-widest">{template.category}</div>
+                                            <div className="text-sm font-semibold text-qa-text truncate">{template.name}</div>
+                                            <div className="text-[11px] text-qa-text-muted">{template.category}</div>
                                         </div>
                                     </div>
                                     <p className="text-[11px] text-qa-text-muted mb-4 line-clamp-2">{template.description}</p>
-                                    <pre className="text-[10px] font-mono text-qa-text-muted bg-app p-3 rounded-xl overflow-hidden truncate flex-1">
+                                    <pre className="text-[11px] font-mono text-qa-text-muted bg-app p-3 rounded-xl overflow-hidden truncate flex-1">
                                         {template.script}
                                     </pre>
                                     <Button
@@ -284,9 +287,9 @@ export default function TestDataPage() {
                                             navigator.clipboard.writeText(template.script)
                                             toast.success('Snippet copied to clipboard')
                                         }}
-                                        className="mt-4 w-full h-8 bg-qa-accent/10 text-qa-accent hover:bg-qa-accent/20 border border-qa-accent/20 font-black text-[9px] uppercase tracking-widest gap-2"
+                                        className="mt-4 w-full h-8 bg-qa-accent/10 text-qa-accent hover:bg-qa-accent/20 border border-qa-accent/20 text-xs gap-2"
                                     >
-                                        <Copy className="h-3 w-3" /> COPY SNIPPET
+                                        <Copy className="h-3 w-3" /> Copy snippet
                                     </Button>
                                 </div>
                             ))}
@@ -296,18 +299,18 @@ export default function TestDataPage() {
                     <div className="h-full flex flex-col animate-in fade-in duration-500">
                         <header className="p-6 bg-panel border-b border-qa-border flex items-center justify-between">
                             <div className="flex items-center gap-4 flex-1">
-                                <h2 className="text-2xl font-black text-qa-text tracking-tight">{selectedGroup?.name}</h2>
+                                <h2 className="text-xl font-semibold text-qa-text tracking-tight">{selectedGroup?.name}</h2>
                                 <div className="w-px h-6 bg-qa-border" />
-                                <div className="text-[10px] font-black text-qa-accent bg-qa-accent/10 px-2.5 py-1 rounded-full border border-qa-accent/20 uppercase">
+                                <div className="text-[11px] font-medium text-qa-accent bg-qa-accent/10 px-2.5 py-1 rounded-full border border-qa-accent/20">
                                     {selectedGroup?.category}
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <Button variant="outline" size="sm" onClick={handleExport} className="h-9 border-qa-border text-qa-text-muted font-black text-[10px] uppercase gap-2">
-                                    <Download className="h-3.5 w-3.5" /> EXPORT
+                                <Button variant="outline" size="sm" onClick={handleExport} className="h-9 border-qa-border text-qa-text-muted text-xs gap-2">
+                                    <Download className="h-3.5 w-3.5" /> Export
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={handleImport} className="h-9 border-qa-border text-qa-text-muted font-black text-[10px] uppercase gap-2">
-                                    <Upload className="h-3.5 w-3.5" /> IMPORT
+                                <Button variant="outline" size="sm" onClick={handleImport} className="h-9 border-qa-border text-qa-text-muted text-xs gap-2">
+                                    <Upload className="h-3.5 w-3.5" /> Import
                                 </Button>
                                 <div className="w-px h-9 bg-qa-border mx-1" />
                                 <Button variant="ghost" size="icon" className="text-state-danger hover:bg-state-danger-soft" onClick={() => {
@@ -321,18 +324,18 @@ export default function TestDataPage() {
 
                         <div className="p-4 bg-panel border-b border-qa-border flex items-center justify-between">
                             <div className="flex gap-4">
-                                <div className="text-[10px] font-black text-qa-text-muted uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <Layers className="h-3 w-3 text-qa-accent" /> DATA RECORDS
+                                <div className="app-section-label flex items-center gap-2">
+                                    <Layers className="h-3 w-3 text-qa-accent" /> Data records
                                 </div>
                             </div>
                             <div className="flex gap-2">
                                 <Button variant="ghost" size="sm" onClick={() => {
                                     const allData = selectedGroup?.entries.map(e => `${e.key}: ${e.value}`).join('\n')
                                     if (allData) { navigator.clipboard.writeText(allData); toast.success('All records copied') }
-                                }} className="h-7 text-qa-text-muted text-[10px] font-black uppercase tracking-widest hover:text-qa-text gap-2">
-                                    <Copy className="h-3 w-3" /> COPY ALL
+                                }} className="h-7 text-qa-text-muted text-xs hover:text-qa-text gap-2">
+                                    <Copy className="h-3 w-3" /> Copy all
                                 </Button>
-                                <Button size="sm" onClick={() => handleOpenEntryModal()} className="h-7 bg-qa-accent/10 text-qa-accent border border-qa-accent/20 hover:bg-qa-accent/20 text-[10px] font-black uppercase tracking-widest">+ ADD ENTRY</Button>
+                                <Button size="sm" onClick={() => handleOpenEntryModal()} className="h-7 bg-qa-accent/10 text-qa-accent border border-qa-accent/20 hover:bg-qa-accent/20 text-xs">Add entry</Button>
                             </div>
                         </div>
 
@@ -340,22 +343,22 @@ export default function TestDataPage() {
                             {selectedGroup?.entries.map((entry) => (
                                 <div key={entry.id} className="group flex gap-4 items-center p-4 bg-surface-alt/40 border border-qa-border rounded-2xl hover:border-qa-accent/30 transition-all">
                                     <div className="flex-none w-1/4">
-                                        <div className="text-xs font-black text-qa-accent font-mono truncate">{entry.key}</div>
+                                        <div className="text-xs font-semibold text-qa-accent font-mono truncate">{entry.key}</div>
                                         {entry.environment && (
-                                            <div className="text-[9px] font-black text-qa-text-muted uppercase mt-1">ENV: {entry.environment}</div>
+                                            <div className="text-[11px] text-qa-text-muted mt-1">Env: {entry.environment}</div>
                                         )}
                                     </div>
                                     <div className="flex-1">
                                         <div className="text-sm text-qa-text font-medium">{entry.value}</div>
                                         {entry.description && (
-                                            <div className="text-[10px] text-qa-text-muted mt-0.5 line-clamp-1">{entry.description}</div>
+                                            <div className="text-[11px] text-qa-text-muted mt-0.5 line-clamp-1">{entry.description}</div>
                                         )}
                                     </div>
                                     <div className="flex-none flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity">
                                         {entry.tags && (
                                             <div className="flex gap-1 mr-2">
                                                 {entry.tags.split(',').map(tag => (
-                                                    <span key={tag} className="px-1.5 py-0.5 rounded bg-panel-muted border border-qa-border text-[9px] font-black text-qa-text-muted uppercase tracking-tighter">{tag.trim()}</span>
+                                                    <span key={tag} className="px-1.5 py-0.5 rounded bg-panel-muted border border-qa-border text-[11px] text-qa-text-muted">{tag.trim()}</span>
                                                 ))}
                                             </div>
                                         )}
@@ -375,25 +378,26 @@ export default function TestDataPage() {
 
                         <footer className="p-4 bg-panel border-t border-qa-border flex items-center gap-4">
                             <ShieldCheck className="h-4 w-4 text-state-success" />
-                            <span className="text-[10px] font-bold text-qa-text-muted uppercase tracking-widest">
-                                {selectedGroup?.entries.length} RECORDS IN COLLECTION • VERIFIED INTEGRITY
+                            <span className="text-xs text-qa-text-muted">
+                                {selectedGroup?.entries.length} records in collection
                             </span>
                         </footer>
                     </div>
                 )}
             </main>
+            </div>
 
             {/* Group Modal */}
             <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
                 <DialogContent className="bg-panel border-qa-border sm:max-w-[400px] rounded-[2rem]">
                     <DialogHeader>
-                        <DialogTitle className="text-qa-text font-black uppercase tracking-tight">
-                            {editingGroupId ? 'Update Data Group' : 'Create New Data Group'}
+                        <DialogTitle className="text-qa-text font-semibold tracking-tight">
+                            {editingGroupId ? 'Update data group' : 'Create new data group'}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="py-6 space-y-6">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest px-1">Group Name</label>
+                            <label className="app-field-label px-1">Group name</label>
                             <Input
                                 autoFocus
                                 value={groupForm.name}
@@ -403,7 +407,7 @@ export default function TestDataPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest px-1">Category</label>
+                            <label className="app-field-label px-1">Category</label>
                             <Select value={groupForm.category} onValueChange={(val) => setGroupForm(prev => ({ ...prev, category: val }))}>
                                 <SelectTrigger className="h-11 bg-panel-muted border-qa-border text-qa-text font-bold rounded-xl">
                                     <SelectValue />
@@ -419,13 +423,13 @@ export default function TestDataPage() {
                         </div>
                     </div>
                     <DialogFooter className="bg-panel">
-                        <Button variant="ghost" onClick={() => setIsGroupModalOpen(false)} className="text-qa-text-muted font-black uppercase text-xs">CANCEL</Button>
+                        <Button variant="ghost" onClick={() => setIsGroupModalOpen(false)} className="text-qa-text-muted text-xs">Cancel</Button>
                         <Button
                             onClick={handleSaveGroup}
                             disabled={!groupForm.name.trim()}
-                            className="bg-qa-accent text-primary-foreground font-black uppercase text-xs px-6 rounded-xl"
+                            className="bg-qa-accent text-primary-foreground text-xs px-6 rounded-xl"
                         >
-                            {editingGroupId ? 'UPDATE GROUP' : 'CREATE GROUP'}
+                            {editingGroupId ? 'Update group' : 'Create group'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -435,14 +439,14 @@ export default function TestDataPage() {
             <Dialog open={isEntryModalOpen} onOpenChange={setIsEntryModalOpen}>
                 <DialogContent className="bg-panel border-qa-border sm:max-w-[500px] rounded-[2rem]">
                     <DialogHeader>
-                        <DialogTitle className="text-qa-text font-black uppercase tracking-tight">
-                            {editingEntryId ? 'Update Data Entry' : 'Add New Entry'}
+                        <DialogTitle className="text-qa-text font-semibold tracking-tight">
+                            {editingEntryId ? 'Update data entry' : 'Add new entry'}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="py-6 space-y-5 overflow-y-auto max-h-[60vh] custom-scrollbar px-1">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest px-1">Key</label>
+                                <label className="app-field-label px-1">Key</label>
                                 <Input
                                     autoFocus
                                     value={entryForm.key}
@@ -452,7 +456,7 @@ export default function TestDataPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest px-1">Environment</label>
+                                <label className="app-field-label px-1">Environment</label>
                                 <Input
                                     value={entryForm.environment}
                                     onChange={(e) => setEntryForm(prev => ({ ...prev, environment: e.target.value }))}
@@ -462,7 +466,7 @@ export default function TestDataPage() {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest px-1">Value</label>
+                            <label className="app-field-label px-1">Value</label>
                             <Input
                                 value={entryForm.value}
                                 onChange={(e) => setEntryForm(prev => ({ ...prev, value: e.target.value }))}
@@ -471,7 +475,7 @@ export default function TestDataPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest px-1">Description</label>
+                            <label className="app-field-label px-1">Description</label>
                             <Textarea
                                 value={entryForm.description}
                                 onChange={(e) => setEntryForm(prev => ({ ...prev, description: e.target.value }))}
@@ -480,7 +484,7 @@ export default function TestDataPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest px-1">Tags (Comma Separated)</label>
+                            <label className="app-field-label px-1">Tags (comma separated)</label>
                             <Input
                                 value={entryForm.tags}
                                 onChange={(e) => setEntryForm(prev => ({ ...prev, tags: e.target.value }))}
@@ -490,13 +494,13 @@ export default function TestDataPage() {
                         </div>
                     </div>
                     <DialogFooter className="bg-panel">
-                        <Button variant="ghost" onClick={() => setIsEntryModalOpen(false)} className="text-qa-text-muted font-black uppercase text-xs">CANCEL</Button>
+                        <Button variant="ghost" onClick={() => setIsEntryModalOpen(false)} className="text-qa-text-muted text-xs">Cancel</Button>
                         <Button
                             onClick={handleSaveEntry}
                             disabled={!entryForm.key.trim()}
-                            className="bg-qa-accent text-primary-foreground font-black uppercase text-xs px-6 rounded-xl"
+                            className="bg-qa-accent text-primary-foreground text-xs px-6 rounded-xl"
                         >
-                            {editingEntryId ? 'UPDATE RECORD' : 'ADD RECORD'}
+                            {editingEntryId ? 'Update record' : 'Add record'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -129,9 +129,9 @@ export const TaskCard = memo(function TaskCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className={cn("rounded border px-1.5 py-1", sourceClasses(task))}>
-              <span className="text-[9px] font-black">{sourceLabel(task)}</span>
+              <span className="text-[11px] font-black">{sourceLabel(task)}</span>
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-tight text-muted-ui">
+            <span className="text-[11px] font-bold uppercase tracking-tight text-muted-ui">
               {task.sourceIssueId || task.externalId || "Draft"}
             </span>
           </div>
@@ -207,7 +207,7 @@ export const TaskCard = memo(function TaskCard({
 
         <div className="flex flex-wrap gap-1.5">
           {(task.priority === "critical" || task.severity === "blocker" || task.severity === "critical") ? (
-            <div className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black", config.bg, config.color, config.border)}>
+            <div className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-black", config.bg, config.color, config.border)}>
               <PriorityIcon className="h-2.5 w-2.5" />
               {task.severity === "blocker" ? "BLOCKER" : config.label}
             </div>
@@ -217,7 +217,7 @@ export const TaskCard = memo(function TaskCard({
         </div>
 
         {(metadataLabels.length > 0 || hiddenMetaCount > 0) ? (
-          <p className="text-[10px] text-muted-ui">
+          <p className="text-[11px] text-muted-ui">
             {[...metadataLabels, hiddenMetaCount > 0 ? `+${hiddenMetaCount}` : null].filter(Boolean).join(" • ")}
           </p>
         ) : null}
@@ -226,15 +226,15 @@ export const TaskCard = memo(function TaskCard({
           <div className="flex items-center gap-2">
             <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-primary/20 bg-primary/10">
               {task.assignee ? (
-                <span className="text-[8px] font-bold text-primary">{task.assignee.substring(0, 2).toUpperCase()}</span>
+                <span className="text-[11px] font-bold text-primary">{task.assignee.substring(0, 2).toUpperCase()}</span>
               ) : (
                 <User className="h-2.5 w-2.5 text-muted-ui" />
               )}
             </div>
-            <span className="max-w-[90px] truncate text-[10px] font-semibold text-soft">{task.assignee || "Unassigned"}</span>
+            <span className="max-w-[90px] truncate text-[11px] font-semibold text-soft">{task.assignee || "Unassigned"}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[9px] font-medium text-muted-ui">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-ui">
             <Clock3 className="h-3 w-3 opacity-60" />
             {new Date(task.updatedAt || Date.now()).toLocaleDateString([], { month: "short", day: "numeric" })}
           </div>

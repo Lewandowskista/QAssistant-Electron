@@ -332,8 +332,8 @@ export function TaskDetailsSidebar({
                                 {comments.map((comment, index) => (
                                     <div key={index} className="rounded-xl border border-ui bg-panel-muted p-3">
                                         <div className="mb-2 flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-brand">{comment.authorName}</span>
-                                            <span className="text-[9px] text-muted-ui">{new Date(comment.createdAt).toLocaleString()}</span>
+                                            <span className="text-[11px] font-bold text-brand">{comment.authorName}</span>
+                                            <span className="text-[11px] text-muted-ui">{new Date(comment.createdAt).toLocaleString()}</span>
                                         </div>
                                         <div className="text-xs text-foreground">
                                             <FormattedText content={comment.body} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
@@ -361,7 +361,7 @@ export function TaskDetailsSidebar({
                             [...selectedTask.analysisHistory].sort((left, right) => right.version - left.version).map((entry) => (
                                 <div key={entry.hash} className="rounded-xl border border-ui bg-panel-muted p-4">
                                     <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-[10px] font-bold text-muted-ui">{new Date(entry.timestamp).toLocaleString()}</span>
+                                        <span className="text-[11px] font-bold text-muted-ui">{new Date(entry.timestamp).toLocaleString()}</span>
                                         <div className="flex items-center gap-1">
                                             <Button
                                                 size="sm"
@@ -400,8 +400,8 @@ export function TaskDetailsSidebar({
                             activity.map((item, index) => (
                                 <div key={`${item.timestamp}-${index}`} className="rounded-xl border border-ui bg-panel-muted p-4">
                                     <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-[10px] font-bold text-foreground">{item.author}</span>
-                                        <span className="text-[10px] text-muted-ui">{new Date(item.timestamp).toLocaleString()}</span>
+                                        <span className="text-[11px] font-bold text-foreground">{item.author}</span>
+                                        <span className="text-[11px] text-muted-ui">{new Date(item.timestamp).toLocaleString()}</span>
                                     </div>
                                     <div className="text-[11px] text-soft">
                                         {item.fromValue ? `${item.fromValue} → ` : ""}<span className="font-semibold text-state-info">{item.toValue}</span>
@@ -418,15 +418,15 @@ export function TaskDetailsSidebar({
                     {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ActivityIcon className="h-4 w-4" />}
                     {isAnalyzing ? "Analyzing…" : "Analyze Issue"}
                 </Button>
-                <Button className="w-full gap-1.5 border border-state-success-border bg-state-success-soft text-[10px] font-bold text-state-success" onClick={onGenerateBugReport}>
+                <Button className="w-full gap-1.5 border border-state-success-border bg-state-success-soft text-[11px] font-bold text-state-success" onClick={onGenerateBugReport}>
                     <Target className="h-3.5 w-3.5" /> Generate Bug Report
                 </Button>
                 {selectedTask.source !== "manual" && selectedTask.ticketUrl && (
-                    <Button className="w-full gap-1.5 border border-primary/20 bg-primary/10 text-[10px] font-bold text-primary" onClick={() => api.openUrl(selectedTask.ticketUrl)}>
+                    <Button className="w-full gap-1.5 border border-primary/20 bg-primary/10 text-[11px] font-bold text-primary" onClick={() => api.openUrl(selectedTask.ticketUrl)}>
                         <ExternalLink className="h-3.5 w-3.5" /> Open Source Ticket
                     </Button>
                 )}
-                <Button className="w-full gap-1.5 border border-state-danger-border bg-state-danger-soft text-[10px] font-bold text-state-danger" onClick={onDelete}>
+                <Button className="w-full gap-1.5 border border-state-danger-border bg-state-danger-soft text-[11px] font-bold text-state-danger" onClick={onDelete}>
                     <Trash2 className="h-3.5 w-3.5" /> Delete Task
                 </Button>
             </div>

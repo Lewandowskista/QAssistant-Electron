@@ -39,7 +39,7 @@ export default function TestRunSessionCard({ session, activeProjectId }: TestRun
     const statusesRendered = Object.entries(statusCounts).map(([status, count]) => (
         <div key={status} className="flex items-center gap-1.5 px-1">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColors[status as TestCaseStatus] }} />
-            <span className="text-[10px] text-soft capitalize">{count} {status}</span>
+            <span className="text-[11px] text-soft capitalize">{count} {status}</span>
         </div>
     ))
 
@@ -64,11 +64,11 @@ export default function TestRunSessionCard({ session, activeProjectId }: TestRun
                         <span className="font-mono text-[14px] font-bold text-state-info tracking-tight">EXEC-{new Date(session.timestamp).getTime().toString().slice(-4)}</span>
                         <span className="text-[14px] font-semibold text-foreground">{session.planExecutions?.length === 1 ? session.planExecutions[0].snapshotTestPlanName : 'Multi-Plan Execution Session'}</span>
                         <div className="bg-panel-muted px-[6px] py-[2px] rounded border border-line/50 self-center">
-                            <span className="text-[10px] text-soft uppercase font-medium">{totalCases} execution(s)</span>
+                            <span className="text-[11px] text-soft uppercase font-medium">{totalCases} execution(s)</span>
                         </div>
                         {session.isArchived && (
                             <div className="bg-state-warning-soft px-[6px] py-[2px] rounded border border-state-warning-border self-center">
-                                <span className="text-[9px] font-bold text-state-warning uppercase tracking-widest">ARCHIVED</span>
+                                <span className="text-[11px] font-bold text-state-warning uppercase tracking-widest">ARCHIVED</span>
                             </div>
                         )}
                     </div>

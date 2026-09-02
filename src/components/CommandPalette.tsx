@@ -106,7 +106,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                     />
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/50 rounded-xl text-[10px] font-black uppercase text-muted-foreground opacity-60">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/50 rounded-xl text-[11px] font-black uppercase text-muted-foreground opacity-60">
                         <span>ESC</span>
                         <span className="opacity-30">to close</span>
                     </div>
@@ -133,7 +133,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                                     <cmd.icon className={cn("h-5 w-5", idx === selectedIndex ? "text-[hsl(var(--text-inverse))]" : "text-primary")} />
                                     <span className="font-bold tracking-tight">{cmd.title}</span>
                                     {idx === selectedIndex && (
-                                        <div className="ml-auto text-[10px] font-black uppercase tracking-widest opacity-60 animate-in slide-in-from-right-2">
+                                        <div className="ml-auto text-[11px] font-black uppercase tracking-widest opacity-60 animate-in slide-in-from-right-2">
                                             Execute
                                         </div>
                                     )}
@@ -147,7 +147,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                     )}
                 </div>
 
-                <div className="p-4 bg-muted/20 border-t border-border/50 flex items-center justify-between text-[10px] font-black text-muted-foreground uppercase opacity-60 tracking-tighter">
+                <div className="p-4 bg-muted/20 border-t border-border/50 flex items-center justify-between text-[11px] font-black text-muted-foreground uppercase opacity-60 tracking-tighter">
                     <div className="flex items-center gap-6 px-4">
                         <div className="flex items-center gap-2">
                             <div className="px-1.5 py-0.5 bg-card border rounded shadow-sm">↑↓</div>

@@ -126,7 +126,7 @@ export function TaskFilterBar({
                     <SlidersHorizontal className="h-3.5 w-3.5" />
                     More
                     {activeFilterCount > 0 && (
-                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary">
+                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold leading-none text-primary">
                             {activeFilterCount}
                         </span>
                     )}
@@ -362,7 +362,7 @@ export function TaskFilterBar({
                                             if (event.key === "Escape") onCancelPreset?.()
                                         }}
                                         placeholder="Preset name…"
-                                        className="h-8 w-36 border-ui bg-background px-2 text-[10px]"
+                                        className="h-8 w-36 border-ui bg-background px-2 text-[11px]"
                                     />
                                     <Button type="button" size="sm" onClick={onSavePreset} className="h-8 bg-primary px-2 text-primary-foreground">
                                         Save

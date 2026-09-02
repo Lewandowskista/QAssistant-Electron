@@ -14,14 +14,14 @@ function PrDescription({ body }: { body: string }) {
 
     return (
         <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Description</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Description</p>
             <p className="text-[11px] text-soft whitespace-pre-wrap leading-relaxed break-words">
                 {isLong && !expanded ? body.slice(0, DESCRIPTION_TRUNCATE_LENGTH) + '…' : body}
             </p>
             {isLong && (
                 <button
                     onClick={() => setExpanded(prev => !prev)}
-                    className="mt-1.5 text-[10px] font-semibold text-brand hover:text-qa-accent transition-colors"
+                    className="mt-1.5 text-[11px] font-semibold text-brand hover:text-qa-accent transition-colors"
                 >
                     {expanded ? 'Show less' : 'Show more'}
                 </button>
@@ -121,7 +121,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                             <span>→</span>
                             <code className="font-mono truncate">{detail.baseBranch}</code>
                             {detail.draft && (
-                                <span className="px-1.5 py-0.5 rounded bg-elevated text-[9px] font-bold uppercase text-muted-ui shrink-0">Draft</span>
+                                <span className="px-1.5 py-0.5 rounded bg-elevated text-[11px] font-bold uppercase text-muted-ui shrink-0">Draft</span>
                             )}
                         </div>
 
@@ -137,7 +137,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
 
                         {/* CI status */}
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">CI</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">CI</span>
                             <CheckStatusIcon status={checkStatus ?? detail.checkStatus} />
                             <span className="text-[11px] text-soft capitalize">
                                 {checkStatus ?? detail.checkStatus ?? 'No checks'}
@@ -146,7 +146,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
 
                         {activeProject && (
                             <div className="rounded-lg border border-ui bg-panel p-3 space-y-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Link to Handoff</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Link to Handoff</p>
                                 <select value={selectedHandoffId} onChange={(event) => setSelectedHandoffId(event.target.value)} className="w-full h-9 rounded-md bg-app border border-ui px-2 text-xs text-foreground">
                                     <option value="">Select handoff…</option>
                                     {(activeProject.handoffPackets || []).map((handoff) => {
@@ -198,14 +198,14 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                                         .filter((handoff) => handoff.linkedPrs.some((pr) => pr.prNumber === prNumber && pr.repoFullName === `${owner}/${repo}`))
                                         .map((handoff) => {
                                             const task = activeProject.tasks.find((item) => item.id === handoff.taskId)
-                                            return <span key={handoff.id} className="px-2 py-1 rounded-md bg-app border border-ui text-[10px] text-state-info">{task?.title || handoff.summary}</span>
+                                            return <span key={handoff.id} className="px-2 py-1 rounded-md bg-app border border-ui text-[11px] text-state-info">{task?.title || handoff.summary}</span>
                                         })}
                                 </div>
                             </div>
                         )}
                         {!activeProject && (
                             <div className="rounded-lg border border-ui bg-panel p-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-1.5">Link to Handoff</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-1.5">Link to Handoff</p>
                                 <p className="text-[11px] text-soft">
                                     Select a project from the sidebar to link this PR to a handoff.
                                 </p>
@@ -224,7 +224,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                         {/* Reviewers */}
                         {reviews.length > 0 && (
                             <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Reviewers</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Reviewers</p>
                                 <div className="space-y-1.5">
                                     {Object.values(
                                         reviews.reduce((acc: Record<string, GitHubReview>, r) => {
@@ -235,7 +235,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                                         <div key={r.user} className="flex items-center gap-2">
                                             <img src={r.userAvatar} className="w-5 h-5 rounded-full shrink-0" alt={r.user} />
                                             <span className="text-[11px] text-foreground flex-1 truncate">{r.user}</span>
-                                            <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0",
+                                            <span className={cn("text-[11px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0",
                                                 r.state === 'APPROVED' ? 'bg-state-success/20 text-state-success' :
                                                 r.state === 'CHANGES_REQUESTED' ? 'bg-state-danger/20 text-state-danger' :
                                                 r.state === 'COMMENTED' ? 'bg-qa-accent/20 text-brand' :
@@ -252,10 +252,10 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                         {/* Requested reviewers (not yet reviewed) */}
                         {detail.requestedReviewers.length > 0 && (
                             <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Awaiting review from</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Awaiting review from</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {detail.requestedReviewers.map(reviewer => (
-                                        <span key={reviewer} className="px-2 py-0.5 rounded-full bg-elevated text-[10px] text-soft">
+                                        <span key={reviewer} className="px-2 py-0.5 rounded-full bg-elevated text-[11px] text-soft">
                                             {reviewer}
                                         </span>
                                     ))}
@@ -270,7 +270,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
 
                         {/* Comments */}
                         <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">
                                 Comments {comments.length > 0 && `(${comments.length})`}
                             </p>
                             {loadingComments ? (
@@ -287,7 +287,7 @@ export function PrDetailPanel({ owner, repo, prNumber, prTitle, prHtmlUrl, onClo
                                             <div className="flex items-center gap-2 mb-1.5">
                                                 <img src={comment.userAvatar} className="w-4 h-4 rounded-full" alt={comment.user} />
                                                 <span className="text-[11px] font-semibold text-foreground">{comment.user}</span>
-                                                <span className="text-[10px] text-muted-ui">{formatTimeAgo(comment.createdAt)}</span>
+                                                <span className="text-[11px] text-muted-ui">{formatTimeAgo(comment.createdAt)}</span>
                                             </div>
                                             <p className="text-[11px] text-soft whitespace-pre-wrap break-words leading-relaxed">
                                                 {comment.body.length > 500 ? comment.body.slice(0, 500) + '…' : comment.body}

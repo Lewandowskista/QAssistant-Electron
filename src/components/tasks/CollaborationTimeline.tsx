@@ -43,19 +43,19 @@ export function CollaborationTimeline({ events }: CollaborationTimelineProps) {
                             <div className="bg-panel-muted border border-ui rounded-xl p-3 space-y-1">
                                 <div className="flex items-center justify-between gap-3">
                                     <span className="text-xs font-bold text-foreground">{event.title}</span>
-                                    <span className="text-[10px] text-muted-ui shrink-0">{new Date(event.timestamp).toLocaleString()}</span>
+                                    <span className="text-[11px] text-muted-ui shrink-0">{new Date(event.timestamp).toLocaleString()}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] uppercase tracking-wider text-brand">{event.actorRole}</span>
+                                    <span className="text-[11px] uppercase tracking-wider text-brand">{event.actorRole}</span>
                                     {actorName && (
                                         <div className="flex items-center gap-1">
                                             <div className={cn(
-                                                'w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-primary-foreground',
+                                                'w-4 h-4 rounded-full flex items-center justify-center text-[11px] font-bold text-primary-foreground',
                                                 colorForId(event.actorUserId ?? actorName)
                                             )}>
                                                 {initials(actorName)}
                                             </div>
-                                            <span className="text-[10px] text-soft">{actorName}</span>
+                                            <span className="text-[11px] text-soft">{actorName}</span>
                                         </div>
                                     )}
                                 </div>

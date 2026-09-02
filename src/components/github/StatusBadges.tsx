@@ -59,17 +59,17 @@ export function ReviewSummaryBadges({ reviews }: { reviews: GitHubReview[] }) {
     return (
         <div className="flex items-center gap-1">
             {summary.approved > 0 && (
-                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-state-success/20 text-state-success">
+                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-bold bg-state-success/20 text-state-success">
                     <Check className="h-2.5 w-2.5" />{summary.approved}
                 </span>
             )}
             {summary.changesRequested > 0 && (
-                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-state-danger/20 text-state-danger">
+                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-bold bg-state-danger/20 text-state-danger">
                     <X className="h-2.5 w-2.5" />{summary.changesRequested}
                 </span>
             )}
             {summary.commented > 0 && (
-                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-elevated text-muted-ui">
+                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-bold bg-elevated text-muted-ui">
                     <CircleDot className="h-2.5 w-2.5" />{summary.commented}
                 </span>
             )}

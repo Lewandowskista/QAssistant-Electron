@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react"
 import { useProjectStore, Attachment } from "@/store/useProjectStore"
-import { Trash2, Upload, FileIcon, Search, File, ExternalLink } from "lucide-react"
+import { Trash2, Upload, FileIcon, Search, File, ExternalLink, ClipboardPaste } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
+import { ActionToolbar, CompactPageHeader, InlineStatusSummary, PageScaffold } from "@/components/ui/workspace"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
@@ -144,45 +146,54 @@ export default function FilesPage() {
     }
 
     return (
-        <div className="h-full flex flex-col animate-in fade-in duration-500 bg-app overflow-hidden">
-            {/* Top Toolbar */}
-            <header className="bg-panel border-b border-ui p-4 flex items-center justify-between flex-none">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-muted-ui uppercase tracking-[0.2em]">FILES</span>
-                        <div className="w-1 h-1 rounded-full bg-primary animate-pulse" />
-                    </div>
-                    <div className="relative w-64">
-                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
-                        <Input
-                            placeholder="Filter artifacts…"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            className="h-9 pl-9 bg-panel-muted border-ui text-xs text-foreground"
-                        />
-                    </div>
-                    <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="h-9 rounded-md bg-panel-muted border border-ui px-3 text-xs text-foreground">
-                        <option value="all">All Tasks</option>
-                        {(activeProject?.tasks || []).map((task) => (
-                            <option key={task.id} value={task.id}>{task.title}</option>
-                        ))}
-                    </select>
+        <PageScaffold>
+            <CompactPageHeader
+                eyebrow="Project Library"
+                title="Files"
+                description="Screenshots, logs, and artifacts attached to this project's work."
+                summary={
+                    <InlineStatusSummary
+                        items={[
+                            `${allFiles.length} ${allFiles.length === 1 ? "file" : "files"}`,
+                            "Drop files anywhere or paste a screenshot",
+                        ]}
+                    />
+                }
+                actions={
+                    <>
+                        <Button onClick={handlePaste} variant="outline" className="gap-2">
+                            <ClipboardPaste className="h-4 w-4" /> Paste screenshot
+                        </Button>
+                        <Button onClick={handleBrowse} className="gap-2">
+                            <Upload className="h-4 w-4" /> Browse files
+                        </Button>
+                    </>
+                }
+            />
+
+            <ActionToolbar>
+                <div className="relative w-64">
+                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
+                    <Input
+                        placeholder="Filter files…"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="h-9 pl-9 bg-panel-muted border-ui text-sm text-foreground"
+                    />
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button onClick={handlePaste} variant="outline" className="h-9 border-qa-accent/20 text-brand font-black text-[10px] uppercase hover:bg-qa-accent/5">
-                        PASTE SCREENSHOT
-                    </Button>
-                    <Button onClick={handleBrowse} className="h-9 bg-primary text-primary-foreground font-black text-[10px] uppercase gap-2 px-6">
-                        <Upload className="h-3.5 w-3.5" /> BROWSE FILES
-                    </Button>
-                </div>
-            </header>
+                <select value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="h-9 rounded-md bg-panel-muted border border-ui px-3 text-sm text-foreground">
+                    <option value="all">All tasks</option>
+                    {(activeProject?.tasks || []).map((task) => (
+                        <option key={task.id} value={task.id}>{task.title}</option>
+                    ))}
+                </select>
+            </ActionToolbar>
 
             {/* Drop Zone / Content */}
             <main
                 className={cn(
-                    "flex-1 p-8 transition-all duration-300",
-                    isDragging ? "bg-qa-accent/5 border-2 border-dashed border-qa-accent/20 m-4 rounded-[2rem]" : "bg-transparent"
+                    "flex-1 transition-all duration-300",
+                    isDragging && "bg-qa-accent/5 border-2 border-dashed border-qa-accent/20 rounded-2xl p-4"
                 )}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
@@ -215,15 +226,16 @@ export default function FilesPage() {
                 }}
             >
                 {allFiles.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-30">
-                        <div className="w-24 h-24 rounded-3xl bg-panel-muted border border-ui flex items-center justify-center">
-                            <FileIcon className="h-10 w-10 text-muted-ui" strokeWidth={1.5} />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-black text-foreground uppercase tracking-widest">No artifacts archived</h3>
-                            <p className="text-sm text-muted-ui mt-2 max-w-sm mx-auto font-medium">Drop files, scripts, or paste screenshots directly into the library.</p>
-                        </div>
-                    </div>
+                    <EmptyState
+                        icon={FileIcon}
+                        title="No files yet"
+                        description="Drop files anywhere on this page, paste a screenshot, or browse to attach evidence to your project."
+                        actions={
+                            <Button onClick={handleBrowse} className="gap-2">
+                                <Upload className="h-4 w-4" /> Browse files
+                            </Button>
+                        }
+                    />
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {filtered.map((file) => (
@@ -260,7 +272,7 @@ export default function FilesPage() {
                                         )}
                                     </div>
                                     <div className="text-xs font-bold text-foreground truncate w-full mb-1" onClick={() => api.openFile(file.filePath)}>{file.fileName}</div>
-                                    <div className="text-[9px] font-black text-muted-ui uppercase tracking-widest">
+                                    <div className="text-[11px] font-medium text-muted-ui">
                                         {file.fileSizeBytes ? `${(file.fileSizeBytes / 1024 / 1024).toFixed(1)} MB` : ''}
                                     </div>
                                     <div className="flex flex-wrap gap-1 mt-2 justify-center">
@@ -270,7 +282,7 @@ export default function FilesPage() {
                                         ).map((link) => {
                                             const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
                                             const task = activeProject?.tasks.find((item) => item.id === taskId)
-                                            return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand text-[9px]">{task.title}</span> : null
+                                            return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand text-[11px]">{task.title}</span> : null
                                         })}
                                     </div>
                                 </div>
@@ -347,11 +359,11 @@ export default function FilesPage() {
             {/* Upload Overlay */}
             {isDragging && (
                 <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center">
-                    <div className="bg-primary text-primary-foreground px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl animate-bounce">
+                    <div className="bg-primary text-primary-foreground px-10 py-5 rounded-2xl font-semibold text-sm shadow-2xl">
                         Release to upload
                     </div>
                 </div>
             )}
-        </div>
+        </PageScaffold>
     )
 }

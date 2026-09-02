@@ -13,7 +13,7 @@ interface QaPairResultCardProps {
 function DimensionBar({ ds }: { ds: AccuracyDimensionScore }) {
     return (
         <div className="flex items-center gap-2">
-            <span className="text-[9px] text-muted-ui w-28 shrink-0 uppercase tracking-wider font-bold">
+            <span className="text-[11px] text-muted-ui w-28 shrink-0 uppercase tracking-wider font-bold">
                 {DIMENSION_LABELS[ds.dimension]}
             </span>
             <div className="flex-1 bg-panel-muted rounded-full h-1.5 overflow-hidden">
@@ -22,7 +22,7 @@ function DimensionBar({ ds }: { ds: AccuracyDimensionScore }) {
                     style={{ width: `${ds.score}%`, backgroundColor: getScoreColor(ds.score) }}
                 />
             </div>
-            <span className="text-[10px] font-bold text-foreground w-8 text-right shrink-0">
+            <span className="text-[11px] font-bold text-foreground w-8 text-right shrink-0">
                 {ds.score}
             </span>
         </div>
@@ -40,13 +40,13 @@ export function QaPairResultCard({ result, index }: QaPairResultCardProps) {
                 onClick={() => setExpanded(!expanded)}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-elevated transition-colors text-left"
             >
-                <span className="text-[9px] font-mono text-muted-ui w-6 shrink-0">#{index + 1}</span>
+                <span className="text-[11px] font-mono text-muted-ui w-6 shrink-0">#{index + 1}</span>
                 <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-foreground truncate">{result.question}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     <span className={cn(
-                        "text-[10px] font-bold px-2.5 py-1 rounded-full",
+                        "text-[11px] font-bold px-2.5 py-1 rounded-full",
                         getScoreBg(result.overallScore)
                     )}>
                         {result.overallScore} — {getScoreLabel(result.overallScore)}
@@ -63,13 +63,13 @@ export function QaPairResultCard({ result, index }: QaPairResultCardProps) {
                     {/* Question + Response */}
                     <div className="grid grid-cols-1 gap-3">
                         <div>
-                            <p className="text-[9px] font-bold text-muted-ui uppercase tracking-widest mb-1">Question</p>
+                            <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-1">Question</p>
                             <p className="text-xs text-foreground leading-relaxed bg-panel rounded-lg p-3 border border-ui">
                                 {result.question}
                             </p>
                         </div>
                         <div>
-                            <p className="text-[9px] font-bold text-muted-ui uppercase tracking-widest mb-1">Agent Response</p>
+                            <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-1">Agent Response</p>
                             <p className="text-xs text-foreground leading-relaxed bg-panel rounded-lg p-3 border border-ui whitespace-pre-wrap max-h-48 overflow-y-auto">
                                 {result.agentResponse}
                             </p>
@@ -78,7 +78,7 @@ export function QaPairResultCard({ result, index }: QaPairResultCardProps) {
 
                     {/* Dimension scores */}
                     <div>
-                        <p className="text-[9px] font-bold text-muted-ui uppercase tracking-widest mb-2">Dimension Scores</p>
+                        <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-2">Dimension Scores</p>
                         <div className="space-y-1.5">
                             {result.dimensionScores.map(ds => (
                                 <DimensionBar key={ds.dimension} ds={ds} />
@@ -91,10 +91,10 @@ export function QaPairResultCard({ result, index }: QaPairResultCardProps) {
                         <div className="grid grid-cols-2 gap-2">
                             {result.dimensionScores.filter(ds => ds.reasoning).map(ds => (
                                 <div key={ds.dimension} className="bg-panel rounded-lg p-2.5 border border-ui">
-                                    <p className="text-[9px] font-bold text-muted-ui uppercase tracking-wider mb-1">
+                                    <p className="text-[11px] font-bold text-muted-ui uppercase tracking-wider mb-1">
                                         {DIMENSION_LABELS[ds.dimension]}
                                     </p>
-                                    <p className="text-[10px] text-soft leading-relaxed">{ds.reasoning}</p>
+                                    <p className="text-[11px] text-soft leading-relaxed">{ds.reasoning}</p>
                                 </div>
                             ))}
                         </div>
@@ -104,7 +104,7 @@ export function QaPairResultCard({ result, index }: QaPairResultCardProps) {
                     <div>
                         <button
                             onClick={() => setShowClaims(!showClaims)}
-                            className="flex items-center gap-1.5 text-[10px] font-bold text-brand hover:text-qa-accent transition-colors"
+                            className="flex items-center gap-1.5 text-[11px] font-bold text-brand hover:text-qa-accent transition-colors"
                         >
                             {showClaims ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                             {result.extractedClaims.length} Extracted Claims

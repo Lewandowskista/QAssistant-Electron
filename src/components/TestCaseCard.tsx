@@ -96,7 +96,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                     <span className="font-mono text-[13px] font-semibold text-brand">{testCase.displayId}</span>
                     <span className="font-semibold text-[13px] text-foreground line-clamp-1 ml-1 cursor-default" title={testCase.title}>{testCase.title}</span>
                     {testCase.aiGenerated && (
-                        <span className="shrink-0 flex items-center gap-1 text-[9px] font-bold bg-qa-accent/10 text-brand border border-qa-accent/20 px-1.5 py-0.5 rounded-full" title="AI-generated test case">
+                        <span className="shrink-0 flex items-center gap-1 text-[11px] font-bold bg-qa-accent/10 text-brand border border-qa-accent/20 px-1.5 py-0.5 rounded-full" title="AI-generated test case">
                             <Sparkles className="h-2.5 w-2.5" /> AI
                         </span>
                     )}
@@ -111,15 +111,15 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                     >
                         Execute
                     </Button>
-                    <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", getPriorityColor(testCase.priority))}>
+                    <div className={cn("px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider", getPriorityColor(testCase.priority))}>
                         {testCase.priority || 'MEDIUM'}
                     </div>
                     {testCase.testType && (
-                        <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", getTestTypeColor(testCase.testType))}>
+                        <div className={cn("px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider", getTestTypeColor(testCase.testType))}>
                             {testCase.testType}
                         </div>
                     )}
-                    <div className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", getStatusColor(testCase.status))}>
+                    <div className={cn("px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider", getStatusColor(testCase.status))}>
                         {testCase.status || 'not-run'}
                     </div>
                     <Button
@@ -137,14 +137,14 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
 
             {/* Sub-header: Traceability + Tags */}
             <div className="flex items-center justify-between gap-4">
-                <div className="font-mono text-[10px] text-muted-ui flex items-center gap-1.5 font-bold">
+                <div className="font-mono text-[11px] text-muted-ui flex items-center gap-1.5 font-bold">
                     <LayoutGrid className="h-3 w-3" /> {testCase.displayId} <ArrowRightCircle className="h-3 w-3" /> {plan.displayId || 'PLAN'}
                 </div>
 
                 {testCase.tags && testCase.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 justify-end">
                         {testCase.tags.map(tag => (
-                            <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-qa-accent/5 border border-qa-accent/10 text-brand text-[9px] font-black uppercase tracking-widest leading-none">
+                            <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-qa-accent/5 border border-qa-accent/10 text-brand text-[11px] font-black uppercase tracking-widest leading-none">
                                 <Tag className="h-2 w-2" /> {tag}
                             </span>
                         ))}
@@ -159,7 +159,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
             <div className="flex flex-col gap-4 mt-1">
                 {testCase.preConditions && (
                     <div>
-                        <div className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
+                        <div className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-state-info/50" /> PRE-CONDITIONS
                         </div>
                         <div className="text-[11px] leading-relaxed text-soft bg-surface/30 p-2.5 rounded-lg border border-line/30">
@@ -169,7 +169,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 )}
                 {testCase.steps && (
                     <div>
-                        <div className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
+                        <div className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-state-success/50" /> TEST STEPS
                         </div>
                         <div className="text-[11px] leading-relaxed text-soft bg-surface/30 p-2.5 rounded-lg border border-line/30">
@@ -179,7 +179,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 )}
                 {testCase.testData && (
                     <div>
-                        <div className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
+                        <div className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-state-warning/50" /> TEST DATA
                         </div>
                         <div className="text-[11px] leading-relaxed text-soft bg-surface/30 p-2.5 rounded-lg border border-line/30 italic opacity-80">
@@ -189,7 +189,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 )}
                 {testCase.expectedResult && (
                     <div>
-                        <div className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
+                        <div className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-qa-accent/50" /> EXPECTED RESULT
                         </div>
                         <div className="text-[11px] leading-relaxed text-soft bg-surface/30 p-2.5 rounded-lg border border-line/30">
@@ -199,7 +199,7 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 )}
                 {testCase.actualResult && (
                     <div>
-                        <div className="text-[10px] font-bold text-state-success uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                        <div className="text-[11px] font-bold text-state-success uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                             <div className="w-1 h-3 rounded-full bg-state-success" /> ACTUAL RESULT
                         </div>
                         <div className="text-[11px] text-foreground bg-panel p-3 rounded-lg border border-state-success-border leading-relaxed">
@@ -212,10 +212,10 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
             {/* Footer: source badge + timestamp | Bug Report button */}
             <div className="mt-1 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="bg-panel-muted px-2 py-0.5 rounded text-[10px] font-bold text-brand uppercase tracking-wider border border-line/50">
+                    <div className="bg-panel-muted px-2 py-0.5 rounded text-[11px] font-bold text-brand uppercase tracking-wider border border-line/50">
                         {testCase.sapModule || plan.source || 'Manual'}
                     </div>
-                    <div className="text-[10px] text-muted-ui">
+                    <div className="text-[11px] text-muted-ui">
                         {new Date(testCase.updatedAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                     </div>
                 </div>
@@ -231,24 +231,24 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 {/* Execution Details / Assigned Footer */}
                 <div className="flex items-center gap-4 mt-2 pt-3 border-t border-line/50">
                     {testCase.sapModule && (
-                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-ui">
+                         <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-ui">
                             <Database className="h-3 w-3 text-state-info" />
                             <span className="uppercase tracking-wide">{testCase.sapModule}</span>
                         </div>
                     )}
                     {testCase.assignedTo && (
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-ui">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-ui">
                             <User className="h-3 w-3 text-brand" />
                             <span className="uppercase tracking-wide">{testCase.assignedTo}</span>
                         </div>
                     )}
                     {testCase.estimatedMinutes && (
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-ui">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-ui">
                             <Clock className="h-3 w-3 text-state-warning" />
                             <span className="uppercase tracking-wide">{testCase.estimatedMinutes}m</span>
                         </div>
                     )}
-                    <div className="ml-auto flex items-center gap-1 text-[10px] font-black text-text-muted/40 italic uppercase pb-1">
+                    <div className="ml-auto flex items-center gap-1 text-[11px] font-black text-text-muted/40 italic uppercase pb-1">
                         Last modified: {new Date(testCase.updatedAt).toLocaleDateString()}
                     </div>
                 </div>
@@ -257,31 +257,31 @@ export default function TestCaseCard({ plan, testCase, activeProjectId, onRunCas
                 {testCase.aiGenerated && (
                     <div className="border-t border-ui pt-2 flex items-center gap-2">
                         <Sparkles className="h-3 w-3 text-brand shrink-0" />
-                        <span className="text-[10px] text-muted-ui">AI generated</span>
+                        <span className="text-[11px] text-muted-ui">AI generated</span>
                         {testCase.aiGenerationRating ? (
-                            <span className={cn("text-[10px] font-bold border px-2 py-0.5 rounded-full ml-1", AI_RATING_CONFIG[testCase.aiGenerationRating].color)}>
+                            <span className={cn("text-[11px] font-bold border px-2 py-0.5 rounded-full ml-1", AI_RATING_CONFIG[testCase.aiGenerationRating].color)}>
                                 {AI_RATING_CONFIG[testCase.aiGenerationRating].label}
                             </span>
                         ) : (
                             <div className="ml-auto flex items-center gap-1">
-                                <span className="text-[10px] text-muted-ui">Rate this test:</span>
+                                <span className="text-[11px] text-muted-ui">Rate this test:</span>
                                 <button
                                     onClick={() => handleRateAiCase('useful')}
-                                    className="text-[10px] px-2 py-0.5 rounded-full border border-ui text-soft hover:border-state-success/50 hover:text-state-success transition-colors"
+                                    className="text-[11px] px-2 py-0.5 rounded-full border border-ui text-soft hover:border-state-success/50 hover:text-state-success transition-colors"
                                     title="This test was useful"
                                 >
                                     <ThumbsUp className="h-3 w-3 inline mr-1" />Useful
                                 </button>
                                 <button
                                     onClick={() => handleRateAiCase('caught_bug')}
-                                    className="text-[10px] px-2 py-0.5 rounded-full border border-ui text-soft hover:border-state-warning/50 hover:text-state-warning transition-colors"
+                                    className="text-[11px] px-2 py-0.5 rounded-full border border-ui text-soft hover:border-state-warning/50 hover:text-state-warning transition-colors"
                                     title="This test caught a bug"
                                 >
                                     <Bug className="h-3 w-3 inline mr-1" />Caught Bug
                                 </button>
                                 <button
                                     onClick={() => handleRateAiCase('irrelevant')}
-                                    className="text-[10px] px-2 py-0.5 rounded-full border border-ui text-soft hover:border-line-strong/80 transition-colors"
+                                    className="text-[11px] px-2 py-0.5 rounded-full border border-ui text-soft hover:border-line-strong/80 transition-colors"
                                     title="This test was irrelevant"
                                 >
                                     <X className="h-3 w-3 inline mr-1" />Irrelevant

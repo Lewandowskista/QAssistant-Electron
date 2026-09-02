@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react"
-import { Search, ChevronRight, Lightbulb, ArrowLeft } from "lucide-react"
+import { Search, ChevronRight, Lightbulb, ArrowLeft, BookOpen } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { SplitPaneShell } from "@/components/ui/split-pane-shell"
+import { FullBleedHeader } from "@/components/ui/workspace"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DOC_SECTIONS, type DocSection, type DocSubsection } from "@/data/docs-content"
@@ -181,12 +182,7 @@ export default function DocsPage() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="shrink-0 px-4 pt-4 pb-3 border-b" style={{ borderColor: "hsl(var(--border-default))" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-ui hover:text-foreground" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h2 className="text-sm font-bold text-foreground tracking-tight">Documentation</h2>
-        </div>
+        <p className="app-section-label mb-3">Contents</p>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-ui pointer-events-none" />
           <Input
@@ -270,9 +266,9 @@ export default function DocsPage() {
   const content = (
     <div ref={contentRef} className="flex-1 overflow-y-auto custom-scrollbar">
       <div className="max-w-3xl mx-auto px-8 py-8">
-        {/* Page title */}
+        {/* Article title (content heading — the page h1 lives in the FullBleedHeader) */}
         <div className="mb-10">
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">QAssistant Documentation</h1>
+          <h2 className="text-2xl font-bold text-foreground tracking-tight">QAssistant Documentation</h2>
           <p className="text-sm text-muted-ui mt-2 leading-relaxed">
             Complete guide to every feature, integration, and workflow in QAssistant.
             Use the sidebar to navigate or search for specific topics.
@@ -300,7 +296,23 @@ export default function DocsPage() {
     </div>
   )
 
-  return <SplitPaneShell sidebar={sidebar} content={content} />
+  return (
+    <div className="flex h-full flex-col bg-app">
+      <FullBleedHeader
+        icon={BookOpen}
+        title="Documentation"
+        description="Every feature, integration, and workflow in QAssistant"
+        actions={
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back
+          </Button>
+        }
+      />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <SplitPaneShell sidebar={sidebar} content={content} />
+      </div>
+    </div>
+  )
 }
 
 // ── Section Block ────────────────────────────────────────────────────────────

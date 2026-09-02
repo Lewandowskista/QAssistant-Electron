@@ -65,13 +65,13 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
     return (
         <div className="flex-1 overflow-y-auto p-6 space-y-2">
             <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">
+                <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">
                     Evaluation History ({runs.length})
                 </p>
                 {onCompareRuns && completedRuns.length >= 2 && (
                     <div className="flex items-center gap-2">
                         {selectedIds.size > 0 && (
-                            <span className="text-[10px] text-muted-ui">
+                            <span className="text-[11px] text-muted-ui">
                                 {selectedIds.size}/2 selected
                             </span>
                         )}
@@ -80,7 +80,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                             disabled={selectedIds.size !== 2}
                             onClick={handleCompare}
                             className={cn(
-                                "h-7 text-[10px] font-bold border-ui",
+                                "h-7 text-[11px] font-bold border-ui",
                                 selectedIds.size === 2
                                     ? "text-brand border-qa-accent/30 hover:bg-qa-accent/10"
                                     : "text-muted-ui"
@@ -94,7 +94,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
             </div>
 
             {onCompareRuns && completedRuns.length >= 2 && selectedIds.size === 0 && (
-                <p className="text-[10px] text-text-muted/70 italic mb-2">
+                <p className="text-[11px] text-text-muted/70 italic mb-2">
                     Select 2 completed runs to compare them
                 </p>
             )}
@@ -124,21 +124,21 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                         )}
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full capitalize", STATUS_STYLES[run.status] || STATUS_STYLES.pending)}>
+                                <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full capitalize", STATUS_STYLES[run.status] || STATUS_STYLES.pending)}>
                                     {run.status}
                                 </span>
                                 {run.status === 'completed' && (
-                                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", getScoreBg(run.aggregateScore))}>
+                                    <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full", getScoreBg(run.aggregateScore))}>
                                         {run.aggregateScore} — {getScoreLabel(run.aggregateScore)}
                                     </span>
                                 )}
                             </div>
                             <p className="text-xs font-semibold text-foreground truncate">{run.name}</p>
-                            <p className="text-[10px] text-muted-ui mt-0.5">
+                            <p className="text-[11px] text-muted-ui mt-0.5">
                                 {run.completedPairs}/{run.totalPairs} pairs · {new Date(run.startedAt).toLocaleString()}
                             </p>
                             {run.error && (
-                                <p className="text-[10px] text-state-danger mt-1 truncate">{run.error}</p>
+                                <p className="text-[11px] text-state-danger mt-1 truncate">{run.error}</p>
                             )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>

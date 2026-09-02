@@ -121,21 +121,21 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                         {/* Left Side: Test Definition */}
                         <div className="space-y-6">
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pre-Conditions</Label>
+                                <Label className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Pre-Conditions</Label>
                                 <div className="text-xs p-3 bg-surface-elevated/60 rounded-lg border border-line/50 min-h-[60px]">
                                     <FormattedText content={testCase.preConditions || "N/A"} compact projectId={activeProjectId || undefined} />
                                 </div>
                             </div>
                             
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Test Steps</Label>
+                                <Label className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Test Steps</Label>
                                 <div className="text-xs p-3 bg-surface-elevated/60 rounded-lg border border-line/50 min-h-[100px] font-mono leading-relaxed">
                                     <FormattedText content={testCase.steps} compact projectId={activeProjectId || undefined} />
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Expected Result</Label>
+                                <Label className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Expected Result</Label>
                                 <div className="text-xs p-3 bg-state-success-soft rounded-lg border border-state-success-border text-state-success min-h-[60px]">
                                     <FormattedText content={testCase.expectedResult} compact projectId={activeProjectId || undefined} />
                                 </div>
@@ -145,7 +145,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                         {/* Right Side: Execution Recording */}
                         <div className="space-y-6">
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Outcome</Label>
+                                <Label className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Outcome</Label>
                                 <Select value={status} onValueChange={(val: TestCaseStatus) => setStatus(val)}>
                                     <SelectTrigger className="h-11 bg-background font-bold">
                                         <SelectValue />
@@ -168,7 +168,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Environment</Label>
+                                <Label className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Environment</Label>
                                 <Select value={environmentId} onValueChange={setEnvironmentId}>
                                     <SelectTrigger className="h-11 bg-background font-bold">
                                         <SelectValue placeholder="Select environment…" />
@@ -184,7 +184,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Actual Result</Label>
+                                <Label className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Actual Result</Label>
                                 <Textarea
                                     placeholder="What actually happened? Leave empty if it matches expected."
                                     value={actualResult}
@@ -195,7 +195,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
 
                             {status === 'blocked' && (
                                 <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase text-state-warning tracking-widest">Blocked Reason</Label>
+                                    <Label className="text-[11px] font-black uppercase text-state-warning tracking-widest">Blocked Reason</Label>
                                     <Textarea
                                         placeholder="Why is this test blocked? (e.g., environment unavailable, dependency not met, etc.)"
                                         value={blockedReason}
@@ -206,7 +206,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                             )}
 
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Execution Notes / Evidence</Label>
+                                <Label className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Execution Notes / Evidence</Label>
                                 <Textarea
                                     placeholder="Add any additional notes, logs, or comments…"
                                     value={notes}
@@ -221,7 +221,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                                     type="button" 
                                     variant="outline" 
                                     size="sm" 
-                                    className="flex-1 gap-2 font-bold text-[10px]"
+                                    className="flex-1 gap-2 font-bold text-[11px]"
                                     onClick={() => setIsActive(!isActive)}
                                 >
                                     {isActive ? <Pause className="h-3 w-3" /> : <PlayCircle className="h-3 w-3" />}
@@ -231,7 +231,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                                     type="button" 
                                     variant="ghost" 
                                     size="sm" 
-                                    className="gap-2 font-bold text-[10px] text-muted-ui"
+                                    className="gap-2 font-bold text-[11px] text-muted-ui"
                                     onClick={() => { setSeconds(0); setIsActive(false); }}
                                 >
                                     <RotateCcw className="h-3 w-3" /> RESET

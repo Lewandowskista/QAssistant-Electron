@@ -271,7 +271,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        className="absolute right-2 top-2 h-7 px-2 text-[10px] font-bold"
+                                        className="absolute right-2 top-2 h-7 px-2 text-[11px] font-bold"
                                         onClick={() => setPreviewField(previewField === 'pre' ? null : 'pre')}
                                     >
                                         {previewField === 'pre' ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
@@ -300,7 +300,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        className="absolute right-2 top-2 h-7 px-2 text-[10px] font-bold"
+                                        className="absolute right-2 top-2 h-7 px-2 text-[11px] font-bold"
                                         onClick={() => setPreviewField(previewField === 'data' ? null : 'data')}
                                     >
                                         {previewField === 'data' ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
@@ -330,7 +330,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="absolute right-2 top-8 h-7 px-2 text-[10px] font-bold"
+                                className="absolute right-2 top-8 h-7 px-2 text-[11px] font-bold"
                                 onClick={() => setPreviewField(previewField === 'steps' ? null : 'steps')}
                             >
                                 {previewField === 'steps' ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
@@ -368,15 +368,15 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
 
                     {editingCase && editingCase.changeLog && editingCase.changeLog.length > 0 && (
                         <div className="mt-6 p-4 bg-app border border-ui rounded-lg">
-                            <p className="text-[10px] font-bold text-muted-ui uppercase tracking-wider mb-3">Change History ({editingCase.changeLog.length})</p>
+                            <p className="text-[11px] font-bold text-muted-ui uppercase tracking-wider mb-3">Change History ({editingCase.changeLog.length})</p>
                             <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar">
                                 {[...editingCase.changeLog].reverse().map((entry, idx) => (
-                                    <div key={idx} className="text-[10px] bg-surface-alt/50 p-2 rounded border border-line/30">
+                                    <div key={idx} className="text-[11px] bg-surface-alt/50 p-2 rounded border border-line/30">
                                         <div className="flex items-center gap-2">
                                             <span className="font-bold text-brand">{entry.field}</span>
                                             <span className="text-muted-ui">{new Date(entry.timestamp).toLocaleString()}</span>
                                         </div>
-                                        <div className="text-[9px] text-soft mt-1 space-y-0.5">
+                                        <div className="text-[11px] text-soft mt-1 space-y-0.5">
                                             <div><span className="text-state-danger">−</span> {entry.oldValue || '(empty)'}</div>
                                             <div><span className="text-state-success">+</span> {entry.newValue || '(empty)'}</div>
                                         </div>

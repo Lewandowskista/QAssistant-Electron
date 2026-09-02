@@ -664,16 +664,16 @@ export default function TestsPage() {
                                             options={['All', 'Jira', 'Linear', 'Manual'].map((item) => ({ value: item, label: item }))}
                                         />
                                         <div className="w-[1px] h-4 bg-elevated mx-2" />
-                                        <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-7 px-3 text-[10px] font-bold text-muted-ui hover:text-foreground gap-2">
+                                        <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-7 px-3 text-[11px] font-bold text-muted-ui hover:text-foreground gap-2">
                                             <FileSpreadsheet className="h-3.5 w-3.5" /> IMPORT CSV
                                         </Button>
-                                        <Button variant="ghost" size="sm" onClick={() => setImportResultsDialogOpen(true)} className="h-7 px-3 text-[10px] font-bold text-muted-ui hover:text-foreground gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => setImportResultsDialogOpen(true)} className="h-7 px-3 text-[11px] font-bold text-muted-ui hover:text-foreground gap-2">
                                             <ArrowRightCircle className="h-3.5 w-3.5" /> IMPORT RESULTS
                                         </Button>
-                                        <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-7 px-3 text-[10px] font-bold text-muted-ui hover:text-foreground gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-7 px-3 text-[11px] font-bold text-muted-ui hover:text-foreground gap-2">
                                             <Plus className="h-3.5 w-3.5" /> NEW PLAN
                                         </Button>
-                                        <Button variant="ghost" size="sm" onClick={handleLoadDesignDoc} className="h-7 px-3 text-[10px] font-bold text-muted-ui hover:text-foreground gap-2" title={designDocName || 'Load Design Document Text'}>
+                                        <Button variant="ghost" size="sm" onClick={handleLoadDesignDoc} className="h-7 px-3 text-[11px] font-bold text-muted-ui hover:text-foreground gap-2" title={designDocName || 'Load Design Document Text'}>
                                             <FileText className={cn("h-3.5 w-3.5", designDocName ? "text-state-success" : "")} /> {designDocName ? 'DOC LOADED' : 'DESIGN DOC'}
                                             {designDocName && (
                                                 <XCircle
@@ -691,8 +691,8 @@ export default function TestsPage() {
                                 <div className="flex-none bg-app border-b border-ui px-6 py-4 animate-in slide-in-from-top-1 duration-200">
                                     <div className="max-w-5xl mx-auto space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-brand uppercase tracking-widest">Paste Feature Description or Acceptance Criteria</span>
-                                            <span className="text-[10px] text-muted-ui">AI will generate test cases directly from this text</span>
+                                            <span className="text-[11px] font-black text-brand uppercase tracking-widest">Paste Feature Description or Acceptance Criteria</span>
+                                            <span className="text-[11px] text-muted-ui">AI will generate test cases directly from this text</span>
                                         </div>
                                         <textarea
                                             value={freeTextInput}
@@ -854,10 +854,10 @@ export default function TestsPage() {
                                                                             <div>
                                                                                 <p className="text-sm font-bold text-foreground">{ex.snapshotTestCaseTitle}</p>
                                                                                 <div className="flex items-center gap-3 mt-1">
-                                                                                    <span className="text-[10px] font-bold text-muted-ui uppercase opacity-60 flex items-center gap-1">
+                                                                                    <span className="text-[11px] font-bold text-muted-ui uppercase opacity-60 flex items-center gap-1">
                                                                                         <Calendar className="h-3 w-3" /> {new Date(ex.executedAt).toLocaleString()}
                                                                                     </span>
-                                                                                    <span className="text-[10px] font-bold text-muted-ui uppercase opacity-60 flex items-center gap-1">
+                                                                                    <span className="text-[11px] font-bold text-muted-ui uppercase opacity-60 flex items-center gap-1">
                                                                                         <User className="h-3 w-3" /> Manual execution
                                                                                     </span>
                                                                                 </div>
@@ -929,7 +929,7 @@ export default function TestsPage() {
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="sm"
-                                                                        className="h-6 mt-4 text-[10px] uppercase font-bold text-muted-ui hover:text-[hsl(var(--state-danger))]"
+                                                                        className="h-6 mt-4 text-[11px] uppercase font-bold text-muted-ui hover:text-[hsl(var(--state-danger))]"
                                                                         onClick={() => setAiAnalysisResult(null)}
                                                                     >
                                                                         Clear Output
@@ -953,7 +953,7 @@ export default function TestsPage() {
                                 <div className="flex-none bg-panel border-b border-ui px-6 py-3 flex items-center justify-between">
                                     <div className="flex items-center gap-6">
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em]">Export</span>
+                                            <span className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.2em]">Export</span>
                                             <Select value={reportType} onValueChange={setReportType}>
                                                 <SelectTrigger className="h-9 w-48 bg-panel-muted border-ui text-xs font-bold text-foreground">
                                                     <SelectValue />
@@ -1009,7 +1009,7 @@ export default function TestsPage() {
                                                     ].map(stat => (
                                                         <div key={stat.label} className="bg-panel-muted border border-ui rounded-2xl p-5">
                                                             <div className={`text-3xl font-black ${stat.color}`}>{stat.value}</div>
-                                                            <div className="text-[10px] text-muted-ui font-bold uppercase tracking-widest mt-1">{stat.label}</div>
+                                                            <div className="text-[11px] text-muted-ui font-bold uppercase tracking-widest mt-1">{stat.label}</div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1033,7 +1033,7 @@ export default function TestsPage() {
 
                                             return flakyEntries.length > 0 ? (
                                                 <div className="space-y-3 pt-6 border-t border-ui">
-                                                    <div className="text-[10px] font-black uppercase text-state-warning tracking-widest">⚠ Flaky Tests ({flakyEntries.length})</div>
+                                                    <div className="text-[11px] font-black uppercase text-state-warning tracking-widest">⚠ Flaky Tests ({flakyEntries.length})</div>
                                                     {flakyEntries.map(([tcId, stats]) => {
                                                         const tc = caseById.get(tcId)
                                                         if (!tc) return null
@@ -1041,18 +1041,18 @@ export default function TestsPage() {
                                                             <div key={tcId} className="bg-state-warning-soft border border-state-warning-border rounded-xl p-4">
                                                                 <div className="flex items-center justify-between gap-2">
                                                                     <div className="text-sm font-bold text-state-warning truncate">{tc.displayId} — {tc.title}</div>
-                                                                    <span className="shrink-0 text-[10px] font-black bg-state-warning/20 text-state-warning px-2 py-0.5 rounded-full">
+                                                                    <span className="shrink-0 text-[11px] font-black bg-state-warning/20 text-state-warning px-2 py-0.5 rounded-full">
                                                                         {stats.flakinessScore}% flaky
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-2 mt-2">
-                                                                    <span className="text-[10px] text-muted-ui">Last {stats.lastFiveResults.length} runs:</span>
+                                                                    <span className="text-[11px] text-muted-ui">Last {stats.lastFiveResults.length} runs:</span>
                                                                     <div className="flex gap-1">
                                                                         {stats.lastFiveResults.map((r, i) => (
                                                                             <span key={i} title={r} className={`inline-block w-2 h-2 rounded-full ${dotColor(r)}`} />
                                                                         ))}
                                                                     </div>
-                                                                    <span className="text-[10px] text-muted-ui ml-1">{stats.passRate}% pass rate · {stats.executionCount} runs</span>
+                                                                    <span className="text-[11px] text-muted-ui ml-1">{stats.passRate}% pass rate · {stats.executionCount} runs</span>
                                                                 </div>
                                                             </div>
                                                         )
@@ -1063,7 +1063,7 @@ export default function TestsPage() {
 
                                         {testPlans.length > 0 && (
                                             <div className="space-y-3 pt-6 border-t border-ui">
-                                                <div className="text-[10px] font-black uppercase text-muted-ui tracking-widest">Per Plan Breakdown</div>
+                                                <div className="text-[11px] font-black uppercase text-muted-ui tracking-widest">Per Plan Breakdown</div>
                                                 {testPlans.filter(tp => !tp.isArchived).map(tp => {
                                                     const tcs = tp.testCases || []
                                                     const p = tcs.filter(tc => tc.status === 'passed').length
@@ -1074,7 +1074,7 @@ export default function TestsPage() {
                                                         <div key={tp.id} className="bg-panel-muted border border-ui rounded-xl p-4 flex items-center gap-4">
                                                             <div className="flex-1">
                                                                 <div className="text-sm font-bold text-foreground">{tp.name}</div>
-                                                                <div className="text-[10px] text-muted-ui mt-0.5">{t} cases · {p} passed · {f} failed</div>
+                                                                <div className="text-[11px] text-muted-ui mt-0.5">{t} cases · {p} passed · {f} failed</div>
                                                             </div>
                                                             <div className={`text-lg font-black ${r >= 80 ? 'text-state-success' : r >= 60 ? 'text-state-warning' : 'text-state-danger'}`}>{r}%</div>
                                                             <div className="w-24 h-2 bg-elevated rounded-full overflow-hidden">
@@ -1097,7 +1097,7 @@ export default function TestsPage() {
                                             const usefulRate = rated.length > 0 ? Math.round(useful.length / rated.length * 100) : 0
                                             return (
                                                 <div className="space-y-3 pt-6 border-t border-ui">
-                                                    <div className="text-[10px] font-black uppercase text-brand tracking-widest flex items-center gap-2">
+                                                    <div className="text-[11px] font-black uppercase text-brand tracking-widest flex items-center gap-2">
                                                         <Sparkles className="h-3 w-3" /> AI Generation Quality
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-2">
@@ -1109,7 +1109,7 @@ export default function TestsPage() {
                                                         ].map(stat => (
                                                             <div key={stat.label} className="bg-panel-muted border border-ui rounded-xl p-3">
                                                                 <div className={`text-2xl font-black ${stat.color}`}>{stat.value}</div>
-                                                                <div className="text-[10px] text-muted-ui font-bold uppercase tracking-widest mt-0.5">{stat.label}</div>
+                                                                <div className="text-[11px] text-muted-ui font-bold uppercase tracking-widest mt-0.5">{stat.label}</div>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1143,7 +1143,7 @@ export default function TestsPage() {
                                         <BarChart3 className="h-4 w-4 text-brand" />
                                         <span className="text-[11px] font-extrabold text-muted-ui uppercase tracking-[0.25em]">RISK-BASED TEST PRIORITIZATION</span>
                                         <div className="flex-1" />
-                                        <div className="flex items-center gap-3 text-[10px] font-bold">
+                                        <div className="flex items-center gap-3 text-[11px] font-bold">
                                             <span className="text-state-danger">● High Risk</span>
                                             <span className="text-state-warning">● Medium</span>
                                             <span className="text-state-info">● Low</span>
@@ -1158,7 +1158,7 @@ export default function TestsPage() {
                                             </div>
                                         ) : (
                                             <div className="max-w-5xl mx-auto space-y-2">
-                                                <div className="text-[10px] text-muted-ui mb-4">
+                                                <div className="text-[11px] text-muted-ui mb-4">
                                                     Scoring: 30% SAP module criticality · 30% historical failure rate · 20% linked defects · 20% linked task priority
                                                 </div>
                                                 {riskScores.map(({ testCase: tc, planName, riskScore, factors }) => (
@@ -1170,7 +1170,7 @@ export default function TestsPage() {
                                                             <div className="flex items-center gap-2 mb-1">
                                                                 <span className="text-xs font-bold text-foreground truncate">{tc.displayId} — {tc.title}</span>
                                                             </div>
-                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-ui">
+                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-ui">
                                                                 <span className="font-mono">{planName}</span>
                                                                 {tc.sapModule && <span className="text-brand font-bold">{tc.sapModule}</span>}
                                                                 <span>Module crit: <b>{factors.moduleCriticality}</b></span>
@@ -1196,7 +1196,7 @@ export default function TestsPage() {
                                 <div className="flex-none bg-panel border-b border-ui px-6 py-3 flex items-center justify-between">
                                     <div className="flex items-center gap-6">
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em]">From</span>
+                                            <span className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.2em]">From</span>
                                             <Input 
                                                 type="date" 
                                                 value={regressionFromDate}
@@ -1205,7 +1205,7 @@ export default function TestsPage() {
                                             />
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em]">To</span>
+                                            <span className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.2em]">To</span>
                                             <Input 
                                                 type="date" 
                                                 value={regressionToDate}
@@ -1268,7 +1268,7 @@ export default function TestsPage() {
                                             <div className="absolute top-0 left-0 w-1 h-full bg-qa-accent/50 group-hover:w-2 transition-all" />
                                             <div className="space-y-6">
                                                 <div>
-                                                    <h2 className="text-[10px] font-black text-muted-ui uppercase tracking-[0.3em] mb-2">REGRESSION SUITE PREVIEW</h2>
+                                                    <h2 className="text-[11px] font-black text-muted-ui uppercase tracking-[0.3em] mb-2">REGRESSION SUITE PREVIEW</h2>
                                                     <p className="text-xl font-black text-foreground tracking-tight">
                                                         {uniqueSelectedCases.length} unique test case(s) selected
                                                     </p>
@@ -1291,7 +1291,7 @@ export default function TestsPage() {
                                                                 {stat.icon}
                                                             </div>
                                                             <div className={cn("text-2xl font-black mb-1", stat.color)}>{stat.value}</div>
-                                                            <div className="text-[9px] font-bold text-muted-ui uppercase tracking-widest">{stat.label}</div>
+                                                            <div className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">{stat.label}</div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1310,7 +1310,7 @@ export default function TestsPage() {
                                                 </div>
                                                 <div className="grid grid-cols-1 gap-2">
                                                     {doneLinkedTestCases.length === 0 ? (
-                                                        <div className="p-4 bg-surface-alt/40 border border-dashed border-ui rounded-xl text-center text-[10px] font-bold text-muted-ui uppercase tracking-widest">
+                                                        <div className="p-4 bg-surface-alt/40 border border-dashed border-ui rounded-xl text-center text-[11px] font-bold text-muted-ui uppercase tracking-widest">
                                                             No linked test cases for done tasks
                                                         </div>
                                                     ) : (
@@ -1322,7 +1322,7 @@ export default function TestsPage() {
                                                                     </div>
                                                                     <div className="overflow-hidden">
                                                                         <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-foreground transition-colors truncate">{tc.title}</div>
-                                                                        <div className="text-[9px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
+                                                                        <div className="text-[11px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
                                                                             <span className="text-brand font-bold">{tc.displayId}</span>
                                                                             <span className="opacity-40">·</span>
                                                                             <span>Link ID: {tc.sourceIssueId || 'N/A'}</span>
@@ -1348,7 +1348,7 @@ export default function TestsPage() {
                                                 </div>
                                                 <div className="grid grid-cols-1 gap-2">
                                                     {previouslyFailedTestCases.length === 0 ? (
-                                                        <div className="p-4 bg-surface-alt/40 border border-dashed border-ui rounded-xl text-center text-[10px] font-bold text-muted-ui uppercase tracking-widest">
+                                                        <div className="p-4 bg-surface-alt/40 border border-dashed border-ui rounded-xl text-center text-[11px] font-bold text-muted-ui uppercase tracking-widest">
                                                             No failure history found
                                                         </div>
                                                     ) : (
@@ -1360,7 +1360,7 @@ export default function TestsPage() {
                                                                     </div>
                                                                     <div className="overflow-hidden">
                                                                         <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-foreground transition-colors truncate">{tc.title}</div>
-                                                                        <div className="text-[9px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
+                                                                        <div className="text-[11px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
                                                                             <span className="text-brand font-bold">{tc.displayId}</span>
                                                                             <span className="opacity-40">·</span>
                                                                             <span>Last Result: FAILED</span>
@@ -1387,13 +1387,13 @@ export default function TestsPage() {
                                                 <div className="grid grid-cols-1 gap-2">
                                                     {smokeSubsetTestCases.length === 0 ? (
                                                         <div className="p-6 bg-surface-alt/40 border border-dashed border-ui rounded-xl text-center space-y-3">
-                                                            <div className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">Run AI analysis to identify smoke subset</div>
+                                                            <div className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">Run AI analysis to identify smoke subset</div>
                                                             <Button 
                                                                 variant="outline" 
                                                                 size="sm" 
                                                                 onClick={handleGenerateSmokeSubset}
                                                                 disabled={isGenerating}
-                                                                className="h-7 text-[10px] font-black border-ui text-brand hover:bg-qa-accent/10"
+                                                                className="h-7 text-[11px] font-black border-ui text-brand hover:bg-qa-accent/10"
                                                             >
                                                                 <Cpu className="h-3 w-3 mr-2" /> RUN ANALYSIS
                                                             </Button>
@@ -1407,7 +1407,7 @@ export default function TestsPage() {
                                                                     </div>
                                                                     <div className="overflow-hidden">
                                                                         <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-foreground transition-colors truncate">{tc.title}</div>
-                                                                        <div className="text-[9px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
+                                                                        <div className="text-[11px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
                                                                             <span className="text-brand font-bold">{tc.displayId}</span>
                                                                             <span className="opacity-40">·</span>
                                                                             <span>Confidence: High</span>

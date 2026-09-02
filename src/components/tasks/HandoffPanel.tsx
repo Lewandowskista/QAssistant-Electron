@@ -191,7 +191,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
             <div className="rounded-xl border border-ui bg-panel-muted p-4 space-y-3">
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-ui font-bold">Collaboration State</p>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-ui font-bold">Collaboration State</p>
                         <div className="text-sm font-semibold text-foreground">{workflowSummary.stateLabel}</div>
                     </div>
                     <Button variant="outline" className="border-qa-accent/20 text-brand" onClick={() => setDialogOpen(true)}>
@@ -205,9 +205,9 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                     workflowSummary.attentionLevel === 'info' && "border-state-info-border bg-state-info-soft",
                     workflowSummary.attentionLevel === 'success' && "border-state-success-border bg-state-success-soft",
                 )}>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-ui font-bold">Next Recommended Action</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-ui font-bold">Next Recommended Action</p>
                     <p className="mt-2 text-sm font-semibold text-foreground">{workflowSummary.nextAction}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-soft">
+                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-soft">
                         <span>Owner: <span className="text-foreground">{workflowSummary.ownerLabel}</span></span>
                         <span>Verification: <span className="text-foreground">{workflowSummary.verificationLabel}</span></span>
                         <span>Linked tests: <span className="text-foreground">{workflowSummary.linkedTestCount}</span></span>
@@ -238,9 +238,9 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         )}
                         <div className="flex flex-wrap gap-2">
                             {missingFields.length === 0 ? (
-                                <span className="px-2 py-1 rounded-md bg-state-success-soft border border-state-success-border text-[10px] text-state-success font-bold">SEND-READY</span>
+                                <span className="px-2 py-1 rounded-md bg-state-success-soft border border-state-success-border text-[11px] text-state-success font-bold">SEND-READY</span>
                             ) : missingFields.map((field) => (
-                                <span key={field} className="px-2 py-1 rounded-md bg-state-danger-soft border border-state-danger-border text-[10px] text-state-danger font-bold">
+                                <span key={field} className="px-2 py-1 rounded-md bg-state-danger-soft border border-state-danger-border text-[11px] text-state-danger font-bold">
                                     Missing {field}
                                 </span>
                             ))}
@@ -248,7 +248,7 @@ export function HandoffPanel({ activeProject, task }: HandoffPanelProps) {
                         {activeHandoff.linkedPrs.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                                 {activeHandoff.linkedPrs.map((pr) => (
-                                    <span key={`${pr.repoFullName}#${pr.prNumber}`} className="px-2 py-1 rounded-md bg-app border border-ui text-[10px] text-state-info">
+                                    <span key={`${pr.repoFullName}#${pr.prNumber}`} className="px-2 py-1 rounded-md bg-app border border-ui text-[11px] text-state-info">
                                         {pr.repoFullName}#{pr.prNumber}
                                     </span>
                                 ))}

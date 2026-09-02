@@ -1090,7 +1090,7 @@ export default function SettingsPage() {
                             <div>
                                 <p className="text-sm font-semibold text-foreground flex items-center gap-2">
                                     Minimize to Tray
-                                    <span className="text-[9px] px-1.5 py-0.5 bg-qa-accent/20 text-brand rounded-md font-black uppercase tracking-wider">New</span>
+                                    <span className="text-[11px] px-1.5 py-0.5 bg-qa-accent/20 text-brand rounded-md font-black uppercase tracking-wider">New</span>
                                 </p>
                                 <p className="text-xs text-muted-ui mt-0.5">When closing the window, keep the app running in the system tray.</p>
                             </div>
@@ -1121,7 +1121,7 @@ export default function SettingsPage() {
                                 <Input value={apiPort} onChange={e => setApiPort(e.target.value)} className={`${inp} w-28 font-mono text-center`} />
                                 <Button variant="outline" size="sm" className="h-10 border-ui text-soft font-bold" onClick={handleSavePort}>Save Port</Button>
                             </div>
-                            <p className="text-[10px] text-muted-ui mt-1">Default: 5248 · Restart or toggle to apply</p>
+                            <p className="text-[11px] text-muted-ui mt-1">Default: 5248 · Restart or toggle to apply</p>
                         </div>
                         <div>
                             <FieldLabel>API Key</FieldLabel>
@@ -1145,15 +1145,15 @@ export default function SettingsPage() {
                                     <RefreshCw className="h-3 w-3" />Regenerate Key
                                 </Button>
                             </div>
-                            <p className="text-[10px] text-muted-ui mt-1">Header: <code className="font-mono bg-panel-muted px-1 rounded">Authorization: Bearer &lt;key&gt;</code></p>
+                            <p className="text-[11px] text-muted-ui mt-1">Header: <code className="font-mono bg-panel-muted px-1 rounded">Authorization: Bearer &lt;key&gt;</code></p>
                         </div>
                     </div>
 
                     <StatusBanner s={automationStatus} />
 
                     <div className="mt-4 bg-background border border-ui rounded-xl p-4">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-ui mb-2">Endpoints</p>
-                        <pre className="text-[10px] font-mono text-soft leading-5 whitespace-pre-wrap">{`GET  /api/projects
+                        <p className="text-[11px] font-black uppercase tracking-widest text-muted-ui mb-2">Endpoints</p>
+                        <pre className="text-[11px] font-mono text-soft leading-5 whitespace-pre-wrap">{`GET  /api/projects
 GET  /api/projects/{id}/testplans
 GET  /api/projects/{id}/testcases
 GET  /api/projects/{id}/testcases?planId={guid}
@@ -1161,7 +1161,7 @@ GET  /api/projects/{id}/testcases/{tcId}
 GET  /api/projects/{id}/executions
 POST /api/projects/{id}/executions
 POST /api/projects/{id}/executions/batch`}</pre>
-                        <p className="text-[10px] text-muted-ui mt-2">POST body: <code className="font-mono">{"{ testCaseDisplayId, result, actualResult, notes }"}</code></p>
+                        <p className="text-[11px] text-muted-ui mt-2">POST body: <code className="font-mono">{"{ testCaseDisplayId, result, actualResult, notes }"}</code></p>
                     </div>
                 </Sec>
 
@@ -1220,7 +1220,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     </div>
                                     <div><FieldLabel>Team ID</FieldLabel>
                                         <Input value={linearForm.teamId} onChange={e => setLinearForm(f => ({ ...f, teamId: e.target.value }))} placeholder="Your Linear Team ID" className={inp} />
-                                        <p className="text-[10px] text-muted-ui mt-1">linear.app → Settings → Team → copy the ID from the URL</p>
+                                        <p className="text-[11px] text-muted-ui mt-1">linear.app → Settings → Team → copy the ID from the URL</p>
                                     </div>
                                 </div>
                             </FormPanel>
@@ -1274,7 +1274,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                     </div>
                                     <div><FieldLabel>Project Key</FieldLabel>
                                         <Input value={jiraForm.projectKey} onChange={e => setJiraForm(f => ({ ...f, projectKey: e.target.value }))} placeholder="e.g. QA, DEV, PROJ" className={inp} />
-                                        <p className="text-[10px] text-muted-ui mt-1">The short key shown before issue numbers e.g. QA-123</p>
+                                        <p className="text-[11px] text-muted-ui mt-1">The short key shown before issue numbers e.g. QA-123</p>
                                     </div>
                                 </div>
                             </FormPanel>
@@ -1378,7 +1378,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 </select>
                                 {/* Score legend */}
                                 {Object.keys(nimModelMeta).length > 0 && (
-                                    <p className="text-[10px] text-muted-ui mt-1 leading-tight">
+                                    <p className="text-[11px] text-muted-ui mt-1 leading-tight">
                                         QA = composite QA score &nbsp;·&nbsp; I = instruction-following &nbsp;·&nbsp; R = reasoning &nbsp;·&nbsp; C = coding (0–100)
                                     </p>
                                 )}
@@ -1389,14 +1389,14 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                         <div className="flex-1 min-w-0">
                                             <span className="text-[11px] text-foreground font-semibold break-all">{nimSuggestedModel}</span>
                                             {nimModelMeta[nimSuggestedModel] && (
-                                                <span className="ml-2 text-[10px] text-soft">
+                                                <span className="ml-2 text-[11px] text-soft">
                                                     QA:{nimModelMeta[nimSuggestedModel].qaScore}&nbsp;
                                                     {nimHealthMap[nimSuggestedModel]?.latencyMs ? `· ${nimHealthMap[nimSuggestedModel].latencyMs}ms` : ''}
                                                     {nimModelMeta[nimSuggestedModel].notes ? ` · ${nimModelMeta[nimSuggestedModel].notes}` : ''}
                                                 </span>
                                             )}
                                             <button
-                                                className="ml-2 text-[10px] text-brand underline hover:text-qa-accent cursor-pointer"
+                                                className="ml-2 text-[11px] text-brand underline hover:text-qa-accent cursor-pointer"
                                                 onClick={() => setNimModel(nimSuggestedModel)}
                                                 type="button"
                                             >Use this</button>
@@ -1446,12 +1446,12 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         <div>
                             <FieldLabel>Subscription Code</FieldLabel>
                             <Input value={ccv2Sub} onChange={e => setCcv2Sub(e.target.value)} placeholder="Your CCv2 subscription code" className={inp} />
-                            <p className="text-[10px] text-muted-ui mt-1">Found in the SAP Commerce Cloud Portal under your project settings</p>
+                            <p className="text-[11px] text-muted-ui mt-1">Found in the SAP Commerce Cloud Portal under your project settings</p>
                         </div>
                         <div>
                             <FieldLabel>API Token</FieldLabel>
                             <Input type={showSecrets ? 'text' : 'password'} value={ccv2Token} onChange={e => setCcv2Token(e.target.value)} placeholder="Bearer token from the CCv2 portal" className={inp} />
-                            <p className="text-[10px] text-muted-ui mt-1">Generate in Cloud Portal → API Token Management</p>
+                            <p className="text-[11px] text-muted-ui mt-1">Generate in Cloud Portal → API Token Management</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 mt-4">
@@ -1548,7 +1548,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 )}
                             </div>
                             <div className="border border-ui rounded-xl p-3 space-y-2">
-                                <p className="text-[10px] font-black text-muted-ui uppercase tracking-widest mb-2">Notify On</p>
+                                <p className="text-[11px] font-black text-muted-ui uppercase tracking-widest mb-2">Notify On</p>
                                 {[
                                     { key: 'notifyOnTestPlanFail', label: 'Test Plan Run Failure' },
                                     { key: 'notifyOnHighPriorityDone', label: 'High-Priority Task Completed' },
@@ -1613,18 +1613,18 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Current Version</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Current Version</p>
                                 <p className="text-sm font-semibold text-foreground mt-1">{appUpdateState.currentVersion || appVersion || 'Unknown'}</p>
                             </div>
                         </div>
 
                         <div className="grid sm:grid-cols-2 gap-3">
                             <div className="bg-background border border-ui-subtle rounded-xl px-4 py-3">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Status</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Status</p>
                                 <p className="text-sm font-semibold text-foreground mt-1">{formatUpdateStatus(appUpdateState)}</p>
                             </div>
                             <div className="bg-background border border-ui-subtle rounded-xl px-4 py-3">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Last Check</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Last Check</p>
                                 <p className="text-sm font-semibold text-foreground mt-1">{formatUpdateCheckTime(appUpdateState.lastCheckedAt)}</p>
                             </div>
                         </div>
@@ -1651,7 +1651,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
 
                         {appUpdateState.releaseNotes && (
                             <div className="bg-background border border-ui-subtle rounded-xl px-4 py-3">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui mb-2">Release Notes</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui mb-2">Release Notes</p>
                                 <p className="text-xs text-soft whitespace-pre-wrap">{appUpdateState.releaseNotes}</p>
                             </div>
                         )}
@@ -1724,7 +1724,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9 gap-2" onClick={() => navigate('/docs')}>
                         <BookOpen className="h-3.5 w-3.5" /> Open Documentation
                     </Button>
-                    <p className="text-[10px] text-muted-ui mt-2">Tip: Press F1 anywhere to open docs.</p>
+                    <p className="text-[11px] text-muted-ui mt-2">Tip: Press F1 anywhere to open docs.</p>
                 </Sec>
 
                 {/* ── DIAGNOSTICS ──────────────────────────────────────────── */}
@@ -1740,7 +1740,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                             { label: 'Node.js', value: sysInfo?.nodeVersion },
                         ].filter(i => i.value).map(item => (
                             <div key={item.label} className="bg-app border border-ui rounded-xl px-4 py-3">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">{item.label}</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">{item.label}</p>
                                 <p className="text-sm font-semibold text-foreground mt-0.5">{item.value}</p>
                             </div>
                         ))}
@@ -1763,7 +1763,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                                 { label: 'Granular Handoff Writes', value: perfMetrics.counters.granularHandoffWrites, unit: '' },
                             ].filter(item => item.value !== undefined).map(item => (
                                 <div key={item.label} className="bg-app border border-ui rounded-xl px-4 py-3">
-                                    <p className="text-[10px] font-bold uppercase text-muted-ui">{item.label}</p>
+                                    <p className="text-[11px] font-bold uppercase text-muted-ui">{item.label}</p>
                                     <p className="text-sm font-semibold text-foreground mt-0.5">
                                         {typeof item.value === 'number' ? Math.round(item.value * 100) / 100 : item.value}{item.unit ? ` ${item.unit}` : ''}
                                     </p>
@@ -1773,12 +1773,12 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     )}
                     {dataPath && (
                         <div className="bg-app border border-ui rounded-xl px-4 py-3 mb-4">
-                            <p className="text-[10px] font-bold uppercase text-muted-ui mb-1">Data Storage Path</p>
+                            <p className="text-[11px] font-bold uppercase text-muted-ui mb-1">Data Storage Path</p>
                             <p className="text-[11px] font-mono text-brand break-all">{dataPath}</p>
                         </div>
                     )}
                     <div className="bg-app border border-ui rounded-xl px-4 py-3 mb-4">
-                        <p className="text-[10px] font-bold uppercase text-muted-ui mb-2">Intel Mac Profiling Checklist</p>
+                        <p className="text-[11px] font-bold uppercase text-muted-ui mb-2">Intel Mac Profiling Checklist</p>
                         <ol className="space-y-1 text-xs text-soft list-decimal ml-4">
                             <li>Cold-launch the packaged macOS x64 app and capture App Ready, Window Ready, and First Route Interactive.</li>
                             <li>Swipe between macOS Spaces with the app visible and watch for dropped-frame jank.</li>
@@ -1791,7 +1791,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     {activeProject && (
                         <div className="bg-app border border-ui rounded-xl px-4 py-3 mb-4">
                             <div className="flex items-center justify-between mb-2">
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Stored Credentials</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Stored Credentials</p>
                                 <div className="flex items-center gap-2">
                                     <Button variant="outline" size="sm" className="h-8 border-ui text-soft font-bold" onClick={refreshStoredCreds}>Refresh</Button>
                                 </div>
@@ -1830,7 +1830,7 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     <div className="mt-4 bg-app border border-ui rounded-xl px-4 py-3">
                         <div className="flex items-center justify-between mb-2">
                             <div>
-                                <p className="text-[10px] font-bold uppercase text-muted-ui">Orphaned Attachments</p>
+                                <p className="text-[11px] font-bold uppercase text-muted-ui">Orphaned Attachments</p>
                                 <p className="text-[11px] text-muted-ui mt-0.5">Files in the attachments folder no longer referenced by any project.</p>
                             </div>
                             <Button

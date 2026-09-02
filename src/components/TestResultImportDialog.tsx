@@ -177,7 +177,7 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                         {fileName && (
                             <div className="flex items-center gap-2">
                                 <span className="text-xs font-mono text-soft">{fileName}</span>
-                                <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand">{format}</span>
+                                <span className="text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand">{format}</span>
                             </div>
                         )}
                     </div>
@@ -186,7 +186,7 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                         <>
                             {/* Environment */}
                             <div className="flex items-center gap-3">
-                                <Label className="text-[10px] font-bold text-muted-ui uppercase tracking-widest shrink-0">Environment</Label>
+                                <Label className="text-[11px] font-bold text-muted-ui uppercase tracking-widest shrink-0">Environment</Label>
                                 <select
                                     value={selectedEnvId}
                                     onChange={e => setSelectedEnvId(e.target.value)}
@@ -223,7 +223,7 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                                         <div className="flex items-center gap-2 mb-2">
                                             <input type="checkbox" checked={selectedSuiteIdxs.has(i)} onChange={() => toggleSuite(i)} className="accent-qa-accent" onClick={e => e.stopPropagation()} />
                                             <span className="text-xs font-bold text-foreground flex-1 truncate">{suite.name}</span>
-                                            <span className="text-[10px] font-bold text-muted-ui">{suite.cases.length} cases</span>
+                                            <span className="text-[11px] font-bold text-muted-ui">{suite.cases.length} cases</span>
                                         </div>
                                         <div className="flex flex-wrap gap-1 max-h-16 overflow-hidden">
                                             {suite.cases.slice(0, 12).map((c, ci) => (
@@ -232,7 +232,7 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                                                 </div>
                                             ))}
                                             {suite.cases.length > 12 && (
-                                                <span className="text-[9px] text-muted-ui">+{suite.cases.length - 12} more</span>
+                                                <span className="text-[11px] text-muted-ui">+{suite.cases.length - 12} more</span>
                                             )}
                                         </div>
                                     </div>

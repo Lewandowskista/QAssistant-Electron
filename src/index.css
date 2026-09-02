@@ -304,7 +304,7 @@
   }
 
   .app-section-label {
-    @apply text-[10px] font-semibold uppercase tracking-[0.24em];
+    @apply text-[11px] font-semibold uppercase tracking-[0.24em];
     color: hsl(var(--text-muted));
   }
 
@@ -468,7 +468,7 @@
   }
 
   .workspace-rail-heading {
-    @apply px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.24em];
+    @apply px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.24em];
     color: hsl(var(--text-muted));
   }
 

@@ -33,14 +33,14 @@ function PrDescription({ body }: { body: string }) {
 
     return (
         <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Description</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Description</p>
             <p className="text-[11px] text-soft whitespace-pre-wrap leading-relaxed break-words">
                 {isLong && !expanded ? body.slice(0, DESCRIPTION_TRUNCATE_LENGTH) + '…' : body}
             </p>
             {isLong && (
                 <button
                     onClick={() => setExpanded(prev => !prev)}
-                    className="mt-1.5 text-[10px] font-semibold text-brand hover:text-qa-accent transition-colors"
+                    className="mt-1.5 text-[11px] font-semibold text-brand hover:text-qa-accent transition-colors"
                 >
                     {expanded ? 'Show less' : 'Show more'}
                 </button>
@@ -383,7 +383,7 @@ function GitHubContent() {
                             <RefreshCw aria-hidden="true" className={cn("h-3.5 w-3.5", loadingData && "animate-spin")} />
                         </Button>
                         {lastUpdated && (
-                            <span className="text-[10px] text-muted-ui">{formatTimeAgo(lastUpdated.toISOString())}</span>
+                            <span className="text-[11px] text-muted-ui">{formatTimeAgo(lastUpdated.toISOString())}</span>
                         )}
                     </>
                 }
@@ -491,12 +491,12 @@ function GitHubContent() {
                                                     {pr.title}
                                                 </span>
                                                 {pr.draft && (
-                                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-elevated text-muted-ui">Draft</span>
+                                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-bold uppercase bg-elevated text-muted-ui">Draft</span>
                                                 )}
                                                 {pr.labels?.map(label => (
                                                     <span
                                                         key={label.name}
-                                                        className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold"
+                                                        className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-bold"
                                                         style={{
                                                             backgroundColor: `#${label.color}20`,
                                                             color: `#${label.color}`,
@@ -521,7 +521,7 @@ function GitHubContent() {
                                                     <span className="text-[11px] text-soft">{pr.author}</span>
                                                 </div>
                                                 {(pr.additions > 0 || pr.deletions > 0) && (
-                                                    <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                                                    <div className="flex items-center gap-1.5 text-[11px] font-mono">
                                                         <span className="text-state-success flex items-center gap-0.5"><Plus className="h-2.5 w-2.5" />{pr.additions}</span>
                                                         <span className="text-state-danger flex items-center gap-0.5"><Minus className="h-2.5 w-2.5" />{pr.deletions}</span>
                                                         <span className="text-muted-ui flex items-center gap-0.5"><FileText className="h-2.5 w-2.5" />{pr.changedFiles}</span>
@@ -539,7 +539,7 @@ function GitHubContent() {
                                                         depState === 'failure' || depState === 'error' ? 'text-state-danger' :
                                                         depState === 'in_progress' ? 'text-state-warning' : 'text-muted-ui'
                                                     return (
-                                                        <div className={cn("flex items-center gap-1 text-[10px]", depColor)}>
+                                                        <div className={cn("flex items-center gap-1 text-[11px]", depColor)}>
                                                             <Rocket className="h-2.5 w-2.5 shrink-0" />
                                                             <span>{dep.environment}</span>
                                                         </div>
@@ -589,7 +589,7 @@ function GitHubContent() {
                                                         <GitBranch className="h-3 w-3 text-muted-ui shrink-0" />
                                                         <span className="font-mono text-foreground truncate flex-1">{branch.name}</span>
                                                         {branch.name === selectedRepo.defaultBranch && (
-                                                            <span className="text-[9px] text-muted-ui bg-elevated px-1.5 rounded">default</span>
+                                                            <span className="text-[11px] text-muted-ui bg-elevated px-1.5 rounded">default</span>
                                                         )}
                                                     </button>
                                                 ))}
@@ -665,7 +665,7 @@ function GitHubContent() {
                                         <span>→</span>
                                         <code className="font-mono truncate">{prDetail.baseBranch}</code>
                                         {prDetail.draft && (
-                                            <span className="px-1.5 py-0.5 rounded bg-elevated text-[9px] font-bold uppercase text-muted-ui shrink-0">Draft</span>
+                                            <span className="px-1.5 py-0.5 rounded bg-elevated text-[11px] font-bold uppercase text-muted-ui shrink-0">Draft</span>
                                         )}
                                     </div>
 
@@ -681,7 +681,7 @@ function GitHubContent() {
 
                                     {/* CI status */}
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">CI</span>
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">CI</span>
                                         <CheckStatusIcon status={prCheckStatuses[selectedPr.number] ?? selectedPr.checkStatus} />
                                         <span className="text-[11px] text-soft capitalize">
                                             {prCheckStatuses[selectedPr.number] ?? selectedPr.checkStatus ?? 'No checks'}
@@ -700,7 +700,7 @@ function GitHubContent() {
                                     {/* Reviewers */}
                                     {prReviews[selectedPr.number]?.length > 0 && (
                                         <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Reviewers</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Reviewers</p>
                                             <div className="space-y-1.5">
                                                 {Object.values(
                                                     prReviews[selectedPr.number].reduce((acc: Record<string, GitHubReview>, r) => {
@@ -711,7 +711,7 @@ function GitHubContent() {
                                                     <div key={r.user} className="flex items-center gap-2">
                                                         <img src={r.userAvatar} className="w-5 h-5 rounded-full shrink-0" alt={r.user} />
                                                         <span className="text-[11px] text-foreground flex-1 truncate">{r.user}</span>
-                                                        <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0",
+                                                        <span className={cn("text-[11px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0",
                                                             r.state === 'APPROVED' ? 'bg-state-success/20 text-state-success' :
                                                             r.state === 'CHANGES_REQUESTED' ? 'bg-state-danger/20 text-state-danger' :
                                                             r.state === 'COMMENTED' ? 'bg-qa-accent/20 text-brand' :
@@ -728,10 +728,10 @@ function GitHubContent() {
                                     {/* Requested reviewers (not yet reviewed) */}
                                     {selectedPr.requestedReviewers.length > 0 && (
                                         <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">Awaiting review from</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">Awaiting review from</p>
                                             <div className="flex flex-wrap gap-1.5">
                                                 {selectedPr.requestedReviewers.map(reviewer => (
-                                                    <span key={reviewer} className="px-2 py-0.5 rounded-full bg-elevated text-[10px] text-soft">
+                                                    <span key={reviewer} className="px-2 py-0.5 rounded-full bg-elevated text-[11px] text-soft">
                                                         {reviewer}
                                                     </span>
                                                 ))}
@@ -765,9 +765,9 @@ function GitHubContent() {
                                         <div className="flex items-center justify-between px-3 py-2 border-b border-ui">
                                             <div className="flex items-center gap-2">
                                                 <Sparkles className="h-3.5 w-3.5 text-brand" />
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">Test Impact</span>
+                                                <span className="text-[11px] font-bold uppercase tracking-widest text-muted-ui">Test Impact</span>
                                                 {impactResult && (
-                                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand">
+                                                    <span className="text-[11px] font-bold uppercase px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand">
                                                         {impactResult.impactedCaseIds.length} impacted
                                                     </span>
                                                 )}
@@ -777,7 +777,7 @@ function GitHubContent() {
                                                 variant="ghost"
                                                 onClick={handleTestImpactAnalysis}
                                                 disabled={impactLoading}
-                                                className="h-7 text-[10px] font-bold text-brand hover:bg-qa-accent/10 gap-1"
+                                                className="h-7 text-[11px] font-bold text-brand hover:bg-qa-accent/10 gap-1"
                                             >
                                                 {impactLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                                                 {impactLoading ? 'Analyzing…' : 'Analyze'}
@@ -788,12 +788,12 @@ function GitHubContent() {
                                                 {impactResult.affectedModules.length > 0 && (
                                                     <div className="flex flex-wrap gap-1">
                                                         {impactResult.affectedModules.map(m => (
-                                                            <span key={m} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-state-info-soft text-state-info uppercase">{m}</span>
+                                                            <span key={m} className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-state-info-soft text-state-info uppercase">{m}</span>
                                                         ))}
                                                     </div>
                                                 )}
                                                 {impactResult.rationale && (
-                                                    <p className="text-[10px] text-soft leading-relaxed">{impactResult.rationale}</p>
+                                                    <p className="text-[11px] text-soft leading-relaxed">{impactResult.rationale}</p>
                                                 )}
                                                 {impactResult.impactedCaseIds.length > 0 ? (
                                                     <>
@@ -812,7 +812,7 @@ function GitHubContent() {
                                                                             })}
                                                                             className="accent-qa-accent"
                                                                         />
-                                                                        <span className="text-[10px] text-foreground group-hover:text-qa-accent transition-colors truncate">
+                                                                        <span className="text-[11px] text-foreground group-hover:text-qa-accent transition-colors truncate">
                                                                             {tc.displayId} — {tc.title}
                                                                         </span>
                                                                     </label>
@@ -822,7 +822,7 @@ function GitHubContent() {
                                                         <Button
                                                             onClick={handleBuildImpactRegressionSuite}
                                                             disabled={buildingRegression || impactSelectedIds.size === 0}
-                                                            className="w-full h-8 bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))] text-[10px] font-bold gap-2"
+                                                            className="w-full h-8 bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))] text-[11px] font-bold gap-2"
                                                         >
                                                             {buildingRegression ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
                                                             {buildingRegression ? 'Building...' : `Build Regression Suite (${impactSelectedIds.size})`}
@@ -831,7 +831,7 @@ function GitHubContent() {
                                                 ) : (
                                                     <div className="flex items-center gap-2 py-1">
                                                         <CheckCircle2 className="h-3.5 w-3.5 text-state-success" />
-                                                        <span className="text-[10px] text-state-success">No test cases identified as impacted.</span>
+                                                        <span className="text-[11px] text-state-success">No test cases identified as impacted.</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -840,7 +840,7 @@ function GitHubContent() {
 
                                     {/* Comments */}
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-ui mb-2">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-muted-ui mb-2">
                                             Comments {prComments.length > 0 && `(${prComments.length})`}
                                         </p>
                                         {loadingComments ? (
@@ -857,7 +857,7 @@ function GitHubContent() {
                                                         <div className="flex items-center gap-2 mb-1.5">
                                                             <img src={comment.userAvatar} className="w-4 h-4 rounded-full" alt={comment.user} />
                                                             <span className="text-[11px] font-semibold text-foreground">{comment.user}</span>
-                                                            <span className="text-[10px] text-muted-ui">{formatTimeAgo(comment.createdAt)}</span>
+                                                            <span className="text-[11px] text-muted-ui">{formatTimeAgo(comment.createdAt)}</span>
                                                         </div>
                                                         <p className="text-[11px] text-soft whitespace-pre-wrap break-words leading-relaxed">
                                                             {comment.body.length > 500 ? comment.body.slice(0, 500) + '…' : comment.body}
@@ -870,7 +870,7 @@ function GitHubContent() {
 
                                     {/* QA Actions */}
                                     <div className="pt-4 border-t border-ui space-y-3">
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-brand">QA Actions</p>
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-brand">QA Actions</p>
 
                                         {/* Post QA Comment */}
                                         <div>
@@ -955,7 +955,7 @@ function GitHubContent() {
                                                 {(prDetail?.labels ?? selectedPr?.labels ?? [])
                                                     .filter((l: any) => QA_LABELS.includes(l.name as any))
                                                     .map((l: any) => (
-                                                        <span key={l.name} className="text-[10px] px-2 py-0.5 rounded-full bg-qa-accent/20 text-brand font-semibold">
+                                                        <span key={l.name} className="text-[11px] px-2 py-0.5 rounded-full bg-qa-accent/20 text-brand font-semibold">
                                                             {l.name}
                                                         </span>
                                                     ))

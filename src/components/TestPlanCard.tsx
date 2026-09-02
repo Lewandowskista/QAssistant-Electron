@@ -111,7 +111,7 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
         .map(([status, count]) => (
             <div key={status} className="flex items-center gap-1.5 px-1">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColors[status as TestCaseStatus] }} />
-                <span className="text-[10px] text-muted-ui">{count} {status}</span>
+                <span className="text-[11px] text-muted-ui">{count} {status}</span>
             </div>
         ))
 
@@ -134,10 +134,10 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                         <span className="font-mono text-[14px] font-bold text-brand tracking-tight">{plan.displayId || 'PLAN-XXX'}</span>
                         <span className="text-[14px] font-semibold text-foreground truncate">{plan.name}</span>
                         <div className="bg-panel-muted px-2 py-0.5 rounded border border-line/50 shrink-0">
-                            <span className="text-[10px] text-soft uppercase font-bold">{plan.testCases.length} CASE{plan.testCases.length !== 1 ? 'S' : ''}</span>
+                            <span className="text-[11px] text-soft uppercase font-bold">{plan.testCases.length} CASE{plan.testCases.length !== 1 ? 'S' : ''}</span>
                         </div>
-                        {plan.isArchived && <div className="bg-state-warning-soft px-2 py-0.5 rounded border border-state-warning-border shrink-0 text-[10px] font-bold text-state-warning uppercase tracking-wider">ARCHIVED</div>}
-                        {plan.isRegressionSuite && <div className="bg-state-success-soft px-2 py-0.5 rounded border border-state-success-border shrink-0 text-[10px] font-bold text-state-success uppercase tracking-wider">REGRESSION</div>}
+                        {plan.isArchived && <div className="bg-state-warning-soft px-2 py-0.5 rounded border border-state-warning-border shrink-0 text-[11px] font-bold text-state-warning uppercase tracking-wider">ARCHIVED</div>}
+                        {plan.isRegressionSuite && <div className="bg-state-success-soft px-2 py-0.5 rounded border border-state-success-border shrink-0 text-[11px] font-bold text-state-success uppercase tracking-wider">REGRESSION</div>}
                     </div>
                     {/* Status summary */}
                     <div className="flex items-center mt-1">
@@ -173,7 +173,7 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
             {!isCollapsed && (
                 <>
                     <div className="px-5 py-3 bg-panel border-t border-ui flex flex-wrap items-center gap-4">
-                        <div className="flex items-center gap-2 text-[10px] font-black text-muted-ui uppercase tracking-widest mr-2">
+                        <div className="flex items-center gap-2 text-[11px] font-black text-muted-ui uppercase tracking-widest mr-2">
                             <Filter className="h-3.5 w-3.5" /> Filters
                         </div>
                         <Input 
@@ -208,7 +208,7 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                         </Select>
 
                         {(searchQuery || statusFilter !== 'all' || priorityFilter !== 'all') && (
-                            <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(""); setStatusFilter("all"); setPriorityFilter("all"); }} className="h-8 text-[10px] font-bold text-state-danger uppercase tracking-tight">
+                            <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(""); setStatusFilter("all"); setPriorityFilter("all"); }} className="h-8 text-[11px] font-bold text-state-danger uppercase tracking-tight">
                                 <X className="h-3 w-3 mr-1" /> Clear
                             </Button>
                         )}
@@ -220,13 +220,13 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                             <div className="flex items-center gap-3">
                                 <CheckSquare className="h-5 w-5 text-qa-accent" />
                                 <span className="text-xs font-black text-qa-accent uppercase tracking-widest">{selectedCaseIds.size} Selected</span>
-                                <Button variant="ghost" size="sm" onClick={() => handleSelectAll(false)} className="h-6 text-[10px] font-bold text-qa-accent hover:text-foreground uppercase">Deselect All</Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleSelectAll(false)} className="h-6 text-[11px] font-bold text-qa-accent hover:text-foreground uppercase">Deselect All</Button>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Button variant="secondary" size="sm" onClick={() => handleBulkStatusChange('passed')} className="h-7 text-[10px] font-black uppercase bg-state-success/20 text-state-success hover:bg-state-success/30 border-none">Pass</Button>
-                                <Button variant="secondary" size="sm" onClick={() => handleBulkStatusChange('failed')} className="h-7 text-[10px] font-black uppercase bg-state-danger/20 text-state-danger hover:bg-state-danger/30 border-none">Fail</Button>
+                                <Button variant="secondary" size="sm" onClick={() => handleBulkStatusChange('passed')} className="h-7 text-[11px] font-black uppercase bg-state-success/20 text-state-success hover:bg-state-success/30 border-none">Pass</Button>
+                                <Button variant="secondary" size="sm" onClick={() => handleBulkStatusChange('failed')} className="h-7 text-[11px] font-black uppercase bg-state-danger/20 text-state-danger hover:bg-state-danger/30 border-none">Fail</Button>
                                 <div className="w-[1px] h-4 bg-qa-accent/30 mx-1" />
-                                <Button variant="secondary" size="sm" onClick={handleBulkDelete} className="h-7 text-[10px] font-black uppercase bg-state-danger-soft text-muted-ui hover:text-[hsl(var(--state-danger))] border-none">Delete</Button>
+                                <Button variant="secondary" size="sm" onClick={handleBulkDelete} className="h-7 text-[11px] font-black uppercase bg-state-danger-soft text-muted-ui hover:text-[hsl(var(--state-danger))] border-none">Delete</Button>
                             </div>
                         </div>
                     )}
@@ -256,7 +256,7 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => onEditCases(plan)}
-                                className="h-8 text-[10px] font-black text-qa-accent hover:text-qa-accent hover:bg-transparent px-0 gap-1.5 uppercase tracking-widest"
+                                className="h-8 text-[11px] font-black text-qa-accent hover:text-qa-accent hover:bg-transparent px-0 gap-1.5 uppercase tracking-widest"
                             >
                                 <Plus className="h-4 w-4" /> Add Test Case
                             </Button>
@@ -265,7 +265,7 @@ export default function TestPlanCard({ plan, activeProjectId, onEditCases, onRun
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleSelectAll(selectedCaseIds.size !== filteredCases.length)}
-                                    className="h-8 text-[10px] font-black text-muted-ui hover:text-foreground hover:bg-transparent px-0 gap-1.5 uppercase tracking-widest ml-auto"
+                                    className="h-8 text-[11px] font-black text-muted-ui hover:text-foreground hover:bg-transparent px-0 gap-1.5 uppercase tracking-widest ml-auto"
                                 >
                                     {selectedCaseIds.size === filteredCases.length ? "Deselect All" : `Select All (${filteredCases.length})`}
                                 </Button>

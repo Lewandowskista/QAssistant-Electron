@@ -52,7 +52,7 @@ export function RepoSelector({ repos, selectedRepo, onSelect, loading }: RepoSel
                                 {repo.private ? <Lock className="h-3 w-3 text-muted-ui shrink-0" /> : <Globe className="h-3 w-3 text-muted-ui shrink-0" />}
                                 <div className="flex flex-col min-w-0 flex-1">
                                     <span className="font-semibold text-foreground truncate">{repo.fullName}</span>
-                                    <span className="text-[10px] text-muted-ui">{repo.defaultBranch} · {formatTimeAgo(repo.updatedAt)}</span>
+                                    <span className="text-[11px] text-muted-ui">{repo.defaultBranch} · {formatTimeAgo(repo.updatedAt)}</span>
                                 </div>
                             </button>
                         ))}

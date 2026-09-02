@@ -49,14 +49,14 @@ export const TaskColumn = memo(function TaskColumn({
             <div className="flex items-start justify-between gap-2 px-1">
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                        <span className={cn("text-[10px] font-bold tracking-[0.15em]", col.textColor || "text-foreground")}>{col.title}</span>
-                        <span className="rounded border border-ui bg-panel-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-ui">
+                        <span className={cn("text-[11px] font-bold tracking-[0.15em]", col.textColor || "text-foreground")}>{col.title}</span>
+                        <span className="rounded border border-ui bg-panel-muted px-1.5 py-0.5 text-[11px] font-bold text-muted-ui">
                             {tasksInColumn.length}
                         </span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                        {criticalCount > 0 && <span className="rounded border border-state-danger-border bg-state-danger-soft px-1.5 py-0.5 text-[9px] font-bold text-state-danger">{criticalCount} critical</span>}
-                        {dueSoonCount > 0 && <span className="rounded border border-state-warning-border bg-state-warning-soft px-1.5 py-0.5 text-[9px] font-bold text-state-warning">{dueSoonCount} due</span>}
+                        {criticalCount > 0 && <span className="rounded border border-state-danger-border bg-state-danger-soft px-1.5 py-0.5 text-[11px] font-bold text-state-danger">{criticalCount} critical</span>}
+                        {dueSoonCount > 0 && <span className="rounded border border-state-warning-border bg-state-warning-soft px-1.5 py-0.5 text-[11px] font-bold text-state-warning">{dueSoonCount} due</span>}
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -82,7 +82,7 @@ export const TaskColumn = memo(function TaskColumn({
             {!collapsed && (
                 <>
                     {dragDisabled && (
-                        <div className="mt-3 rounded-lg border border-state-info-border bg-state-info-soft px-3 py-2 text-[10px] text-state-info">
+                        <div className="mt-3 rounded-lg border border-state-info-border bg-state-info-soft px-3 py-2 text-[11px] text-state-info">
                             Sorted view active: drag is disabled while sorted by {sortMode}.
                         </div>
                     )}
@@ -109,7 +109,7 @@ export const TaskColumn = memo(function TaskColumn({
                                     className="group mt-2 flex h-20 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ui transition-all hover:border-qa-accent/30 hover:bg-qa-accent/5"
                                 >
                                     <Plus className="h-5 w-5 text-muted-ui transition-colors group-hover:text-qa-accent" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui group-hover:text-qa-accent">New Task</span>
+                                    <span className="text-[11px] font-bold uppercase tracking-widest text-muted-ui group-hover:text-qa-accent">New Task</span>
                                 </button>
                             )}
                             <div className="h-px w-full pointer-events-none" />

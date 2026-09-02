@@ -53,13 +53,13 @@ function MemberChip({ userId, displayName }: { userId?: string; displayName?: st
     <div className="inline-flex items-center gap-2">
       <div
         className={cn(
-          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-primary-foreground",
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-primary-foreground",
           colorForId(userId ?? displayName)
         )}
       >
         {initials(displayName)}
       </div>
-      <span className="truncate text-[10px] text-muted-ui">{displayName}</span>
+      <span className="truncate text-[11px] text-muted-ui">{displayName}</span>
     </div>
   )
 }

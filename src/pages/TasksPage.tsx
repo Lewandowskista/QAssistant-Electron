@@ -842,7 +842,7 @@ export default function TasksPage() {
                             <div key={description} className="flex items-center justify-between border-b border-ui/60 py-2 last:border-0">
                                 <span className="text-xs text-soft">{description}</span>
                                 <div className="flex items-center gap-1">
-                                    {keys.map((key) => <kbd key={key} className="rounded border border-ui bg-panel-muted px-2 py-0.5 font-mono text-[10px] font-bold text-brand">{key}</kbd>)}
+                                    {keys.map((key) => <kbd key={key} className="rounded border border-ui bg-panel-muted px-2 py-0.5 font-mono text-[11px] font-bold text-brand">{key}</kbd>)}
                                 </div>
                             </div>
                         ))}

@@ -57,7 +57,7 @@ function initials(name: string): string {
 
 function MemberAvatar({ userId, displayName, size = 'sm' }: { userId?: string; displayName?: string; size?: 'sm' | 'md' }) {
     if (!displayName) return null
-    const dim = size === 'sm' ? 'w-6 h-6 text-[9px]' : 'w-8 h-8 text-xs'
+    const dim = size === 'sm' ? 'w-6 h-6 text-[11px]' : 'w-8 h-8 text-xs'
     return (
         <div
             title={displayName}
@@ -193,7 +193,7 @@ export default function ActivityFeedPage() {
                                         onClick={() => setRoleFilter(role)}
                                         aria-pressed={roleFilter === role}
                                         className={cn(
-                                            "h-7 px-3 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
+                                            "h-7 px-3 rounded-md text-[11px] font-bold uppercase tracking-widest transition-all",
                                             roleFilter === role ? "bg-primary text-primary-foreground" : "text-muted-ui hover:text-foreground"
                                         )}
                                     >
@@ -246,7 +246,7 @@ export default function ActivityFeedPage() {
                                             {showDivider && (
                                                 <div className="flex items-center gap-3 mb-4 mt-2 pl-14">
                                                     <div className="flex-1 h-px bg-elevated" />
-                                                    <span className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">
+                                                    <span className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">
                                                         {format(event.timestamp, "EEEE, MMM d")}
                                                     </span>
                                                     <div className="flex-1 h-px bg-elevated" />
@@ -266,11 +266,11 @@ export default function ActivityFeedPage() {
                                                 <div className="flex-1 bg-panel border border-ui rounded-xl p-4 group-hover:border-line/70 transition-all">
                                                     <div className="flex items-start justify-between gap-2 mb-1">
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className={cn("text-[10px] font-black uppercase tracking-widest", config.color)}>
+                                                            <span className={cn("text-[11px] font-black uppercase tracking-widest", config.color)}>
                                                                 {config.label}
                                                             </span>
                                                             <span className={cn(
-                                                                "text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded",
+                                                                "text-[11px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded",
                                                                 event.actorRole === "qa"
                                                                     ? "bg-qa-accent/10 text-brand"
                                                                     : "bg-state-info-soft text-state-info"
@@ -281,11 +281,11 @@ export default function ActivityFeedPage() {
                                                             {actorName && (
                                                                 <div className="flex items-center gap-1.5">
                                                                     <MemberAvatar userId={event.actorUserId} displayName={actorName} />
-                                                                    <span className="text-[10px] text-soft font-medium">{actorName}</span>
+                                                                    <span className="text-[11px] text-soft font-medium">{actorName}</span>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <span className="text-[10px] text-muted-ui shrink-0">
+                                                        <span className="text-[11px] text-muted-ui shrink-0">
                                                             {format(event.timestamp, "HH:mm")}
                                                         </span>
                                                     </div>
@@ -295,8 +295,8 @@ export default function ActivityFeedPage() {
                                                     )}
                                                     {taskTitle && (
                                                         <div className="mt-2">
-                                                            <span className="text-[9px] font-bold text-muted-ui uppercase tracking-widest">Task: </span>
-                                                            <span className="text-[10px] text-brand font-medium">{taskTitle}</span>
+                                                            <span className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">Task: </span>
+                                                            <span className="text-[11px] text-brand font-medium">{taskTitle}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -312,7 +312,7 @@ export default function ActivityFeedPage() {
                 {/* Footer count */}
                 {events.length > 0 && (
                     <div className="border-t border-ui px-6 py-3 bg-panel">
-                        <span className="text-[10px] text-muted-ui font-bold">
+                        <span className="text-[11px] text-muted-ui font-bold">
                             {events.length} event{events.length !== 1 ? 's' : ''}
                             {(roleFilter !== 'all' || typeFilter !== 'all' || searchQuery || memberFilter !== 'all') ? ' (filtered)' : ''}
                         </span>
@@ -332,7 +332,7 @@ export default function ActivityFeedPage() {
                         {/* Workspace members */}
                         {members.length > 0 && (
                             <div className="space-y-2">
-                                <p className="text-[10px] font-bold text-muted-ui uppercase tracking-wider px-1">Members</p>
+                                <p className="text-[11px] font-bold text-muted-ui uppercase tracking-wider px-1">Members</p>
                                 {members.map(m => (
                                     <button
                                         key={m.user_id}
@@ -345,17 +345,17 @@ export default function ActivityFeedPage() {
                                         )}
                                     >
                                         <div className={cn(
-                                            'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-primary-foreground shrink-0',
+                                            'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-primary-foreground shrink-0',
                                             colorForId(m.user_id)
                                         )}>
                                             {initials(m.display_name || '?')}
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <p className="text-xs font-semibold text-foreground truncate">{m.display_name}</p>
-                                            <p className="text-[10px] text-muted-ui truncate">{m.email}</p>
+                                            <p className="text-[11px] text-muted-ui truncate">{m.email}</p>
                                         </div>
                                         <span className={cn(
-                                            'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0',
+                                            'text-[11px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0',
                                             m.role === 'owner'
                                                 ? 'bg-qa-accent/10 text-brand'
                                                 : 'bg-elevated text-muted-ui'
@@ -370,13 +370,13 @@ export default function ActivityFeedPage() {
                         {/* Activity by member */}
                         {memberStats.length > 0 && (
                             <div className="space-y-2">
-                                <p className="text-[10px] font-bold text-muted-ui uppercase tracking-wider px-1">Activity</p>
+                                <p className="text-[11px] font-bold text-muted-ui uppercase tracking-wider px-1">Activity</p>
                                 {memberStats.map(stat => (
                                     <div key={stat.userId} className="flex items-center gap-2 px-2 py-1.5">
                                         <MemberAvatar userId={stat.userId} displayName={stat.displayName} size="md" />
                                         <div className="min-w-0 flex-1">
                                             <p className="text-xs font-semibold text-foreground truncate">{stat.displayName}</p>
-                                            <p className="text-[10px] text-muted-ui">{stat.count} event{stat.count !== 1 ? 's' : ''}</p>
+                                            <p className="text-[11px] text-muted-ui">{stat.count} event{stat.count !== 1 ? 's' : ''}</p>
                                         </div>
                                     </div>
                                 ))}

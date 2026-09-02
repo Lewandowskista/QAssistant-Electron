@@ -81,7 +81,7 @@ export function MediaSection({ task, onImageClick, projectId }: { task: Task, on
 
     return (
         <div className="mt-6 pt-6 border-t border-ui space-y-3">
-            <h4 className="text-[10px] font-bold text-muted-ui uppercase tracking-widest flex items-center gap-2">
+            <h4 className="text-[11px] font-bold text-muted-ui uppercase tracking-widest flex items-center gap-2">
                 <ImageIcon className="h-3 w-3" /> Attached Media ({mediaUrls.length})
             </h4>
             <div className="grid grid-cols-2 gap-3">
@@ -113,7 +113,7 @@ export function MediaSection({ task, onImageClick, projectId }: { task: Task, on
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-elevated">
                                 <PlayCircle className="h-8 w-8 text-brand opacity-60 group-hover:opacity-100 transition-opacity" />
-                                <span className="text-[9px] font-bold text-muted-ui uppercase">Video Link</span>
+                                <span className="text-[11px] font-bold text-muted-ui uppercase">Video Link</span>
                             </div>
                         )}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">

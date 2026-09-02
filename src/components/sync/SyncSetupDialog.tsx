@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X, Cloud, Users, KeyRound, User } from 'lucide-react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useSyncStore } from '@/store/useSyncStore'
 import { getSyncStatusSummary } from '@/lib/collaboration'
@@ -179,35 +179,32 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
     )
 
     return (
-        <>
-            <div
-                className={cn(
-                    'fixed inset-0 z-layer-dialog bg-black/60 backdrop-blur-sm transition-opacity duration-200',
-                    open ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                )}
-                onClick={handleClose}
-            />
-            <div
-                className={cn(
-                    'fixed left-1/2 top-1/2 z-layer-dialog -translate-x-1/2 -translate-y-1/2 transition-all duration-200',
-                    open ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
-                )}
-            >
-                <div className="app-panel w-[480px] max-h-[90vh] overflow-y-auto">
+        <DialogPrimitive.Root open={open} onOpenChange={(next) => { if (!next) handleClose() }}>
+            <DialogPrimitive.Portal>
+                <DialogPrimitive.Overlay
+                    data-radix-dialog-overlay=""
+                    className="fixed inset-0 z-layer-dialog bg-black/60 backdrop-blur-sm"
+                />
+                <DialogPrimitive.Content
+                    data-radix-dialog-content=""
+                    className="app-panel fixed left-1/2 top-1/2 z-layer-dialog w-[480px] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto"
+                >
                     <div className="flex items-center gap-3 p-5 pb-4 border-b border-ui">
                         <div className="w-9 h-9 rounded-xl bg-qa-accent/10 flex items-center justify-center shrink-0">
                             <Cloud className="h-4.5 w-4.5 text-brand" />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-foreground">Cloud Sync Setup</p>
-                            <p className="text-xs text-muted-ui">Manage workspace sync with your signed-in Supabase account</p>
+                            <DialogPrimitive.Title className="text-sm font-bold text-foreground">Cloud sync setup</DialogPrimitive.Title>
+                            <DialogPrimitive.Description className="text-xs text-muted-ui">Manage workspace sync with your signed-in Supabase account</DialogPrimitive.Description>
                         </div>
-                        <button
-                            onClick={handleClose}
-                            className="ml-auto p-1 rounded-md text-muted-ui hover:text-foreground hover:bg-elevated transition-colors"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
+                        <DialogPrimitive.Close asChild>
+                            <button
+                                aria-label="Close"
+                                className="ml-auto p-1 rounded-md text-muted-ui hover:text-foreground hover:bg-elevated transition-colors"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </DialogPrimitive.Close>
                     </div>
 
                     <div className="p-5 space-y-5">
@@ -474,8 +471,8 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                             )}
                         </div>
                     </div>
-                </div>
-            </div>
-        </>
+                </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
     )
 }

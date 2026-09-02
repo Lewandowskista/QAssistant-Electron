@@ -158,7 +158,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                 <div className="max-h-[calc(92vh-140px)] space-y-6 overflow-y-auto p-6">
                     <section className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Source</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Source</Label>
                             <div className="flex rounded-lg border border-ui bg-panel-muted p-1">
                                 {(["manual", "linear", "jira"] as const).map((source) => (
                                     <Button
@@ -202,7 +202,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="space-y-3">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Template</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Template</Label>
                         <div className="grid grid-cols-4 gap-2">
                             {(["bug", "story", "investigation", "retest_request"] as const).map((template) => (
                                 <Button
@@ -219,7 +219,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="space-y-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Core Details</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Core Details</Label>
                         <Input
                             autoFocus
                             value={newTaskTitle}
@@ -242,10 +242,10 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="space-y-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Triage Metadata</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Triage Metadata</Label>
                         <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Status</Label>
+                                <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Status</Label>
                                 <Select value={newTaskStatus} onValueChange={(value: TaskStatus) => setNewTaskStatus(value)}>
                                     <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
                                     <SelectContent className="border-ui bg-panel-muted">
@@ -254,7 +254,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Priority</Label>
+                                <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Priority</Label>
                                 <Select value={newTaskPriority} onValueChange={(value: any) => setNewTaskPriority(value)}>
                                     <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
                                     <SelectContent className="border-ui bg-panel-muted">
@@ -266,7 +266,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Severity</Label>
+                                <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Severity</Label>
                                 <Select value={newTaskSeverity} onValueChange={(value: any) => setNewTaskSeverity(value)}>
                                     <SelectTrigger className="h-10 border-ui bg-panel-muted text-xs text-foreground"><SelectValue /></SelectTrigger>
                                     <SelectContent className="border-ui bg-panel-muted">
@@ -291,7 +291,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     </section>
 
                     <section className="rounded-xl border border-ui bg-app p-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-ui">Collaboration Hints</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Collaboration Hints</Label>
                         <p className="mt-2 text-[11px] leading-relaxed text-soft">
                             Use components and acceptance criteria if this task should link back to tests. For bug and retest work, add enough context so the handoff packet can be completed with minimal rework.
                         </p>

@@ -185,7 +185,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
                 {!handoff && (
                     <div className="rounded-lg border border-ui bg-app p-3 flex items-center gap-3">
-                        <span className="text-[10px] font-black text-muted-ui uppercase tracking-widest shrink-0">Template</span>
+                        <span className="text-[11px] font-black text-muted-ui uppercase tracking-widest shrink-0">Template</span>
                         <select
                             defaultValue=""
                             onChange={e => { if (e.target.value) applyTemplate(e.target.value) }}
@@ -293,12 +293,12 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                 </div>
 
                 <div className="rounded-lg border border-ui bg-app p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Required Before Send</p>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-ui">Required Before Send</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                         {missingFields.length === 0 ? (
-                            <span className="rounded-full bg-state-success-soft px-2 py-1 text-[10px] font-bold uppercase text-state-success">Complete</span>
+                            <span className="rounded-full bg-state-success-soft px-2 py-1 text-[11px] font-bold uppercase text-state-success">Complete</span>
                         ) : missingFields.map((field) => (
-                            <span key={field} className="rounded-full bg-state-danger-soft px-2 py-1 text-[10px] font-bold uppercase text-state-danger">
+                            <span key={field} className="rounded-full bg-state-danger-soft px-2 py-1 text-[11px] font-bold uppercase text-state-danger">
                                 Missing {field}
                             </span>
                         ))}

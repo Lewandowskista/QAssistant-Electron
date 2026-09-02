@@ -16,7 +16,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const SRC = path.resolve(process.cwd(), 'src')
-const TEXT_PX_BASELINE = 718
+const TEXT_PX_BASELINE = 616
 
 const walk = (dir) =>
     fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

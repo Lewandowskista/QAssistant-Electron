@@ -137,7 +137,7 @@ export function MentionTextarea({
                     className="absolute z-50 left-0 mt-1 w-64 rounded-xl border border-ui bg-panel shadow-2xl overflow-hidden"
                     onClick={e => e.stopPropagation()}
                 >
-                    <div className="px-3 py-1.5 text-[10px] font-bold text-muted-ui uppercase tracking-wider border-b border-ui">
+                    <div className="px-3 py-1.5 text-[11px] font-bold text-muted-ui uppercase tracking-wider border-b border-ui">
                         Mention a teammate
                     </div>
                     {filtered.map((m, idx) => (
@@ -151,17 +151,17 @@ export function MentionTextarea({
                             )}
                         >
                             <div className={cn(
-                                'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-primary-foreground shrink-0',
+                                'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-primary-foreground shrink-0',
                                 colorForName(m.display_name)
                             )}>
                                 {initials(m.display_name || '?')}
                             </div>
                             <div className="min-w-0">
                                 <p className="text-xs font-semibold text-foreground truncate">{m.display_name}</p>
-                                <p className="text-[10px] text-muted-ui truncate">{m.email}</p>
+                                <p className="text-[11px] text-muted-ui truncate">{m.email}</p>
                             </div>
                             <span className={cn(
-                                'ml-auto text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0',
+                                'ml-auto text-[11px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0',
                                 m.role === 'owner'
                                     ? 'bg-qa-accent/10 text-brand'
                                     : 'bg-elevated text-muted-ui'
@@ -175,7 +175,7 @@ export function MentionTextarea({
 
             {/* Hint */}
             {members.length > 0 && (
-                <p className="mt-1 text-[10px] text-muted-ui">Type @ to mention a teammate</p>
+                <p className="mt-1 text-[11px] text-muted-ui">Type @ to mention a teammate</p>
             )}
         </div>
     )

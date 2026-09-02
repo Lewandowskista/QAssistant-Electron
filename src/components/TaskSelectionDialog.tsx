@@ -122,18 +122,18 @@ export default function TaskSelectionDialog({
                                     />
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black uppercase text-brand bg-qa-accent/10 px-2 py-0.5 rounded tracking-wider">
+                                            <span className="text-[11px] font-black uppercase text-brand bg-qa-accent/10 px-2 py-0.5 rounded tracking-wider">
                                                 {task.sourceIssueId || task.externalId || task.source}
                                             </span>
                                             <span className={cn(
-                                                "text-[9px] font-black uppercase px-1.5 py-0.5 rounded tracking-tighter",
+                                                "text-[11px] font-black uppercase px-1.5 py-0.5 rounded tracking-tighter",
                                                 task.priority === 'critical' ? "bg-state-danger/20 text-state-danger" :
                                                     task.priority === 'high' ? "bg-state-warning/20 text-state-warning" :
                                                         task.priority === 'medium' ? "bg-state-info/20 text-state-info" : "bg-line-strong/20 text-muted-ui"
                                             )}>
                                                 {task.priority || 'MED'}
                                             </span>
-                                            <span className="text-[9px] font-bold text-muted-ui uppercase opacity-50">
+                                            <span className="text-[11px] font-bold text-muted-ui uppercase opacity-50">
                                                 {task.status || 'TODO'}
                                             </span>
                                         </div>

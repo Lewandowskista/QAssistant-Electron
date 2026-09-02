@@ -77,7 +77,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
 
                     <div className="grid gap-6">
                         <div className="grid gap-2">
-                            <Label htmlFor="plan-name" className="text-[10px] font-black uppercase text-muted-foreground px-1 tracking-widest">Plan Designation</Label>
+                            <Label htmlFor="plan-name" className="text-[11px] font-black uppercase text-muted-foreground px-1 tracking-widest">Plan Designation</Label>
                             <Input
                                 id="plan-name"
                                 value={name}
@@ -88,7 +88,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                             {nameError && <p className="text-xs text-state-danger px-1">{nameError}</p>}
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="plan-desc" className="text-[10px] font-black uppercase text-muted-foreground px-1 tracking-widest">Strategic Overview</Label>
+                            <Label htmlFor="plan-desc" className="text-[11px] font-black uppercase text-muted-foreground px-1 tracking-widest">Strategic Overview</Label>
                             <Textarea
                                 id="plan-desc"
                                 value={description}
@@ -114,7 +114,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                             </div>
                             <div className="flex-1">
                                 <div className="text-sm font-black tracking-tight">Regression Suite</div>
-                                <div className="text-[10px] font-bold text-muted-foreground leading-tight">Muted plans won't appear in baseline health checks.</div>
+                                <div className="text-[11px] font-bold text-muted-foreground leading-tight">Muted plans won't appear in baseline health checks.</div>
                             </div>
                             <div className={cn("w-10 h-5 rounded-full relative transition-all p-1",
                                 isRegression ? "bg-primary" : "bg-elevated"

@@ -118,7 +118,7 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm font-black text-brand">{parsedData.rows.length}</p>
-                                    <p className="text-[10px] uppercase font-bold text-muted-ui">Rows Found</p>
+                                    <p className="text-[11px] uppercase font-bold text-muted-ui">Rows Found</p>
                                 </div>
                             </div>
 
@@ -126,8 +126,8 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-panel-muted border-b border-ui">
                                         <tr>
-                                            <th className="px-4 py-3 font-bold text-[10px] text-muted-ui uppercase tracking-wider w-1/2">File Column</th>
-                                            <th className="px-4 py-3 font-bold text-[10px] text-muted-ui uppercase tracking-wider w-1/2">QAssistant Field</th>
+                                            <th className="px-4 py-3 font-bold text-[11px] text-muted-ui uppercase tracking-wider w-1/2">File Column</th>
+                                            <th className="px-4 py-3 font-bold text-[11px] text-muted-ui uppercase tracking-wider w-1/2">QAssistant Field</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-line/50 bg-app">

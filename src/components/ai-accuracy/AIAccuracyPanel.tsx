@@ -154,7 +154,7 @@ export default function AIAccuracyPanel() {
             {/* Toolbar */}
             <div className="flex-none border-b border-ui bg-panel px-6 py-3 flex items-center gap-4">
                 <ShieldCheck className="h-4 w-4 text-brand shrink-0" />
-                <span className="text-[10px] font-bold text-muted-ui uppercase tracking-widest shrink-0">Suite</span>
+                <span className="text-[11px] font-bold text-muted-ui uppercase tracking-widest shrink-0">Suite</span>
 
                 {/* Suite selector */}
                 {suites.length > 0 && (
@@ -192,7 +192,7 @@ export default function AIAccuracyPanel() {
                 ) : (
                     <Button
                         variant="ghost" size="sm"
-                        className="h-8 text-[10px] font-bold text-muted-ui hover:text-brand"
+                        className="h-8 text-[11px] font-bold text-muted-ui hover:text-brand"
                         onClick={() => setIsCreatingSuite(true)}
                     >
                         <Plus className="h-3.5 w-3.5 mr-1" /> New Suite

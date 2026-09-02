@@ -148,7 +148,7 @@ export function SyncStatusIndicator() {
                             {indicatorLabel}
                         </span>
                         {pendingCount > 0 && (
-                            <span className="text-[10px] font-bold bg-qa-accent/20 text-brand px-1.5 py-0.5 rounded-full leading-none">
+                            <span className="text-[11px] font-bold bg-qa-accent/20 text-brand px-1.5 py-0.5 rounded-full leading-none">
                                 {pendingCount}
                             </span>
                         )}
@@ -157,15 +157,15 @@ export function SyncStatusIndicator() {
                     {isConfigured && status === 'connected' && relativeTime && !showBackgroundSync ? (
                         <div className="flex items-center gap-1 mt-0.5">
                             <Wifi className="h-2.5 w-2.5 text-muted-ui shrink-0" />
-                            <span className="text-[10px] text-muted-ui truncate">
+                            <span className="text-[11px] text-muted-ui truncate">
                                 {workspaceInfo?.workspaceName ? `${workspaceInfo.workspaceName} · ` : ''}
                                 {relativeTime}
                             </span>
                         </div>
                     ) : isConfigured ? (
-                        <span className="mt-0.5 text-[10px] text-muted-ui truncate">{indicatorSubtitle}</span>
+                        <span className="mt-0.5 text-[11px] text-muted-ui truncate">{indicatorSubtitle}</span>
                     ) : !isConfigured ? (
-                        <span className="text-[10px] text-muted-ui">Click to set up</span>
+                        <span className="text-[11px] text-muted-ui">Click to set up</span>
                     ) : null}
                 </div>
                 <div className={cn(

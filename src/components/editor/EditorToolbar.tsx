@@ -37,7 +37,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
             {/* Font Family Dropdown */}
             <div className="flex items-center border-r border-ui pr-2 gap-1">
                 <select
-                    className="bg-transparent text-[10px] font-bold text-foreground focus:outline-none cursor-pointer p-1 rounded hover:bg-elevated"
+                    className="bg-transparent text-[11px] font-bold text-foreground focus:outline-none cursor-pointer p-1 rounded hover:bg-elevated"
                     onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
                     value={editor.getAttributes('textStyle').fontFamily || '"Inter", sans-serif'}
                 >
@@ -50,7 +50,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
             {/* Font Size Dropdown */}
             <div className="flex items-center border-r border-ui pr-2 gap-1">
                 <select
-                    className="bg-transparent text-[10px] font-bold text-foreground focus:outline-none cursor-pointer p-1 rounded hover:bg-elevated"
+                    className="bg-transparent text-[11px] font-bold text-foreground focus:outline-none cursor-pointer p-1 rounded hover:bg-elevated"
                     onChange={(e) => editor.chain().focus().setFontSize(e.target.value).run()}
                     value={editor.getAttributes('textStyle').fontSize || '16px'}
                 >

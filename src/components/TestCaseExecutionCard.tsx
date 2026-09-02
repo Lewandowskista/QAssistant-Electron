@@ -58,11 +58,11 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                 </div>
             </div>
 
-            <div className="font-mono text-[10px] text-muted-ui">
+            <div className="font-mono text-[11px] text-muted-ui">
                 {caseExecution.snapshotTestCaseTitle} {'->'} {planName}
             </div>
             {linkedHandoff && (
-                <div className="flex items-center gap-2 text-[10px]">
+                <div className="flex items-center gap-2 text-[11px]">
                     <span className="px-2 py-1 rounded-md bg-qa-accent/10 text-brand border border-qa-accent/20">Linked Handoff</span>
                     <span className="text-soft truncate">{linkedHandoff.summary}</span>
                 </div>
@@ -73,7 +73,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
             <div className="flex flex-col gap-4 mt-1">
                 {caseExecution.snapshotPreConditions && (
                     <div>
-                        <div className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
+                        <div className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-state-info/50" /> PRE-CONDITIONS
                         </div>
                         <div className="text-[11px] leading-relaxed text-soft bg-surface/30 p-2.5 rounded-lg border border-line/30">
@@ -84,7 +84,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
 
                 {caseExecution.snapshotSteps && (
                     <div>
-                        <div className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
+                        <div className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-state-success/50" /> TEST STEPS
                         </div>
                         <div className="text-[11px] leading-relaxed text-soft bg-surface/30 p-2.5 rounded-lg border border-line/30">
@@ -95,7 +95,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
 
                 {caseExecution.snapshotExpectedResult && (
                     <div>
-                        <div className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
+                        <div className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.1em] mb-1.5 flex items-center gap-1.5 opacity-80">
                             <div className="w-1 h-3 rounded-full bg-qa-accent/50" /> EXPECTED RESULT
                         </div>
                         <div className="text-[11px] leading-relaxed text-soft bg-surface/30 p-2.5 rounded-lg border border-line/30">
@@ -110,7 +110,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
             <div className="flex flex-col gap-3">
                 {caseExecution.actualResult && (
                     <div>
-                        <div className="text-[10px] font-bold text-state-success uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                        <div className="text-[11px] font-bold text-state-success uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                             <div className="w-1 h-3 rounded-full bg-state-success" /> ACTUAL RESULT
                         </div>
                         <div className="text-[11px] text-foreground bg-panel p-3 rounded-lg border border-state-success-border leading-relaxed">
@@ -120,7 +120,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
                 )}
                 {caseExecution.notes && (
                     <div>
-                        <div className="text-[10px] font-bold text-brand uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                        <div className="text-[11px] font-bold text-brand uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                             <div className="w-1 h-3 rounded-full bg-primary" /> EXECUTION NOTES
                         </div>
                         <div className="text-[11px] text-foreground bg-panel p-3 rounded-lg border border-qa-accent/20 italic opacity-90">
@@ -131,7 +131,7 @@ export default function TestCaseExecutionCard({ planName, caseExecution, activeP
             </div>
 
             <div className="mt-1 flex items-center justify-between gap-2">
-                <div className="bg-panel-muted px-2 py-0.5 rounded text-[10px] font-bold text-brand uppercase tracking-wider border border-line/50">
+                <div className="bg-panel-muted px-2 py-0.5 rounded text-[11px] font-bold text-brand uppercase tracking-wider border border-line/50">
                     Execution
                 </div>
 

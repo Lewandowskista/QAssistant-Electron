@@ -4,7 +4,9 @@ import { useActiveProjectNotesContext, useProjectStore } from "@/store/useProjec
 import { Plus, Trash2, Paperclip, ExternalLink, StickyNote, Code, PanelRightClose, PanelRightOpen, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
+import { FullBleedHeader } from "@/components/ui/workspace"
 import { format } from "date-fns"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/ConfirmDialog"
@@ -124,219 +126,232 @@ export default function NotesPage() {
 
     if (!activeProjectId) {
         return (
-            <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center">
-                <div className="w-20 h-20 rounded-full bg-panel-muted flex items-center justify-center opacity-40">
-                    <StickyNote className="h-9 w-9 text-muted-ui" strokeWidth={1} />
-                </div>
-                <div className="opacity-60 space-y-1">
-                    <p className="text-sm font-bold text-foreground uppercase tracking-widest">No Project Selected</p>
-                    <p className="text-xs text-muted-ui">Select a project to manage notes.</p>
-                </div>
+            <div className="h-full flex items-center justify-center bg-app p-6">
+                <EmptyState
+                    icon={StickyNote}
+                    title="No project selected"
+                    description="Select a project to see its notes."
+                    className="w-full max-w-md"
+                />
             </div>
         )
     }
 
     return (
-        <div className="h-full flex animate-in fade-in duration-500 bg-app overflow-hidden">
-            {/* Sidebar */}
-            <aside className="w-[280px] flex-none bg-panel border-r border-ui flex flex-col">
-                <div className="p-4 border-b border-ui">
-                    <h3 className="text-[10px] font-black text-muted-ui uppercase tracking-[0.2em]">
-                        KNOWLEDGE REPOSITORY
-                    </h3>
-                </div>
+        <div className="h-full flex flex-col animate-in fade-in duration-500 bg-app overflow-hidden">
+            <FullBleedHeader
+                icon={StickyNote}
+                title="Notes"
+                description="Project notes with attachments and task links"
+                actions={
+                    <Button onClick={handleAddNote} className="gap-2">
+                        <Plus className="h-4 w-4" /> New note
+                    </Button>
+                }
+            />
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    <div className="px-2 mb-2 space-y-2">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-ui pointer-events-none" />
-                            <Input
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search notes…"
-                                className="h-8 pl-7 text-[11px] bg-app border-ui text-foreground placeholder:text-muted-ui"
+            <div className="flex flex-1 min-h-0 overflow-hidden">
+                {/* Sidebar */}
+                <aside className="w-[280px] flex-none bg-panel border-r border-ui flex flex-col">
+                    <div className="p-4 border-b border-ui">
+                        <h2 className="app-section-label">All notes</h2>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                        <div className="px-2 mb-2 space-y-2">
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-ui pointer-events-none" />
+                                <Input
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search notes…"
+                                    className="h-8 pl-7 text-xs bg-app border-ui text-foreground placeholder:text-muted-ui"
+                                />
+                            </div>
+                            <label htmlFor="notes-task-filter" className="sr-only">Filter by linked task</label>
+                            <select id="notes-task-filter" value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="w-full h-8 rounded-md bg-app border border-ui px-2 text-xs text-foreground">
+                                <option value="all">All notes</option>
+                                {tasks.map((task) => (
+                                    <option key={task.id} value={task.id}>{task.title}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {filteredNotes.map(note => (
+                            <div
+                                key={note.id}
+                                onClick={() => setSelectedItemId(note.id)}
+                                className={cn(
+                                    "p-3 rounded-xl border transition-all cursor-pointer group",
+                                    selectedItemId === note.id ? "bg-panel-muted border-qa-accent/40" : "bg-transparent border-transparent hover:bg-surface-alt/50"
+                                )}
+                            >
+                                <div className="text-xs font-semibold text-foreground mb-1 truncate">{note.title || "Untitled note"}</div>
+                                <div className="text-[11px] text-muted-ui">{format(note.updatedAt, "MMM d, HH:mm")}</div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                    {artifactLinks.filter((link) =>
+                                        (link.sourceType === 'note' && link.sourceId === note.id && link.targetType === 'task') ||
+                                        (link.targetType === 'note' && link.targetId === note.id && link.sourceType === 'task')
+                                    ).map((link) => {
+                                        const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
+                                        const task = tasks.find((item) => item.id === taskId)
+                                        return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand text-[11px]">{task.title}</span> : null
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </aside>
+
+                {/* Editor Area */}
+                <main className="flex-1 flex flex-col min-w-0 bg-app">
+                    {!selectedItemId ? (
+                        <div className="h-full flex items-center justify-center p-6">
+                            <EmptyState
+                                icon={StickyNote}
+                                title="No note selected"
+                                description="Choose a note from the list, or create a new one."
+                                className="w-full max-w-md"
+                                actions={
+                                    <Button onClick={handleAddNote} className="gap-2">
+                                        <Plus className="h-4 w-4" /> New note
+                                    </Button>
+                                }
                             />
                         </div>
-                        <label htmlFor="notes-task-filter" className="sr-only">Filter by linked task</label>
-                        <select id="notes-task-filter" value={linkedTaskFilter} onChange={(e) => setLinkedTaskFilter(e.target.value)} className="w-full h-8 rounded-md bg-app border border-ui px-2 text-[11px] text-foreground">
-                            <option value="all">All Notes</option>
-                            {tasks.map((task) => (
-                                <option key={task.id} value={task.id}>{task.title}</option>
-                            ))}
-                        </select>
-                    </div>
-                    {filteredNotes.map(note => (
-                        <div
-                            key={note.id}
-                            onClick={() => setSelectedItemId(note.id)}
-                            className={cn(
-                                "p-3 rounded-xl border transition-all cursor-pointer group",
-                                selectedItemId === note.id ? "bg-panel-muted border-qa-accent/40" : "bg-transparent border-transparent hover:bg-surface-alt/50"
-                            )}
-                        >
-                            <div className="text-xs font-bold text-foreground mb-1 truncate">{note.title || "Untitled Note"}</div>
-                            <div className="text-[10px] text-muted-ui font-medium">{format(note.updatedAt, "MMM d, HH:mm")}</div>
-                            <div className="flex flex-wrap gap-1 mt-2">
-                                {artifactLinks.filter((link) =>
-                                    (link.sourceType === 'note' && link.sourceId === note.id && link.targetType === 'task') ||
-                                    (link.targetType === 'note' && link.targetId === note.id && link.sourceType === 'task')
-                                ).map((link) => {
-                                    const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
-                                    const task = tasks.find((item) => item.id === taskId)
-                                    return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand text-[9px]">{task.title}</span> : null
-                                })}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="p-4 bg-app border-t border-ui">
-                    <Button onClick={handleAddNote} className="w-full bg-qa-accent/10 text-brand border border-qa-accent/20 hover:bg-qa-accent/20 font-black text-xs h-10 gap-2">
-                        <Plus className="h-4 w-4" /> NEW NOTE
-                    </Button>
-                </div>
-            </aside>
-
-            {/* Editor Area */}
-            <main className="flex-1 flex flex-col min-w-0 bg-app">
-                {!selectedItemId ? (
-                    <div className="h-full flex flex-col items-center justify-center text-muted-ui opacity-30">
-                        <StickyNote className="h-16 w-16 mb-4" />
-                        <p className="text-sm font-bold uppercase tracking-widest">Select a note</p>
-                    </div>
-                ) : selectedNote ? (
-                    <div key={selectedItemId} className="flex-1 flex flex-col overflow-hidden animate-in fade-in duration-200">
-                        <header className="p-6 bg-panel border-b border-ui flex items-center justify-between gap-4">
-                                    <Input
-                                        value={titleState}
-                                        onChange={(e) => setTitleState(e.target.value)}
-                                        onBlur={() => {
-                                            if (!activeProjectId || !selectedNote) return
-                                            // flush immediate save on blur
-                                            updateNote(activeProjectId, selectedNote.id, { title: titleState })
+                    ) : selectedNote ? (
+                        <div key={selectedItemId} className="flex-1 flex flex-col overflow-hidden animate-in fade-in duration-200">
+                            <header className="p-6 bg-panel border-b border-ui flex items-center justify-between gap-4">
+                                        <Input
+                                            value={titleState}
+                                            onChange={(e) => setTitleState(e.target.value)}
+                                            onBlur={() => {
+                                                if (!activeProjectId || !selectedNote) return
+                                                // flush immediate save on blur
+                                                updateNote(activeProjectId, selectedNote.id, { title: titleState })
+                                            }}
+                                            className="bg-transparent border-none text-2xl font-semibold text-foreground focus-visible:ring-0 px-0 h-auto min-w-0 flex-1"
+                                        />
+                                <div className="flex gap-2 shrink-0">
+                                    <select
+                                        onChange={async (event) => {
+                                            const taskId = event.target.value
+                                            if (!activeProjectId || !selectedNote || !taskId) return
+                                            await linkArtifact(activeProjectId, { sourceType: 'task', sourceId: taskId, targetType: 'note', targetId: selectedNote.id, label: 'documents' })
+                                            toast.success('Note linked to task.')
+                                            event.currentTarget.value = ''
                                         }}
-                                        className="bg-transparent border-none text-2xl font-black text-foreground focus-visible:ring-0 px-0 h-auto min-w-0 flex-1"
-                                    />
-                            <div className="flex gap-2 shrink-0">
-                                <select
-                                    onChange={async (event) => {
-                                        const taskId = event.target.value
-                                        if (!activeProjectId || !selectedNote || !taskId) return
-                                        await linkArtifact(activeProjectId, { sourceType: 'task', sourceId: taskId, targetType: 'note', targetId: selectedNote.id, label: 'documents' })
-                                        toast.success('Note linked to task.')
-                                        event.currentTarget.value = ''
-                                    }}
-                                    className="h-9 rounded-md bg-panel-muted border border-ui px-2 text-[10px] text-foreground"
-                                >
-                                    <option value="">Link to task…</option>
-                                    {tasks.map((task) => (
-                                        <option key={task.id} value={task.id}>{task.title}</option>
-                                    ))}
-                                </select>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setSourceMode(s => !s)}
-                                    className={cn("h-9 w-9", sourceMode ? "text-brand bg-qa-accent/10" : "text-muted-ui hover:text-brand")}
-                                    title={sourceMode ? "Switch to Visual Editor" : "Switch to HTML Source"}
-                                    aria-label={sourceMode ? "Switch to Visual Editor" : "Switch to HTML Source"}
-                                >
-                                    <Code className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setAttachmentsOpen(v => !v)}
-                                    className={cn("h-9 w-9", attachmentsOpen ? "text-brand bg-qa-accent/10" : "text-muted-ui hover:text-brand")}
-                                    title={attachmentsOpen ? "Hide Attachments" : "Show Attachments"}
-                                    aria-label={attachmentsOpen ? "Hide Attachments" : "Show Attachments"}
-                                >
-                                    {attachmentsOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-state-danger hover:bg-state-danger-soft" aria-label="Delete note">
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                                <div
-                                    role="status"
-                                    aria-live="polite"
-                                    className={cn(
-                                        "h-9 px-3 flex items-center gap-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-[0.12em] transition-all duration-300",
-                                        saveStatus === "saving" && "text-brand bg-qa-accent/10",
-                                        saveStatus === "saved" && "text-state-success bg-state-success-soft",
-                                        saveStatus === "idle" && "text-muted-ui bg-transparent"
-                                    )}
-                                >
-                                    {saveStatus === "saving" && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />}
-                                    {saveStatus === "saved" && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
-                                    {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : ""}
+                                        className="h-9 rounded-md bg-panel-muted border border-ui px-2 text-xs text-foreground"
+                                    >
+                                        <option value="">Link to task…</option>
+                                        {tasks.map((task) => (
+                                            <option key={task.id} value={task.id}>{task.title}</option>
+                                        ))}
+                                    </select>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setSourceMode(s => !s)}
+                                        className={cn("h-9 w-9", sourceMode ? "text-brand bg-qa-accent/10" : "text-muted-ui hover:text-brand")}
+                                        title={sourceMode ? "Switch to visual editor" : "Switch to HTML source"}
+                                        aria-label={sourceMode ? "Switch to visual editor" : "Switch to HTML source"}
+                                    >
+                                        <Code className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setAttachmentsOpen(v => !v)}
+                                        className={cn("h-9 w-9", attachmentsOpen ? "text-brand bg-qa-accent/10" : "text-muted-ui hover:text-brand")}
+                                        title={attachmentsOpen ? "Hide attachments" : "Show attachments"}
+                                        aria-label={attachmentsOpen ? "Hide attachments" : "Show attachments"}
+                                    >
+                                        {attachmentsOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-state-danger hover:bg-state-danger-soft" aria-label="Delete note">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                    <div
+                                        role="status"
+                                        aria-live="polite"
+                                        className={cn(
+                                            "h-9 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold transition-all duration-300",
+                                            saveStatus === "saving" && "text-brand bg-qa-accent/10",
+                                            saveStatus === "saved" && "text-state-success bg-state-success-soft",
+                                            saveStatus === "idle" && "text-muted-ui bg-transparent"
+                                        )}
+                                    >
+                                        {saveStatus === "saving" && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />}
+                                        {saveStatus === "saved" && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+                                        {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : ""}
+                                    </div>
                                 </div>
-                            </div>
-                        </header>
-                        <div className="flex-1 flex overflow-hidden">
-                            {sourceMode ? (
-                                <textarea
-                                    value={contentState}
-                                    onChange={e => setContentState(e.target.value)}
-                                    className="flex-1 bg-app text-foreground font-mono text-sm p-8 resize-none focus:outline-none custom-scrollbar border-none"
-                                    spellCheck={false}
-                                />
-                            ) : (
-                                <Suspense fallback={<SkeletonEditor />}>
-                                    <RichTextEditor
-                                        content={contentState}
-                                        onChange={(content) => setContentState(content)}
+                            </header>
+                            <div className="flex-1 flex overflow-hidden">
+                                {sourceMode ? (
+                                    <textarea
+                                        value={contentState}
+                                        onChange={e => setContentState(e.target.value)}
+                                        className="flex-1 bg-app text-foreground font-mono text-sm p-8 resize-none focus:outline-none custom-scrollbar border-none"
+                                        spellCheck={false}
                                     />
-                                </Suspense>
-                            )}
-                            <aside className={cn(
-                                "border-l border-ui bg-surface/30 flex flex-col overflow-hidden",
-                                "transition-[width,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                                attachmentsOpen ? "w-64 shrink-0 opacity-100 translate-x-0" : "w-0 border-l-0 opacity-0 translate-x-4"
-                            )}>
-                                <div className="p-4 border-b border-ui flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">Attachments</span>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-brand" onClick={async () => {
-                                        if (!activeProjectId || !selectedNote) return;
-                                        const filePath = await api.selectFile();
-                                        if (filePath) {
-                                            try {
-                                                await attachFileToNote(activeProjectId, selectedNote.id, filePath);
-                                            } catch (e: any) {
-                                                toast.error('Attachment failed: ' + e.message);
+                                ) : (
+                                    <Suspense fallback={<SkeletonEditor />}>
+                                        <RichTextEditor
+                                            content={contentState}
+                                            onChange={(content) => setContentState(content)}
+                                        />
+                                    </Suspense>
+                                )}
+                                <aside className={cn(
+                                    "border-l border-ui bg-surface/30 flex flex-col overflow-hidden",
+                                    "transition-[width,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                                    attachmentsOpen ? "w-64 shrink-0 opacity-100 translate-x-0" : "w-0 border-l-0 opacity-0 translate-x-4"
+                                )}>
+                                    <div className="p-4 border-b border-ui flex items-center justify-between">
+                                        <span className="app-section-label">Attachments</span>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-brand" onClick={async () => {
+                                            if (!activeProjectId || !selectedNote) return;
+                                            const filePath = await api.selectFile();
+                                            if (filePath) {
+                                                try {
+                                                    await attachFileToNote(activeProjectId, selectedNote.id, filePath);
+                                                } catch (e: any) {
+                                                    toast.error('Attachment failed: ' + e.message);
+                                                }
                                             }
-                                        }
-                                    }}><Paperclip className="h-3.5 w-3.5" /></Button>
-                                </div>
-                                <div className="p-4 space-y-2 overflow-y-auto custom-scrollbar">
-                                    {selectedNote.attachments.length === 0 ? (
-                                        <p className="text-[10px] text-muted-ui italic text-center py-8">Digital void…</p>
-                                    ) : (
-                                        selectedNote.attachments.map(at => (
-                                            <div key={at.id} className="p-2 border border-ui rounded-lg flex items-center justify-between group hover:border-qa-accent/50 transition-all cursor-pointer">
-                                                <span className="text-xs text-foreground truncate flex-1" onClick={() => api.openFile(at.filePath)}>{at.fileName}</span>
-                                                <div className="flex items-center gap-1">
-                                                    <ExternalLink className="h-3 w-3 text-muted-ui opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => api.openFile(at.filePath)} />
-                                                    <Trash2 className="h-3 w-3 text-state-danger opacity-0 group-hover:opacity-100 transition-opacity" onClick={async (e) => {
-                                                        e.stopPropagation();
-                                                        if (!activeProjectId || !selectedNote) return;
-                                                        const linkedHandoffs = handoffPackets.filter((packet) => packet.linkedNoteIds.includes(selectedNote.id))
-                                                        if (linkedHandoffs.length > 0) {
-                                                            toast.error('This attachment is linked to an active handoff. Remove the handoff link first.')
-                                                            return
-                                                        }
-                                                        await removeAttachmentFromNote(activeProjectId, selectedNote.id, at.id);
-                                                        api.deleteAttachment(at.filePath);
-                                                    }} />
+                                        }}><Paperclip className="h-3.5 w-3.5" /></Button>
+                                    </div>
+                                    <div className="p-4 space-y-2 overflow-y-auto custom-scrollbar">
+                                        {selectedNote.attachments.length === 0 ? (
+                                            <p className="text-[11px] text-muted-ui text-center py-8">No attachments yet.</p>
+                                        ) : (
+                                            selectedNote.attachments.map(at => (
+                                                <div key={at.id} className="p-2 border border-ui rounded-lg flex items-center justify-between group hover:border-qa-accent/50 transition-all cursor-pointer">
+                                                    <span className="text-xs text-foreground truncate flex-1" onClick={() => api.openFile(at.filePath)}>{at.fileName}</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <ExternalLink className="h-3 w-3 text-muted-ui opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => api.openFile(at.filePath)} />
+                                                        <Trash2 className="h-3 w-3 text-state-danger opacity-0 group-hover:opacity-100 transition-opacity" onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            if (!activeProjectId || !selectedNote) return;
+                                                            const linkedHandoffs = handoffPackets.filter((packet) => packet.linkedNoteIds.includes(selectedNote.id))
+                                                            if (linkedHandoffs.length > 0) {
+                                                                toast.error('This attachment is linked to an active handoff. Remove the handoff link first.')
+                                                                return
+                                                            }
+                                                            await removeAttachmentFromNote(activeProjectId, selectedNote.id, at.id);
+                                                            api.deleteAttachment(at.filePath);
+                                                        }} />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </aside>
+                                            ))
+                                        )}
+                                    </div>
+                                </aside>
+                            </div>
                         </div>
-                    </div>
-                ) : null}
-            </main>
+                    ) : null}
+                </main>
+            </div>
             {confirmDialogEl}
         </div>
     )
