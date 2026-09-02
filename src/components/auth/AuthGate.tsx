@@ -81,14 +81,14 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                 {error && <InlineError error={error} />}
                 {message && <InlineMessage message={message} />}
 
-                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-ui bg-[#11131A] p-1">
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-ui bg-app p-1">
                     <ModeButton active={mode === 'sign_in'} label="Sign in" onClick={() => { setMode('sign_in'); setError(null); setMessage(null) }} />
                     <ModeButton active={mode === 'sign_up'} label="Create account" onClick={() => { setMode('sign_up'); setError(null); setMessage(null) }} />
                 </div>
 
                 <div className="space-y-3">
                     <Input
-                        className="h-11 bg-[#11131A] border-ui text-foreground placeholder:text-[#4A5568]"
+                        className="h-11 bg-app border-ui text-foreground placeholder:text-muted-ui"
                         placeholder="Email address"
                         type="email"
                         autoComplete="email"
@@ -97,7 +97,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                     />
                     {mode === 'sign_up' && (
                         <Input
-                            className="h-11 bg-[#11131A] border-ui text-foreground placeholder:text-[#4A5568]"
+                            className="h-11 bg-app border-ui text-foreground placeholder:text-muted-ui"
                             placeholder="Display name"
                             autoComplete="name"
                             value={displayName}
@@ -105,7 +105,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                         />
                     )}
                     <Input
-                        className="h-11 bg-[#11131A] border-ui text-foreground placeholder:text-[#4A5568]"
+                        className="h-11 bg-app border-ui text-foreground placeholder:text-muted-ui"
                         placeholder="Password"
                         type="password"
                         autoComplete={mode === 'sign_up' ? 'new-password' : 'current-password'}
@@ -126,7 +126,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
 
                 {mode === 'sign_in' && (
                     <Button
-                        className="w-full h-11 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
+                        className="w-full h-11 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold"
                         disabled={busyAction !== null || !email.trim() || !password}
                         onClick={() => run('sign_in', async () => {
                             const next = await signIn({ email: email.trim(), password })
@@ -143,7 +143,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                 {mode === 'sign_up' && (
                     <div className="space-y-3">
                         <Button
-                            className="w-full h-11 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
+                            className="w-full h-11 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold"
                             disabled={busyAction !== null || !email.trim() || !password || !displayName.trim()}
                             onClick={() => run('sign_up', async () => {
                                 const next = await signUp({ email: email.trim(), password, displayName: displayName.trim() })
@@ -155,7 +155,7 @@ export function AuthGate({ auth, signIn, signUp }: AuthGateProps) {
                             {busyAction === 'sign_up' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Create Account
                         </Button>
-                        <p className="text-xs text-[#4A5568] leading-5">
+                        <p className="text-xs text-muted-ui leading-5">
                             By creating an account you agree to the terms of service. Your credentials are stored securely in Supabase.
                         </p>
                     </div>
@@ -205,7 +205,7 @@ function AuthShell({ icon, title, subtitle, children }: { icon: React.ReactNode;
         <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1b1f2c_0%,#0b0d13_55%,#07080c_100%)] text-foreground">
             <header className={`h-14 flex items-center justify-between px-4 app-region-drag ${isMac ? 'pl-20' : ''}`}>
                 <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-2xl bg-[#A78BFA]/12 border border-[#A78BFA]/20 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-2xl bg-qa-accent/12 border border-qa-accent/20 flex items-center justify-center">
                         <FlaskConical className="h-4 w-4 text-brand stroke-[2.4]" />
                     </div>
                     <span className="text-sm font-semibold tracking-tight text-foreground">QAssistant</span>
@@ -213,13 +213,13 @@ function AuthShell({ icon, title, subtitle, children }: { icon: React.ReactNode;
 
                 {!isMac && (
                     <div className="flex items-center shrink-0 app-region-no-drag">
-                        <button onClick={() => window.electronAPI?.minimize()} aria-label="Minimize window" className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/5 transition-colors">
-                            <Minus className="h-4 w-4 text-[#8FB7D9]" />
+                        <button onClick={() => window.electronAPI?.minimize()} aria-label="Minimize window" className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-elevated transition-colors">
+                            <Minus className="h-4 w-4 text-state-info" />
                         </button>
-                        <button onClick={() => window.electronAPI?.maximize()} aria-label={isMaximized ? 'Restore window' : 'Maximize window'} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/5 transition-colors">
-                            {isMaximized ? <Copy className="h-3.5 w-3.5 text-[#8FB7D9] rotate-180" /> : <Square className="h-3.5 w-3.5 text-[#8FB7D9]" />}
+                        <button onClick={() => window.electronAPI?.maximize()} aria-label={isMaximized ? 'Restore window' : 'Maximize window'} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-elevated transition-colors">
+                            {isMaximized ? <Copy className="h-3.5 w-3.5 text-state-info rotate-180" /> : <Square className="h-3.5 w-3.5 text-state-info" />}
                         </button>
-                        <button onClick={() => window.electronAPI?.close()} aria-label="Close window" className="w-11 h-10 flex items-center justify-center rounded-xl hover:bg-red-500 hover:text-white transition-colors">
+                        <button onClick={() => window.electronAPI?.close()} aria-label="Close window" className="w-11 h-10 flex items-center justify-center rounded-xl hover:bg-state-danger hover:text-primary-foreground transition-colors">
                             <X className="h-4 w-4" />
                         </button>
                     </div>
@@ -228,8 +228,8 @@ function AuthShell({ icon, title, subtitle, children }: { icon: React.ReactNode;
 
             <div className="mx-auto flex min-h-[calc(100vh-56px)] max-w-5xl items-center justify-center px-6 py-12">
                 <div className="grid w-full max-w-4xl gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-                    <div className="rounded-[28px] border border-ui bg-[#0f1118]/90 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
-                        <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#A78BFA]/12">
+                    <div className="rounded-[28px] border border-ui bg-surface-app/90 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+                        <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-qa-accent/12">
                             {icon}
                         </div>
                         <h1 className="text-3xl font-black tracking-tight">{title}</h1>
@@ -237,11 +237,11 @@ function AuthShell({ icon, title, subtitle, children }: { icon: React.ReactNode;
                         <div className="mt-6">{children}</div>
                     </div>
 
-                    <div className="rounded-[28px] border border-ui bg-[#11131A]/85 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.35)]">
+                    <div className="rounded-[28px] border border-ui bg-surface-app/85 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.35)]">
                         <div className="space-y-6">
-                            <Feature icon={<ShieldCheck className="h-4 w-4 text-emerald-400" />} title="Enterprise login gate" body="The main shell stays locked until the Supabase session is valid and the desktop auth bootstrap finishes cleanly." />
+                            <Feature icon={<ShieldCheck className="h-4 w-4 text-state-success" />} title="Enterprise login gate" body="The main shell stays locked until the Supabase session is valid and the desktop auth bootstrap finishes cleanly." />
                             <Feature icon={<Cloud className="h-4 w-4 text-brand" />} title="Cloud-ready identity" body="Workspace sync, invite-based collaboration, and user profile hydration all reuse the same authenticated session." />
-                            <Feature icon={<CheckCircle2 className="h-4 w-4 text-sky-400" />} title="Local-first data stays local" body="Signing out clears cloud access while your local projects remain on disk for the next authenticated session." />
+                            <Feature icon={<CheckCircle2 className="h-4 w-4 text-state-info" />} title="Local-first data stays local" body="Signing out clears cloud access while your local projects remain on disk for the next authenticated session." />
                         </div>
                     </div>
                 </div>
@@ -252,9 +252,9 @@ function AuthShell({ icon, title, subtitle, children }: { icon: React.ReactNode;
 
 function Feature({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
     return (
-        <div className="rounded-2xl border border-[#222430] bg-[#0B0D13] p-4">
+        <div className="rounded-2xl border border-ui-subtle bg-app p-4">
             <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#171925]">{icon}</div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel">{icon}</div>
                 <div>
                     <p className="text-sm font-bold text-foreground">{title}</p>
                     <p className="mt-1 text-xs leading-5 text-soft">{body}</p>
@@ -266,8 +266,8 @@ function Feature({ icon, title, body }: { icon: React.ReactNode; title: string; 
 
 function MessageCard({ tone, title, body }: { tone: 'success' | 'warn'; title: string; body: string }) {
     const toneClass = tone === 'success'
-        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
-        : 'border-amber-500/30 bg-amber-500/10 text-amber-100'
+        ? 'border-state-success-border bg-state-success-soft text-state-success'
+        : 'border-state-warning-border bg-state-warning-soft text-state-warning'
     return (
         <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
             <p className="text-sm font-bold">{title}</p>
@@ -278,7 +278,7 @@ function MessageCard({ tone, title, body }: { tone: 'success' | 'warn'; title: s
 
 function InlineError({ error }: { error: string }) {
     return (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+        <div className="rounded-2xl border border-state-danger-border bg-state-danger-soft px-4 py-3 text-sm text-state-danger">
             <div className="flex items-start gap-2">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{error}</span>
@@ -289,7 +289,7 @@ function InlineError({ error }: { error: string }) {
 
 function InlineMessage({ message }: { message: string }) {
     return (
-        <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+        <div className="rounded-2xl border border-state-info-border bg-state-info-soft px-4 py-3 text-sm text-state-info">
             {message}
         </div>
     )
@@ -300,8 +300,8 @@ function ModeButton({ active, label, onClick }: { active: boolean; label: string
         <button
             className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
                 active
-                    ? 'bg-primary text-[#0F0F13]'
-                    : 'text-soft hover:bg-[#1A1D28] hover:text-foreground'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-soft hover:bg-panel hover:text-foreground'
             }`}
             onClick={onClick}
         >

@@ -63,7 +63,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                 <form onSubmit={handleSubmit} className="p-8">
                     <DialogHeader className="mb-6">
                         <div className="flex items-center gap-3 text-brand">
-                            <div className="p-2 bg-[#A78BFA]/10 rounded-lg text-brand">
+                            <div className="p-2 bg-qa-accent/10 rounded-lg text-brand">
                                 <Layers className="h-6 w-6" />
                             </div>
                             <DialogTitle className="text-2xl font-black tracking-tight">
@@ -77,24 +77,24 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
 
                     <div className="grid gap-6">
                         <div className="grid gap-2">
-                            <Label htmlFor="plan-name" className="text-[10px] font-black uppercase text-muted-foreground px-1 tracking-widest">Plan Designation</Label>
+                            <Label htmlFor="plan-name" className="text-[11px] font-black uppercase text-muted-foreground px-1 tracking-widest">Plan Designation</Label>
                             <Input
                                 id="plan-name"
                                 value={name}
                                 onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setNameError("") }}
                                 placeholder="e.g. Core Regression v2.4"
-                                className={cn("h-11 bg-background focus-visible:ring-[#A78BFA]/30 font-bold", nameError && "border-red-500/70")}
+                                className={cn("h-11 bg-background focus-visible:ring-qa-accent/30 font-bold", nameError && "border-state-danger/70")}
                             />
-                            {nameError && <p className="text-xs text-red-400 px-1">{nameError}</p>}
+                            {nameError && <p className="text-xs text-state-danger px-1">{nameError}</p>}
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="plan-desc" className="text-[10px] font-black uppercase text-muted-foreground px-1 tracking-widest">Strategic Overview</Label>
+                            <Label htmlFor="plan-desc" className="text-[11px] font-black uppercase text-muted-foreground px-1 tracking-widest">Strategic Overview</Label>
                             <Textarea
                                 id="plan-desc"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 placeholder="Objectives, scope, and target components…"
-                                className="bg-background focus-visible:ring-[#A78BFA]/30 resize-none min-h-[100px]"
+                                className="bg-background focus-visible:ring-qa-accent/30 resize-none min-h-[100px]"
                             />
                         </div>
 
@@ -102,24 +102,24 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                             className={cn(
                                 "flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer",
                                 isRegression
-                                    ? "bg-green-500/5 border-green-500/20 shadow-lg shadow-green-500/5"
+                                    ? "bg-state-success-soft border-state-success-border shadow-lg shadow-green-500/5"
                                     : "bg-muted/30 border-transparent opacity-60 grayscale"
                             )}
                             onClick={() => setIsRegression(!isRegression)}
                         >
                             <div className={cn("p-2 rounded-xl ring-1 transition-all",
-                                isRegression ? "bg-[#A78BFA]/10 text-brand ring-[#A78BFA]/20" : "bg-elevated text-muted-ui ring-[#2A2A3A]"
+                                isRegression ? "bg-qa-accent/10 text-brand ring-qa-accent/20" : "bg-elevated text-muted-ui ring-line"
                             )}>
                                 <ShieldCheck className="h-5 w-5" />
                             </div>
                             <div className="flex-1">
                                 <div className="text-sm font-black tracking-tight">Regression Suite</div>
-                                <div className="text-[10px] font-bold text-muted-foreground leading-tight">Muted plans won't appear in baseline health checks.</div>
+                                <div className="text-[11px] font-bold text-muted-foreground leading-tight">Muted plans won't appear in baseline health checks.</div>
                             </div>
                             <div className={cn("w-10 h-5 rounded-full relative transition-all p-1",
                                 isRegression ? "bg-primary" : "bg-elevated"
                             )}>
-                                <div className={cn("bg-[#E2E8F0] w-3 h-3 rounded-full shadow-sm transition-all",
+                                <div className={cn("bg-text-primary w-3 h-3 rounded-full shadow-sm transition-all",
                                     isRegression ? "translate-x-5" : "translate-x-0"
                                 )} />
                             </div>
@@ -130,7 +130,7 @@ export default function TestPlanDialog({ open, onOpenChange, editingPlan }: Test
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="font-bold">
                             Cancel
                         </Button>
-                        <Button type="submit" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-black px-8">
+                        <Button type="submit" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-black px-8">
                             {editingPlan ? "Sync Blueprint" : "Establish Suite"}
                         </Button>
                     </DialogFooter>

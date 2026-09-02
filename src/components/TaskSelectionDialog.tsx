@@ -87,7 +87,7 @@ export default function TaskSelectionDialog({
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-ui" />
                             <input
-                                className="w-full bg-panel-muted border border-ui text-sm text-foreground h-10 pl-10 pr-4 rounded-lg focus:outline-none focus:border-[#A78BFA]/50"
+                                className="w-full bg-panel-muted border border-ui text-sm text-foreground h-10 pl-10 pr-4 rounded-lg focus:outline-none focus:border-qa-accent/50"
                                 placeholder={`Search ${filteredTasks.length} issues...`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -122,18 +122,18 @@ export default function TaskSelectionDialog({
                                     />
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black uppercase text-brand bg-[#A78BFA]/10 px-2 py-0.5 rounded tracking-wider">
+                                            <span className="text-[11px] font-black uppercase text-brand bg-qa-accent/10 px-2 py-0.5 rounded tracking-wider">
                                                 {task.sourceIssueId || task.externalId || task.source}
                                             </span>
                                             <span className={cn(
-                                                "text-[9px] font-black uppercase px-1.5 py-0.5 rounded tracking-tighter",
-                                                task.priority === 'critical' ? "bg-[#EF4444]/20 text-[#EF4444]" :
-                                                    task.priority === 'high' ? "bg-[#F59E0B]/20 text-[#F59E0B]" :
-                                                        task.priority === 'medium' ? "bg-[#3B82F6]/20 text-[#3B82F6]" : "bg-[#6B7280]/20 text-muted-ui"
+                                                "text-[11px] font-black uppercase px-1.5 py-0.5 rounded tracking-tighter",
+                                                task.priority === 'critical' ? "bg-state-danger/20 text-state-danger" :
+                                                    task.priority === 'high' ? "bg-state-warning/20 text-state-warning" :
+                                                        task.priority === 'medium' ? "bg-state-info/20 text-state-info" : "bg-line-strong/20 text-muted-ui"
                                             )}>
                                                 {task.priority || 'MED'}
                                             </span>
-                                            <span className="text-[9px] font-bold text-muted-ui uppercase opacity-50">
+                                            <span className="text-[11px] font-bold text-muted-ui uppercase opacity-50">
                                                 {task.status || 'TODO'}
                                             </span>
                                         </div>
@@ -148,7 +148,7 @@ export default function TaskSelectionDialog({
 
                 <DialogFooter className="mt-6 border-t border-ui pt-4">
                     <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-muted-ui">Cancel</Button>
-                    <Button onClick={handleConfirm} className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold">
+                    <Button onClick={handleConfirm} className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold">
                         Confirm ({localSelected.size})
                     </Button>
                 </DialogFooter>

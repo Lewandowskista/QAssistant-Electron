@@ -91,7 +91,7 @@ function MetricCard({
                 <div className={cn("rounded-xl border border-current/10 bg-current/10 p-2", accentClassName)}>
                     <Icon className="h-4 w-4" strokeWidth={2.4} />
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-ui">{label}</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-ui">{label}</span>
             </div>
             <div className="space-y-1">
                 <p className="app-metric-value">{value}</p>
@@ -136,7 +136,7 @@ function QueueItem({
     return (
         <div className="surface-muted rounded-2xl border px-4 py-3">
             <div className="flex items-center gap-2">
-                <span className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em]", toneClassName)}>
+                <span className={cn("rounded-full px-2 py-1 text-[11px] font-bold uppercase tracking-[0.16em]", toneClassName)}>
                     {label}
                 </span>
             </div>
@@ -413,28 +413,28 @@ export default function DashboardPage() {
                     label="Ready For QA"
                     value={readyForQaTasks.length}
                     note={readyForQaTasks.length > 0 ? "Fixes are waiting for retest." : "No items are waiting for QA right now."}
-                    accentClassName="text-[#7DD3FC]"
+                    accentClassName="text-state-info"
                 />
                 <MetricCard
                     icon={AlertOctagon}
                     label="Critical Issues"
                     value={criticalOpenTasks.length}
                     note={criticalOpenTasks.length > 0 ? "Open critical or blocker defects need attention." : "No open critical issues in the current view."}
-                    accentClassName="text-[#F97373]"
+                    accentClassName="text-state-danger"
                 />
                 <MetricCard
                     icon={FlaskConical}
                     label="Pass Rate"
                     value={`${passRate}%`}
                     note={`${failedTests} failed, ${blockedTests} blocked, ${notRunTests} not run.`}
-                    accentClassName="text-[#34D399]"
+                    accentClassName="text-state-success"
                 />
                 <MetricCard
                     icon={CheckSquare}
                     label="Coverage Gaps"
                     value={coverageGapTasks.length}
                     note={`${coveragePercent}% of visible tasks have mapped coverage.`}
-                    accentClassName="text-[#FBBF24]"
+                    accentClassName="text-state-warning"
                 />
                 <MetricCard
                     icon={Sparkles}
@@ -459,20 +459,20 @@ export default function DashboardPage() {
                     />
                     <div className="grid gap-3 md:grid-cols-3">
                         <div className="surface-muted rounded-2xl border px-4 py-3">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-ui">Latest Score</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-ui">Latest Score</p>
                             <p className="mt-2 text-3xl font-semibold text-foreground">
                                 {latestAccuracyRun ? `${latestAccuracyRun.aggregateScore}%` : "No data"}
                             </p>
                         </div>
                         <div className="surface-muted rounded-2xl border px-4 py-3">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-ui">Latest Suite</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-ui">Latest Suite</p>
                             <p className="mt-2 text-sm font-semibold text-foreground">{latestAccuracySuite ?? "No completed evaluation"}</p>
                             <p className="mt-1 text-xs text-soft">
                                 {latestAccuracyRun ? `${latestAccuracyRun.completedPairs}/${latestAccuracyRun.totalPairs} pairs on ${formatShortDate(latestAccuracyRun.startedAt)}` : "Open Tests and run an evaluation."}
                             </p>
                         </div>
                         <div className="surface-muted rounded-2xl border px-4 py-3">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-ui">Trend</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-ui">Trend</p>
                             <p className="mt-2 text-sm font-semibold text-foreground">
                                 {latestAccuracyRun ? formatAccuracyDelta(accuracyDelta) : "No trend yet"}
                             </p>
@@ -501,11 +501,11 @@ export default function DashboardPage() {
                     />
                     <div className="grid grid-cols-2 gap-3">
                         <div className="surface-muted rounded-2xl border px-4 py-3">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-ui">Passed</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-ui">Passed</p>
                             <p className="mt-2 text-2xl font-semibold text-foreground">{passedTests}</p>
                         </div>
                         <div className="surface-muted rounded-2xl border px-4 py-3">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-ui">Needs Attention</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-ui">Needs Attention</p>
                             <p className="mt-2 text-2xl font-semibold text-foreground">{failedTests + blockedTests + notRunTests}</p>
                         </div>
                     </div>
@@ -530,7 +530,7 @@ export default function DashboardPage() {
                                 <QueueItem
                                     key={task.id}
                                     label="Retest"
-                                    toneClassName="bg-[#7DD3FC]/12 text-[#7DD3FC]"
+                                    toneClassName="bg-state-info-soft text-state-info"
                                     title={<FormattedText content={task.title} projectId={activeProjectId || undefined} />}
                                     meta={`${task.priority.toUpperCase()} priority / Updated ${formatShortDate(task.lastCollabUpdatedAt ?? task.updatedAt)}`}
                                 />
@@ -558,7 +558,7 @@ export default function DashboardPage() {
                                 <QueueItem
                                     key={testCase.id}
                                     label={testCase.displayId || "Failed"}
-                                    toneClassName="bg-[#F97373]/12 text-[#F97373]"
+                                    toneClassName="bg-state-danger-soft text-state-danger"
                                     title={testCase.title}
                                     meta={`${testCase.planName} / ${testCase.priority.toUpperCase()} priority / Updated ${formatShortDate(testCase.updatedAt)}`}
                                 />
@@ -586,7 +586,7 @@ export default function DashboardPage() {
                                 <QueueItem
                                     key={task.id}
                                     label="No Test"
-                                    toneClassName="bg-[#FBBF24]/12 text-[#FBBF24]"
+                                    toneClassName="bg-state-warning-soft text-state-warning"
                                     title={<FormattedText content={task.title} projectId={activeProjectId || undefined} />}
                                     meta={`${task.priority.toUpperCase()} priority / Updated ${formatShortDate(task.updatedAt)}`}
                                 />

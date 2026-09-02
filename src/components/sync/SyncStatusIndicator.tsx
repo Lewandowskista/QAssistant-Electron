@@ -15,11 +15,11 @@ const STATUS_CONFIG: Record<CloudSyncStatus, {
     dot: string
     pulse?: boolean
 }> = {
-    disconnected: { icon: CloudOff, label: 'Not connected', color: 'text-muted-ui', dot: 'bg-[#4B5563]' },
-    connecting:   { icon: Cloud,    label: 'Connecting…',  color: 'text-amber-400',  dot: 'bg-amber-400', pulse: true },
-    connected:    { icon: Cloud,    label: 'Synced',        color: 'text-emerald-400', dot: 'bg-emerald-400' },
+    disconnected: { icon: CloudOff, label: 'Not connected', color: 'text-muted-ui', dot: 'bg-line-strong' },
+    connecting:   { icon: Cloud,    label: 'Connecting…',  color: 'text-state-warning',  dot: 'bg-amber-400', pulse: true },
+    connected:    { icon: Cloud,    label: 'Synced',        color: 'text-state-success', dot: 'bg-emerald-400' },
     syncing:      { icon: RefreshCw, label: 'Syncing…',    color: 'text-brand',  dot: 'bg-primary',  pulse: true },
-    error:        { icon: AlertTriangle, label: 'Sync error', color: 'text-red-400', dot: 'bg-red-400' },
+    error:        { icon: AlertTriangle, label: 'Sync error', color: 'text-state-danger', dot: 'bg-red-400' },
 }
 
 function useRelativeTime(ts: number | null): string | null {
@@ -40,7 +40,7 @@ function useRelativeTime(ts: number | null): string | null {
     return `${Math.floor(hrs / 24)}d ago`
 }
 
-export function SyncStatusIndicator() {
+export function SyncStatusIndicator({ collapsed = false }: { collapsed?: boolean } = {}) {
     const {
         status,
         config,
@@ -131,8 +131,9 @@ export function SyncStatusIndicator() {
                         : 'Set up cloud sync'
                 }
                 className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors group',
-                    'hover:bg-elevated text-left',
+                    'w-full flex items-center rounded-xl transition-colors group',
+                    collapsed ? 'justify-center px-0 py-1.5' : 'gap-2.5 px-3 py-2.5 text-left',
+                    'hover:bg-elevated',
                 )}
             >
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 bg-selected">
@@ -142,13 +143,14 @@ export function SyncStatusIndicator() {
                         status === 'syncing' && 'animate-spin',
                     )} />
                 </div>
+                {!collapsed ? (
                 <div className="flex flex-col min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                         <span className={cn('text-xs font-medium', isConfigured ? cfg.color : 'text-muted-ui')}>
                             {indicatorLabel}
                         </span>
                         {pendingCount > 0 && (
-                            <span className="text-[10px] font-bold bg-[#A78BFA]/20 text-brand px-1.5 py-0.5 rounded-full leading-none">
+                            <span className="text-[11px] font-bold bg-qa-accent/20 text-brand px-1.5 py-0.5 rounded-full leading-none">
                                 {pendingCount}
                             </span>
                         )}
@@ -157,22 +159,25 @@ export function SyncStatusIndicator() {
                     {isConfigured && status === 'connected' && relativeTime && !showBackgroundSync ? (
                         <div className="flex items-center gap-1 mt-0.5">
                             <Wifi className="h-2.5 w-2.5 text-muted-ui shrink-0" />
-                            <span className="text-[10px] text-muted-ui truncate">
+                            <span className="text-[11px] text-muted-ui truncate">
                                 {workspaceInfo?.workspaceName ? `${workspaceInfo.workspaceName} · ` : ''}
                                 {relativeTime}
                             </span>
                         </div>
                     ) : isConfigured ? (
-                        <span className="mt-0.5 text-[10px] text-muted-ui truncate">{indicatorSubtitle}</span>
+                        <span className="mt-0.5 text-[11px] text-muted-ui truncate">{indicatorSubtitle}</span>
                     ) : !isConfigured ? (
-                        <span className="text-[10px] text-muted-ui">Click to set up</span>
+                        <span className="text-[11px] text-muted-ui">Click to set up</span>
                     ) : null}
                 </div>
+                ) : null}
+                {!collapsed ? (
                 <div className={cn(
                     'w-1.5 h-1.5 rounded-full shrink-0',
                     cfg.dot,
                     cfg.pulse && 'animate-pulse'
                 )} />
+                ) : null}
             </button>
 
             {setupOpen && (

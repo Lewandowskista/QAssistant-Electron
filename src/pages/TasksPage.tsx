@@ -76,18 +76,18 @@ function savePresets(projectId: string, presets: FilterPreset[]) {
 
 function toLinearColumn(state: { name: string; type?: string }) : TaskBoardColumn {
     const type = String(state.type || "").toLowerCase()
-    if (type === "completed") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#10B981]", color: "bg-[#10B981]", type: state.type }
-    if (type === "canceled") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#EF4444]", color: "bg-[#EF4444]", type: state.type }
-    if (type === "started") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#3B82F6]", color: "bg-[#3B82F6]", type: state.type }
-    if (type === "unstarted") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-[#6B7280]", type: state.type }
+    if (type === "completed") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-state-success", color: "bg-state-success", type: state.type }
+    if (type === "canceled") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-state-danger", color: "bg-state-danger", type: state.type }
+    if (type === "started") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-state-info", color: "bg-state-info", type: state.type }
+    if (type === "unstarted") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-line-strong", type: state.type }
     return { id: state.name, title: state.name.toUpperCase(), textColor: "text-brand", color: "bg-primary", type: state.type }
 }
 
 function toJiraColumn(status: { name: string; category?: string }) : TaskBoardColumn {
     const category = String(status.category || "").toLowerCase()
-    if (category.includes("done")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#10B981]", color: "bg-[#10B981]", type: "done" }
-    if (category.includes("progress") || category.includes("indeterminate")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#3B82F6]", color: "bg-[#3B82F6]", type: "started" }
-    return { id: status.name, title: status.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-[#6B7280]", type: "unstarted" }
+    if (category.includes("done")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-state-success", color: "bg-state-success", type: "done" }
+    if (category.includes("progress") || category.includes("indeterminate")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-state-info", color: "bg-state-info", type: "started" }
+    return { id: status.name, title: status.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-line-strong", type: "unstarted" }
 }
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -133,6 +133,7 @@ export default function TasksPage() {
 
     const [activeTask, setActiveTask] = useState<Task | null>(null)
     const [detailsId, setDetailsId] = useState<string | null>(null)
+    const [detailsInitialTab, setDetailsInitialTab] = useState<string | null>(null)
     const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false)
     const [currentAnalysisResult, setCurrentAnalysisResult] = useState<string | null>(null)
     const [taskBeingAnalyzed, setTaskBeingAnalyzed] = useState<Task | null>(null)
@@ -538,6 +539,16 @@ export default function TasksPage() {
         if (task?.ticketUrl) api.openUrl(task.ticketUrl)
     }, [tasks, api])
 
+    const handleSelectTask = useCallback((taskId: string | null) => {
+        setDetailsInitialTab(null)
+        setDetailsId(taskId)
+    }, [])
+
+    const handleCreateHandoff = useCallback((taskId: string) => {
+        setDetailsInitialTab("collaboration")
+        setDetailsId(taskId)
+    }, [])
+
     const handleAddTask = useCallback((status?: string) => {
         setNewTaskStatus(status || "todo")
         setIsNewTaskModalOpen(true)
@@ -714,7 +725,7 @@ export default function TasksPage() {
                                     <TaskTriageView
                                         sections={triageSections}
                                         selectedTaskId={detailsId}
-                                        onSelectTask={setDetailsId}
+                                        onSelectTask={handleSelectTask}
                                         onAnalyzeTask={handleAnalyzeIssue}
                                     />
                                 </Suspense>
@@ -730,11 +741,12 @@ export default function TasksPage() {
                                                 col={col}
                                                 tasksInColumn={tasksByColumn[col.id] || []}
                                                 selectedTaskId={detailsId}
-                                                setSelectedTaskId={setDetailsId}
+                                                setSelectedTaskId={handleSelectTask}
                                                 sourceMode={effectiveSource}
                                                 onAddTask={handleAddTask}
                                                 onAnalyzeTask={handleAnalyzeTaskById}
                                                 onOpenExternal={openExternalTask}
+                                                onCreateHandoff={handleCreateHandoff}
                                                 onCopyReference={handleCopyReference}
                                                 onFilterColumn={handleFilterColumn}
                                                 dragDisabled={sortMode !== "manual"}
@@ -758,7 +770,8 @@ export default function TasksPage() {
                         selectedTask={selectedTask}
                         activeProject={activeProject ?? undefined}
                         currentColumns={currentColumns}
-                        onClose={() => setDetailsId(null)}
+                        initialTab={detailsInitialTab}
+                        onClose={() => handleSelectTask(null)}
                         onUpdateTask={handleUpdateTask}
                         onAnalyze={handleAnalyzeIssue}
                         isAnalyzing={isLoading}
@@ -842,7 +855,7 @@ export default function TasksPage() {
                             <div key={description} className="flex items-center justify-between border-b border-ui/60 py-2 last:border-0">
                                 <span className="text-xs text-soft">{description}</span>
                                 <div className="flex items-center gap-1">
-                                    {keys.map((key) => <kbd key={key} className="rounded border border-ui bg-panel-muted px-2 py-0.5 font-mono text-[10px] font-bold text-brand">{key}</kbd>)}
+                                    {keys.map((key) => <kbd key={key} className="rounded border border-ui bg-panel-muted px-2 py-0.5 font-mono text-[11px] font-bold text-brand">{key}</kbd>)}
                                 </div>
                             </div>
                         ))}

@@ -11,25 +11,25 @@ export function AiSetupPrompt({ featureName, description }: Props) {
     const navigate = useNavigate()
 
     return (
-        <div className="rounded-xl border border-dashed border-[#A78BFA]/30 bg-[#A78BFA]/5 p-5 flex flex-col gap-3">
+        <div className="rounded-xl border border-dashed border-qa-accent/30 bg-qa-accent/5 p-5 flex flex-col gap-3">
             <div className="flex items-center gap-2 text-brand">
                 <Sparkles className="h-4 w-4 shrink-0" />
                 <span className="text-sm font-semibold">{featureName}</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
-            <div className="rounded-lg border border-ui bg-[#0F0F13]/60 p-3 text-xs text-muted-ui font-mono leading-relaxed">
+            <div className="rounded-lg border border-ui bg-surface-app/60 p-3 text-xs text-muted-ui font-mono leading-relaxed">
                 <span className="text-brand">// Sample output</span>{"\n"}
                 {"{"}
-                {"\n"}  title: <span className="text-emerald-400">"Verify guest checkout with VISA card"</span>,{"\n"}
-                {"  "}preConditions: <span className="text-emerald-400">"Cart has 1 in-stock product"</span>,{"\n"}
+                {"\n"}  title: <span className="text-state-success">"Verify guest checkout with VISA card"</span>,{"\n"}
+                {"  "}preConditions: <span className="text-state-success">"Cart has 1 in-stock product"</span>,{"\n"}
                 {"  "}priority: <span className="text-cyan-400">"blocker"</span>,{"\n"}
-                {"  "}steps: <span className="text-emerald-400">"1. Add product → 2. Continue as guest → ..."</span>{"\n"}
+                {"  "}steps: <span className="text-state-success">"1. Add product → 2. Continue as guest → ..."</span>{"\n"}
                 {"}"}
             </div>
             <Button
                 size="sm"
                 variant="outline"
-                className="self-start gap-2 border-[#A78BFA]/40 text-brand hover:bg-[#A78BFA]/10 hover:border-[#A78BFA]"
+                className="self-start gap-2 border-qa-accent/40 text-brand hover:bg-qa-accent/10 hover:border-qa-accent"
                 onClick={() => navigate('/settings')}
             >
                 Configure Gemini API

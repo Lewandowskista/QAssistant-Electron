@@ -2,8 +2,10 @@ import { useState, useEffect } from "react"
 import { useProjectStore } from "@/store/useProjectStore"
 import { Plus, Search, Trash2, Loader2, Code2, Server, Key, Copy, Braces, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { FullBleedHeader } from "@/components/ui/workspace"
 import { cn } from "@/lib/utils"
 import {
     Select,
@@ -204,7 +206,7 @@ export default function ApiPage() {
     const handleAutoAuth = async () => {
         if (!activeProject) return
         const api = window.electronAPI
-        
+
         // Find default or first environment
         const env = activeProject.environments.find(e => e.isDefault) || activeProject.environments[0]
         if (!env) {
@@ -227,7 +229,7 @@ export default function ApiPage() {
             // Inject or replace Authorization header
             const lines = headers.split('\n').filter(l => l.trim().length > 0)
             const authIdx = lines.findIndex(l => l.trim().toLowerCase().startsWith('authorization:'))
-            
+
             if (authIdx >= 0) {
                 lines[authIdx] = authLine
             } else {
@@ -242,44 +244,53 @@ export default function ApiPage() {
 
     const getMethodColor = (m: string) => {
         switch (m) {
-            case 'GET': return 'bg-[#3B82F6]'
-            case 'POST': return 'bg-[#10B981]'
-            case 'PUT': return 'bg-[#F59E0B]'
-            case 'DELETE': return 'bg-[#EF4444]'
-            case 'PATCH': return 'bg-[#8B5CF6]'
-            default: return 'bg-[#6B7280]'
+            case 'GET': return 'bg-state-info'
+            case 'POST': return 'bg-state-success'
+            case 'PUT': return 'bg-state-warning'
+            case 'DELETE': return 'bg-state-danger'
+            case 'PATCH': return 'bg-qa-accent'
+            default: return 'bg-line-strong'
         }
     }
 
     if (!activeProject) {
         return (
-            <div className="h-full flex flex-col items-center justify-center bg-app gap-4 text-center">
-                <div className="w-20 h-20 rounded-full bg-panel-muted flex items-center justify-center opacity-40">
-                    <Server className="h-9 w-9 text-muted-ui" strokeWidth={1} />
-                </div>
-                <div className="opacity-60 space-y-1">
-                    <p className="text-sm font-bold text-foreground uppercase tracking-widest">No Project Selected</p>
-                    <p className="text-xs text-muted-ui">Select a project to use the API Playground.</p>
-                </div>
+            <div className="h-full flex items-center justify-center bg-app p-10">
+                <EmptyState
+                    icon={Server}
+                    title="No project selected"
+                    description="Select a project to use the API playground."
+                />
             </div>
         )
     }
 
     return (
         <>
-        <div className="h-full flex animate-in fade-in duration-500 overflow-hidden bg-app">
+        <div className="h-full flex flex-col animate-in fade-in duration-500 overflow-hidden bg-app">
+            <FullBleedHeader
+                icon={Braces}
+                title="API playground"
+                description="OCC, HAC, Jira, Linear"
+                actions={
+                    <Button onClick={handleNew} size="sm" className="gap-2">
+                        <Plus className="h-3.5 w-3.5" /> New request
+                    </Button>
+                }
+            />
+
+            <div className="flex flex-1 min-h-0 overflow-hidden">
             {/* Sidebar: Saved Requests */}
             <aside className="w-[280px] flex-none bg-panel border-r border-ui flex flex-col">
-                <div className="p-4 border-b border-ui space-y-1">
-                    <h3 className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em]">API PLAYGROUND</h3>
-                    <p className="text-[11px] text-muted-ui leading-tight">OCC, HAC, Jira, Linear</p>
+                <div className="p-4 border-b border-ui">
+                    <p className="app-section-label">Saved requests</p>
                 </div>
 
                 <div className="p-3">
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-ui" />
                         <Input
-                            placeholder="Filter registry…"
+                            placeholder="Filter requests…"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             className="h-9 pl-9 bg-app border-ui text-xs"
@@ -295,17 +306,17 @@ export default function ApiPage() {
                             className={cn(
                                 "p-2.5 rounded-lg border transition-all cursor-pointer group",
                                 selectedReqId === req.id
-                                    ? "bg-panel-muted border-[#A78BFA]/50"
-                                    : "bg-transparent border-transparent hover:bg-[#1A1A24]/50"
+                                    ? "bg-panel-muted border-qa-accent/50"
+                                    : "bg-transparent border-transparent hover:bg-surface-alt/50"
                             )}
                         >
                             <div className="flex items-center gap-2 mb-1">
-                                <span className={cn("text-[8px] font-black px-1.5 py-0.5 rounded text-white min-w-[32px] text-center", getMethodColor(req.method))}>
+                                <span className={cn("text-[11px] font-semibold px-1.5 py-0.5 rounded text-primary-foreground min-w-[32px] text-center", getMethodColor(req.method))}>
                                     {req.method}
                                 </span>
-                                <span className="text-xs font-bold text-[#E2E8E0] truncate flex-1">{req.name}</span>
+                                <span className="text-xs font-semibold text-foreground truncate flex-1">{req.name}</span>
                             </div>
-                            <div className="text-[10px] text-muted-ui font-medium uppercase tracking-wider pl-[38px]">
+                            <div className="text-[11px] text-muted-ui pl-[38px]">
                                 {req.category || 'Custom'}
                             </div>
                         </div>
@@ -313,12 +324,9 @@ export default function ApiPage() {
                 </div>
 
                 <div className="p-3 border-t border-ui space-y-2 bg-app">
-                    <Button onClick={handleNew} className="w-full h-10 bg-[#A78BFA]/10 text-brand border border-[#A78BFA]/20 hover:bg-[#A78BFA]/20 font-bold text-xs gap-2">
-                        <Plus className="h-3.5 w-3.5" /> NEW REQUEST
-                    </Button>
                     <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" onClick={loadOccTemplates} className="h-8 border-ui text-[9px] font-bold text-muted-ui uppercase hover:bg-[#A78BFA]/10 hover:text-brand">OCC Templates</Button>
-                        <Button variant="outline" onClick={loadHacTemplates} className="h-8 border-ui text-[9px] font-bold text-muted-ui uppercase hover:bg-[#A78BFA]/10 hover:text-brand">HAC Templates</Button>
+                        <Button variant="outline" size="sm" onClick={loadOccTemplates} className="text-muted-ui hover:bg-qa-accent/10 hover:text-brand">OCC templates</Button>
+                        <Button variant="outline" size="sm" onClick={loadHacTemplates} className="text-muted-ui hover:bg-qa-accent/10 hover:text-brand">HAC templates</Button>
                     </div>
                 </div>
             </aside>
@@ -331,37 +339,37 @@ export default function ApiPage() {
                         <Input
                             value={reqName}
                             onChange={e => setReqName(e.target.value)}
-                            className="max-w-[300px] h-9 bg-transparent border-none text-lg font-black text-foreground focus-visible:ring-0 px-0"
-                            placeholder="Request Name"
+                            className="max-w-[300px] h-9 bg-transparent border-none text-lg font-semibold text-foreground focus-visible:ring-0 px-0"
+                            placeholder="Request name"
                         />
                         <div className="w-px h-6 bg-elevated" />
                         <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger className="w-[120px] h-8 bg-panel-muted border-ui text-[10px] font-bold uppercase tracking-widest text-muted-ui">
+                            <SelectTrigger className="w-[120px] h-8 bg-panel-muted border-ui text-xs text-muted-ui">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-panel-muted border-ui text-foreground">
                                 <SelectItem value="OCC">OCC</SelectItem>
                                 <SelectItem value="HAC">HAC</SelectItem>
-                                <SelectItem value="Jira">JIRA</SelectItem>
-                                <SelectItem value="Linear">LINEAR</SelectItem>
-                                <SelectItem value="Custom">CUSTOM</SelectItem>
+                                <SelectItem value="Jira">Jira</SelectItem>
+                                <SelectItem value="Linear">Linear</SelectItem>
+                                <SelectItem value="Custom">Custom</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={handleDelete} className="text-[#EF4444] hover:bg-[#EF4444]/10">
+                        <Button variant="ghost" size="icon" onClick={handleDelete} aria-label="Delete request" className="text-state-danger hover:bg-state-danger-soft">
                             <Trash2 className="h-4 w-4" />
                         </Button>
-                        <Button onClick={handleSave} className="h-9 px-6 bg-primary text-[#0F0F13] font-black text-xs">
-                            SAVE
+                        <Button onClick={handleSave} className="h-9 px-6">
+                            Save
                         </Button>
                     </div>
                 </div>
 
                 {/* Env + Variables bar */}
-                <div className="px-4 py-2 bg-app border-b border-ui flex items-center gap-3">
+                <div className="relative px-4 py-2 bg-app border-b border-ui flex items-center gap-3">
                     <Braces className="h-3 w-3 text-brand shrink-0" />
-                    <span className="text-[10px] font-bold text-muted-ui uppercase tracking-widest shrink-0">Env</span>
+                    <span className="text-xs font-medium text-muted-ui shrink-0">Env</span>
                     <select
                         value={selectedEnvId}
                         onChange={e => setSelectedEnvId(e.target.value)}
@@ -375,13 +383,13 @@ export default function ApiPage() {
                     <button
                         type="button"
                         onClick={() => setVarsOpen(v => !v)}
-                        className="flex items-center gap-1 text-[10px] font-bold text-muted-ui hover:text-brand transition-colors ml-2"
+                        className="flex items-center gap-1 text-xs font-medium text-muted-ui hover:text-brand transition-colors ml-2"
                     >
                         <ChevronDown className={cn("h-3 w-3 transition-transform", varsOpen && "rotate-180")} />
                         Variables
                     </button>
                     {varsOpen && (
-                        <div className="absolute top-[148px] left-[280px] z-50 bg-panel-muted border border-ui rounded-xl p-3 shadow-xl text-[10px] font-mono text-soft grid grid-cols-2 gap-x-6 gap-y-1 min-w-[380px]">
+                        <div className="absolute top-full left-4 mt-1 z-layer-dropdown bg-panel-muted border border-ui rounded-xl p-3 shadow-xl text-[11px] font-mono text-soft grid grid-cols-2 gap-x-6 gap-y-1 min-w-[380px]">
                             {[
                                 ['{{baseUrl}}', 'Environment base URL'],
                                 ['{{hacUrl}}', 'HAC URL'],
@@ -395,7 +403,7 @@ export default function ApiPage() {
                                 ['{{envName}}', 'Environment name'],
                             ].map(([v, desc]) => (
                                 <div key={v} className="flex items-center gap-2">
-                                    <span className="text-brand font-bold">{v}</span>
+                                    <span className="text-brand font-semibold">{v}</span>
                                     <span className="text-muted-ui">{desc}</span>
                                 </div>
                             ))}
@@ -406,7 +414,7 @@ export default function ApiPage() {
                 {/* URL Bar */}
                 <div className="p-4 flex gap-2 border-b border-ui">
                     <Select value={method} onValueChange={m => setMethod(m as HttpMethod)}>
-                        <SelectTrigger className={cn("w-[100px] h-11 border-ui text-xs font-black rounded-r-none", getMethodColor(method) + " text-white")}>
+                        <SelectTrigger className={cn("w-[100px] h-11 border-ui text-xs font-semibold rounded-r-none", getMethodColor(method) + " text-primary-foreground")}>
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-panel-muted border-ui text-foreground">
@@ -423,8 +431,8 @@ export default function ApiPage() {
                         placeholder="https://... or {{baseUrl}}/api/..."
                         className="h-11 flex-1 bg-panel-muted border-ui border-x-0 rounded-none font-mono text-sm text-brand"
                     />
-                    <Button onClick={handleSend} disabled={isExecuting} className="h-11 px-8 bg-primary text-[#0F0F13] font-black rounded-l-none">
-                        {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : "SEND"}
+                    <Button onClick={handleSend} disabled={isExecuting} className="h-11 px-8 rounded-l-none">
+                        {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
                     </Button>
                 </div>
 
@@ -432,33 +440,34 @@ export default function ApiPage() {
                 <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em] flex items-center gap-2">
-                                <Key className="h-3 w-3 text-brand" /> HEADERS
+                            <Label className="app-field-label mb-0 flex items-center gap-2">
+                                <Key className="h-3 w-3 text-brand" /> Headers
                             </Label>
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={handleAutoAuth}
-                                className="h-6 border-[#10B981]/20 text-[#10B981] text-[9px] font-bold hover:bg-[#10B981]/10 px-2"
+                                className="h-6 px-2 border-state-success-border text-state-success hover:bg-state-success-soft"
                             >
-                                AUTO AUTH
+                                Auto auth
                             </Button>
                         </div>
                         <textarea
                             value={headers}
                             onChange={e => setHeaders(e.target.value)}
-                            className="w-full h-24 bg-panel-muted border border-ui rounded-xl p-3 font-mono text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-[#A78BFA]/30"
+                            className="w-full h-24 bg-panel-muted border border-ui rounded-xl p-3 font-mono text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-qa-accent/30"
                             placeholder="Authorization: Bearer ..."
                         />
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em] flex items-center gap-2">
-                            <Code2 className="h-3 w-3 text-brand" /> BODY (JSON)
+                        <Label className="app-field-label mb-0 flex items-center gap-2">
+                            <Code2 className="h-3 w-3 text-brand" /> Body (JSON)
                         </Label>
                         <textarea
                             value={body}
                             onChange={e => setBody(e.target.value)}
-                            className="w-full h-40 bg-panel-muted border border-ui rounded-xl p-3 font-mono text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-[#A78BFA]/30"
+                            className="w-full h-40 bg-panel-muted border border-ui rounded-xl p-3 font-mono text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-qa-accent/30"
                             placeholder='{ "key": "value" }'
                         />
                     </div>
@@ -467,13 +476,13 @@ export default function ApiPage() {
                 {/* Response Bar */}
                 <div className="h-10 bg-panel border-y border-ui flex items-center justify-between px-4 overflow-hidden flex-none">
                     <div className="flex items-center gap-6">
-                        <span className="text-[9px] font-bold text-muted-ui uppercase tracking-widest">RESPONSE</span>
+                        <span className="app-section-label">Response</span>
                         {responseStatus && (
                             <div className="flex items-center gap-4">
-                                <span className={cn("text-xs font-bold font-mono", responseStatus < 300 ? "text-[#10B981]" : "text-[#EF4444]")}>
+                                <span className={cn("text-xs font-semibold font-mono", responseStatus < 300 ? "text-state-success" : "text-state-danger")}>
                                     {responseStatus}
                                 </span>
-                                <span className="text-[10px] font-bold text-muted-ui font-mono">{responseTime}ms</span>
+                                <span className="text-xs text-muted-ui font-mono">{responseTime}ms</span>
                             </div>
                         )}
                         <div className="flex gap-1 ml-4">
@@ -482,8 +491,8 @@ export default function ApiPage() {
                                     key={tab}
                                     onClick={() => setActiveRespTab(tab)}
                                     className={cn(
-                                        "px-3 h-10 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all",
-                                        activeRespTab === tab ? "border-[#A78BFA] text-brand bg-panel-muted" : "border-transparent text-muted-ui hover:text-foreground"
+                                        "px-3 h-10 text-xs font-semibold border-b-2 transition-all",
+                                        activeRespTab === tab ? "border-qa-accent text-brand bg-panel-muted" : "border-transparent text-muted-ui hover:text-foreground"
                                     )}
                                 >
                                     {tab}
@@ -494,7 +503,7 @@ export default function ApiPage() {
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 text-brand text-[10px] font-bold gap-2"
+                        className="h-7 text-brand text-xs gap-2"
                         disabled={!response}
                         onClick={() => {
                             const text = typeof response === 'object' ? JSON.stringify(response, null, 2) : String(response ?? '')
@@ -502,7 +511,7 @@ export default function ApiPage() {
                             toast.success('Response copied to clipboard')
                         }}
                     >
-                        <Copy className="h-3 w-3" /> COPY
+                        <Copy className="h-3 w-3" /> Copy
                     </Button>
                 </div>
 
@@ -510,7 +519,7 @@ export default function ApiPage() {
                 <div className="h-[250px] bg-app flex-none overflow-hidden relative group">
                     <div className="h-full overflow-y-auto p-4 custom-scrollbar">
                         {activeRespTab === 'Body' && (
-                            <div className="font-mono text-xs text-foreground selection:bg-[#A78BFA]/20">
+                            <div className="font-mono text-xs text-foreground selection:bg-qa-accent/20">
                                 {response ? (
                                     typeof response === 'object' ? (
                                         <pre>{JSON.stringify(response, null, 2)}</pre>
@@ -518,25 +527,26 @@ export default function ApiPage() {
                                         <FormattedText content={response} projectId={activeProjectId || undefined} />
                                     )
                                 ) : (
-                                    <span className="opacity-40">// Awaiting payload dispatch...</span>
+                                    <span className="font-sans text-muted-ui">Send a request to see the response.</span>
                                 )}
                             </div>
                         )}
                         {activeRespTab === 'Headers' && (
                             <div className="space-y-1">
                                 {Object.entries(respHeaders).map(([k, v]) => (
-                                    <div key={k} className="flex gap-4 border-b border-[#2A2A3A]/50 py-1">
-                                        <span className="text-brand font-bold min-w-[120px] text-[10px] uppercase font-mono">{k}</span>
+                                    <div key={k} className="flex gap-4 border-b border-line/50 py-1">
+                                        <span className="text-brand font-medium min-w-[120px] text-xs font-mono">{k}</span>
                                         <span className="text-foreground font-mono text-xs">{v}</span>
                                     </div>
                                 ))}
-                                {Object.keys(respHeaders).length === 0 && <span className="text-muted-ui text-xs font-mono italic">// No headers available</span>}
+                                {Object.keys(respHeaders).length === 0 && <span className="text-muted-ui text-xs">Send a request to see response headers.</span>}
                             </div>
                         )}
                     </div>
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#A78BFA]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-qa-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
             </main>
+            </div>
         </div>
         {confirmDialogEl}
         </>

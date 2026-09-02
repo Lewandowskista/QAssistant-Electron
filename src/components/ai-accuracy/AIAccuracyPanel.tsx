@@ -154,7 +154,7 @@ export default function AIAccuracyPanel() {
             {/* Toolbar */}
             <div className="flex-none border-b border-ui bg-panel px-6 py-3 flex items-center gap-4">
                 <ShieldCheck className="h-4 w-4 text-brand shrink-0" />
-                <span className="text-[10px] font-bold text-muted-ui uppercase tracking-widest shrink-0">Suite</span>
+                <span className="text-[11px] font-bold text-muted-ui uppercase tracking-widest shrink-0">Suite</span>
 
                 {/* Suite selector */}
                 {suites.length > 0 && (
@@ -162,7 +162,7 @@ export default function AIAccuracyPanel() {
                         <select
                             value={activeSuiteId ?? ''}
                             onChange={e => { setActiveSuiteId(e.target.value); setActiveTab('setup'); setComparisonRuns(null) }}
-                            className="h-8 pl-3 pr-8 bg-panel-muted border border-ui rounded-lg text-xs font-semibold text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-[#A78BFA]/50"
+                            className="h-8 pl-3 pr-8 bg-panel-muted border border-ui rounded-lg text-xs font-semibold text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-qa-accent/50"
                         >
                             {suites.map(s => (
                                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -179,10 +179,10 @@ export default function AIAccuracyPanel() {
                             onChange={e => setNewSuiteName(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') handleCreateSuite(); if (e.key === 'Escape') { setIsCreatingSuite(false); setNewSuiteName('') } }}
                             placeholder="Suite name…"
-                            className="h-8 w-48 bg-panel-muted border-[#A78BFA]/30 text-xs text-foreground focus:ring-[#A78BFA]/50"
+                            className="h-8 w-48 bg-panel-muted border-qa-accent/30 text-xs text-foreground focus:ring-qa-accent/50"
                             autoFocus
                         />
-                        <Button size="sm" className="h-8 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold text-xs px-3" onClick={handleCreateSuite}>
+                        <Button size="sm" className="h-8 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold text-xs px-3" onClick={handleCreateSuite}>
                             Create
                         </Button>
                         <Button variant="ghost" size="sm" className="h-8 text-muted-ui text-xs" onClick={() => { setIsCreatingSuite(false); setNewSuiteName('') }}>
@@ -192,7 +192,7 @@ export default function AIAccuracyPanel() {
                 ) : (
                     <Button
                         variant="ghost" size="sm"
-                        className="h-8 text-[10px] font-bold text-muted-ui hover:text-brand"
+                        className="h-8 text-[11px] font-bold text-muted-ui hover:text-brand"
                         onClick={() => setIsCreatingSuite(true)}
                     >
                         <Plus className="h-3.5 w-3.5 mr-1" /> New Suite
@@ -216,13 +216,13 @@ export default function AIAccuracyPanel() {
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {!activeSuite ? (
                     <div className="flex-1 flex flex-col items-center justify-center gap-4 p-12">
-                        <ShieldCheck className="h-12 w-12 text-[#2A2A3A]" />
+                        <ShieldCheck className="h-12 w-12 text-text-muted/40" />
                         <div className="text-center space-y-1">
                             <p className="text-sm font-semibold text-foreground">No accuracy suites yet</p>
                             <p className="text-xs text-muted-ui">Create a suite to start evaluating your AI chatbot's responses.</p>
                         </div>
                         <Button
-                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
+                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold"
                             onClick={() => setIsCreatingSuite(true)}
                         >
                             <Plus className="h-4 w-4 mr-2" /> Create Suite

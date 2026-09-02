@@ -98,6 +98,53 @@ export function SkeletonEditor() {
   )
 }
 
+/** Content page: compact header (eyebrow + title + summary) over stacked panels. */
+export function SkeletonPage({ panels = 3 }: { panels?: number }) {
+  return (
+    <div className="page-scaffold animate-in fade-in duration-300">
+      <div className="compact-page-header">
+        <div className="space-y-2">
+          <Skeleton className="h-2.5 w-24 rounded" />
+          <Skeleton className="h-7 w-52 rounded" />
+          <Skeleton className="h-3 w-80 rounded" />
+        </div>
+        <Skeleton className="h-9 w-32 rounded-xl" />
+      </div>
+      <div className="space-y-4">
+        {Array.from({ length: panels }).map((_, i) => (
+          <div key={i} className="app-panel p-5 space-y-3">
+            <Skeleton className="h-3 w-40 rounded" />
+            <Skeleton className="h-3 w-full rounded" />
+            <Skeleton className="h-3 w-2/3 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Full-height split pane: sticky header, side list, detail area. */
+export function SkeletonSplitPane() {
+  return (
+    <div className="flex h-full min-h-0 flex-col animate-in fade-in duration-300">
+      <div className="full-bleed-header">
+        <Skeleton className="h-4 w-4 rounded" />
+        <Skeleton className="h-3.5 w-28 rounded" />
+        <div className="flex-1" />
+        <Skeleton className="h-8 w-28 rounded-xl" />
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="w-[280px] shrink-0 border-r border-ui">
+          <SkeletonNotesList />
+        </div>
+        <div className="flex min-w-0 flex-1">
+          <SkeletonEditor />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function SkeletonList({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-2 p-4 animate-in fade-in duration-300">

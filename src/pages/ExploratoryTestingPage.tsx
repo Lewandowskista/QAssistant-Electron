@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Play, Square, Clock, Bug, Eye, HelpCircle, Lightbulb, Trash2, CheckCircle, Timer, Camera, X } from 'lucide-react'
+import { Plus, Play, Square, Clock, Bug, Eye, HelpCircle, Lightbulb, Trash2, CheckCircle, Timer, Camera, X, FlaskConical } from 'lucide-react'
 import { useProjectStore } from '@/store/useProjectStore'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { FullBleedHeader } from '@/components/ui/workspace'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -24,10 +26,10 @@ import {
 } from '@/components/ui/select'
 
 const OBS_TYPE_CONFIG: Record<ExploratoryObservationType, { label: string; icon: React.ElementType; color: string }> = {
-    observation: { label: 'Observation', icon: Eye, color: 'text-blue-400' },
-    finding: { label: 'Finding', icon: Lightbulb, color: 'text-yellow-400' },
-    bug: { label: 'Bug', icon: Bug, color: 'text-red-400' },
-    question: { label: 'Question', icon: HelpCircle, color: 'text-purple-400' },
+    observation: { label: 'Observation', icon: Eye, color: 'text-state-info' },
+    finding: { label: 'Finding', icon: Lightbulb, color: 'text-state-warning' },
+    bug: { label: 'Bug', icon: Bug, color: 'text-state-danger' },
+    question: { label: 'Question', icon: HelpCircle, color: 'text-qa-accent' },
 }
 
 function formatDuration(ms: number): string {
@@ -224,11 +226,22 @@ export default function ExploratoryTestingPage() {
         : 0
 
     return (
-        <div className="flex h-full">
+        <div className="flex h-full flex-col bg-app">
+            <FullBleedHeader
+                icon={FlaskConical}
+                title="Exploratory Testing"
+                description="Timeboxed charters with live observation logging"
+                actions={
+                    <Button size="sm" className="gap-1.5" onClick={() => setNewSessionOpen(true)}>
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" /> New session
+                    </Button>
+                }
+            />
+            <div className="flex flex-1 min-h-0 overflow-hidden">
             {/* Sidebar: session list */}
             <aside className="w-[240px] shrink-0 border-r border-border flex flex-col bg-background">
                 <div className="px-3 py-3 border-b border-border flex items-center justify-between">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sessions</span>
+                    <span className="app-section-label">Sessions</span>
                     <Button size="sm" variant="ghost" className="h-6 w-6 p-0" aria-label="New session" onClick={() => setNewSessionOpen(true)}>
                         <Plus className="h-4 w-4" aria-hidden="true" />
                     </Button>
@@ -251,8 +264,8 @@ export default function ExploratoryTestingPage() {
                             >
                                 <div className="flex items-center gap-1.5">
                                     {isDone
-                                        ? <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
-                                        : <Timer className="h-3 w-3 text-yellow-500 shrink-0 animate-pulse" />
+                                        ? <CheckCircle className="h-3 w-3 text-state-success shrink-0" />
+                                        : <Timer className="h-3 w-3 text-state-warning shrink-0 animate-pulse" />
                                     }
                                     <span className="text-xs font-medium truncate flex-1">{s.charter}</span>
                                 </div>
@@ -268,7 +281,7 @@ export default function ExploratoryTestingPage() {
                 {sessions.length === 0 && (
                     <div className="p-3 border-t border-border">
                         <Button size="sm" className="w-full text-xs" onClick={() => setNewSessionOpen(true)}>
-                            <Plus className="h-3.5 w-3.5 mr-1" /> New Session
+                            <Plus className="h-3.5 w-3.5 mr-1" /> New session
                         </Button>
                     </div>
                 )}
@@ -277,12 +290,17 @@ export default function ExploratoryTestingPage() {
             {/* Main content */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {!selectedSession ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                        <FlaskIcon className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                        <p className="text-sm text-muted-foreground mb-4">No exploratory session selected</p>
-                        <Button onClick={() => setNewSessionOpen(true)}>
-                            <Plus className="h-4 w-4 mr-2" /> Start New Session
-                        </Button>
+                    <div className="flex-1 flex items-center justify-center p-8">
+                        <EmptyState
+                            icon={FlaskConical}
+                            title="No session selected"
+                            description="Start a timeboxed exploratory session to begin logging observations, findings, and bugs."
+                            actions={
+                                <Button onClick={() => setNewSessionOpen(true)}>
+                                    <Plus className="h-4 w-4 mr-2" /> Start new session
+                                </Button>
+                            }
+                        />
                     </div>
                 ) : (
                     <>
@@ -291,10 +309,10 @@ export default function ExploratoryTestingPage() {
                             <div className="flex items-start justify-between gap-4">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <h1 className="text-sm font-semibold truncate">{selectedSession.charter}</h1>
+                                        <h2 className="text-sm font-semibold truncate">{selectedSession.charter}</h2>
                                         {selectedSession.completedAt
-                                            ? <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">Completed</Badge>
-                                            : <Badge variant="outline" className="text-xs text-yellow-500 border-yellow-500/30 animate-pulse">Active</Badge>
+                                            ? <Badge variant="outline" className="text-xs text-state-success border-state-success-border">Completed</Badge>
+                                            : <Badge variant="outline" className="text-xs text-state-warning border-state-warning-border animate-pulse">Active</Badge>
                                         }
                                     </div>
                                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -307,7 +325,7 @@ export default function ExploratoryTestingPage() {
                                 <div className="flex items-center gap-2 shrink-0">
                                     {isActive && (
                                         <div className="flex items-center gap-2">
-                                            <div className="text-sm font-mono tabular-nums text-yellow-500" role="timer" aria-live="polite">
+                                            <div className="text-sm font-mono tabular-nums text-state-warning" role="timer" aria-live="polite">
                                                 <Clock className="h-3.5 w-3.5 inline mr-1 mb-0.5" />
                                                 {formatDuration(elapsed)}
                                                 <span className="text-xs text-muted-foreground ml-1">/ {selectedSession.timebox}m</span>
@@ -325,7 +343,7 @@ export default function ExploratoryTestingPage() {
                                             <Square className="h-3 w-3 mr-1" /> Complete
                                         </Button>
                                     )}
-                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-state-danger"
                                         aria-label="Delete session"
                                         onClick={() => handleDeleteSession(selectedSession.id)}>
                                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -425,9 +443,9 @@ export default function ExploratoryTestingPage() {
                                                         {obs.type === 'bug' && isActive && (
                                                             <button
                                                                 onClick={() => handleFileBugFromObs(obs)}
-                                                                className="text-xs text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity ml-auto"
+                                                                className="text-xs text-state-danger hover:text-state-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity ml-auto"
                                                             >
-                                                                <Bug className="h-3 w-3 inline mr-0.5" /> File Bug
+                                                                <Bug className="h-3 w-3 inline mr-0.5" /> File bug
                                                             </button>
                                                         )}
                                                     </div>
@@ -443,7 +461,7 @@ export default function ExploratoryTestingPage() {
                             {/* Right panel: session notes + summary */}
                             <div className="w-[260px] shrink-0 border-l border-border flex flex-col">
                                 <div className="px-3 py-2 border-b border-border">
-                                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Session Notes</span>
+                                    <span className="app-section-label">Session notes</span>
                                 </div>
                                 <Textarea
                                     className="flex-1 resize-none rounded-none border-0 text-xs focus-visible:ring-0 bg-transparent"
@@ -454,7 +472,7 @@ export default function ExploratoryTestingPage() {
                                 />
                                 {selectedSession.discoveredBugIds.length > 0 && (
                                     <div className="border-t border-border px-3 py-2">
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Bugs Filed</p>
+                                        <p className="app-section-label mb-1">Bugs filed</p>
                                         <p className="text-xs text-foreground">{selectedSession.discoveredBugIds.length} bug task{selectedSession.discoveredBugIds.length !== 1 ? 's' : ''} linked</p>
                                     </div>
                                 )}
@@ -478,12 +496,13 @@ export default function ExploratoryTestingPage() {
                     </>
                 )}
             </div>
+            </div>
 
             {/* New session dialog */}
             <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
                 <DialogContent className="sm:max-w-[440px]">
                     <DialogHeader>
-                        <DialogTitle>Start Exploratory Session</DialogTitle>
+                        <DialogTitle>Start exploratory session</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div className="space-y-1.5">
@@ -522,7 +541,7 @@ export default function ExploratoryTestingPage() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setNewSessionOpen(false)}>Cancel</Button>
                         <Button onClick={handleCreateSession} disabled={!charter.trim()}>
-                            <Play className="h-4 w-4 mr-2" /> Start Session
+                            <Play className="h-4 w-4 mr-2" /> Start session
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -532,7 +551,7 @@ export default function ExploratoryTestingPage() {
             <Dialog open={bugDialogOpen} onOpenChange={setBugDialogOpen}>
                 <DialogContent className="sm:max-w-[440px]">
                     <DialogHeader>
-                        <DialogTitle>File Bug from Observation</DialogTitle>
+                        <DialogTitle>File bug from observation</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
                         <div className="space-y-1.5">
@@ -547,20 +566,11 @@ export default function ExploratoryTestingPage() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setBugDialogOpen(false)}>Cancel</Button>
                         <Button onClick={handleFileBug} disabled={!bugTitle.trim()}>
-                            <Bug className="h-4 w-4 mr-2" /> File Bug
+                            <Bug className="h-4 w-4 mr-2" /> File bug
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
-    )
-}
-
-// Simple flask SVG icon placeholder
-function FlaskIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M9 3h6M9 3v7l-4 8a1 1 0 001 1.5h10a1 1 0 001-1.5l-4-8V3" />
-        </svg>
     )
 }

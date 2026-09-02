@@ -53,13 +53,13 @@ function MemberChip({ userId, displayName }: { userId?: string; displayName?: st
     <div className="inline-flex items-center gap-2">
       <div
         className={cn(
-          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white",
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-primary-foreground",
           colorForId(userId ?? displayName)
         )}
       >
         {initials(displayName)}
       </div>
-      <span className="truncate text-[10px] text-muted-ui">{displayName}</span>
+      <span className="truncate text-[11px] text-muted-ui">{displayName}</span>
     </div>
   )
 }
@@ -238,12 +238,12 @@ export default function ReleaseQueuePage() {
                         <div className="space-y-2">
                           <p>{workflowSummary.nextAction}</p>
                           {item.handoff?.missingFields?.length ? (
-                            <p className="text-xs text-amber-300">
+                            <p className="text-xs text-state-warning">
                               Missing: {item.handoff.missingFields.join(", ")}
                             </p>
                           ) : null}
                           {item.handoff?.linkedPrs?.length ? (
-                            <p className="text-xs text-sky-300">
+                            <p className="text-xs text-state-info">
                               PRs: {item.handoff.linkedPrs
                                 .map((pr) => `${pr.repoFullName}#${pr.prNumber}`)
                                 .join(", ")}

@@ -8,7 +8,7 @@ interface TraceabilityPanelProps {
 function Section({ title, children }: { title: string; children: ReactNode }) {
     return (
         <section className="space-y-2">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">{title}</h3>
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-ui">{title}</h3>
             {children}
         </section>
     )
@@ -28,19 +28,19 @@ export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
             <Section title="Workflow Summary">
                 <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-lg border border-ui bg-panel-muted p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Coverage</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-ui">Coverage</div>
                         <div className="mt-2 text-sm font-semibold text-foreground">{traceability.linkedTestCases.length} linked tests</div>
                     </div>
                     <div className="rounded-lg border border-ui bg-panel-muted p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Evidence</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-ui">Evidence</div>
                         <div className="mt-2 text-sm font-semibold text-foreground">{evidenceCount} linked artifacts</div>
                     </div>
                     <div className="rounded-lg border border-ui bg-panel-muted p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">PR Context</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-ui">PR Context</div>
                         <div className="mt-2 text-sm font-semibold text-foreground">{linkedPrs.length} linked PRs</div>
                     </div>
                     <div className="rounded-lg border border-ui bg-panel-muted p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Handoff Health</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-ui">Handoff Health</div>
                         <div className="mt-2 text-sm font-semibold text-foreground">
                             {activeHandoff ? (activeHandoff.isComplete ? 'Ready to send' : 'Needs fields') : 'No handoff'}
                         </div>
@@ -55,9 +55,9 @@ export function TraceabilityPanel({ traceability }: TraceabilityPanelProps) {
                     <div className="space-y-2">
                         {traceability.linkedTestCases.map((testCase) => (
                             <div key={testCase.id} className="rounded-lg border border-ui bg-panel-muted p-3">
-                                <div className="text-[10px] font-bold text-brand">{testCase.displayId}</div>
+                                <div className="text-[11px] font-bold text-brand">{testCase.displayId}</div>
                                 <div className="text-xs text-foreground">{testCase.title}</div>
-                                <div className="mt-2 text-[10px] text-muted-ui">
+                                <div className="mt-2 text-[11px] text-muted-ui">
                                     {(testCase.components || []).join(", ") || "No components"} • {testCase.status}
                                 </div>
                             </div>

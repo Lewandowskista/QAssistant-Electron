@@ -546,9 +546,9 @@ export default function TestsPage() {
 
     const getStatusIcon = (status: TestCaseStatus) => {
         switch (status) {
-            case 'passed': return <CheckCircle2 className="h-4 w-4 text-[#10B981]" />
-            case 'failed': return <XCircle className="h-4 w-4 text-[#EF4444]" />
-            case 'blocked': return <Ban className="h-4 w-4 text-[#F59E0B]" />
+            case 'passed': return <CheckCircle2 className="h-4 w-4 text-state-success" />
+            case 'failed': return <XCircle className="h-4 w-4 text-state-danger" />
+            case 'blocked': return <Ban className="h-4 w-4 text-state-warning" />
             case 'skipped': return <ArrowRightCircle className="h-4 w-4 text-muted-ui" />
             default: return <HelpCircle className="h-4 w-4 text-soft" />
         }
@@ -617,7 +617,7 @@ export default function TestsPage() {
                                             placeholder="Search plans & cases…"
                                             value={planSearchQuery}
                                             onChange={e => setPlanSearchQuery(e.target.value)}
-                                            className="h-9 bg-panel-muted border-ui text-[11px] placeholder:text-[#4B5563] pl-8 focus-visible:ring-[#A78BFA]/20"
+                                            className="h-9 bg-panel-muted border-ui text-[11px] placeholder:text-muted-ui pl-8 focus-visible:ring-qa-accent/20"
                                         />
                                         <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-ui" />
                                     </div>
@@ -628,7 +628,7 @@ export default function TestsPage() {
                                     <Button
                                         onClick={handleAiGenerate}
                                         disabled={isGenerating || (source !== 'FreeText' && selectedTaskIds.length === 0)}
-                                        className="h-9 px-4 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-medium text-[11px] gap-2"
+                                        className="h-9 px-4 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-medium text-[11px] gap-2"
                                     >
                                         <Cpu className="h-3.5 w-3.5" /> {isGenerating ? 'Generating…' : 'Generate'}
                                     </Button>
@@ -656,7 +656,7 @@ export default function TestsPage() {
                                 </div>
 
                                 {showGenerationAdvanced && (
-                                    <div className="flex flex-wrap items-center gap-2 border-t border-[#2A2A3A]/70 pt-3">
+                                    <div className="flex flex-wrap items-center gap-2 border-t border-line/70 pt-3">
                                         <span className="app-section-label mr-2">Filters</span>
                                         <SegmentedControl
                                             value={sourceFilter}
@@ -664,17 +664,17 @@ export default function TestsPage() {
                                             options={['All', 'Jira', 'Linear', 'Manual'].map((item) => ({ value: item, label: item }))}
                                         />
                                         <div className="w-[1px] h-4 bg-elevated mx-2" />
-                                        <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-7 px-3 text-[10px] font-bold text-muted-ui hover:text-foreground gap-2">
+                                        <Button variant="ghost" size="sm" onClick={handleImportCsv} className="h-7 px-3 text-[11px] font-bold text-muted-ui hover:text-foreground gap-2">
                                             <FileSpreadsheet className="h-3.5 w-3.5" /> IMPORT CSV
                                         </Button>
-                                        <Button variant="ghost" size="sm" onClick={() => setImportResultsDialogOpen(true)} className="h-7 px-3 text-[10px] font-bold text-muted-ui hover:text-foreground gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => setImportResultsDialogOpen(true)} className="h-7 px-3 text-[11px] font-bold text-muted-ui hover:text-foreground gap-2">
                                             <ArrowRightCircle className="h-3.5 w-3.5" /> IMPORT RESULTS
                                         </Button>
-                                        <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-7 px-3 text-[10px] font-bold text-muted-ui hover:text-foreground gap-2">
+                                        <Button variant="ghost" size="sm" onClick={() => { setEditingPlan(null); setPlanDialogOpen(true); }} className="h-7 px-3 text-[11px] font-bold text-muted-ui hover:text-foreground gap-2">
                                             <Plus className="h-3.5 w-3.5" /> NEW PLAN
                                         </Button>
-                                        <Button variant="ghost" size="sm" onClick={handleLoadDesignDoc} className="h-7 px-3 text-[10px] font-bold text-muted-ui hover:text-foreground gap-2" title={designDocName || 'Load Design Document Text'}>
-                                            <FileText className={cn("h-3.5 w-3.5", designDocName ? "text-[#10B981]" : "")} /> {designDocName ? 'DOC LOADED' : 'DESIGN DOC'}
+                                        <Button variant="ghost" size="sm" onClick={handleLoadDesignDoc} className="h-7 px-3 text-[11px] font-bold text-muted-ui hover:text-foreground gap-2" title={designDocName || 'Load Design Document Text'}>
+                                            <FileText className={cn("h-3.5 w-3.5", designDocName ? "text-state-success" : "")} /> {designDocName ? 'DOC LOADED' : 'DESIGN DOC'}
                                             {designDocName && (
                                                 <XCircle
                                                     className="h-3 w-3 ml-1 hover:text-[hsl(var(--state-danger))]"
@@ -691,14 +691,14 @@ export default function TestsPage() {
                                 <div className="flex-none bg-app border-b border-ui px-6 py-4 animate-in slide-in-from-top-1 duration-200">
                                     <div className="max-w-5xl mx-auto space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-brand uppercase tracking-widest">Paste Feature Description or Acceptance Criteria</span>
-                                            <span className="text-[10px] text-muted-ui">AI will generate test cases directly from this text</span>
+                                            <span className="text-[11px] font-black text-brand uppercase tracking-widest">Paste Feature Description or Acceptance Criteria</span>
+                                            <span className="text-[11px] text-muted-ui">AI will generate test cases directly from this text</span>
                                         </div>
                                         <textarea
                                             value={freeTextInput}
                                             onChange={e => setFreeTextInput(e.target.value)}
                                             placeholder="e.g. As a user I want to add items to my cart so that I can purchase them. The cart should update the item count badge, support quantity changes, and persist across page reloads…"
-                                            className="w-full h-28 bg-panel-muted border border-ui rounded-lg px-4 py-3 text-[12px] text-foreground placeholder:text-[#4B5563] focus:outline-none focus:border-[#A78BFA]/50 focus:ring-1 focus:ring-[#A78BFA]/20 resize-none custom-scrollbar"
+                                            className="w-full h-28 bg-panel-muted border border-ui rounded-lg px-4 py-3 text-[12px] text-foreground placeholder:text-muted-ui focus:outline-none focus:border-qa-accent/50 focus:ring-1 focus:ring-qa-accent/20 resize-none custom-scrollbar"
                                         />
                                     </div>
                                 </div>
@@ -754,10 +754,10 @@ export default function TestsPage() {
                             {/* Busy Overlay */}
                             {
                                 isGenerating && (
-                                    <div className="absolute inset-0 z-50 bg-[#0F0F13]/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                                    <div className="absolute inset-0 z-50 bg-surface-app/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                                         <div className="space-y-6">
                                             <div className="relative">
-                                                <div className="h-16 w-16 rounded-full border-t-2 border-l-2 border-[#A78BFA] animate-spin" />
+                                                <div className="h-16 w-16 rounded-full border-t-2 border-l-2 border-qa-accent animate-spin" />
                                                 <FlaskConical className="h-8 w-8 text-brand absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                                             </div>
                                             <div className="space-y-2">
@@ -794,7 +794,7 @@ export default function TestsPage() {
                                                     setActiveSubTab('TestCaseGeneration')
                                                     toast.success(`Created retest plan with ${previouslyFailedTestCases.length} failed cases.`)
                                                 }}
-                                                className="h-8 px-3 text-[11px] font-bold gap-2 border border-transparent hover:bg-[#EF4444]/10 text-[#EF4444] hover:border-[#EF4444]/20 transition-all"
+                                                className="h-8 px-3 text-[11px] font-bold gap-2 border border-transparent hover:bg-state-danger-soft text-state-danger hover:border-state-danger-border transition-all"
                                                 title="Create a new test plan containing all previously failed cases"
                                             >
                                                 <RotateCcw className="h-3.5 w-3.5" /> RETEST FAILED ({previouslyFailedTestCases.length})
@@ -807,7 +807,7 @@ export default function TestsPage() {
                                                 onClick={() => setShowArchived(!showArchived)}
                                                 className={cn(
                                                     "h-8 px-3 text-[11px] font-bold gap-2 border border-transparent transition-all",
-                                                    showArchived ? "bg-[#FBBF24]/10 text-[#FBBF24] border-[#FBBF24]/20" : "text-muted-ui hover:bg-elevated"
+                                                    showArchived ? "bg-state-warning-soft text-state-warning border-state-warning-border" : "text-muted-ui hover:bg-elevated"
                                                 )}
                                             >
                                                 <Archive className="h-3.5 w-3.5" /> ARCHIVED
@@ -843,21 +843,21 @@ export default function TestsPage() {
                                                             <div className="space-y-4">
                                                                 {[...projectExecutions].sort((a, b) => (b.executedAt || 0) - (a.executedAt || 0)).map(ex => (
                                                                     <div key={ex.id} className="bg-panel-muted border-l-4 border-ui rounded-r-xl p-4 flex items-center justify-between transition-all hover:bg-elevated"
-                                                                        style={{ borderLeftColor: ex.result === 'passed' ? '#10B981' : ex.result === 'failed' ? '#EF4444' : '#F59E0B' }}>
+                                                                        style={{ borderLeftColor: ex.result === 'passed' ? 'hsl(var(--state-success))' : ex.result === 'failed' ? 'hsl(var(--state-danger))' : 'hsl(var(--state-warning))' }}>
                                                                         <div className="flex items-center gap-4">
                                                                             <div className={cn("p-2 rounded-lg",
-                                                                                ex.result === 'passed' ? "bg-[#10B981]/10 text-[#10B981]" :
-                                                                                    ex.result === 'failed' ? "bg-[#EF4444]/10 text-[#EF4444]" : "bg-[#F59E0B]/10 text-[#F59E0B]"
+                                                                                ex.result === 'passed' ? "bg-state-success-soft text-state-success" :
+                                                                                    ex.result === 'failed' ? "bg-state-danger-soft text-state-danger" : "bg-state-warning-soft text-state-warning"
                                                                             )}>
                                                                                 {getStatusIcon(ex.result as TestCaseStatus)}
                                                                             </div>
                                                                             <div>
                                                                                 <p className="text-sm font-bold text-foreground">{ex.snapshotTestCaseTitle}</p>
                                                                                 <div className="flex items-center gap-3 mt-1">
-                                                                                    <span className="text-[10px] font-bold text-muted-ui uppercase opacity-60 flex items-center gap-1">
+                                                                                    <span className="text-[11px] font-bold text-muted-ui uppercase opacity-60 flex items-center gap-1">
                                                                                         <Calendar className="h-3 w-3" /> {new Date(ex.executedAt).toLocaleString()}
                                                                                     </span>
-                                                                                    <span className="text-[10px] font-bold text-muted-ui uppercase opacity-60 flex items-center gap-1">
+                                                                                    <span className="text-[11px] font-bold text-muted-ui uppercase opacity-60 flex items-center gap-1">
                                                                                         <User className="h-3 w-3" /> Manual execution
                                                                                     </span>
                                                                                 </div>
@@ -868,14 +868,14 @@ export default function TestsPage() {
                                                                             <Button
                                                                                 variant="ghost"
                                                                                 size="icon"
-                                                                                className="h-8 w-8 text-muted-ui hover:text-[hsl(var(--state-danger))] hover:bg-[#EF4444]/10"
+                                                                                className="h-8 w-8 text-muted-ui hover:text-[hsl(var(--state-danger))] hover:bg-state-danger-soft"
                                                                                 onClick={() => deleteLegacyExecution(activeProjectId!, ex.id)}
                                                                                 title="Delete legacy execution"
                                                                             >
                                                                                 <Trash2 className="h-4 w-4" />
                                                                             </Button>
-                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-ui">
-                                                                                <ExternalLink className="h-4 w-4" />
+                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-ui" aria-label="Open execution details">
+                                                                                <ExternalLink className="h-4 w-4" aria-hidden="true" />
                                                                             </Button>
                                                                         </div>
                                                                     </div>
@@ -894,7 +894,7 @@ export default function TestsPage() {
                                                         onClick={() => setAiSuggestionsExpanded(!aiSuggestionsExpanded)}
                                                     >
                                                         <div className="flex items-center gap-3">
-                                                            <Cpu className="h-4 w-4 text-[#FBBF24]" />
+                                                            <Cpu className="h-4 w-4 text-state-warning" />
                                                             <span className="text-[13px] font-bold text-foreground tracking-wide">AI Suggestions</span>
                                                         </div>
                                                         <ChevronDown className={cn("h-4 w-4 text-muted-ui transition-transform duration-200", aiSuggestionsExpanded && "rotate-180")} />
@@ -904,7 +904,7 @@ export default function TestsPage() {
                                                         <div className="p-4 border-t border-ui bg-app flex flex-col gap-4">
                                                             <div className="flex gap-4">
                                                                 <Button
-                                                                    className="flex-1 h-9 bg-elevated hover:bg-elevated border border-ui text-[#FBBF24] font-bold text-xs gap-2 transition-all"
+                                                                    className="flex-1 h-9 bg-elevated hover:bg-elevated border border-ui text-state-warning font-bold text-xs gap-2 transition-all"
                                                                     disabled={isGenerating}
                                                                     onClick={handleAiCriticality}
                                                                 >
@@ -922,14 +922,14 @@ export default function TestsPage() {
                                                             </div>
 
                                                             {aiAnalysisResult && (
-                                                                <div className="bg-panel-muted border border-[#FBBF24]/20 rounded-lg p-4 mt-2">
+                                                                <div className="bg-panel-muted border border-state-warning-border rounded-lg p-4 mt-2">
                                                                     <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap font-mono relative">
                                                                         {aiAnalysisResult}
                                                                     </div>
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="sm"
-                                                                        className="h-6 mt-4 text-[10px] uppercase font-bold text-muted-ui hover:text-[hsl(var(--state-danger))]"
+                                                                        className="h-6 mt-4 text-[11px] uppercase font-bold text-muted-ui hover:text-[hsl(var(--state-danger))]"
                                                                         onClick={() => setAiAnalysisResult(null)}
                                                                     >
                                                                         Clear Output
@@ -953,7 +953,7 @@ export default function TestsPage() {
                                 <div className="flex-none bg-panel border-b border-ui px-6 py-3 flex items-center justify-between">
                                     <div className="flex items-center gap-6">
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em]">Export</span>
+                                            <span className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.2em]">Export</span>
                                             <Select value={reportType} onValueChange={setReportType}>
                                                 <SelectTrigger className="h-9 w-48 bg-panel-muted border-ui text-xs font-bold text-foreground">
                                                     <SelectValue />
@@ -967,7 +967,7 @@ export default function TestsPage() {
                                             </Select>
                                         </div>
                                         <Button
-                                            className="h-9 px-4 bg-primary text-[#0F0F13] font-bold text-xs"
+                                            className="h-9 px-4 bg-primary text-primary-foreground font-bold text-xs"
                                             onClick={handleExport}
                                             disabled={isGenerating || !activeProject}
                                         >
@@ -1002,14 +1002,14 @@ export default function TestsPage() {
                                                 <div className="grid grid-cols-5 gap-4">
                                                     {[
                                                         { label: 'Total', value: total, color: 'text-foreground' },
-                                                        { label: 'Passed', value: passed, color: 'text-[#10B981]' },
-                                                        { label: 'Failed', value: failed, color: 'text-[#EF4444]' },
-                                                        { label: 'Blocked', value: blocked, color: 'text-[#F59E0B]' },
-                                                        { label: 'Pass Rate', value: `${passRate}%`, color: passRate >= 80 ? 'text-[#10B981]' : passRate >= 60 ? 'text-[#F59E0B]' : 'text-[#EF4444]' },
+                                                        { label: 'Passed', value: passed, color: 'text-state-success' },
+                                                        { label: 'Failed', value: failed, color: 'text-state-danger' },
+                                                        { label: 'Blocked', value: blocked, color: 'text-state-warning' },
+                                                        { label: 'Pass Rate', value: `${passRate}%`, color: passRate >= 80 ? 'text-state-success' : passRate >= 60 ? 'text-state-warning' : 'text-state-danger' },
                                                     ].map(stat => (
                                                         <div key={stat.label} className="bg-panel-muted border border-ui rounded-2xl p-5">
                                                             <div className={`text-3xl font-black ${stat.color}`}>{stat.value}</div>
-                                                            <div className="text-[10px] text-muted-ui font-bold uppercase tracking-widest mt-1">{stat.label}</div>
+                                                            <div className="text-[11px] text-muted-ui font-bold uppercase tracking-widest mt-1">{stat.label}</div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1025,34 +1025,34 @@ export default function TestsPage() {
                                                 .slice(0, 10)
 
                                             const dotColor = (r: string) => {
-                                                if (r === 'passed') return 'bg-[#10B981]'
-                                                if (r === 'failed') return 'bg-[#EF4444]'
-                                                if (r === 'blocked') return 'bg-[#F59E0B]'
-                                                return 'bg-[#4B5563]'
+                                                if (r === 'passed') return 'bg-state-success'
+                                                if (r === 'failed') return 'bg-state-danger'
+                                                if (r === 'blocked') return 'bg-state-warning'
+                                                return 'bg-line-strong'
                                             }
 
                                             return flakyEntries.length > 0 ? (
                                                 <div className="space-y-3 pt-6 border-t border-ui">
-                                                    <div className="text-[10px] font-black uppercase text-[#F59E0B] tracking-widest">⚠ Flaky Tests ({flakyEntries.length})</div>
+                                                    <div className="text-[11px] font-black uppercase text-state-warning tracking-widest">⚠ Flaky Tests ({flakyEntries.length})</div>
                                                     {flakyEntries.map(([tcId, stats]) => {
                                                         const tc = caseById.get(tcId)
                                                         if (!tc) return null
                                                         return (
-                                                            <div key={tcId} className="bg-[#422006]/30 border border-[#F59E0B]/30 rounded-xl p-4">
+                                                            <div key={tcId} className="bg-state-warning-soft border border-state-warning-border rounded-xl p-4">
                                                                 <div className="flex items-center justify-between gap-2">
-                                                                    <div className="text-sm font-bold text-[#F59E0B] truncate">{tc.displayId} — {tc.title}</div>
-                                                                    <span className="shrink-0 text-[10px] font-black bg-[#F59E0B]/20 text-[#F59E0B] px-2 py-0.5 rounded-full">
+                                                                    <div className="text-sm font-bold text-state-warning truncate">{tc.displayId} — {tc.title}</div>
+                                                                    <span className="shrink-0 text-[11px] font-black bg-state-warning/20 text-state-warning px-2 py-0.5 rounded-full">
                                                                         {stats.flakinessScore}% flaky
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-2 mt-2">
-                                                                    <span className="text-[10px] text-muted-ui">Last {stats.lastFiveResults.length} runs:</span>
+                                                                    <span className="text-[11px] text-muted-ui">Last {stats.lastFiveResults.length} runs:</span>
                                                                     <div className="flex gap-1">
                                                                         {stats.lastFiveResults.map((r, i) => (
                                                                             <span key={i} title={r} className={`inline-block w-2 h-2 rounded-full ${dotColor(r)}`} />
                                                                         ))}
                                                                     </div>
-                                                                    <span className="text-[10px] text-muted-ui ml-1">{stats.passRate}% pass rate · {stats.executionCount} runs</span>
+                                                                    <span className="text-[11px] text-muted-ui ml-1">{stats.passRate}% pass rate · {stats.executionCount} runs</span>
                                                                 </div>
                                                             </div>
                                                         )
@@ -1063,7 +1063,7 @@ export default function TestsPage() {
 
                                         {testPlans.length > 0 && (
                                             <div className="space-y-3 pt-6 border-t border-ui">
-                                                <div className="text-[10px] font-black uppercase text-muted-ui tracking-widest">Per Plan Breakdown</div>
+                                                <div className="text-[11px] font-black uppercase text-muted-ui tracking-widest">Per Plan Breakdown</div>
                                                 {testPlans.filter(tp => !tp.isArchived).map(tp => {
                                                     const tcs = tp.testCases || []
                                                     const p = tcs.filter(tc => tc.status === 'passed').length
@@ -1074,11 +1074,11 @@ export default function TestsPage() {
                                                         <div key={tp.id} className="bg-panel-muted border border-ui rounded-xl p-4 flex items-center gap-4">
                                                             <div className="flex-1">
                                                                 <div className="text-sm font-bold text-foreground">{tp.name}</div>
-                                                                <div className="text-[10px] text-muted-ui mt-0.5">{t} cases · {p} passed · {f} failed</div>
+                                                                <div className="text-[11px] text-muted-ui mt-0.5">{t} cases · {p} passed · {f} failed</div>
                                                             </div>
-                                                            <div className={`text-lg font-black ${r >= 80 ? 'text-[#10B981]' : r >= 60 ? 'text-[#F59E0B]' : 'text-[#EF4444]'}`}>{r}%</div>
+                                                            <div className={`text-lg font-black ${r >= 80 ? 'text-state-success' : r >= 60 ? 'text-state-warning' : 'text-state-danger'}`}>{r}%</div>
                                                             <div className="w-24 h-2 bg-elevated rounded-full overflow-hidden">
-                                                                <div className={`h-full rounded-full ${r >= 80 ? 'bg-[#10B981]' : r >= 60 ? 'bg-[#F59E0B]' : 'bg-[#EF4444]'}`} style={{ width: `${r}%` }} />
+                                                                <div className={`h-full rounded-full ${r >= 80 ? 'bg-state-success' : r >= 60 ? 'bg-state-warning' : 'bg-state-danger'}`} style={{ width: `${r}%` }} />
                                                             </div>
                                                         </div>
                                                     )
@@ -1097,19 +1097,19 @@ export default function TestsPage() {
                                             const usefulRate = rated.length > 0 ? Math.round(useful.length / rated.length * 100) : 0
                                             return (
                                                 <div className="space-y-3 pt-6 border-t border-ui">
-                                                    <div className="text-[10px] font-black uppercase text-brand tracking-widest flex items-center gap-2">
+                                                    <div className="text-[11px] font-black uppercase text-brand tracking-widest flex items-center gap-2">
                                                         <Sparkles className="h-3 w-3" /> AI Generation Quality
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-2">
                                                         {[
                                                             { label: 'AI Generated', value: aiCases.length, color: 'text-brand' },
                                                             { label: 'Rated', value: `${rated.length} (${aiCases.length > 0 ? Math.round(rated.length / aiCases.length * 100) : 0}%)`, color: 'text-foreground' },
-                                                            { label: 'Caught Bugs', value: caughtBug.length, color: 'text-[#F59E0B]' },
-                                                            { label: 'Useful Rate', value: rated.length > 0 ? `${usefulRate}%` : '—', color: usefulRate >= 60 ? 'text-[#10B981]' : 'text-[#EF4444]' },
+                                                            { label: 'Caught Bugs', value: caughtBug.length, color: 'text-state-warning' },
+                                                            { label: 'Useful Rate', value: rated.length > 0 ? `${usefulRate}%` : '—', color: usefulRate >= 60 ? 'text-state-success' : 'text-state-danger' },
                                                         ].map(stat => (
                                                             <div key={stat.label} className="bg-panel-muted border border-ui rounded-xl p-3">
                                                                 <div className={`text-2xl font-black ${stat.color}`}>{stat.value}</div>
-                                                                <div className="text-[10px] text-muted-ui font-bold uppercase tracking-widest mt-0.5">{stat.label}</div>
+                                                                <div className="text-[11px] text-muted-ui font-bold uppercase tracking-widest mt-0.5">{stat.label}</div>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1134,20 +1134,20 @@ export default function TestsPage() {
                         activeSubTab === 'RiskMatrix' && (() => {
                             const riskScores = computeRiskScores(testPlans, projectRunSessions, activeProject?.tasks || [])
                             const getRiskColor = (score: number) =>
-                                score >= 75 ? 'text-[#EF4444]' : score >= 50 ? 'text-[#F59E0B]' : score >= 25 ? 'text-[#3B82F6]' : 'text-[#10B981]'
+                                score >= 75 ? 'text-state-danger' : score >= 50 ? 'text-state-warning' : score >= 25 ? 'text-state-info' : 'text-state-success'
                             const getRiskBg = (score: number) =>
-                                score >= 75 ? 'bg-[#EF4444]/10 border-[#EF4444]/20' : score >= 50 ? 'bg-[#F59E0B]/10 border-[#F59E0B]/20' : score >= 25 ? 'bg-[#3B82F6]/10 border-[#3B82F6]/20' : 'bg-[#10B981]/10 border-[#10B981]/20'
+                                score >= 75 ? 'bg-state-danger-soft border-state-danger-border' : score >= 50 ? 'bg-state-warning-soft border-state-warning-border' : score >= 25 ? 'bg-state-info-soft border-state-info-border' : 'bg-state-success-soft border-state-success-border'
                             return (
                                 <div className="flex-1 flex flex-col min-h-0 bg-app">
                                     <div className="flex-none bg-panel border-b border-ui px-6 py-3 flex items-center gap-4">
                                         <BarChart3 className="h-4 w-4 text-brand" />
                                         <span className="text-[11px] font-extrabold text-muted-ui uppercase tracking-[0.25em]">RISK-BASED TEST PRIORITIZATION</span>
                                         <div className="flex-1" />
-                                        <div className="flex items-center gap-3 text-[10px] font-bold">
-                                            <span className="text-[#EF4444]">● High Risk</span>
-                                            <span className="text-[#F59E0B]">● Medium</span>
-                                            <span className="text-[#3B82F6]">● Low</span>
-                                            <span className="text-[#10B981]">● Minimal</span>
+                                        <div className="flex items-center gap-3 text-[11px] font-bold">
+                                            <span className="text-state-danger">● High Risk</span>
+                                            <span className="text-state-warning">● Medium</span>
+                                            <span className="text-state-info">● Low</span>
+                                            <span className="text-state-success">● Minimal</span>
                                         </div>
                                     </div>
                                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -1158,7 +1158,7 @@ export default function TestsPage() {
                                             </div>
                                         ) : (
                                             <div className="max-w-5xl mx-auto space-y-2">
-                                                <div className="text-[10px] text-muted-ui mb-4">
+                                                <div className="text-[11px] text-muted-ui mb-4">
                                                     Scoring: 30% SAP module criticality · 30% historical failure rate · 20% linked defects · 20% linked task priority
                                                 </div>
                                                 {riskScores.map(({ testCase: tc, planName, riskScore, factors }) => (
@@ -1170,7 +1170,7 @@ export default function TestsPage() {
                                                             <div className="flex items-center gap-2 mb-1">
                                                                 <span className="text-xs font-bold text-foreground truncate">{tc.displayId} — {tc.title}</span>
                                                             </div>
-                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-ui">
+                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-ui">
                                                                 <span className="font-mono">{planName}</span>
                                                                 {tc.sapModule && <span className="text-brand font-bold">{tc.sapModule}</span>}
                                                                 <span>Module crit: <b>{factors.moduleCriticality}</b></span>
@@ -1196,7 +1196,7 @@ export default function TestsPage() {
                                 <div className="flex-none bg-panel border-b border-ui px-6 py-3 flex items-center justify-between">
                                     <div className="flex items-center gap-6">
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em]">From</span>
+                                            <span className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.2em]">From</span>
                                             <Input 
                                                 type="date" 
                                                 value={regressionFromDate}
@@ -1205,7 +1205,7 @@ export default function TestsPage() {
                                             />
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-bold text-muted-ui uppercase tracking-[0.2em]">To</span>
+                                            <span className="text-[11px] font-bold text-muted-ui uppercase tracking-[0.2em]">To</span>
                                             <Input 
                                                 type="date" 
                                                 value={regressionToDate}
@@ -1225,7 +1225,7 @@ export default function TestsPage() {
                                     <div className="flex items-center gap-3">
                                         <Button
                                             variant="outline"
-                                            className="h-9 px-4 border-ui text-brand font-bold text-xs gap-2 hover:bg-[#A78BFA]/10"
+                                            className="h-9 px-4 border-ui text-brand font-bold text-xs gap-2 hover:bg-qa-accent/10"
                                             onClick={handleGenerateSmokeSubset}
                                             disabled={isGenerating}
                                         >
@@ -1233,7 +1233,7 @@ export default function TestsPage() {
                                             {isGenerating ? 'ANALYZING...' : 'REFRESH AI SMOKE'}
                                         </Button>
                                         <Button
-                                            className="h-9 px-6 bg-primary text-[#0F0F13] font-bold text-xs gap-2"
+                                            className="h-9 px-6 bg-primary text-primary-foreground font-bold text-xs gap-2"
                                             disabled={isGenerating || uniqueSelectedCases.length === 0}
                                             onClick={handleBuildRegressionSuite}
                                         >
@@ -1253,22 +1253,22 @@ export default function TestsPage() {
                                             />
                                         )}
                                         {builderStatus && (
-                                            <div className="bg-[#10B981]/10 border border-[#10B981]/20 rounded-xl p-4 flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
+                                            <div className="bg-state-success-soft border border-state-success-border rounded-xl p-4 flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
                                                 <div className="flex items-center gap-3">
-                                                    <CheckCircle2 className="h-5 w-5 text-[#10B981]" />
-                                                    <span className="text-sm font-bold text-[#10B981]">{builderStatus}</span>
+                                                    <CheckCircle2 className="h-5 w-5 text-state-success" />
+                                                    <span className="text-sm font-bold text-state-success">{builderStatus}</span>
                                                 </div>
-                                                <Button variant="ghost" size="sm" onClick={() => setBuilderStatus(null)} className="h-7 w-7 p-0 text-[#10B981] hover:bg-[#10B981]/10">
+                                                <Button variant="ghost" size="sm" onClick={() => setBuilderStatus(null)} className="h-7 w-7 p-0 text-state-success hover:bg-state-success-soft">
                                                     <XCircle className="h-4 w-4" />
                                                 </Button>
                                             </div>
                                         )}
                                         {/* Summary Card */}
                                         <div className="bg-panel border border-ui rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
-                                            <div className="absolute top-0 left-0 w-1 h-full bg-[#A78BFA]/50 group-hover:w-2 transition-all" />
+                                            <div className="absolute top-0 left-0 w-1 h-full bg-qa-accent/50 group-hover:w-2 transition-all" />
                                             <div className="space-y-6">
                                                 <div>
-                                                    <h2 className="text-[10px] font-black text-muted-ui uppercase tracking-[0.3em] mb-2">REGRESSION SUITE PREVIEW</h2>
+                                                    <h2 className="text-[11px] font-black text-muted-ui uppercase tracking-[0.3em] mb-2">REGRESSION SUITE PREVIEW</h2>
                                                     <p className="text-xl font-black text-foreground tracking-tight">
                                                         {uniqueSelectedCases.length} unique test case(s) selected
                                                     </p>
@@ -1281,17 +1281,17 @@ export default function TestsPage() {
 
                                                 <div className="grid grid-cols-4 gap-4">
                                                     {[
-                                                        { label: 'Done-Linked', value: doneLinkedTestCases.length, icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-[#10B981]', bg: 'bg-[#10B981]/10' },
-                                                        { label: 'Prev. Failed', value: previouslyFailedTestCases.length, icon: <XCircle className="h-4 w-4" />, color: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10' },
-                                                        { label: 'AI Recommended', value: smokeSubsetTestCases.length, icon: <Cpu className="h-4 w-4" />, color: 'text-brand', bg: 'bg-[#A78BFA]/10' },
-                                                        { label: 'Total (Unique)', value: uniqueSelectedCases.length, icon: <Zap className="h-4 w-4" />, color: 'text-[#FBBF24]', bg: 'bg-[#FBBF24]/10' },
+                                                        { label: 'Done-Linked', value: doneLinkedTestCases.length, icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-state-success', bg: 'bg-state-success-soft' },
+                                                        { label: 'Prev. Failed', value: previouslyFailedTestCases.length, icon: <XCircle className="h-4 w-4" />, color: 'text-state-danger', bg: 'bg-state-danger-soft' },
+                                                        { label: 'AI Recommended', value: smokeSubsetTestCases.length, icon: <Cpu className="h-4 w-4" />, color: 'text-brand', bg: 'bg-qa-accent/10' },
+                                                        { label: 'Total (Unique)', value: uniqueSelectedCases.length, icon: <Zap className="h-4 w-4" />, color: 'text-state-warning', bg: 'bg-state-warning-soft' },
                                                     ].map((stat) => (
-                                                        <div key={stat.label} className="bg-panel-muted border border-ui rounded-xl p-4 flex flex-col items-center text-center group cursor-default transition-all hover:translate-y-[-2px] hover:border-[#A78BFA]/20">
+                                                        <div key={stat.label} className="bg-panel-muted border border-ui rounded-xl p-4 flex flex-col items-center text-center group cursor-default transition-all hover:translate-y-[-2px] hover:border-qa-accent/20">
                                                             <div className={cn("p-2 rounded-lg mb-3 shadow-inner transition-colors", stat.bg, stat.color)}>
                                                                 {stat.icon}
                                                             </div>
                                                             <div className={cn("text-2xl font-black mb-1", stat.color)}>{stat.value}</div>
-                                                            <div className="text-[9px] font-bold text-muted-ui uppercase tracking-widest">{stat.label}</div>
+                                                            <div className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">{stat.label}</div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1303,34 +1303,34 @@ export default function TestsPage() {
                                             {/* Done-Linked Section */}
                                             <section className="space-y-4">
                                                 <div className="flex items-center gap-3 pl-1">
-                                                    <div className="h-4 w-1 bg-[#10B981] rounded-full" />
+                                                    <div className="h-4 w-1 bg-state-success rounded-full" />
                                                     <h3 className="text-xs font-black text-muted-ui uppercase tracking-widest flex items-center gap-2">
                                                         DONE-LINKED TEST CASES <span className="opacity-40 tracking-tighter normal-case font-bold italic ml-2">({doneLinkedTestCases.length})</span>
                                                     </h3>
                                                 </div>
                                                 <div className="grid grid-cols-1 gap-2">
                                                     {doneLinkedTestCases.length === 0 ? (
-                                                        <div className="p-4 bg-[#1A1A24]/40 border border-dashed border-ui rounded-xl text-center text-[10px] font-bold text-muted-ui uppercase tracking-widest">
+                                                        <div className="p-4 bg-surface-alt/40 border border-dashed border-ui rounded-xl text-center text-[11px] font-bold text-muted-ui uppercase tracking-widest">
                                                             No linked test cases for done tasks
                                                         </div>
                                                     ) : (
                                                         doneLinkedTestCases.map(tc => (
                                                             <div key={tc.id} className="bg-panel border border-ui rounded-lg p-3 flex items-center justify-between hover:bg-elevated transition-colors group">
                                                                 <div className="flex items-center gap-3 overflow-hidden">
-                                                                    <div className="bg-[#10B981]/10 text-[#10B981] p-1.5 rounded-md self-start shrink-0">
+                                                                    <div className="bg-state-success-soft text-state-success p-1.5 rounded-md self-start shrink-0">
                                                                         <CheckCircle2 className="h-3.5 w-3.5" />
                                                                     </div>
                                                                     <div className="overflow-hidden">
-                                                                        <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-white transition-colors truncate">{tc.title}</div>
-                                                                        <div className="text-[9px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
+                                                                        <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-foreground transition-colors truncate">{tc.title}</div>
+                                                                        <div className="text-[11px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
                                                                             <span className="text-brand font-bold">{tc.displayId}</span>
                                                                             <span className="opacity-40">·</span>
                                                                             <span>Link ID: {tc.sourceIssueId || 'N/A'}</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" />
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Open test case">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" aria-hidden="true" />
                                                                 </Button>
                                                             </div>
                                                         ))
@@ -1341,34 +1341,34 @@ export default function TestsPage() {
                                             {/* Previously Failed Section */}
                                             <section className="space-y-4">
                                                 <div className="flex items-center gap-3 pl-1">
-                                                    <div className="h-4 w-1 bg-[#EF4444] rounded-full" />
+                                                    <div className="h-4 w-1 bg-state-danger rounded-full" />
                                                     <h3 className="text-xs font-black text-muted-ui uppercase tracking-widest flex items-center gap-2">
                                                         PREVIOUSLY FAILED <span className="opacity-40 tracking-tighter normal-case font-bold italic ml-2">({previouslyFailedTestCases.length})</span>
                                                     </h3>
                                                 </div>
                                                 <div className="grid grid-cols-1 gap-2">
                                                     {previouslyFailedTestCases.length === 0 ? (
-                                                        <div className="p-4 bg-[#1A1A24]/40 border border-dashed border-ui rounded-xl text-center text-[10px] font-bold text-muted-ui uppercase tracking-widest">
+                                                        <div className="p-4 bg-surface-alt/40 border border-dashed border-ui rounded-xl text-center text-[11px] font-bold text-muted-ui uppercase tracking-widest">
                                                             No failure history found
                                                         </div>
                                                     ) : (
                                                         previouslyFailedTestCases.map(tc => (
                                                             <div key={tc.id} className="bg-panel border border-ui rounded-lg p-3 flex items-center justify-between hover:bg-elevated transition-colors group">
                                                                 <div className="flex items-center gap-3 overflow-hidden">
-                                                                    <div className="bg-[#EF4444]/10 text-[#EF4444] p-1.5 rounded-md self-start shrink-0">
+                                                                    <div className="bg-state-danger-soft text-state-danger p-1.5 rounded-md self-start shrink-0">
                                                                         <XCircle className="h-3.5 w-3.5" />
                                                                     </div>
                                                                     <div className="overflow-hidden">
-                                                                        <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-white transition-colors truncate">{tc.title}</div>
-                                                                        <div className="text-[9px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
+                                                                        <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-foreground transition-colors truncate">{tc.title}</div>
+                                                                        <div className="text-[11px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
                                                                             <span className="text-brand font-bold">{tc.displayId}</span>
                                                                             <span className="opacity-40">·</span>
                                                                             <span>Last Result: FAILED</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" />
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Open test case">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" aria-hidden="true" />
                                                                 </Button>
                                                             </div>
                                                         ))
@@ -1386,14 +1386,14 @@ export default function TestsPage() {
                                                 </div>
                                                 <div className="grid grid-cols-1 gap-2">
                                                     {smokeSubsetTestCases.length === 0 ? (
-                                                        <div className="p-6 bg-[#1A1A24]/40 border border-dashed border-ui rounded-xl text-center space-y-3">
-                                                            <div className="text-[10px] font-bold text-muted-ui uppercase tracking-widest">Run AI analysis to identify smoke subset</div>
+                                                        <div className="p-6 bg-surface-alt/40 border border-dashed border-ui rounded-xl text-center space-y-3">
+                                                            <div className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">Run AI analysis to identify smoke subset</div>
                                                             <Button 
                                                                 variant="outline" 
                                                                 size="sm" 
                                                                 onClick={handleGenerateSmokeSubset}
                                                                 disabled={isGenerating}
-                                                                className="h-7 text-[10px] font-black border-ui text-brand hover:bg-[#A78BFA]/10"
+                                                                className="h-7 text-[11px] font-black border-ui text-brand hover:bg-qa-accent/10"
                                                             >
                                                                 <Cpu className="h-3 w-3 mr-2" /> RUN ANALYSIS
                                                             </Button>
@@ -1402,20 +1402,20 @@ export default function TestsPage() {
                                                         smokeSubsetTestCases.map(tc => (
                                                             <div key={tc.id} className="bg-panel border border-ui rounded-lg p-3 flex items-center justify-between hover:bg-elevated transition-colors group">
                                                                 <div className="flex items-center gap-3 overflow-hidden">
-                                                                    <div className="bg-[#A78BFA]/10 text-brand p-1.5 rounded-md self-start shrink-0">
+                                                                    <div className="bg-qa-accent/10 text-brand p-1.5 rounded-md self-start shrink-0">
                                                                         <Zap className="h-3.5 w-3.5" />
                                                                     </div>
                                                                     <div className="overflow-hidden">
-                                                                        <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-white transition-colors truncate">{tc.title}</div>
-                                                                        <div className="text-[9px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
+                                                                        <div className="text-xs font-bold text-foreground tracking-tight group-hover:text-foreground transition-colors truncate">{tc.title}</div>
+                                                                        <div className="text-[11px] font-mono text-muted-ui mt-1 uppercase flex items-center gap-2">
                                                                             <span className="text-brand font-bold">{tc.displayId}</span>
                                                                             <span className="opacity-40">·</span>
                                                                             <span>Confidence: High</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" />
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Open test case">
+                                                                    <ArrowRightCircle className="h-3.5 w-3.5 text-muted-ui" aria-hidden="true" />
                                                                 </Button>
                                                             </div>
                                                         ))

@@ -132,9 +132,9 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isProcessing}
-                                className="w-full border-2 border-dashed border-ui rounded-xl p-10 flex flex-col items-center gap-3 hover:border-[#A78BFA]/40 hover:bg-[#A78BFA]/5 transition-colors group"
+                                className="w-full border-2 border-dashed border-ui rounded-xl p-10 flex flex-col items-center gap-3 hover:border-qa-accent/40 hover:bg-qa-accent/5 transition-colors group"
                             >
-                                <UploadCloud className="h-10 w-10 text-muted-ui group-hover:text-[#A78BFA] transition-colors" />
+                                <UploadCloud className="h-10 w-10 text-muted-ui group-hover:text-qa-accent transition-colors" />
                                 <div className="text-center">
                                     <p className="text-sm font-bold text-foreground">Click to upload CSV or XLSX</p>
                                     <p className="text-xs text-muted-ui mt-1">Max 10MB, up to 5000 rows</p>
@@ -150,15 +150,15 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                                 <p className="text-xs font-bold text-foreground mb-1">
                                     File: <span className="text-brand">{parsedData.fileName}</span>
                                 </p>
-                                <p className="text-[10px] text-muted-ui">{parsedData.rows.length} rows detected</p>
+                                <p className="text-[11px] text-muted-ui">{parsedData.rows.length} rows detected</p>
                             </div>
                             <div className="space-y-3">
-                                <p className="text-[9px] font-bold text-muted-ui uppercase tracking-widest">Map Columns</p>
+                                <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest">Map Columns</p>
                                 {QA_FIELDS.map(field => (
                                     <div key={field.id} className="flex items-center gap-3">
                                         <span className="text-xs font-semibold text-foreground w-36 shrink-0">
                                             {field.label}
-                                            {!field.required && <span className="text-[9px] text-muted-ui font-normal ml-1">(optional)</span>}
+                                            {!field.required && <span className="text-[11px] text-muted-ui font-normal ml-1">(optional)</span>}
                                         </span>
                                         <Select value={getMappedField(field.id)} onValueChange={val => setFieldMapping(field.id, val)}>
                                             <SelectTrigger className="flex-1 h-9 bg-panel-muted border-ui text-xs">
@@ -177,10 +177,10 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                             {/* Preview */}
                             {previewPairs().length > 0 && (
                                 <div>
-                                    <p className="text-[9px] font-bold text-muted-ui uppercase tracking-widest mb-2">Preview (first 5 rows)</p>
+                                    <p className="text-[11px] font-bold text-muted-ui uppercase tracking-widest mb-2">Preview (first 5 rows)</p>
                                     <div className="space-y-2">
                                         {previewPairs().map((p, i) => (
-                                            <div key={i} className="bg-panel border border-ui rounded-lg p-2.5 text-[10px]">
+                                            <div key={i} className="bg-panel border border-ui rounded-lg p-2.5 text-[11px]">
                                                 <p className="text-soft truncate"><span className="text-muted-ui font-bold">Q:</span> {p.question || <em className="text-muted-ui">—</em>}</p>
                                                 <p className="text-soft truncate mt-0.5"><span className="text-muted-ui font-bold">A:</span> {p.agentResponse || <em className="text-muted-ui">—</em>}</p>
                                             </div>
@@ -192,9 +192,9 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                     )}
 
                     {error && (
-                        <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg mt-4">
-                            <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                            <p className="text-xs text-red-400">{error}</p>
+                        <div className="flex items-start gap-2 p-3 bg-state-danger-soft border border-state-danger-border rounded-lg mt-4">
+                            <AlertCircle className="h-4 w-4 text-state-danger shrink-0 mt-0.5" />
+                            <p className="text-xs text-state-danger">{error}</p>
                         </div>
                     )}
                 </div>
@@ -207,7 +207,7 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                     {step === 'mapping' && (
                         <Button size="sm"
                             onClick={handleImport}
-                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
+                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold"
                         >
                             <ChevronRight className="h-3.5 w-3.5 mr-1" />
                             Import Pairs

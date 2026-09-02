@@ -177,7 +177,7 @@ export const DOC_SECTIONS: DocSection[] = [
       {
         id: "notes-editor",
         title: "Rich Text Editor",
-        content: "The notes editor provides full WYSIWYG editing powered by Tiptap:\n\n- **Formatting** — bold, italic, underline, strikethrough\n- **Font Options** — Inter, Poppins, or Roboto Mono\n- **Font Size** — adjustable size controls\n- **Text Color** — color picker for text highlighting\n- **Source View** — toggle to see and edit raw HTML\n\nNotes auto-save with a configurable debounce delay to prevent data loss.",
+        content: "The notes editor provides full WYSIWYG editing powered by Tiptap:\n\n- **Formatting** — bold, italic, underline, strikethrough\n- **Font Options** — Inter, Roboto Mono, or your system font\n- **Font Size** — adjustable size controls\n- **Text Color** — color picker for text highlighting\n- **Source View** — toggle to see and edit raw HTML\n\nNotes auto-save with a configurable debounce delay to prevent data loss.",
       },
       {
         id: "notes-attachments",
