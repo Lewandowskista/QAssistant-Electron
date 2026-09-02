@@ -167,7 +167,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setNewTaskSource(source)}
-                                        className={cn("h-8 text-[11px] font-bold", newTaskSource === source ? "bg-[#2A2A3A]/80 text-brand" : "text-muted-ui hover:text-foreground")}
+                                        className={cn("h-8 text-[11px] font-bold", newTaskSource === source ? "bg-surface-elevated/80 text-brand" : "text-muted-ui hover:text-foreground")}
                                     >
                                         {source.charAt(0).toUpperCase() + source.slice(1)}
                                     </Button>
@@ -195,7 +195,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                     </SelectContent>
                                 </Select>
                                 {noExternalConnections && (
-                                    <p className="mt-3 text-[11px] text-[#F59E0B]">No {newTaskSource} connections configured. Add one in Settings before creating upstream work.</p>
+                                    <p className="mt-3 text-[11px] text-state-warning">No {newTaskSource} connections configured. Add one in Settings before creating upstream work.</p>
                                 )}
                             </div>
                         )}
@@ -210,7 +210,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                                     type="button"
                                     variant="ghost"
                                     onClick={() => applyTemplate(template)}
-                                    className={cn("h-10 rounded-xl border border-ui bg-app text-[11px] font-bold text-soft", taskTemplate === template && "border-[#A78BFA]/40 bg-[#A78BFA]/10 text-brand")}
+                                    className={cn("h-10 rounded-xl border border-ui bg-app text-[11px] font-bold text-soft", taskTemplate === template && "border-qa-accent/40 bg-qa-accent/10 text-brand")}
                                 >
                                     {template.replace("_", " ")}
                                 </Button>
@@ -305,7 +305,7 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
                     <Button
                         onClick={handleConfirm}
                         disabled={isSubmitting || !newTaskTitle.trim() || (newTaskSource !== "manual" && (!newTaskConnectionId || noExternalConnections))}
-                        className="h-10 bg-primary px-8 text-xs font-bold text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]"
+                        className="h-10 bg-primary px-8 text-xs font-bold text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]"
                     >
                         {isSubmitting ? "CREATING..." : newTaskSource === "manual" ? "CREATE TASK" : `CREATE IN ${newTaskSource.toUpperCase()}`}
                     </Button>

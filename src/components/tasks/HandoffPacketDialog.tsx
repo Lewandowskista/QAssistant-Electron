@@ -296,9 +296,9 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-ui">Required Before Send</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                         {missingFields.length === 0 ? (
-                            <span className="rounded-full bg-[#10B981]/10 px-2 py-1 text-[10px] font-bold uppercase text-[#10B981]">Complete</span>
+                            <span className="rounded-full bg-state-success-soft px-2 py-1 text-[10px] font-bold uppercase text-state-success">Complete</span>
                         ) : missingFields.map((field) => (
-                            <span key={field} className="rounded-full bg-[#EF4444]/10 px-2 py-1 text-[10px] font-bold uppercase text-[#EF4444]">
+                            <span key={field} className="rounded-full bg-state-danger-soft px-2 py-1 text-[10px] font-bold uppercase text-state-danger">
                                 Missing {field}
                             </span>
                         ))}
@@ -307,7 +307,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={isSaving} className="bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]">
+                    <Button onClick={handleSave} disabled={isSaving} className="bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]">
                         {isSaving ? 'Saving…' : 'Save Packet'}
                     </Button>
                 </DialogFooter>

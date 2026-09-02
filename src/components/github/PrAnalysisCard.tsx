@@ -18,13 +18,13 @@ type PrAnalysisCardProps = {
 function riskPillClass(riskLevel: AiPullRequestAnalysisResult['riskLevel']) {
     switch (riskLevel) {
         case 'critical':
-            return 'bg-red-500/15 text-red-300 border border-red-500/25'
+            return 'bg-state-danger-soft text-state-danger border border-state-danger-border'
         case 'high':
-            return 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+            return 'bg-state-warning-soft text-state-warning border border-state-warning-border'
         case 'low':
-            return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+            return 'bg-state-success-soft text-state-success border border-state-success-border'
         default:
-            return 'bg-sky-500/15 text-sky-300 border border-sky-500/25'
+            return 'bg-state-info-soft text-state-info border border-state-info-border'
     }
 }
 
@@ -43,13 +43,13 @@ export function PrAnalysisCard({
         : []
 
     return (
-        <div className="rounded-xl border border-ui bg-[#0D0D11] overflow-hidden">
+        <div className="rounded-xl border border-ui bg-app overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2 border-b border-ui">
                 <div className="flex items-center gap-2">
                     <Sparkles className="h-3.5 w-3.5 text-brand" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">PR Analysis</span>
                     {analysis && analysis.impactedCaseIds.length > 0 && (
-                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-brand">
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand">
                             {analysis.impactedCaseIds.length} impacted
                         </span>
                     )}
@@ -59,7 +59,7 @@ export function PrAnalysisCard({
                     variant="ghost"
                     onClick={onAnalyze}
                     disabled={isAnalyzing}
-                    className="h-7 text-[10px] font-bold text-brand hover:bg-[#A78BFA]/10 gap-1"
+                    className="h-7 text-[10px] font-bold text-brand hover:bg-qa-accent/10 gap-1"
                 >
                     {isAnalyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                     {isAnalyzing ? 'Analyzing…' : 'Analyze PR'}
@@ -100,7 +100,7 @@ export function PrAnalysisCard({
                             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">Affected Areas</p>
                             <div className="flex flex-wrap gap-1">
                                 {analysis.affectedAreas.map((area) => (
-                                    <span key={area} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] uppercase">
+                                    <span key={area} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-state-info-soft text-state-info uppercase">
                                         {area}
                                     </span>
                                 ))}
@@ -114,7 +114,7 @@ export function PrAnalysisCard({
                             <div className="space-y-1.5">
                                 {analysis.qaChecks.map((check) => (
                                     <div key={check} className="flex items-start gap-2 rounded-lg border border-ui bg-panel px-2.5 py-2">
-                                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#10B981]" />
+                                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-state-success" />
                                         <p className="text-[10px] text-foreground leading-relaxed">{check}</p>
                                     </div>
                                 ))}
@@ -133,9 +133,9 @@ export function PrAnalysisCard({
                                                 type="checkbox"
                                                 checked={selectedImpactedIds.has(testCase.id)}
                                                 onChange={() => onToggleImpactedId(testCase.id)}
-                                                className="accent-[#A78BFA]"
+                                                className="accent-qa-accent"
                                             />
-                                            <span className="text-[10px] text-foreground group-hover:text-[#A78BFA] transition-colors truncate">
+                                            <span className="text-[10px] text-foreground group-hover:text-qa-accent transition-colors truncate">
                                                 {testCase.displayId} - {testCase.title}
                                             </span>
                                         </label>
@@ -144,7 +144,7 @@ export function PrAnalysisCard({
                                 <Button
                                     onClick={onBuildRegressionSuite}
                                     disabled={isBuildingRegressionSuite || selectedImpactedIds.size === 0}
-                                    className="w-full h-8 bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))] text-[10px] font-bold gap-2"
+                                    className="w-full h-8 bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))] text-[10px] font-bold gap-2"
                                 >
                                     {isBuildingRegressionSuite ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
                                     {isBuildingRegressionSuite ? 'Building...' : `Build Regression Suite (${selectedImpactedIds.size})`}
@@ -152,7 +152,7 @@ export function PrAnalysisCard({
                             </>
                         ) : (
                             <div className="flex items-center gap-2 py-1">
-                                <CheckCircle2 className="h-3.5 w-3.5 text-[#10B981]" />
+                                <CheckCircle2 className="h-3.5 w-3.5 text-state-success" />
                                 <span className="text-[10px] text-soft">No existing project tests matched this PR; use the suggested QA checks above.</span>
                             </div>
                         )}

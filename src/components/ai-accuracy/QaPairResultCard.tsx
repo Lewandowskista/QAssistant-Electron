@@ -104,7 +104,7 @@ export function QaPairResultCard({ result, index }: QaPairResultCardProps) {
                     <div>
                         <button
                             onClick={() => setShowClaims(!showClaims)}
-                            className="flex items-center gap-1.5 text-[10px] font-bold text-brand hover:text-[#C4B5FD] transition-colors"
+                            className="flex items-center gap-1.5 text-[10px] font-bold text-brand hover:text-qa-accent transition-colors"
                         >
                             {showClaims ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                             {result.extractedClaims.length} Extracted Claims

@@ -321,7 +321,7 @@ export function TaskFilterBar({
                         type="button"
                         variant={filters.onlyActive ? "default" : "outline"}
                         onClick={() => setFilters((current) => ({ ...current, onlyActive: !current.onlyActive }))}
-                        className={filters.onlyActive ? "h-9 bg-slate-800 text-sky-300" : "h-9 border-ui bg-background text-foreground"}
+                        className={filters.onlyActive ? "h-9 bg-elevated text-state-info" : "h-9 border-ui bg-background text-foreground"}
                     >
                         Only Active
                     </Button>
@@ -339,14 +339,14 @@ export function TaskFilterBar({
                                     <button
                                         type="button"
                                         onClick={() => onApplyPreset?.(preset.name)}
-                                        className="text-[11px] font-medium text-foreground hover:text-white"
+                                        className="text-[11px] font-medium text-foreground hover:text-foreground"
                                     >
                                         {preset.name}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => onDeletePreset?.(preset.name)}
-                                        className="rounded-full p-0.5 text-muted-ui hover:bg-red-500/10 hover:text-red-400"
+                                        className="rounded-full p-0.5 text-muted-ui hover:bg-state-danger-soft hover:text-state-danger"
                                     >
                                         <X className="h-2.5 w-2.5" />
                                     </button>

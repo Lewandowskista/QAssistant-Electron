@@ -26,7 +26,7 @@ function DocRow({ doc, onRemove }: { doc: ReferenceDocument; onRemove: () => voi
     const ext = doc.fileName.split('.').pop()?.toUpperCase() ?? 'FILE'
     return (
         <div className="flex items-center gap-3 p-3 bg-panel border border-ui rounded-lg group">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#A78BFA]/10 shrink-0">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-qa-accent/10 shrink-0">
                 <FileText className="h-4 w-4 text-brand" />
             </div>
             <div className="flex-1 min-w-0">
@@ -38,7 +38,7 @@ function DocRow({ doc, onRemove }: { doc: ReferenceDocument; onRemove: () => voi
             </div>
             <Button
                 variant="ghost" size="icon"
-                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-ui hover:text-red-400"
+                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-ui hover:text-state-danger"
                 onClick={onRemove}
             >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -62,7 +62,7 @@ function AddPairForm({ onAdd, onCancel }: { onAdd: (q: string, r: string, expect
     }
 
     return (
-        <div className="border border-[#A78BFA]/30 rounded-xl p-4 bg-panel space-y-3">
+        <div className="border border-qa-accent/30 rounded-xl p-4 bg-panel space-y-3">
             <div>
                 <label className="text-[9px] font-bold text-muted-ui uppercase tracking-widest block mb-1.5">Question (asked to the chatbot)</label>
                 <Textarea
@@ -83,7 +83,7 @@ function AddPairForm({ onAdd, onCancel }: { onAdd: (q: string, r: string, expect
             </div>
             <div>
                 <label className="text-[9px] font-bold text-muted-ui uppercase tracking-widest block mb-1.5">
-                    Expected Answer <span className="text-[#6B7280]/60 normal-case font-normal">(optional — human-verified correct answer)</span>
+                    Expected Answer <span className="text-text-muted/60 normal-case font-normal">(optional — human-verified correct answer)</span>
                 </label>
                 <Textarea
                     value={expectedAnswer}
@@ -100,7 +100,7 @@ function AddPairForm({ onAdd, onCancel }: { onAdd: (q: string, r: string, expect
                     size="sm"
                     disabled={!question.trim() || !response.trim() || saving}
                     onClick={handleSave}
-                    className="h-8 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
+                    className="h-8 bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold"
                 >
                     {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
                     Add Pair
@@ -181,7 +181,7 @@ export function SuiteSetup({
                         variant="outline" size="sm"
                         disabled={isUploadingDoc}
                         onClick={handleSelectDoc}
-                        className="h-8 text-[10px] font-bold border-ui text-brand hover:bg-[#A78BFA]/10"
+                        className="h-8 text-[10px] font-bold border-ui text-brand hover:bg-qa-accent/10"
                     >
                         {isUploadingDoc
                             ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
@@ -193,17 +193,17 @@ export function SuiteSetup({
                 </div>
 
                 {docError && (
-                    <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg mb-3">
-                        <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-400">{docError}</p>
+                    <div className="flex items-start gap-2 p-3 bg-state-danger-soft border border-state-danger-border rounded-lg mb-3">
+                        <AlertCircle className="h-4 w-4 text-state-danger shrink-0 mt-0.5" />
+                        <p className="text-xs text-state-danger">{docError}</p>
                     </div>
                 )}
 
                 {suite.referenceDocuments.length === 0 ? (
                     <div className="border-2 border-dashed border-ui rounded-xl p-8 text-center">
-                        <FileText className="h-8 w-8 text-[#2A2A3A] mx-auto mb-2" />
+                        <FileText className="h-8 w-8 text-text-muted/40 mx-auto mb-2" />
                         <p className="text-xs text-muted-ui">No reference documents added yet</p>
-                        <p className="text-[10px] text-[#6B7280]/60 mt-1">Supports .txt, .md, .pdf, .docx</p>
+                        <p className="text-[10px] text-text-muted/60 mt-1">Supports .txt, .md, .pdf, .docx</p>
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -234,7 +234,7 @@ export function SuiteSetup({
                         <Button
                             variant="outline" size="sm"
                             onClick={() => setShowAddForm(true)}
-                            className="h-8 text-[10px] font-bold border-ui text-brand hover:bg-[#A78BFA]/10"
+                            className="h-8 text-[10px] font-bold border-ui text-brand hover:bg-qa-accent/10"
                         >
                             <Plus className="h-3.5 w-3.5 mr-1" /> Add Pair
                         </Button>
@@ -253,7 +253,7 @@ export function SuiteSetup({
                 {suite.qaPairs.length === 0 && !showAddForm ? (
                     <div className="border-2 border-dashed border-ui rounded-xl p-8 text-center">
                         <p className="text-xs text-muted-ui">No Q&amp;A pairs added yet</p>
-                        <p className="text-[10px] text-[#6B7280]/60 mt-1">
+                        <p className="text-[10px] text-text-muted/60 mt-1">
                             Add pairs manually or import from a CSV with &quot;question&quot; and &quot;response&quot; columns.
                         </p>
                     </div>
@@ -268,17 +268,17 @@ export function SuiteSetup({
                                     <p className="text-xs font-semibold text-foreground truncate">{pair.question}</p>
                                     <p className="text-[10px] text-muted-ui truncate mt-0.5">{pair.agentResponse}</p>
                                     {pair.expectedAnswer && (
-                                        <p className="text-[9px] text-emerald-400/70 truncate mt-0.5">
+                                        <p className="text-[9px] text-state-success/70 truncate mt-0.5">
                                             <span className="font-bold">Expected:</span> {pair.expectedAnswer}
                                         </p>
                                     )}
                                     {pair.sourceLabel && (
-                                        <p className="text-[9px] text-[#6B7280]/60 mt-0.5 italic">{pair.sourceLabel}</p>
+                                        <p className="text-[9px] text-text-muted/60 mt-0.5 italic">{pair.sourceLabel}</p>
                                     )}
                                 </div>
                                 <Button
                                     variant="ghost" size="icon"
-                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-ui hover:text-red-400 shrink-0"
+                                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-ui hover:text-state-danger shrink-0"
                                     onClick={() => onRemovePair(pair.id)}
                                 >
                                     <X className="h-3.5 w-3.5" />
@@ -292,7 +292,7 @@ export function SuiteSetup({
             {/* Run Evaluation */}
             <section className="border-t border-ui pt-6">
                 {isEvaluating && evalProgress && (
-                    <div className="mb-4 p-4 bg-[#A78BFA]/5 border border-[#A78BFA]/20 rounded-xl">
+                    <div className="mb-4 p-4 bg-qa-accent/5 border border-qa-accent/20 rounded-xl">
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                                 <Loader2 className="h-4 w-4 animate-spin text-brand" />
@@ -331,7 +331,7 @@ export function SuiteSetup({
                             className={cn(
                                 "flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[10px] font-bold transition-colors",
                                 suite.highAccuracyMode
-                                    ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                                    ? "border-state-warning/40 bg-state-warning-soft text-state-warning"
                                     : "border-ui text-muted-ui hover:text-foreground"
                             )}
                             title="High accuracy mode runs claim verification twice and merges results for greater consistency. Uses 2× API calls for verification."
@@ -345,7 +345,7 @@ export function SuiteSetup({
                             className={cn(
                                 "font-bold",
                                 canRunEval
-                                    ? "bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13]"
+                                    ? "bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground"
                                     : "bg-elevated text-muted-ui cursor-not-allowed"
                             )}
                         >

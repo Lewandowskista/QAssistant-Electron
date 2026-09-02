@@ -12,9 +12,9 @@ import { cn } from '@/lib/utils'
 import type { TestPlan, TestCaseStatus } from '@/types/project'
 
 const STATUS_CONFIG: Record<TestCaseStatus, { label: string; color: string; bg: string; icon: typeof CheckCircle2 }> = {
-    'passed':  { label: 'Passed',  color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
-    'failed':  { label: 'Failed',  color: 'text-red-400',     bg: 'bg-red-500/10',     icon: XCircle },
-    'blocked': { label: 'Blocked', color: 'text-amber-400',   bg: 'bg-amber-500/10',   icon: Ban },
+    'passed':  { label: 'Passed',  color: 'text-state-success', bg: 'bg-state-success-soft', icon: CheckCircle2 },
+    'failed':  { label: 'Failed',  color: 'text-state-danger',     bg: 'bg-state-danger-soft',     icon: XCircle },
+    'blocked': { label: 'Blocked', color: 'text-state-warning',   bg: 'bg-state-warning-soft',   icon: Ban },
     'skipped': { label: 'Skipped', color: 'text-muted-ui',   bg: 'bg-elevated',     icon: SkipForward },
     'not-run': { label: 'Not Run', color: 'text-muted-ui',   bg: 'bg-panel-muted',     icon: AlertCircle },
 }
@@ -36,7 +36,7 @@ function PlanCard({ plan }: { plan: TestPlan }) {
     return (
         <div className={cn(
             'rounded-xl border bg-panel p-5 space-y-4 transition-all',
-            hasFailed ? 'border-red-500/20' : hasBlocked ? 'border-amber-500/20' : 'border-ui'
+            hasFailed ? 'border-state-danger-border' : hasBlocked ? 'border-state-warning-border' : 'border-ui'
         )}>
             {/* Header */}
             <div className="flex items-start justify-between gap-3">
@@ -45,7 +45,7 @@ function PlanCard({ plan }: { plan: TestPlan }) {
                         <FlaskConical className="h-3.5 w-3.5 text-brand shrink-0" />
                         <p className="text-sm font-bold text-foreground truncate">{plan.name}</p>
                         {plan.isRegressionSuite && (
-                            <span className="text-[9px] font-bold uppercase bg-[#A78BFA]/10 text-brand px-1.5 py-0.5 rounded">Regression</span>
+                            <span className="text-[9px] font-bold uppercase bg-qa-accent/10 text-brand px-1.5 py-0.5 rounded">Regression</span>
                         )}
                         {plan.isArchived && (
                             <span className="text-[9px] font-bold uppercase bg-elevated text-muted-ui px-1.5 py-0.5 rounded">Archived</span>
@@ -58,7 +58,7 @@ function PlanCard({ plan }: { plan: TestPlan }) {
                 {passRate !== null && (
                     <div className={cn(
                         'shrink-0 text-lg font-bold',
-                        passRate >= 80 ? 'text-emerald-400' : passRate >= 50 ? 'text-amber-400' : 'text-red-400'
+                        passRate >= 80 ? 'text-state-success' : passRate >= 50 ? 'text-state-warning' : 'text-state-danger'
                     )}>
                         {passRate}%
                     </div>
@@ -78,7 +78,7 @@ function PlanCard({ plan }: { plan: TestPlan }) {
                         <div className="bg-amber-500 h-full transition-all" style={{ width: `${(counts.blocked / total) * 100}%` }} />
                     )}
                     {counts.skipped > 0 && (
-                        <div className="bg-[#4B5563] h-full transition-all" style={{ width: `${(counts.skipped / total) * 100}%` }} />
+                        <div className="bg-line-strong h-full transition-all" style={{ width: `${(counts.skipped / total) * 100}%` }} />
                     )}
                 </div>
             )}
@@ -101,10 +101,10 @@ function PlanCard({ plan }: { plan: TestPlan }) {
             {/* Failed test case titles (up to 3) */}
             {hasFailed && (
                 <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Failed Tests</p>
+                    <p className="text-[10px] font-bold text-state-danger uppercase tracking-wider">Failed Tests</p>
                     {cases.filter(tc => tc.status === 'failed').slice(0, 3).map(tc => (
                         <div key={tc.id} className="flex items-start gap-2 text-xs text-soft">
-                            <XCircle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
+                            <XCircle className="h-3 w-3 text-state-danger shrink-0 mt-0.5" />
                             <span className="truncate">{tc.title}</span>
                         </div>
                     ))}
@@ -163,14 +163,14 @@ export function DevTestPlanSummary() {
                         <div className="text-right">
                             <p className="text-[10px] text-muted-ui uppercase tracking-wider">Overall Pass Rate</p>
                             <p className={cn('text-lg font-bold',
-                                overall.passRate >= 80 ? 'text-emerald-400' : overall.passRate >= 50 ? 'text-amber-400' : 'text-red-400'
+                                overall.passRate >= 80 ? 'text-state-success' : overall.passRate >= 50 ? 'text-state-warning' : 'text-state-danger'
                             )}>{overall.passRate}%</p>
                         </div>
                         <div className="flex gap-3 text-center">
                             {[
-                                { label: 'Passed', value: overall.passed, color: 'text-emerald-400' },
-                                { label: 'Failed', value: overall.failed, color: 'text-red-400' },
-                                { label: 'Blocked', value: overall.blocked, color: 'text-amber-400' },
+                                { label: 'Passed', value: overall.passed, color: 'text-state-success' },
+                                { label: 'Failed', value: overall.failed, color: 'text-state-danger' },
+                                { label: 'Blocked', value: overall.blocked, color: 'text-state-warning' },
                                 { label: 'Total', value: overall.total, color: 'text-soft' },
                             ].map(s => (
                                 <div key={s.label}>

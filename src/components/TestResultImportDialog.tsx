@@ -139,8 +139,8 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
     }
 
     const getResultIcon = (result: string) => {
-        if (result === 'passed') return <CheckCircle2 className="h-3 w-3 text-[#10B981]" />
-        if (result === 'failed') return <XCircle className="h-3 w-3 text-[#EF4444]" />
+        if (result === 'passed') return <CheckCircle2 className="h-3 w-3 text-state-success" />
+        if (result === 'failed') return <XCircle className="h-3 w-3 text-state-danger" />
         if (result === 'skipped') return <AlertCircle className="h-3 w-3 text-muted-ui" />
         return null
     }
@@ -169,7 +169,7 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                             onClick={handleSelectFile}
                             disabled={loading}
                             variant="outline"
-                            className="border-ui text-brand hover:bg-[#A78BFA]/10 gap-2"
+                            className="border-ui text-brand hover:bg-qa-accent/10 gap-2"
                         >
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                             {loading ? 'Parsing…' : 'Select File'}
@@ -177,7 +177,7 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                         {fileName && (
                             <div className="flex items-center gap-2">
                                 <span className="text-xs font-mono text-soft">{fileName}</span>
-                                <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-brand">{format}</span>
+                                <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand">{format}</span>
                             </div>
                         )}
                     </div>
@@ -202,8 +202,8 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                             {/* Summary bar */}
                             <div className="flex items-center gap-4 px-3 py-2 rounded-lg bg-app border border-ui text-xs font-bold">
                                 <span className="text-muted-ui">{totalCases} cases</span>
-                                <span className="text-[#10B981]">{totalPassed} passed</span>
-                                <span className="text-[#EF4444]">{totalFailed} failed</span>
+                                <span className="text-state-success">{totalPassed} passed</span>
+                                <span className="text-state-danger">{totalFailed} failed</span>
                                 <span className="text-muted-ui">{totalCases - totalPassed - totalFailed} skipped</span>
                             </div>
 
@@ -215,13 +215,13 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                                         className={cn(
                                             "rounded-lg border p-3 cursor-pointer transition-all",
                                             selectedSuiteIdxs.has(i)
-                                                ? "border-[#A78BFA]/40 bg-panel-muted"
+                                                ? "border-qa-accent/40 bg-panel-muted"
                                                 : "border-ui bg-app opacity-60"
                                         )}
                                         onClick={() => toggleSuite(i)}
                                     >
                                         <div className="flex items-center gap-2 mb-2">
-                                            <input type="checkbox" checked={selectedSuiteIdxs.has(i)} onChange={() => toggleSuite(i)} className="accent-[#A78BFA]" onClick={e => e.stopPropagation()} />
+                                            <input type="checkbox" checked={selectedSuiteIdxs.has(i)} onChange={() => toggleSuite(i)} className="accent-qa-accent" onClick={e => e.stopPropagation()} />
                                             <span className="text-xs font-bold text-foreground flex-1 truncate">{suite.name}</span>
                                             <span className="text-[10px] font-bold text-muted-ui">{suite.cases.length} cases</span>
                                         </div>
@@ -247,7 +247,7 @@ export function TestResultImportDialog({ open, onOpenChange }: TestResultImportD
                     <Button
                         onClick={handleImport}
                         disabled={importing || selectedSuiteIdxs.size === 0}
-                        className="bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]"
+                        className="bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]"
                     >
                         {importing ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Importing…</> : `Import ${selectedSuiteIdxs.size} Suite${selectedSuiteIdxs.size !== 1 ? 's' : ''}`}
                     </Button>

@@ -132,9 +132,9 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isProcessing}
-                                className="w-full border-2 border-dashed border-ui rounded-xl p-10 flex flex-col items-center gap-3 hover:border-[#A78BFA]/40 hover:bg-[#A78BFA]/5 transition-colors group"
+                                className="w-full border-2 border-dashed border-ui rounded-xl p-10 flex flex-col items-center gap-3 hover:border-qa-accent/40 hover:bg-qa-accent/5 transition-colors group"
                             >
-                                <UploadCloud className="h-10 w-10 text-muted-ui group-hover:text-[#A78BFA] transition-colors" />
+                                <UploadCloud className="h-10 w-10 text-muted-ui group-hover:text-qa-accent transition-colors" />
                                 <div className="text-center">
                                     <p className="text-sm font-bold text-foreground">Click to upload CSV or XLSX</p>
                                     <p className="text-xs text-muted-ui mt-1">Max 10MB, up to 5000 rows</p>
@@ -192,9 +192,9 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                     )}
 
                     {error && (
-                        <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg mt-4">
-                            <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                            <p className="text-xs text-red-400">{error}</p>
+                        <div className="flex items-start gap-2 p-3 bg-state-danger-soft border border-state-danger-border rounded-lg mt-4">
+                            <AlertCircle className="h-4 w-4 text-state-danger shrink-0 mt-0.5" />
+                            <p className="text-xs text-state-danger">{error}</p>
                         </div>
                     )}
                 </div>
@@ -207,7 +207,7 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
                     {step === 'mapping' && (
                         <Button size="sm"
                             onClick={handleImport}
-                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-bold"
+                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold"
                         >
                             <ChevronRight className="h-3.5 w-3.5 mr-1" />
                             Import Pairs

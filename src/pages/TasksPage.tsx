@@ -76,18 +76,18 @@ function savePresets(projectId: string, presets: FilterPreset[]) {
 
 function toLinearColumn(state: { name: string; type?: string }) : TaskBoardColumn {
     const type = String(state.type || "").toLowerCase()
-    if (type === "completed") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#10B981]", color: "bg-[#10B981]", type: state.type }
-    if (type === "canceled") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#EF4444]", color: "bg-[#EF4444]", type: state.type }
-    if (type === "started") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-[#3B82F6]", color: "bg-[#3B82F6]", type: state.type }
-    if (type === "unstarted") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-[#6B7280]", type: state.type }
+    if (type === "completed") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-state-success", color: "bg-state-success", type: state.type }
+    if (type === "canceled") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-state-danger", color: "bg-state-danger", type: state.type }
+    if (type === "started") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-state-info", color: "bg-state-info", type: state.type }
+    if (type === "unstarted") return { id: state.name, title: state.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-line-strong", type: state.type }
     return { id: state.name, title: state.name.toUpperCase(), textColor: "text-brand", color: "bg-primary", type: state.type }
 }
 
 function toJiraColumn(status: { name: string; category?: string }) : TaskBoardColumn {
     const category = String(status.category || "").toLowerCase()
-    if (category.includes("done")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#10B981]", color: "bg-[#10B981]", type: "done" }
-    if (category.includes("progress") || category.includes("indeterminate")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-[#3B82F6]", color: "bg-[#3B82F6]", type: "started" }
-    return { id: status.name, title: status.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-[#6B7280]", type: "unstarted" }
+    if (category.includes("done")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-state-success", color: "bg-state-success", type: "done" }
+    if (category.includes("progress") || category.includes("indeterminate")) return { id: status.name, title: status.name.toUpperCase(), textColor: "text-state-info", color: "bg-state-info", type: "started" }
+    return { id: status.name, title: status.name.toUpperCase(), textColor: "text-muted-ui", color: "bg-line-strong", type: "unstarted" }
 }
 
 function loadJson<T>(key: string, fallback: T): T {

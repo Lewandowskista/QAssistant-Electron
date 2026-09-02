@@ -63,7 +63,7 @@ function renderInline(text: string): ReactNode[] {
     } else if (match[3]) {
       // code
       tokens.push(
-        <code key={match.index} className="px-1.5 py-0.5 rounded-md bg-[#1E1B2E] text-primary text-xs font-mono">
+        <code key={match.index} className="px-1.5 py-0.5 rounded-md bg-qa-accent/10 text-primary text-xs font-mono">
           {match[3]}
         </code>,
       )

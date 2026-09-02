@@ -36,10 +36,10 @@ interface TaskCardProps {
 }
 
 const priorityConfig = {
-  critical: { icon: AlertCircle, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", label: "CRITICAL" },
-  high: { icon: ChevronUp, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "HIGH" },
-  medium: { icon: Minus, color: "text-amber-300", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "MEDIUM" },
-  low: { icon: ChevronDown, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "LOW" },
+  critical: { icon: AlertCircle, color: "text-state-danger", bg: "bg-state-danger-soft", border: "border-state-danger-border", label: "CRITICAL" },
+  high: { icon: ChevronUp, color: "text-state-warning", bg: "bg-state-warning-soft", border: "border-state-warning-border", label: "HIGH" },
+  medium: { icon: Minus, color: "text-state-warning", bg: "bg-state-warning-soft", border: "border-state-warning-border", label: "MEDIUM" },
+  low: { icon: ChevronDown, color: "text-state-success", bg: "bg-state-success-soft", border: "border-state-success-border", label: "LOW" },
 } as const
 
 function labelList(task: Task) {
@@ -56,9 +56,9 @@ function sourceLabel(task: Task) {
 }
 
 function sourceClasses(task: Task) {
-  if (task.source === "jira") return "bg-blue-500/10 border-blue-500/20 text-blue-300"
+  if (task.source === "jira") return "bg-state-info-soft border-state-info-border text-state-info"
   if (task.source === "linear") return "bg-primary/10 border-primary/20 text-primary"
-  return "bg-amber-500/10 border-amber-500/20 text-amber-300"
+  return "bg-state-warning-soft border-state-warning-border text-state-warning"
 }
 
 function taskHint(task: Task, taskView?: TaskViewModel) {
@@ -163,7 +163,7 @@ export const TaskCard = memo(function TaskCard({
               <button
                 type="button"
                 aria-label="Open source ticket"
-                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-sky-300"
+                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-state-info"
                 onClick={(event) => {
                   event.stopPropagation()
                   onOpenExternal?.()
@@ -199,7 +199,7 @@ export const TaskCard = memo(function TaskCard({
           </div>
         </div>
 
-        <h4 className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground transition-colors group-hover:text-white">
+        <h4 className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground transition-colors group-hover:text-foreground">
           {task.title}
         </h4>
 

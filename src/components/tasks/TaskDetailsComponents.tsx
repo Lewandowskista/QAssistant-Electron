@@ -5,7 +5,7 @@ import { Image as ImageIcon, PlayCircle, ExternalLink } from "lucide-react"
 
 export function DetailItem({ icon: Icon, label, value }: { icon?: any, label: string, value: string }) {
     return (
-        <div className="flex items-start gap-4 h-10 px-3 bg-[#1A1A24]/40 rounded-lg border border-[#2A2A3A]/30">
+        <div className="flex items-start gap-4 h-10 px-3 bg-surface-alt/40 rounded-lg border border-line/30">
             <div className="flex items-center h-full w-24 shrink-0 gap-2">
                 {Icon && <Icon className="h-3.5 w-3.5 text-muted-ui" />}
                 <span className="text-[11px] font-bold text-muted-ui">{label}</span>
@@ -88,7 +88,7 @@ export function MediaSection({ task, onImageClick, projectId }: { task: Task, on
                 {mediaUrls.map((item, idx) => (
                     <div
                         key={idx}
-                        className="group relative aspect-video bg-panel-muted border border-ui rounded-lg overflow-hidden cursor-pointer hover:border-[#A78BFA]/50 transition-colors"
+                        className="group relative aspect-video bg-panel-muted border border-ui rounded-lg overflow-hidden cursor-pointer hover:border-qa-accent/50 transition-colors"
                         onClick={() => {
                             if (item.type === 'image') {
                                 onImageClick(proxifyMediaUrl(item.url, task.source, task.connectionId, projectId))
@@ -113,11 +113,11 @@ export function MediaSection({ task, onImageClick, projectId }: { task: Task, on
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-elevated">
                                 <PlayCircle className="h-8 w-8 text-brand opacity-60 group-hover:opacity-100 transition-opacity" />
-                                <span className="text-[9px] font-bold text-gray-500 uppercase">Video Link</span>
+                                <span className="text-[9px] font-bold text-muted-ui uppercase">Video Link</span>
                             </div>
                         )}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <ExternalLink className="h-5 w-5 text-white" />
+                            <ExternalLink className="h-5 w-5 text-primary-foreground" />
                         </div>
                     </div>
                 ))}

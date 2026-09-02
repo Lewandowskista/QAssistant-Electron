@@ -242,12 +242,12 @@ export default function ApiPage() {
 
     const getMethodColor = (m: string) => {
         switch (m) {
-            case 'GET': return 'bg-[#3B82F6]'
-            case 'POST': return 'bg-[#10B981]'
-            case 'PUT': return 'bg-[#F59E0B]'
-            case 'DELETE': return 'bg-[#EF4444]'
-            case 'PATCH': return 'bg-[#8B5CF6]'
-            default: return 'bg-[#6B7280]'
+            case 'GET': return 'bg-state-info'
+            case 'POST': return 'bg-state-success'
+            case 'PUT': return 'bg-state-warning'
+            case 'DELETE': return 'bg-state-danger'
+            case 'PATCH': return 'bg-qa-accent'
+            default: return 'bg-line-strong'
         }
     }
 
@@ -295,15 +295,15 @@ export default function ApiPage() {
                             className={cn(
                                 "p-2.5 rounded-lg border transition-all cursor-pointer group",
                                 selectedReqId === req.id
-                                    ? "bg-panel-muted border-[#A78BFA]/50"
-                                    : "bg-transparent border-transparent hover:bg-[#1A1A24]/50"
+                                    ? "bg-panel-muted border-qa-accent/50"
+                                    : "bg-transparent border-transparent hover:bg-surface-alt/50"
                             )}
                         >
                             <div className="flex items-center gap-2 mb-1">
-                                <span className={cn("text-[8px] font-black px-1.5 py-0.5 rounded text-white min-w-[32px] text-center", getMethodColor(req.method))}>
+                                <span className={cn("text-[8px] font-black px-1.5 py-0.5 rounded text-primary-foreground min-w-[32px] text-center", getMethodColor(req.method))}>
                                     {req.method}
                                 </span>
-                                <span className="text-xs font-bold text-[#E2E8E0] truncate flex-1">{req.name}</span>
+                                <span className="text-xs font-bold text-foreground truncate flex-1">{req.name}</span>
                             </div>
                             <div className="text-[10px] text-muted-ui font-medium uppercase tracking-wider pl-[38px]">
                                 {req.category || 'Custom'}
@@ -313,12 +313,12 @@ export default function ApiPage() {
                 </div>
 
                 <div className="p-3 border-t border-ui space-y-2 bg-app">
-                    <Button onClick={handleNew} className="w-full h-10 bg-[#A78BFA]/10 text-brand border border-[#A78BFA]/20 hover:bg-[#A78BFA]/20 font-bold text-xs gap-2">
+                    <Button onClick={handleNew} className="w-full h-10 bg-qa-accent/10 text-brand border border-qa-accent/20 hover:bg-qa-accent/20 font-bold text-xs gap-2">
                         <Plus className="h-3.5 w-3.5" /> NEW REQUEST
                     </Button>
                     <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" onClick={loadOccTemplates} className="h-8 border-ui text-[9px] font-bold text-muted-ui uppercase hover:bg-[#A78BFA]/10 hover:text-brand">OCC Templates</Button>
-                        <Button variant="outline" onClick={loadHacTemplates} className="h-8 border-ui text-[9px] font-bold text-muted-ui uppercase hover:bg-[#A78BFA]/10 hover:text-brand">HAC Templates</Button>
+                        <Button variant="outline" onClick={loadOccTemplates} className="h-8 border-ui text-[9px] font-bold text-muted-ui uppercase hover:bg-qa-accent/10 hover:text-brand">OCC Templates</Button>
+                        <Button variant="outline" onClick={loadHacTemplates} className="h-8 border-ui text-[9px] font-bold text-muted-ui uppercase hover:bg-qa-accent/10 hover:text-brand">HAC Templates</Button>
                     </div>
                 </div>
             </aside>
@@ -349,10 +349,10 @@ export default function ApiPage() {
                         </Select>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={handleDelete} className="text-[#EF4444] hover:bg-[#EF4444]/10">
+                        <Button variant="ghost" size="icon" onClick={handleDelete} className="text-state-danger hover:bg-state-danger-soft">
                             <Trash2 className="h-4 w-4" />
                         </Button>
-                        <Button onClick={handleSave} className="h-9 px-6 bg-primary text-[#0F0F13] font-black text-xs">
+                        <Button onClick={handleSave} className="h-9 px-6 bg-primary text-primary-foreground font-black text-xs">
                             SAVE
                         </Button>
                     </div>
@@ -406,7 +406,7 @@ export default function ApiPage() {
                 {/* URL Bar */}
                 <div className="p-4 flex gap-2 border-b border-ui">
                     <Select value={method} onValueChange={m => setMethod(m as HttpMethod)}>
-                        <SelectTrigger className={cn("w-[100px] h-11 border-ui text-xs font-black rounded-r-none", getMethodColor(method) + " text-white")}>
+                        <SelectTrigger className={cn("w-[100px] h-11 border-ui text-xs font-black rounded-r-none", getMethodColor(method) + " text-primary-foreground")}>
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-panel-muted border-ui text-foreground">
@@ -423,7 +423,7 @@ export default function ApiPage() {
                         placeholder="https://... or {{baseUrl}}/api/..."
                         className="h-11 flex-1 bg-panel-muted border-ui border-x-0 rounded-none font-mono text-sm text-brand"
                     />
-                    <Button onClick={handleSend} disabled={isExecuting} className="h-11 px-8 bg-primary text-[#0F0F13] font-black rounded-l-none">
+                    <Button onClick={handleSend} disabled={isExecuting} className="h-11 px-8 bg-primary text-primary-foreground font-black rounded-l-none">
                         {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : "SEND"}
                     </Button>
                 </div>
@@ -438,7 +438,7 @@ export default function ApiPage() {
                             <Button 
                                 variant="outline" 
                                 onClick={handleAutoAuth}
-                                className="h-6 border-[#10B981]/20 text-[#10B981] text-[9px] font-bold hover:bg-[#10B981]/10 px-2"
+                                className="h-6 border-state-success-border text-state-success text-[9px] font-bold hover:bg-state-success-soft px-2"
                             >
                                 AUTO AUTH
                             </Button>
@@ -446,7 +446,7 @@ export default function ApiPage() {
                         <textarea
                             value={headers}
                             onChange={e => setHeaders(e.target.value)}
-                            className="w-full h-24 bg-panel-muted border border-ui rounded-xl p-3 font-mono text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-[#A78BFA]/30"
+                            className="w-full h-24 bg-panel-muted border border-ui rounded-xl p-3 font-mono text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-qa-accent/30"
                             placeholder="Authorization: Bearer ..."
                         />
                     </div>
@@ -458,7 +458,7 @@ export default function ApiPage() {
                         <textarea
                             value={body}
                             onChange={e => setBody(e.target.value)}
-                            className="w-full h-40 bg-panel-muted border border-ui rounded-xl p-3 font-mono text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-[#A78BFA]/30"
+                            className="w-full h-40 bg-panel-muted border border-ui rounded-xl p-3 font-mono text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-qa-accent/30"
                             placeholder='{ "key": "value" }'
                         />
                     </div>
@@ -470,7 +470,7 @@ export default function ApiPage() {
                         <span className="text-[9px] font-bold text-muted-ui uppercase tracking-widest">RESPONSE</span>
                         {responseStatus && (
                             <div className="flex items-center gap-4">
-                                <span className={cn("text-xs font-bold font-mono", responseStatus < 300 ? "text-[#10B981]" : "text-[#EF4444]")}>
+                                <span className={cn("text-xs font-bold font-mono", responseStatus < 300 ? "text-state-success" : "text-state-danger")}>
                                     {responseStatus}
                                 </span>
                                 <span className="text-[10px] font-bold text-muted-ui font-mono">{responseTime}ms</span>
@@ -483,7 +483,7 @@ export default function ApiPage() {
                                     onClick={() => setActiveRespTab(tab)}
                                     className={cn(
                                         "px-3 h-10 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all",
-                                        activeRespTab === tab ? "border-[#A78BFA] text-brand bg-panel-muted" : "border-transparent text-muted-ui hover:text-foreground"
+                                        activeRespTab === tab ? "border-qa-accent text-brand bg-panel-muted" : "border-transparent text-muted-ui hover:text-foreground"
                                     )}
                                 >
                                     {tab}
@@ -510,7 +510,7 @@ export default function ApiPage() {
                 <div className="h-[250px] bg-app flex-none overflow-hidden relative group">
                     <div className="h-full overflow-y-auto p-4 custom-scrollbar">
                         {activeRespTab === 'Body' && (
-                            <div className="font-mono text-xs text-foreground selection:bg-[#A78BFA]/20">
+                            <div className="font-mono text-xs text-foreground selection:bg-qa-accent/20">
                                 {response ? (
                                     typeof response === 'object' ? (
                                         <pre>{JSON.stringify(response, null, 2)}</pre>
@@ -525,7 +525,7 @@ export default function ApiPage() {
                         {activeRespTab === 'Headers' && (
                             <div className="space-y-1">
                                 {Object.entries(respHeaders).map(([k, v]) => (
-                                    <div key={k} className="flex gap-4 border-b border-[#2A2A3A]/50 py-1">
+                                    <div key={k} className="flex gap-4 border-b border-line/50 py-1">
                                         <span className="text-brand font-bold min-w-[120px] text-[10px] uppercase font-mono">{k}</span>
                                         <span className="text-foreground font-mono text-xs">{v}</span>
                                     </div>
@@ -534,7 +534,7 @@ export default function ApiPage() {
                             </div>
                         )}
                     </div>
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#A78BFA]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-qa-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
             </main>
         </div>

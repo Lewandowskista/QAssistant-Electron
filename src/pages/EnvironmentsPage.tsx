@@ -209,15 +209,15 @@ export default function EnvironmentsPage() {
                             className={cn(
                                 "group p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3",
                                 selectedEnvId === env.id
-                                    ? "bg-panel-muted border-[#A78BFA] shadow-lg shadow-[#A78BFA]/5"
-                                    : "bg-transparent border-transparent hover:bg-[#1A1A24]/50 hover:border-[#2A2A3A]"
+                                    ? "bg-panel-muted border-qa-accent shadow-lg shadow-qa-accent/5"
+                                    : "bg-transparent border-transparent hover:bg-surface-alt/50 hover:border-ui"
                             )}
                         >
                             <div className={cn("w-1 h-8 rounded-full flex-none", env.color || "bg-primary")} />
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2">
                                     <h4 className="text-sm font-bold text-foreground truncate">{env.name}</h4>
-                                    {env.isDefault && <Star className="h-3 w-3 fill-[#F59E0B] text-[#F59E0B] flex-none" />}
+                                    {env.isDefault && <Star className="h-3 w-3 fill-state-warning text-state-warning flex-none" />}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
                                     {(() => {
@@ -232,8 +232,8 @@ export default function EnvironmentsPage() {
                                                 aria-label={`${healthLabel}. ${checked}`}
                                                 title={`${healthLabel} — ${checked}`}
                                                 className={cn("w-2 h-2 rounded-full flex-none",
-                                                    health === 'healthy' ? "bg-[#10B981]" :
-                                                    health === 'unhealthy' ? "bg-[#EF4444]" : "bg-[#6B7280]"
+                                                    health === 'healthy' ? "bg-state-success" :
+                                                    health === 'unhealthy' ? "bg-state-danger" : "bg-line-strong"
                                                 )} />
                                         )
                                     })()}
@@ -256,7 +256,7 @@ export default function EnvironmentsPage() {
                     <Button onClick={handleCheckAll} variant="outline" className="w-full h-10 border-ui bg-panel-muted text-foreground font-bold text-xs gap-2">
                         <Activity className="h-3.5 w-3.5" /> Check All Endpoints
                     </Button>
-                    <Button onClick={handleAdd} className="w-full h-10 bg-[#A78BFA]/10 text-brand border border-[#A78BFA]/20 hover:bg-[#A78BFA]/20 font-bold text-xs gap-2">
+                    <Button onClick={handleAdd} className="w-full h-10 bg-qa-accent/10 text-brand border border-qa-accent/20 hover:bg-qa-accent/20 font-bold text-xs gap-2">
                         <Plus className="h-3.5 w-3.5" /> ADD ENVIRONMENT
                     </Button>
                 </div>
@@ -267,9 +267,9 @@ export default function EnvironmentsPage() {
                 {localEnv ? (
                     <div className="max-w-4xl mx-auto p-10 space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
                         {credentialStatus?.canPersistSecrets === false && (
-                            <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-start gap-3">
-                                <AlertTriangle className="h-4 w-4 text-yellow-300 mt-0.5 shrink-0" />
-                                <p className="text-xs text-yellow-200 leading-relaxed">
+                            <div className="rounded-2xl border border-state-warning/40 bg-state-warning-soft px-4 py-3 flex items-start gap-3">
+                                <AlertTriangle className="h-4 w-4 text-state-warning mt-0.5 shrink-0" />
+                                <p className="text-xs text-state-warning leading-relaxed">
                                     Environment credentials cannot be saved on this device until insecure plaintext storage is explicitly allowed in Settings.
                                 </p>
                             </div>
@@ -287,13 +287,13 @@ export default function EnvironmentsPage() {
                                 </div>
                             </div>
                             <div className="flex gap-2 flex-wrap shrink-0">
-                                <Button onClick={handleSwitchActive} variant="outline" size="sm" className="h-10 px-4 border-[#10B981]/20 text-[#10B981] hover:bg-[#10B981]/10 font-bold text-xs gap-2">
+                                <Button onClick={handleSwitchActive} variant="outline" size="sm" className="h-10 px-4 border-state-success-border text-state-success hover:bg-state-success-soft font-bold text-xs gap-2">
                                     <Activity className="h-4 w-4" /> Switch Active
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => setBugDialogOpen(true)} className="h-10 px-4 border-[#EF4444]/20 text-[#EF4444] hover:bg-[#EF4444]/10 font-bold text-xs gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setBugDialogOpen(true)} className="h-10 px-4 border-state-danger-border text-state-danger hover:bg-state-danger-soft font-bold text-xs gap-2">
                                     <Bug className="h-4 w-4" /> Report Bug
                                 </Button>
-                                <Button onClick={handleSave} className="h-10 px-6 bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))] font-black text-xs gap-2 shadow-xl shadow-[#A78BFA]/10">
+                                <Button onClick={handleSave} className="h-10 px-6 bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))] font-black text-xs gap-2 shadow-xl shadow-qa-accent/10">
                                     <Save className="h-4 w-4" /> SAVE CHANGES
                                 </Button>
                             </div>
@@ -303,7 +303,7 @@ export default function EnvironmentsPage() {
                             {/* Base Config Section */}
                             <div className="space-y-6">
                                 <div className="flex items-center gap-2 pb-3 border-b border-ui">
-                                    <Globe className="h-4 w-4 text-[#A78BFA]/70" />
+                                    <Globe className="h-4 w-4 text-qa-accent/70" />
                                     <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-muted-ui">Connection Details</h3>
                                 </div>
 
@@ -313,7 +313,7 @@ export default function EnvironmentsPage() {
                                         <Input
                                             value={localEnv.name}
                                             onChange={e => setLocalEnv({ ...localEnv, name: e.target.value })}
-                                            className="h-11 bg-panel-muted border-ui text-foreground focus-visible:ring-[#A78BFA]/30"
+                                            className="h-11 bg-panel-muted border-ui text-foreground focus-visible:ring-qa-accent/30"
                                         />
                                     </div>
 
@@ -356,11 +356,11 @@ export default function EnvironmentsPage() {
                             {/* SAP Commerce Integration Section */}
                             <div className="space-y-6">
                                 <div className="flex items-center gap-2 pb-3 border-b border-ui">
-                                    <Database className="h-4 w-4 text-[#A78BFA]/70" />
+                                    <Database className="h-4 w-4 text-qa-accent/70" />
                                     <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-muted-ui">SAP Commerce Cluster</h3>
                                 </div>
 
-                                <div className="bg-[#1A1A24]/40 rounded-2xl border border-ui p-6 space-y-5">
+                                <div className="bg-surface-alt/40 rounded-2xl border border-ui p-6 space-y-5">
                                     <div className="space-y-2">
                                         <Label className="text-[10px] font-bold text-muted-ui uppercase px-1">HAC Console</Label>
                                         <Input
@@ -408,9 +408,9 @@ export default function EnvironmentsPage() {
 
                         {/* Security & Credentials */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div className="bg-[#1A3A2A]/10 rounded-2xl border border-[#10B981]/20 p-6 flex flex-col gap-4">
+                            <div className="bg-state-success-soft rounded-2xl border border-state-success-border p-6 flex flex-col gap-4">
                                 <div className="flex items-center gap-3">
-                                    <div className={cn("p-2 rounded-lg", localEnv.ignoreSslErrors ? "bg-[#EF4444]/10 text-[#EF4444]" : "bg-[#10B981]/10 text-[#10B981]")}>
+                                    <div className={cn("p-2 rounded-lg", localEnv.ignoreSslErrors ? "bg-state-danger-soft text-state-danger" : "bg-state-success-soft text-state-success")}>
                                         <ShieldCheck className="h-5 w-5" />
                                     </div>
                                     <div className="flex-1">
@@ -420,14 +420,14 @@ export default function EnvironmentsPage() {
                                     <Checkbox
                                         checked={localEnv.ignoreSslErrors}
                                         onCheckedChange={val => setLocalEnv({ ...localEnv, ignoreSslErrors: !!val })}
-                                        className="h-5 w-5 border-ui data-[state=checked]:bg-[#EF4444]"
+                                        className="h-5 w-5 border-ui data-[state=checked]:bg-state-danger"
                                     />
                                 </div>
                             </div>
 
-                            <div className="bg-[#1A1A24]/40 rounded-2xl border border-ui p-6 space-y-4">
+                            <div className="bg-surface-alt/40 rounded-2xl border border-ui p-6 space-y-4">
                                 <div className="flex items-center gap-2 pb-2 border-b border-ui">
-                                    <Key className="h-4 w-4 text-[#A78BFA]/70" />
+                                    <Key className="h-4 w-4 text-qa-accent/70" />
                                     <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-ui">HAC Credentials</h3>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -462,13 +462,13 @@ export default function EnvironmentsPage() {
                                         disabled={isTesting}
                                         variant="outline" 
                                         size="sm" 
-                                        className="h-8 border-[#A78BFA]/20 text-brand hover:bg-[#A78BFA]/10 text-[10px] font-bold"
+                                        className="h-8 border-qa-accent/20 text-brand hover:bg-qa-accent/10 text-[10px] font-bold"
                                     >
                                         {isTesting ? "Testing..." : "Test Connection"}
                                     </Button>
                                 </div>
                                 {testStatus && (
-                                    <p className={cn("text-[10px] font-bold", testStatus.startsWith('✓') ? "text-[#10B981]" : "text-[#EF4444]")}>
+                                    <p className={cn("text-[10px] font-bold", testStatus.startsWith('✓') ? "text-state-success" : "text-state-danger")}>
                                         {testStatus}
                                     </p>
                                 )}
@@ -482,7 +482,7 @@ export default function EnvironmentsPage() {
                                     <StickyNote className="h-3.5 w-3.5 text-brand" /> Operational Status & Notes
                                 </Label>
                                 <div className="flex items-center gap-2">
-                                    <Checkbox checked={localEnv.isDefault} onCheckedChange={() => setEnvironmentDefault(activeProjectId!, localEnv.id)} className="h-4 w-4 border-ui data-[state=checked]:bg-[#A78BFA]" />
+                                    <Checkbox checked={localEnv.isDefault} onCheckedChange={() => setEnvironmentDefault(activeProjectId!, localEnv.id)} className="h-4 w-4 border-ui data-[state=checked]:bg-qa-accent" />
                                     <span className="text-[10px] font-bold text-muted-ui uppercase">Set as project default</span>
                                 </div>
                             </div>
@@ -497,9 +497,9 @@ export default function EnvironmentsPage() {
 
                         {/* Dangerous Actions */}
                         <div className="pt-6 flex items-center justify-between border-t border-ui">
-                            <p className="text-[10px] font-black text-[#EF4444] uppercase tracking-widest opacity-40">Security Subsystem: Critical Controls</p>
+                            <p className="text-[10px] font-black text-state-danger uppercase tracking-widest opacity-40">Security Subsystem: Critical Controls</p>
                             <div className="flex gap-4">
-                                <Button onClick={() => handleDelete(localEnv.id)} className="h-10 bg-[#3F1A1A] text-[#EF4444] hover:bg-[#522525] border border-[#EF4444]/20 font-bold text-xs gap-2">
+                                <Button onClick={() => handleDelete(localEnv.id)} className="h-10 bg-state-danger-soft text-state-danger hover:bg-state-danger-soft border border-state-danger-border font-bold text-xs gap-2">
                                     <Trash2 className="h-3.5 w-3.5" /> DELETE ENVIRONMENT
                                 </Button>
                             </div>
@@ -508,13 +508,13 @@ export default function EnvironmentsPage() {
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center h-full p-24 text-center space-y-6">
                         <div className="w-24 h-24 rounded-full bg-panel-muted flex items-center justify-center animate-pulse">
-                            <Server className="h-10 w-10 text-[#6B7280]/30" strokeWidth={1} />
+                            <Server className="h-10 w-10 text-text-muted/30" strokeWidth={1} />
                         </div>
                         <div className="space-y-2">
                             <h3 className="text-xl font-black text-foreground">Target Selection Required</h3>
                             <p className="text-sm text-muted-ui max-w-sm mx-auto font-medium">Link separate targets like Development, UAT, and Production to monitor operational integrity.</p>
                         </div>
-                        <Button onClick={handleAdd} className="h-11 px-8 bg-primary text-[#0F0F13] font-black">
+                        <Button onClick={handleAdd} className="h-11 px-8 bg-primary text-primary-foreground font-black">
                             <Plus className="h-5 w-5 mr-2" /> CREATE ENDPOINT
                         </Button>
                     </div>
@@ -550,23 +550,23 @@ export default function EnvironmentsPage() {
                     </div>
                     <DialogFooter className="bg-panel">
                         <Button variant="ghost" onClick={() => setIsAddModalOpen(false)} className="text-muted-ui hover:text-foreground">CANCEL</Button>
-                        <Button onClick={handleConfirmAdd} disabled={!newEnvName.trim()} className="bg-primary text-[#0F0F13] font-bold px-8">CREATE</Button>
+                        <Button onClick={handleConfirmAdd} disabled={!newEnvName.trim()} className="bg-primary text-primary-foreground font-bold px-8">CREATE</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* Delete Confirmation Modal */}
             <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-                <DialogContent className="bg-panel border-[#EF4444]/30 sm:max-w-[400px]">
+                <DialogContent className="bg-panel border-state-danger-border sm:max-w-[400px]">
                     <DialogHeader>
-                        <DialogTitle className="text-[#EF4444] uppercase tracking-widest text-sm">Destructive Action</DialogTitle>
+                        <DialogTitle className="text-state-danger uppercase tracking-widest text-sm">Destructive Action</DialogTitle>
                     </DialogHeader>
                     <div className="py-6">
                         <p className="text-sm text-foreground">Are you sure you want to delete this environment? This action cannot be undone.</p>
                     </div>
                     <DialogFooter className="bg-panel">
                         <Button variant="ghost" onClick={() => setIsDeleteModalOpen(false)} className="text-muted-ui hover:text-foreground">CANCEL</Button>
-                        <Button onClick={handleConfirmDelete} className="bg-[#EF4444] text-white hover:bg-[#DC2626] font-bold px-8">DELETE</Button>
+                        <Button onClick={handleConfirmDelete} className="bg-state-danger text-primary-foreground hover:bg-state-danger font-bold px-8">DELETE</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

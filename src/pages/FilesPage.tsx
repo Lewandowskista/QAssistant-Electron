@@ -169,10 +169,10 @@ export default function FilesPage() {
                     </select>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button onClick={handlePaste} variant="outline" className="h-9 border-[#A78BFA]/20 text-brand font-black text-[10px] uppercase hover:bg-[#A78BFA]/5">
+                    <Button onClick={handlePaste} variant="outline" className="h-9 border-qa-accent/20 text-brand font-black text-[10px] uppercase hover:bg-qa-accent/5">
                         PASTE SCREENSHOT
                     </Button>
-                    <Button onClick={handleBrowse} className="h-9 bg-primary text-[#0F0F13] font-black text-[10px] uppercase gap-2 px-6">
+                    <Button onClick={handleBrowse} className="h-9 bg-primary text-primary-foreground font-black text-[10px] uppercase gap-2 px-6">
                         <Upload className="h-3.5 w-3.5" /> BROWSE FILES
                     </Button>
                 </div>
@@ -182,7 +182,7 @@ export default function FilesPage() {
             <main
                 className={cn(
                     "flex-1 p-8 transition-all duration-300",
-                    isDragging ? "bg-[#A78BFA]/5 border-2 border-dashed border-[#A78BFA]/20 m-4 rounded-[2rem]" : "bg-transparent"
+                    isDragging ? "bg-qa-accent/5 border-2 border-dashed border-qa-accent/20 m-4 rounded-[2rem]" : "bg-transparent"
                 )}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
@@ -229,7 +229,7 @@ export default function FilesPage() {
                         {filtered.map((file) => (
                             <div
                                 key={file.id}
-                                className="group bg-panel border border-ui rounded-2xl p-4 hover:border-[#A78BFA]/50 transition-all cursor-pointer relative overflow-hidden shadow-sm"
+                                className="group bg-panel border border-ui rounded-2xl p-4 hover:border-qa-accent/50 transition-all cursor-pointer relative overflow-hidden shadow-sm"
                                 onContextMenu={(event) => openContextMenu(event, file.id)}
                                 onMouseDown={(event) => {
                                     if (event.button !== 2) return
@@ -237,7 +237,7 @@ export default function FilesPage() {
                                 }}
                                 title="Right-click for file actions"
                             >
-                                <div className="absolute top-0 left-0 w-full h-1 bg-[#A78BFA]/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="absolute top-0 left-0 w-full h-1 bg-qa-accent/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 <div className="flex flex-col items-center text-center">
                                     <div
                                         className="w-12 h-12 rounded-xl bg-panel-muted flex items-center justify-center mb-3 text-brand overflow-hidden"
@@ -270,7 +270,7 @@ export default function FilesPage() {
                                         ).map((link) => {
                                             const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
                                             const task = activeProject?.tasks.find((item) => item.id === taskId)
-                                            return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-brand text-[9px]">{task.title}</span> : null
+                                            return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand text-[9px]">{task.title}</span> : null
                                         })}
                                     </div>
                                 </div>
@@ -315,7 +315,7 @@ export default function FilesPage() {
                                             api.openFile(file.filePath)
                                             setContextMenu(null)
                                         }}
-                                        className="flex items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-2 text-xs text-foreground hover:border-[#A78BFA]/30 hover:text-brand"
+                                        className="flex items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-2 text-xs text-foreground hover:border-qa-accent/30 hover:text-brand"
                                     >
                                         <ExternalLink className="h-3.5 w-3.5" />
                                         Open file
@@ -332,7 +332,7 @@ export default function FilesPage() {
                                             api.deleteAttachment(file.filePath)
                                             setContextMenu(null)
                                         }}
-                                        className="flex items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-2 text-xs text-foreground hover:border-[#EF4444]/30 hover:text-[hsl(var(--state-danger))]"
+                                        className="flex items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-2 text-xs text-foreground hover:border-state-danger-border hover:text-[hsl(var(--state-danger))]"
                                     >
                                         <Trash2 className="h-3.5 w-3.5" />
                                         Delete file
@@ -347,7 +347,7 @@ export default function FilesPage() {
             {/* Upload Overlay */}
             {isDragging && (
                 <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center">
-                    <div className="bg-primary text-[#0F0F13] px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl animate-bounce">
+                    <div className="bg-primary text-primary-foreground px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl animate-bounce">
                         Release to upload
                     </div>
                 </div>

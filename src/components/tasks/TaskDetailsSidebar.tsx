@@ -263,7 +263,7 @@ export function TaskDetailsSidebar({
                                     <Input value={String(draft.labels || "")} onChange={(event) => setDraft((current) => ({ ...current, labels: event.target.value }))} placeholder="Labels" className="border-ui bg-panel-muted text-sm" />
                                     <Input value={Array.isArray(draft.components) ? draft.components.join(", ") : String(draft.components || "")} onChange={(event) => setDraft((current) => ({ ...current, components: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) }))} placeholder="Components" className="border-ui bg-panel-muted text-sm" />
                                 </div>
-                                <Button className="w-full bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]" onClick={handleSave}>Save Changes</Button>
+                                <Button className="w-full bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]" onClick={handleSave}>Save Changes</Button>
                             </div>
                         ) : (
                             <div className="space-y-5">
@@ -321,7 +321,7 @@ export function TaskDetailsSidebar({
                         {isLoadingTab ? (
                             <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-brand" /></div>
                         ) : commentsError ? (
-                            <div className="rounded-xl border border-[#EF4444]/20 bg-[#EF4444]/10 p-4 text-xs text-[#FCA5A5]">{commentsError}</div>
+                            <div className="rounded-xl border border-state-danger-border bg-state-danger-soft p-4 text-xs text-state-danger">{commentsError}</div>
                         ) : comments.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-10 text-center opacity-40">
                                 <MessageSquare className="mb-2 h-10 w-10" />
@@ -345,7 +345,7 @@ export function TaskDetailsSidebar({
                         {(selectedTask.externalId || selectedTask.sourceIssueId) && selectedTask.source !== "manual" && (
                             <div className="flex gap-2 border-t border-ui pt-4">
                                 <Input value={newComment} onChange={(event) => setNewComment(event.target.value)} placeholder="Add a comment…" className="h-10 border-ui bg-panel-muted text-xs" />
-                                <Button className="bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]" onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
+                                <Button className="bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]" onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
                                     {isPostingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : "Post"}
                                 </Button>
                             </div>
@@ -404,7 +404,7 @@ export function TaskDetailsSidebar({
                                         <span className="text-[10px] text-muted-ui">{new Date(item.timestamp).toLocaleString()}</span>
                                     </div>
                                     <div className="text-[11px] text-soft">
-                                        {item.fromValue ? `${item.fromValue} → ` : ""}<span className="font-semibold text-sky-300">{item.toValue}</span>
+                                        {item.fromValue ? `${item.fromValue} → ` : ""}<span className="font-semibold text-state-info">{item.toValue}</span>
                                     </div>
                                 </div>
                             ))
@@ -418,7 +418,7 @@ export function TaskDetailsSidebar({
                     {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ActivityIcon className="h-4 w-4" />}
                     {isAnalyzing ? "Analyzing…" : "Analyze Issue"}
                 </Button>
-                <Button className="w-full gap-1.5 border border-emerald-500/20 bg-emerald-500/10 text-[10px] font-bold text-emerald-300" onClick={onGenerateBugReport}>
+                <Button className="w-full gap-1.5 border border-state-success-border bg-state-success-soft text-[10px] font-bold text-state-success" onClick={onGenerateBugReport}>
                     <Target className="h-3.5 w-3.5" /> Generate Bug Report
                 </Button>
                 {selectedTask.source !== "manual" && selectedTask.ticketUrl && (
@@ -426,7 +426,7 @@ export function TaskDetailsSidebar({
                         <ExternalLink className="h-3.5 w-3.5" /> Open Source Ticket
                     </Button>
                 )}
-                <Button className="w-full gap-1.5 border border-red-500/20 bg-red-500/10 text-[10px] font-bold text-red-300" onClick={onDelete}>
+                <Button className="w-full gap-1.5 border border-state-danger-border bg-state-danger-soft text-[10px] font-bold text-state-danger" onClick={onDelete}>
                     <Trash2 className="h-3.5 w-3.5" /> Delete Task
                 </Button>
             </div>

@@ -94,7 +94,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
 
     return (
         <div className="fixed inset-0 z-layer-overlay flex items-start justify-center pt-[15vh] px-4 animate-in fade-in duration-200">
-            <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md" onClick={() => onOpenChange(false)} />
+            <div className="fixed inset-0 bg-surface-overlay/70 backdrop-blur-md" onClick={() => onOpenChange(false)} />
 
             <div className="relative w-full max-w-2xl overflow-hidden rounded-[2.25rem] border bg-[hsl(var(--surface-overlay))] shadow-[0_32px_96px_-12px_rgba(0,0,0,0.5)] flex flex-col focus-visible:outline-none ring-1 ring-white/10 ring-inset">
                 <div className="flex items-center px-8 border-b border-border/50 h-20 bg-[hsl(var(--surface-header)/0.72)]">

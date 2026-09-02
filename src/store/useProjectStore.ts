@@ -405,6 +405,8 @@ async function triggerCollaborationWebhook(
             verification_failed: 'QA Verification Failed',
             pr_linked: 'PR Linked to Handoff'
         }
+        // Embed colors for external webhook payloads (Slack/Discord) — must be
+        // literal hex; CSS variables don't resolve outside the app.
         const colorMap = {
             handoff_sent: '#F59E0B',
             ready_for_qa: '#10B981',
@@ -1768,7 +1770,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             id: generateId(),
             name,
             type: 'custom',
-            color: '#A78BFA',
+            color: '#38BDF8',
             isDefault: false,
             createdAt: Date.now(),
             baseUrl: "",

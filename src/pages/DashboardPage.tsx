@@ -413,28 +413,28 @@ export default function DashboardPage() {
                     label="Ready For QA"
                     value={readyForQaTasks.length}
                     note={readyForQaTasks.length > 0 ? "Fixes are waiting for retest." : "No items are waiting for QA right now."}
-                    accentClassName="text-[#7DD3FC]"
+                    accentClassName="text-state-info"
                 />
                 <MetricCard
                     icon={AlertOctagon}
                     label="Critical Issues"
                     value={criticalOpenTasks.length}
                     note={criticalOpenTasks.length > 0 ? "Open critical or blocker defects need attention." : "No open critical issues in the current view."}
-                    accentClassName="text-[#F97373]"
+                    accentClassName="text-state-danger"
                 />
                 <MetricCard
                     icon={FlaskConical}
                     label="Pass Rate"
                     value={`${passRate}%`}
                     note={`${failedTests} failed, ${blockedTests} blocked, ${notRunTests} not run.`}
-                    accentClassName="text-[#34D399]"
+                    accentClassName="text-state-success"
                 />
                 <MetricCard
                     icon={CheckSquare}
                     label="Coverage Gaps"
                     value={coverageGapTasks.length}
                     note={`${coveragePercent}% of visible tasks have mapped coverage.`}
-                    accentClassName="text-[#FBBF24]"
+                    accentClassName="text-state-warning"
                 />
                 <MetricCard
                     icon={Sparkles}
@@ -530,7 +530,7 @@ export default function DashboardPage() {
                                 <QueueItem
                                     key={task.id}
                                     label="Retest"
-                                    toneClassName="bg-[#7DD3FC]/12 text-[#7DD3FC]"
+                                    toneClassName="bg-state-info-soft text-state-info"
                                     title={<FormattedText content={task.title} projectId={activeProjectId || undefined} />}
                                     meta={`${task.priority.toUpperCase()} priority / Updated ${formatShortDate(task.lastCollabUpdatedAt ?? task.updatedAt)}`}
                                 />
@@ -558,7 +558,7 @@ export default function DashboardPage() {
                                 <QueueItem
                                     key={testCase.id}
                                     label={testCase.displayId || "Failed"}
-                                    toneClassName="bg-[#F97373]/12 text-[#F97373]"
+                                    toneClassName="bg-state-danger-soft text-state-danger"
                                     title={testCase.title}
                                     meta={`${testCase.planName} / ${testCase.priority.toUpperCase()} priority / Updated ${formatShortDate(testCase.updatedAt)}`}
                                 />
@@ -586,7 +586,7 @@ export default function DashboardPage() {
                                 <QueueItem
                                     key={task.id}
                                     label="No Test"
-                                    toneClassName="bg-[#FBBF24]/12 text-[#FBBF24]"
+                                    toneClassName="bg-state-warning-soft text-state-warning"
                                     title={<FormattedText content={task.title} projectId={activeProjectId || undefined} />}
                                     meta={`${task.priority.toUpperCase()} priority / Updated ${formatShortDate(task.updatedAt)}`}
                                 />

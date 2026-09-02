@@ -24,10 +24,10 @@ import {
 } from '@/components/ui/select'
 
 const OBS_TYPE_CONFIG: Record<ExploratoryObservationType, { label: string; icon: React.ElementType; color: string }> = {
-    observation: { label: 'Observation', icon: Eye, color: 'text-blue-400' },
-    finding: { label: 'Finding', icon: Lightbulb, color: 'text-yellow-400' },
-    bug: { label: 'Bug', icon: Bug, color: 'text-red-400' },
-    question: { label: 'Question', icon: HelpCircle, color: 'text-purple-400' },
+    observation: { label: 'Observation', icon: Eye, color: 'text-state-info' },
+    finding: { label: 'Finding', icon: Lightbulb, color: 'text-state-warning' },
+    bug: { label: 'Bug', icon: Bug, color: 'text-state-danger' },
+    question: { label: 'Question', icon: HelpCircle, color: 'text-qa-accent' },
 }
 
 function formatDuration(ms: number): string {
@@ -251,8 +251,8 @@ export default function ExploratoryTestingPage() {
                             >
                                 <div className="flex items-center gap-1.5">
                                     {isDone
-                                        ? <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
-                                        : <Timer className="h-3 w-3 text-yellow-500 shrink-0 animate-pulse" />
+                                        ? <CheckCircle className="h-3 w-3 text-state-success shrink-0" />
+                                        : <Timer className="h-3 w-3 text-state-warning shrink-0 animate-pulse" />
                                     }
                                     <span className="text-xs font-medium truncate flex-1">{s.charter}</span>
                                 </div>
@@ -293,8 +293,8 @@ export default function ExploratoryTestingPage() {
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h1 className="text-sm font-semibold truncate">{selectedSession.charter}</h1>
                                         {selectedSession.completedAt
-                                            ? <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">Completed</Badge>
-                                            : <Badge variant="outline" className="text-xs text-yellow-500 border-yellow-500/30 animate-pulse">Active</Badge>
+                                            ? <Badge variant="outline" className="text-xs text-state-success border-state-success-border">Completed</Badge>
+                                            : <Badge variant="outline" className="text-xs text-state-warning border-state-warning-border animate-pulse">Active</Badge>
                                         }
                                     </div>
                                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -307,7 +307,7 @@ export default function ExploratoryTestingPage() {
                                 <div className="flex items-center gap-2 shrink-0">
                                     {isActive && (
                                         <div className="flex items-center gap-2">
-                                            <div className="text-sm font-mono tabular-nums text-yellow-500" role="timer" aria-live="polite">
+                                            <div className="text-sm font-mono tabular-nums text-state-warning" role="timer" aria-live="polite">
                                                 <Clock className="h-3.5 w-3.5 inline mr-1 mb-0.5" />
                                                 {formatDuration(elapsed)}
                                                 <span className="text-xs text-muted-foreground ml-1">/ {selectedSession.timebox}m</span>
@@ -325,7 +325,7 @@ export default function ExploratoryTestingPage() {
                                             <Square className="h-3 w-3 mr-1" /> Complete
                                         </Button>
                                     )}
-                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-state-danger"
                                         aria-label="Delete session"
                                         onClick={() => handleDeleteSession(selectedSession.id)}>
                                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -425,7 +425,7 @@ export default function ExploratoryTestingPage() {
                                                         {obs.type === 'bug' && isActive && (
                                                             <button
                                                                 onClick={() => handleFileBugFromObs(obs)}
-                                                                className="text-xs text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity ml-auto"
+                                                                className="text-xs text-state-danger hover:text-state-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity ml-auto"
                                                             >
                                                                 <Bug className="h-3 w-3 inline mr-0.5" /> File Bug
                                                             </button>

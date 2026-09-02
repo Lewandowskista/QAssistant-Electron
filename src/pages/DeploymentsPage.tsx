@@ -175,7 +175,7 @@ function DeploymentsContent() {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
                         </span>
-                        <span className="text-[10px] text-amber-400 font-semibold">Live</span>
+                        <span className="text-[10px] text-state-warning font-semibold">Live</span>
                     </div>
                 ) : null}
                 actions={
@@ -215,7 +215,7 @@ function DeploymentsContent() {
             />
 
             {/* Tabs */}
-            <div className="shrink-0 border-b border-ui bg-[#13131A]/40 px-5 flex items-center gap-1">
+            <div className="shrink-0 border-b border-ui bg-surface/40 px-5 flex items-center gap-1">
                 {([['workflows', 'Workflow Runs', Play], ['deployments', 'Environments', Rocket]] as const).map(([id, label, Icon]) => (
                     <button
                         key={id}
@@ -223,7 +223,7 @@ function DeploymentsContent() {
                         className={cn(
                             "flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors",
                             activeTab === id
-                                ? "border-[#A78BFA] text-brand"
+                                ? "border-qa-accent text-brand"
                                 : "border-transparent text-muted-ui hover:text-foreground"
                         )}
                     >
@@ -239,7 +239,7 @@ function DeploymentsContent() {
             {/* Content */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {(error || repoError) && (
-                    <div className="m-4 p-3 rounded-lg bg-red-950/30 border border-red-900/40 text-xs text-red-300">{error || repoError}</div>
+                    <div className="m-4 p-3 rounded-lg bg-state-danger-soft border border-state-danger-border text-xs text-state-danger">{error || repoError}</div>
                 )}
 
                 {loadingData && (
@@ -258,7 +258,7 @@ function DeploymentsContent() {
                                 placeholder="Filter by name or branch…"
                                 value={workflowFilter}
                                 onChange={e => setWorkflowFilter(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground placeholder-[#6B7280] focus:outline-none focus:border-[#A78BFA]/60 transition-colors"
+                                className="w-full pl-9 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground placeholder-text-muted focus:outline-none focus:border-qa-accent/60 transition-colors"
                             />
                         </div>
 
@@ -278,8 +278,8 @@ function DeploymentsContent() {
                                     className={cn(
                                         "rounded-lg border transition-colors",
                                         isActive
-                                            ? "bg-panel border-amber-900/40"
-                                            : "bg-panel border-ui hover:border-[#3D3D5F]"
+                                            ? "bg-panel border-state-warning-border"
+                                            : "bg-panel border-ui hover:border-ui-strong"
                                     )}
                                 >
                                     {/* Run row */}
@@ -356,11 +356,11 @@ function DeploymentsContent() {
                                                         <div key={job.id}>
                                                             <div className="flex items-center gap-2 py-1">
                                                                 {job.conclusion === 'success'
-                                                                    ? <Check className="h-3 w-3 text-emerald-400 shrink-0" />
+                                                                    ? <Check className="h-3 w-3 text-state-success shrink-0" />
                                                                     : job.conclusion === 'failure'
-                                                                    ? <X className="h-3 w-3 text-red-400 shrink-0" />
+                                                                    ? <X className="h-3 w-3 text-state-danger shrink-0" />
                                                                     : job.status === 'in_progress'
-                                                                    ? <Loader2 className="h-3 w-3 text-amber-400 animate-spin shrink-0" />
+                                                                    ? <Loader2 className="h-3 w-3 text-state-warning animate-spin shrink-0" />
                                                                     : <CircleDot className="h-3 w-3 text-muted-ui shrink-0" />
                                                                 }
                                                                 <span className="text-[11px] text-foreground font-semibold">{job.name}</span>
@@ -370,13 +370,13 @@ function DeploymentsContent() {
                                                                     {job.steps.map((step, si) => (
                                                                         <div key={si} className="flex items-center gap-1.5">
                                                                             {step.conclusion === 'success'
-                                                                                ? <Check className="h-2.5 w-2.5 text-emerald-400 shrink-0" />
+                                                                                ? <Check className="h-2.5 w-2.5 text-state-success shrink-0" />
                                                                                 : step.conclusion === 'failure'
-                                                                                ? <X className="h-2.5 w-2.5 text-red-400 shrink-0" />
+                                                                                ? <X className="h-2.5 w-2.5 text-state-danger shrink-0" />
                                                                                 : step.conclusion === 'skipped'
                                                                                 ? <CircleDot className="h-2.5 w-2.5 text-muted-ui shrink-0" />
                                                                                 : step.status === 'in_progress'
-                                                                                ? <Loader2 className="h-2.5 w-2.5 text-amber-400 animate-spin shrink-0" />
+                                                                                ? <Loader2 className="h-2.5 w-2.5 text-state-warning animate-spin shrink-0" />
                                                                                 : <CircleDot className="h-2.5 w-2.5 text-muted-ui opacity-40 shrink-0" />
                                                                             }
                                                                             <span className="text-[10px] text-soft">{step.name}</span>
@@ -418,7 +418,7 @@ function DeploymentsContent() {
                                     {envDeps.map(dep => (
                                         <div
                                             key={dep.id}
-                                            className="flex items-center gap-3 p-3 rounded-lg bg-panel border border-ui hover:border-[#3D3D5F] transition-colors group"
+                                            className="flex items-center gap-3 p-3 rounded-lg bg-panel border border-ui hover:border-ui-strong transition-colors group"
                                         >
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 text-[11px] text-muted-ui">
@@ -471,7 +471,7 @@ function DeploymentsContent() {
                                 <select
                                     value={dispatchWorkflowId ?? ''}
                                     onChange={e => setDispatchWorkflowId(Number(e.target.value))}
-                                    className="w-full px-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground focus:outline-none focus:border-[#A78BFA]/60"
+                                    className="w-full px-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground focus:outline-none focus:border-qa-accent/60"
                                 >
                                     {availableWorkflows.length === 0 && <option value="">Loading…</option>}
                                     {availableWorkflows.map(wf => (
@@ -488,7 +488,7 @@ function DeploymentsContent() {
                                         value={dispatchRef}
                                         onChange={e => setDispatchRef(e.target.value)}
                                         placeholder="main"
-                                        className="w-full pl-8 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground font-mono focus:outline-none focus:border-[#A78BFA]/60"
+                                        className="w-full pl-8 pr-3 py-2 rounded-md bg-panel border border-ui text-xs text-foreground font-mono focus:outline-none focus:border-qa-accent/60"
                                     />
                                 </div>
                             </div>
@@ -503,7 +503,7 @@ function DeploymentsContent() {
                             <button
                                 onClick={handleDispatch}
                                 disabled={dispatching || !dispatchWorkflowId || !dispatchRef}
-                                className="flex-1 px-3 py-2 rounded-md bg-primary text-white text-xs font-semibold hover:bg-[#9B7CF4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+                                className="flex-1 px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-qa-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
                             >
                                 {dispatching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                                 Run

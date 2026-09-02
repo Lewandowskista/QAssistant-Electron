@@ -84,13 +84,13 @@ export default function ChecklistsPage() {
                                 onClick={() => setSelectedChecklistId(cl.id)}
                                 className={cn(
                                     "p-3 rounded-xl border transition-all cursor-pointer group",
-                                    selectedChecklistId === cl.id ? "bg-panel-muted border-qa-purple/40 shadow-lg shadow-qa-purple/5" : "bg-transparent border-transparent hover:bg-[#1A1A24]/50"
+                                    selectedChecklistId === cl.id ? "bg-panel-muted border-qa-accent/40 shadow-lg shadow-qa-accent/5" : "bg-transparent border-transparent hover:bg-surface-alt/50"
                                 )}
                             >
                                 <div className="text-xs font-bold text-qa-text mb-1 truncate">{cl.name}</div>
                                 <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
-                                    <span className="text-qa-purple">{cl.category}</span>
-                                    <span className={cn(pct === 100 ? "text-emerald-500" : "text-qa-text-muted")}>{pct}% COMPLETE</span>
+                                    <span className="text-qa-accent">{cl.category}</span>
+                                    <span className={cn(pct === 100 ? "text-state-success" : "text-qa-text-muted")}>{pct}% COMPLETE</span>
                                 </div>
                             </div>
                         )
@@ -98,7 +98,7 @@ export default function ChecklistsPage() {
                 </div>
 
                 <div className="p-4 bg-app border-t border-qa-border space-y-2">
-                    <Button onClick={handleCreate} className="w-full h-10 bg-qa-purple/10 text-qa-purple border border-qa-purple/20 hover:bg-qa-purple/20 font-black text-xs gap-2">
+                    <Button onClick={handleCreate} className="w-full h-10 bg-qa-accent/10 text-qa-accent border border-qa-accent/20 hover:bg-qa-accent/20 font-black text-xs gap-2">
                         <Plus className="h-4 w-4" /> NEW CHECKLIST
                     </Button>
                 </div>
@@ -124,7 +124,7 @@ export default function ChecklistsPage() {
                                 />
                                 <div className="w-px h-6 bg-qa-border shrink-0" />
                                 <Select value={selectedChecklist!.category} onValueChange={(val) => updateChecklist(activeProjectId!, selectedChecklist!.id, { category: val })}>
-                                    <SelectTrigger className="w-[160px] h-8 bg-panel-muted border-qa-border text-[10px] font-bold uppercase text-qa-purple shrink-0">
+                                    <SelectTrigger className="w-[160px] h-8 bg-panel-muted border-qa-border text-[10px] font-bold uppercase text-qa-accent shrink-0">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-panel-muted border-qa-border text-qa-text">
@@ -137,7 +137,7 @@ export default function ChecklistsPage() {
                                 </Select>
                             </div>
                             <div className="flex gap-2 shrink-0">
-                                <Button variant="ghost" size="icon" onClick={() => deleteChecklist(activeProjectId!, selectedChecklist!.id)} aria-label="Delete checklist" className="text-red-500 hover:bg-red-500/10">
+                                <Button variant="ghost" size="icon" onClick={() => deleteChecklist(activeProjectId!, selectedChecklist!.id)} aria-label="Delete checklist" className="text-state-danger hover:bg-state-danger-soft">
                                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                                 </Button>
                             </div>
@@ -149,9 +149,9 @@ export default function ChecklistsPage() {
                                     <span>Sign-off Integrity Index</span>
                                     <span>{Math.round((selectedChecklist!.items.filter((i: any) => i.isChecked).length / (selectedChecklist!.items.length || 1)) * 100)}%</span>
                                 </div>
-                                <Progress value={(selectedChecklist!.items.filter((i: any) => i.isChecked).length / (selectedChecklist!.items.length || 1)) * 100} role="progressbar" aria-valuenow={Math.round((selectedChecklist!.items.filter((i: any) => i.isChecked).length / (selectedChecklist!.items.length || 1)) * 100)} aria-valuemin={0} aria-valuemax={100} className="h-1.5 bg-panel-muted text-qa-purple" />
+                                <Progress value={(selectedChecklist!.items.filter((i: any) => i.isChecked).length / (selectedChecklist!.items.length || 1)) * 100} role="progressbar" aria-valuenow={Math.round((selectedChecklist!.items.filter((i: any) => i.isChecked).length / (selectedChecklist!.items.length || 1)) * 100)} aria-valuemin={0} aria-valuemax={100} className="h-1.5 bg-panel-muted text-qa-accent" />
                             </div>
-                            <Button onClick={handleAddItem} className="h-8 bg-qa-purple/10 text-qa-purple border border-qa-purple/20 hover:bg-qa-purple/20 font-black text-[10px] uppercase gap-2">
+                            <Button onClick={handleAddItem} className="h-8 bg-qa-accent/10 text-qa-accent border border-qa-accent/20 hover:bg-qa-accent/20 font-black text-[10px] uppercase gap-2">
                                 <Plus className="h-3.5 w-3.5" /> ADD REQUIREMENT
                             </Button>
                         </div>
@@ -159,11 +159,11 @@ export default function ChecklistsPage() {
                         <div className="flex-1 p-6 overflow-y-auto custom-scrollbar space-y-2">
                             {selectedChecklist!.items.map(item => (
                                 <div key={item.id} className={cn("p-4 rounded-2xl border flex items-center gap-4 transition-all group",
-                                    item.isChecked ? "bg-[#1A1A24]/40 border-emerald-500/20" : "bg-transparent border-qa-border")}>
+                                    item.isChecked ? "bg-surface-alt/40 border-state-success-border" : "bg-transparent border-qa-border")}>
                                     <Checkbox
                                         checked={item.isChecked}
                                         onCheckedChange={() => toggleChecklistItem(activeProjectId!, selectedChecklist!.id, item.id)}
-                                        className={cn("h-6 w-6 rounded-lg", item.isChecked && "bg-emerald-500 border-emerald-500 text-[#0F0F13]")}
+                                        className={cn("h-6 w-6 rounded-lg", item.isChecked && "bg-emerald-500 border-state-success text-primary-foreground")}
                                     />
                                     <div className={cn("flex-1 text-sm font-bold transition-all", item.isChecked ? "text-qa-text-muted line-through" : "text-qa-text")}>
                                         <FormattedText content={item.text} projectId={activeProjectId || undefined} />
@@ -173,7 +173,7 @@ export default function ChecklistsPage() {
                                         size="icon"
                                         onClick={() => deleteChecklistItem(activeProjectId!, selectedChecklist!.id, item.id)}
                                         aria-label="Delete checklist item"
-                                        className="h-8 w-8 text-qa-text-muted opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
+                                        className="h-8 w-8 text-qa-text-muted opacity-0 group-hover:opacity-100 hover:text-state-danger transition-all"
                                     >
                                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                                     </Button>
@@ -185,17 +185,17 @@ export default function ChecklistsPage() {
                                     onChange={e => setNewItemText(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleAddItem()}
                                     placeholder="Enter new verification point…"
-                                    className="h-12 bg-[#1A1A24]/50 border-dashed border-qa-border text-sm text-qa-text px-6 rounded-2xl"
+                                    className="h-12 bg-surface-alt/50 border-dashed border-qa-border text-sm text-qa-text px-6 rounded-2xl"
                                 />
                             </div>
                         </div>
 
                         <footer className="p-4 bg-panel border-t border-qa-border flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                                <ShieldCheck className="h-4 w-4 text-state-success" />
                                 <span className="text-[10px] font-black text-qa-text-muted uppercase tracking-widest">Checklist verified</span>
                             </div>
-                            <Button variant="ghost" className="h-8 text-[10px] font-black text-qa-purple uppercase tracking-widest gap-2" onClick={async () => {
+                            <Button variant="ghost" className="h-8 text-[10px] font-black text-qa-accent uppercase tracking-widest gap-2" onClick={async () => {
                                 const ok = await confirmReset('Reset all items?', { description: 'All checkmarks will be cleared. This cannot be undone.', confirmLabel: 'Reset All' })
                                 if (ok) updateChecklist(activeProjectId!, selectedChecklist!.id, { items: selectedChecklist!.items.map(i => ({ ...i, isChecked: false })) })
                             }}>

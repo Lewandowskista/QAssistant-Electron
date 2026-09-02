@@ -50,7 +50,7 @@ export function CollaborationTimeline({ events }: CollaborationTimelineProps) {
                                     {actorName && (
                                         <div className="flex items-center gap-1">
                                             <div className={cn(
-                                                'w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white',
+                                                'w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-primary-foreground',
                                                 colorForId(event.actorUserId ?? actorName)
                                             )}>
                                                 {initials(actorName)}

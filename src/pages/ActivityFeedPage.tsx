@@ -13,14 +13,14 @@ const EMPTY_MEMBERS: WorkspaceMember[] = []
 const EVENT_CONFIG: Record<CollaborationEventType, { icon: typeof Activity; color: string; label: string }> = {
     handoff_created:      { icon: Package,      color: "text-brand", label: "Handoff Created" },
     handoff_sent:         { icon: Package,      color: "text-brand", label: "Handoff Sent" },
-    handoff_acknowledged: { icon: CheckCircle2, color: "text-[#10B981]", label: "Handoff Acknowledged" },
-    fix_started:          { icon: Play,         color: "text-[#3B82F6]", label: "Fix Started" },
-    pr_linked:            { icon: GitPullRequest,color: "text-[#6366F1]", label: "PR Linked" },
-    ready_for_qa:         { icon: ShieldCheck,  color: "text-[#10B981]", label: "Ready for QA" },
-    retest_started:       { icon: Play,         color: "text-[#3B82F6]", label: "Retest Started" },
-    verification_passed:  { icon: CheckCircle2, color: "text-[#10B981]", label: "Verification Passed" },
-    verification_failed:  { icon: XCircle,      color: "text-[#EF4444]", label: "Verification Failed" },
-    evidence_added:       { icon: Paperclip,    color: "text-[#F59E0B]", label: "Evidence Added" },
+    handoff_acknowledged: { icon: CheckCircle2, color: "text-state-success", label: "Handoff Acknowledged" },
+    fix_started:          { icon: Play,         color: "text-state-info", label: "Fix Started" },
+    pr_linked:            { icon: GitPullRequest,color: "text-qa-accent", label: "PR Linked" },
+    ready_for_qa:         { icon: ShieldCheck,  color: "text-state-success", label: "Ready for QA" },
+    retest_started:       { icon: Play,         color: "text-state-info", label: "Retest Started" },
+    verification_passed:  { icon: CheckCircle2, color: "text-state-success", label: "Verification Passed" },
+    verification_failed:  { icon: XCircle,      color: "text-state-danger", label: "Verification Failed" },
+    evidence_added:       { icon: Paperclip,    color: "text-state-warning", label: "Evidence Added" },
     note_linked:          { icon: StickyNote,   color: "text-muted-ui", label: "Note Linked" },
     execution_linked:     { icon: ShieldX,      color: "text-muted-ui", label: "Execution Linked" },
 }
@@ -61,7 +61,7 @@ function MemberAvatar({ userId, displayName, size = 'sm' }: { userId?: string; d
     return (
         <div
             title={displayName}
-            className={cn('rounded-full flex items-center justify-center font-bold text-white shrink-0', dim, colorForId(userId ?? displayName))}
+            className={cn('rounded-full flex items-center justify-center font-bold text-primary-foreground shrink-0', dim, colorForId(userId ?? displayName))}
         >
             {initials(displayName)}
         </div>
@@ -161,7 +161,7 @@ export default function ActivityFeedPage() {
                                 onChange={e => setSearchQuery(e.target.value)}
                                 placeholder="Search events…"
                                 aria-label="Search activity events"
-                                className="h-8 rounded-lg border border-ui bg-app px-3 text-xs text-foreground placeholder:text-[#6B7280] focus:outline-none focus:border-[#A78BFA]/40 w-52"
+                                className="h-8 rounded-lg border border-ui bg-app px-3 text-xs text-foreground placeholder:text-muted-ui focus:outline-none focus:border-qa-accent/40 w-52"
                             />
                             <select
                                 value={typeFilter}
@@ -194,7 +194,7 @@ export default function ActivityFeedPage() {
                                         aria-pressed={roleFilter === role}
                                         className={cn(
                                             "h-7 px-3 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
-                                            roleFilter === role ? "bg-primary text-[#0F0F13]" : "text-muted-ui hover:text-foreground"
+                                            roleFilter === role ? "bg-primary text-primary-foreground" : "text-muted-ui hover:text-foreground"
                                         )}
                                     >
                                         {role === "all" ? "All" : role.toUpperCase()}
@@ -256,14 +256,14 @@ export default function ActivityFeedPage() {
                                                 {/* Icon bubble */}
                                                 <div className="relative z-10 shrink-0">
                                                     <div className={cn(
-                                                        "w-10 h-10 rounded-full bg-panel-muted border border-ui flex items-center justify-center transition-all group-hover:border-[#A78BFA]/30",
+                                                        "w-10 h-10 rounded-full bg-panel-muted border border-ui flex items-center justify-center transition-all group-hover:border-qa-accent/30",
                                                     )}>
                                                         <Icon className={cn("h-4 w-4", config.color)} />
                                                     </div>
                                                 </div>
 
                                                 {/* Content */}
-                                                <div className="flex-1 bg-panel border border-ui rounded-xl p-4 group-hover:border-[#2A2A3A]/70 transition-all">
+                                                <div className="flex-1 bg-panel border border-ui rounded-xl p-4 group-hover:border-line/70 transition-all">
                                                     <div className="flex items-start justify-between gap-2 mb-1">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className={cn("text-[10px] font-black uppercase tracking-widest", config.color)}>
@@ -272,8 +272,8 @@ export default function ActivityFeedPage() {
                                                             <span className={cn(
                                                                 "text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded",
                                                                 event.actorRole === "qa"
-                                                                    ? "bg-[#A78BFA]/10 text-brand"
-                                                                    : "bg-[#3B82F6]/10 text-[#3B82F6]"
+                                                                    ? "bg-qa-accent/10 text-brand"
+                                                                    : "bg-state-info-soft text-state-info"
                                                             )}>
                                                                 {event.actorRole.toUpperCase()}
                                                             </span>
@@ -340,12 +340,12 @@ export default function ActivityFeedPage() {
                                         className={cn(
                                             'w-full flex items-center gap-2.5 px-2 py-2 rounded-lg transition-colors text-left',
                                             memberFilter === m.user_id
-                                                ? 'bg-[#A78BFA]/10 border border-[#A78BFA]/20'
-                                                : 'hover:bg-[#1A1A2E]'
+                                                ? 'bg-qa-accent/10 border border-qa-accent/20'
+                                                : 'hover:bg-selected'
                                         )}
                                     >
                                         <div className={cn(
-                                            'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0',
+                                            'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-primary-foreground shrink-0',
                                             colorForId(m.user_id)
                                         )}>
                                             {initials(m.display_name || '?')}
@@ -357,7 +357,7 @@ export default function ActivityFeedPage() {
                                         <span className={cn(
                                             'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0',
                                             m.role === 'owner'
-                                                ? 'bg-[#A78BFA]/10 text-brand'
+                                                ? 'bg-qa-accent/10 text-brand'
                                                 : 'bg-elevated text-muted-ui'
                                         )}>
                                             {m.role}

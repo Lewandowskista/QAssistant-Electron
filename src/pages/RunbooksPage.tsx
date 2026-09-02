@@ -34,10 +34,10 @@ import {
 import { Badge } from "@/components/ui/badge"
 
 const CATEGORIES: { id: RunbookCategory; label: string; color: string }[] = [
-    { id: 'deployment', label: 'Deployment', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-    { id: 'maintenance', label: 'Maintenance', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
-    { id: 'testing', label: 'Testing', color: 'bg-green-500/10 text-green-400 border-green-500/20' },
-    { id: 'other', label: 'Other', color: 'bg-slate-500/10 text-slate-400 border-slate-500/20' },
+    { id: 'deployment', label: 'Deployment', color: 'bg-state-info-soft text-state-info border-state-info-border' },
+    { id: 'maintenance', label: 'Maintenance', color: 'bg-state-warning-soft text-state-warning border-state-warning-border' },
+    { id: 'testing', label: 'Testing', color: 'bg-state-success-soft text-state-success border-state-success-border' },
+    { id: 'other', label: 'Other', color: 'bg-surface-elevated/60 text-muted-ui border-line/50' },
 ]
 
 const STATUS_ORDER: RunbookStepStatus[] = ['pending', 'in-progress', 'done', 'failed', 'skipped']
@@ -90,11 +90,11 @@ export default function RunbooksPage() {
 
     const getStatusIcon = (status: RunbookStepStatus) => {
         switch (status) {
-            case 'done': return <CheckCircle2 className="h-4 w-4 text-green-500" />
-            case 'failed': return <AlertCircle className="h-4 w-4 text-red-500" />
-            case 'in-progress': return <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
-            case 'skipped': return <Play className="h-4 w-4 text-slate-500" />
-            default: return <Circle className="h-4 w-4 text-slate-400" />
+            case 'done': return <CheckCircle2 className="h-4 w-4 text-state-success" />
+            case 'failed': return <AlertCircle className="h-4 w-4 text-state-danger" />
+            case 'in-progress': return <Clock className="h-4 w-4 text-state-info animate-pulse" />
+            case 'skipped': return <Play className="h-4 w-4 text-muted-ui" />
+            default: return <Circle className="h-4 w-4 text-muted-ui" />
         }
     }
 
@@ -181,7 +181,7 @@ export default function RunbooksPage() {
                                     <div className="flex items-center justify-between gap-2">
                                         <span className="font-semibold truncate">{rb.name}</span>
                                         <Badge className={cn("text-[9px] px-1.5 py-0 h-4 border-none uppercase tracking-wider",
-                                            CATEGORIES.find(c => c.id === rb.category)?.color || 'bg-slate-500/10 text-slate-400'
+                                            CATEGORIES.find(c => c.id === rb.category)?.color || 'bg-surface-elevated/60 text-muted-ui'
                                         )}>
                                             {rb.category}
                                         </Badge>
@@ -205,7 +205,7 @@ export default function RunbooksPage() {
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-32 border-ui bg-popover text-popover-foreground">
                                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); deleteRunbook(activeProjectId!, rb.id); if (selectedRunbookId === rb.id) setSelectedRunbookId(null); }}>
-                                                <Trash2 className="mr-2 h-3 w-3 text-red-400" /> Delete
+                                                <Trash2 className="mr-2 h-3 w-3 text-state-danger" /> Delete
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -274,8 +274,8 @@ export default function RunbooksPage() {
                                         <h3 className="text-xs font-black tracking-[0.2em] text-muted-ui uppercase">Procedure Steps</h3>
                                         <div className="text-[10px] text-muted-foreground flex items-center gap-3">
                                             <span className="flex items-center gap-1"><Circle className="h-2 w-2 text-muted-ui" /> Pending</span>
-                                            <span className="flex items-center gap-1"><Clock className="h-2 w-2 text-blue-500" /> In Progress</span>
-                                            <span className="flex items-center gap-1"><CheckCircle2 className="h-2 w-2 text-green-500" /> Done</span>
+                                            <span className="flex items-center gap-1"><Clock className="h-2 w-2 text-state-info" /> In Progress</span>
+                                            <span className="flex items-center gap-1"><CheckCircle2 className="h-2 w-2 text-state-success" /> Done</span>
                                         </div>
                                     </div>
 
@@ -329,7 +329,7 @@ export default function RunbooksPage() {
                                                                 size="icon"
                                                                 onClick={() => deleteRunbookStep(activeProjectId!, selectedRunbook.id, step.id)}
                                                                 aria-label={`Delete step ${step.title}`}
-                                                                className="h-8 w-8 text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
+                                                                className="h-8 w-8 text-state-danger/50 hover:text-state-danger hover:bg-state-danger-soft"
                                                             >
                                                                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                                                             </Button>

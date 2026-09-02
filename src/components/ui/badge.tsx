@@ -8,7 +8,7 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border-transparent bg-[hsl(var(--accent-primary))] text-white",
+          "border-transparent bg-[hsl(var(--accent-primary))] text-primary-foreground",
         secondary:
           "border-transparent bg-[hsl(var(--surface-card-alt))] text-[hsl(var(--text-secondary))]",
         destructive:

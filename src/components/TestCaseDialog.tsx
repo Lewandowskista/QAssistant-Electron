@@ -122,7 +122,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                 <form onSubmit={handleSubmit} className="p-8">
                     <DialogHeader className="mb-6">
                         <div className="flex items-center gap-3 text-brand mb-2">
-                            <div className="p-2 bg-[#A78BFA]/10 rounded-lg">
+                            <div className="p-2 bg-qa-accent/10 rounded-lg">
                                 <FlaskConical className="h-6 w-6" />
                             </div>
                             <DialogTitle className="text-2xl font-black tracking-tight">
@@ -142,7 +142,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                 value={form.title}
                                 onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
                                 placeholder="[SAP-123] Verify discount application on checkout"
-                                className="bg-background/50 h-11 text-lg font-semibold focus-visible:ring-[#A78BFA]/40"
+                                className="bg-background/50 h-11 text-lg font-semibold focus-visible:ring-qa-accent/40"
                                 required
                             />
                         </div>
@@ -340,7 +340,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="grid gap-2">
-                                <Label htmlFor="case-expected" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2 text-green-400">
+                                <Label htmlFor="case-expected" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2 text-state-success">
                                     <CheckCircle2 className="h-3 w-3" /> Expected Result
                                 </Label>
                                 <Textarea
@@ -348,11 +348,11 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                     value={form.expectedResult}
                                     onChange={(e) => setForm(f => ({ ...f, expectedResult: e.target.value }))}
                                     placeholder="Success message displayed, total reduced by 20%"
-                                    className="bg-green-500/5 border-green-500/20 text-green-400 min-h-[100px]"
+                                    className="bg-state-success-soft border-state-success-border text-state-success min-h-[100px]"
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="case-actual" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2 text-red-400">
+                                <Label htmlFor="case-actual" className="text-xs font-bold uppercase text-muted-foreground px-1 flex items-center gap-2 text-state-danger">
                                     <XCircle className="h-3 w-3" /> Actual Result
                                 </Label>
                                 <Textarea
@@ -360,7 +360,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                                     value={form.actualResult}
                                     onChange={(e) => setForm(f => ({ ...f, actualResult: e.target.value }))}
                                     placeholder="Populated automatically during test runs"
-                                    className="bg-red-500/5 border-red-500/20 text-red-400 min-h-[100px]"
+                                    className="bg-state-danger-soft border-state-danger-border text-state-danger min-h-[100px]"
                                 />
                             </div>
                         </div>
@@ -371,14 +371,14 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                             <p className="text-[10px] font-bold text-muted-ui uppercase tracking-wider mb-3">Change History ({editingCase.changeLog.length})</p>
                             <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar">
                                 {[...editingCase.changeLog].reverse().map((entry, idx) => (
-                                    <div key={idx} className="text-[10px] bg-[#1A1A24]/50 p-2 rounded border border-[#2A2A3A]/30">
+                                    <div key={idx} className="text-[10px] bg-surface-alt/50 p-2 rounded border border-line/30">
                                         <div className="flex items-center gap-2">
                                             <span className="font-bold text-brand">{entry.field}</span>
                                             <span className="text-muted-ui">{new Date(entry.timestamp).toLocaleString()}</span>
                                         </div>
                                         <div className="text-[9px] text-soft mt-1 space-y-0.5">
-                                            <div><span className="text-[#EF4444]">−</span> {entry.oldValue || '(empty)'}</div>
-                                            <div><span className="text-[#10B981]">+</span> {entry.newValue || '(empty)'}</div>
+                                            <div><span className="text-state-danger">−</span> {entry.oldValue || '(empty)'}</div>
+                                            <div><span className="text-state-success">+</span> {entry.newValue || '(empty)'}</div>
                                         </div>
                                     </div>
                                 ))}
@@ -390,7 +390,7 @@ export default function TestCaseDialog({ open, onOpenChange, activePlan, editing
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="font-bold">
                             Cancel
                         </Button>
-                        <Button type="submit" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-black shadow-lg shadow-[#A78BFA]/20 px-8">
+                        <Button type="submit" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-black shadow-lg shadow-qa-accent/20 px-8">
                             {editingCase ? "Update Telemetry" : "Publish Case"}
                         </Button>
                     </DialogFooter>

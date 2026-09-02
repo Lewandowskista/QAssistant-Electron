@@ -76,9 +76,9 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
                             onChange={(e) => { setName(e.target.value); if (e.target.value.trim()) setNameError("") }}
                             placeholder="My Awesome Project"
                             autoFocus
-                            className={nameError ? "border-red-500/70 focus-visible:ring-red-500/30" : ""}
+                            className={nameError ? "border-state-danger/70 focus-visible:ring-red-500/30" : ""}
                         />
-                        {nameError && <p className="text-xs text-red-400 px-1">{nameError}</p>}
+                        {nameError && <p className="text-xs text-state-danger px-1">{nameError}</p>}
                     </div>
                     <div className="space-y-2">
                         <Label>Color Tag</Label>

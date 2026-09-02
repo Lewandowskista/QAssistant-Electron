@@ -22,7 +22,7 @@ function DeltaBadge({ delta }: { delta: number }) {
     return (
         <span className={cn(
             "flex items-center gap-0.5 text-[10px] font-bold",
-            positive ? "text-emerald-400" : "text-red-400"
+            positive ? "text-state-success" : "text-state-danger"
         )}>
             {positive
                 ? <TrendingUp className="h-3 w-3" />
@@ -107,13 +107,13 @@ export function RunComparisonView({ baseRun, compareRun, onClose }: RunCompariso
                 Math.abs(overallDelta) < 1
                     ? "bg-panel border-ui"
                     : overallDelta > 0
-                        ? "bg-emerald-500/5 border-emerald-500/20"
-                        : "bg-red-500/5 border-red-500/20"
+                        ? "bg-state-success-soft border-state-success-border"
+                        : "bg-state-danger-soft border-state-danger-border"
             )}>
                 <div className="flex-1">
                     <p className="text-[10px] font-bold text-muted-ui uppercase tracking-widest mb-1">Overall Change</p>
                     <div className="flex items-center gap-2">
-                        <span className="text-3xl font-black" style={{ color: overallDelta >= 0 ? '#10B981' : '#EF4444' }}>
+                        <span className="text-3xl font-black" style={{ color: overallDelta >= 0 ? 'hsl(var(--state-success))' : 'hsl(var(--state-danger))' }}>
                             {overallDelta > 0 ? '+' : ''}{overallDelta}
                         </span>
                         <span className="text-xs text-muted-ui">points</span>

@@ -45,7 +45,7 @@ export const TaskColumn = memo(function TaskColumn({
     const dueSoonCount = tasksInColumn.filter((task) => task.dueState === "soon" || task.dueState === "overdue").length
 
     return (
-        <div className={cn("flex h-full shrink-0 flex-col rounded-xl border border-[#2A2A3A]/50 bg-[#13131A]/50 p-3", collapsed ? "w-[160px]" : "w-[320px]")}>
+        <div className={cn("flex h-full shrink-0 flex-col rounded-xl border border-line/50 bg-surface/50 p-3", collapsed ? "w-[160px]" : "w-[320px]")}>
             <div className="flex items-start justify-between gap-2 px-1">
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -55,15 +55,15 @@ export const TaskColumn = memo(function TaskColumn({
                         </span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                        {criticalCount > 0 && <span className="rounded border border-[#EF4444]/20 bg-[#EF4444]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#EF4444]">{criticalCount} critical</span>}
-                        {dueSoonCount > 0 && <span className="rounded border border-[#F59E0B]/20 bg-[#F59E0B]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#F59E0B]">{dueSoonCount} due</span>}
+                        {criticalCount > 0 && <span className="rounded border border-state-danger-border bg-state-danger-soft px-1.5 py-0.5 text-[9px] font-bold text-state-danger">{criticalCount} critical</span>}
+                        {dueSoonCount > 0 && <span className="rounded border border-state-warning-border bg-state-warning-soft px-1.5 py-0.5 text-[9px] font-bold text-state-warning">{dueSoonCount} due</span>}
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
                     <button
                         type="button"
                         onClick={() => onFilterColumn(col.id)}
-                        className="rounded-md border border-ui bg-app p-1 text-muted-ui hover:text-[#38BDF8]"
+                        className="rounded-md border border-ui bg-app p-1 text-muted-ui hover:text-state-info"
                         title="Filter to this column"
                     >
                         <Filter className="h-3.5 w-3.5" />
@@ -82,7 +82,7 @@ export const TaskColumn = memo(function TaskColumn({
             {!collapsed && (
                 <>
                     {dragDisabled && (
-                        <div className="mt-3 rounded-lg border border-[#38BDF8]/20 bg-[#38BDF8]/10 px-3 py-2 text-[10px] text-[#38BDF8]">
+                        <div className="mt-3 rounded-lg border border-state-info-border bg-state-info-soft px-3 py-2 text-[10px] text-state-info">
                             Sorted view active: drag is disabled while sorted by {sortMode}.
                         </div>
                     )}
@@ -106,10 +106,10 @@ export const TaskColumn = memo(function TaskColumn({
                                 <button
                                     type="button"
                                     onClick={() => onAddTask(col.id)}
-                                    className="group mt-2 flex h-20 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ui transition-all hover:border-[#A78BFA]/30 hover:bg-[#A78BFA]/5"
+                                    className="group mt-2 flex h-20 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-ui transition-all hover:border-qa-accent/30 hover:bg-qa-accent/5"
                                 >
-                                    <Plus className="h-5 w-5 text-muted-ui transition-colors group-hover:text-[#A78BFA]" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui group-hover:text-[#A78BFA]">New Task</span>
+                                    <Plus className="h-5 w-5 text-muted-ui transition-colors group-hover:text-qa-accent" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-ui group-hover:text-qa-accent">New Task</span>
                                 </button>
                             )}
                             <div className="h-px w-full pointer-events-none" />

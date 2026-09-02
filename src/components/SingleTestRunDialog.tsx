@@ -95,7 +95,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                     <DialogHeader className="mb-6">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 text-brand mb-2">
-                                <div className="p-2 bg-[#A78BFA]/10 rounded-lg">
+                                <div className="p-2 bg-qa-accent/10 rounded-lg">
                                     <PlayCircle className="h-6 w-6" />
                                 </div>
                                 <DialogTitle className="text-2xl font-black tracking-tight">
@@ -106,7 +106,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                             {/* Timer Badge */}
                             <div className={cn(
                                 "flex items-center gap-2 px-3 py-1.5 rounded-full border font-mono text-sm font-bold transition-all",
-                                isActive ? "bg-[#A78BFA]/10 border-[#A78BFA]/30 text-brand animate-pulse" : "bg-[#2A2A3A]/50 border-ui text-muted-ui"
+                                isActive ? "bg-qa-accent/10 border-qa-accent/30 text-brand animate-pulse" : "bg-surface-elevated/50 border-ui text-muted-ui"
                             )}>
                                 <Clock className="h-4 w-4" />
                                 {formatTime(seconds)}
@@ -122,21 +122,21 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                         <div className="space-y-6">
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pre-Conditions</Label>
-                                <div className="text-xs p-3 bg-zinc-500/5 rounded-lg border border-zinc-500/10 min-h-[60px]">
+                                <div className="text-xs p-3 bg-surface-elevated/60 rounded-lg border border-line/50 min-h-[60px]">
                                     <FormattedText content={testCase.preConditions || "N/A"} compact projectId={activeProjectId || undefined} />
                                 </div>
                             </div>
                             
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Test Steps</Label>
-                                <div className="text-xs p-3 bg-zinc-500/5 rounded-lg border border-zinc-500/10 min-h-[100px] font-mono leading-relaxed">
+                                <div className="text-xs p-3 bg-surface-elevated/60 rounded-lg border border-line/50 min-h-[100px] font-mono leading-relaxed">
                                     <FormattedText content={testCase.steps} compact projectId={activeProjectId || undefined} />
                                 </div>
                             </div>
 
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Expected Result</Label>
-                                <div className="text-xs p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10 text-emerald-400 min-h-[60px]">
+                                <div className="text-xs p-3 bg-state-success-soft rounded-lg border border-state-success-border text-state-success min-h-[60px]">
                                     <FormattedText content={testCase.expectedResult} compact projectId={activeProjectId || undefined} />
                                 </div>
                             </div>
@@ -152,16 +152,16 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="passed">
-                                            <span className="text-emerald-500 font-bold">PASSED</span>
+                                            <span className="text-state-success font-bold">PASSED</span>
                                         </SelectItem>
                                         <SelectItem value="failed">
-                                            <span className="text-rose-500 font-bold">FAILED</span>
+                                            <span className="text-state-danger font-bold">FAILED</span>
                                         </SelectItem>
                                         <SelectItem value="blocked">
-                                            <span className="text-amber-500 font-bold">BLOCKED</span>
+                                            <span className="text-state-warning font-bold">BLOCKED</span>
                                         </SelectItem>
                                         <SelectItem value="skipped">
-                                            <span className="text-zinc-500 font-bold">SKIPPED</span>
+                                            <span className="text-muted-ui font-bold">SKIPPED</span>
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -195,12 +195,12 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
 
                             {status === 'blocked' && (
                                 <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase text-amber-400 tracking-widest">Blocked Reason</Label>
+                                    <Label className="text-[10px] font-black uppercase text-state-warning tracking-widest">Blocked Reason</Label>
                                     <Textarea
                                         placeholder="Why is this test blocked? (e.g., environment unavailable, dependency not met, etc.)"
                                         value={blockedReason}
                                         onChange={(e) => setBlockedReason(e.target.value)}
-                                        className="h-20 resize-none bg-amber-500/5 border-amber-500/20 text-sm"
+                                        className="h-20 resize-none bg-state-warning-soft border-state-warning-border text-sm"
                                     />
                                 </div>
                             )}
@@ -231,7 +231,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                                     type="button" 
                                     variant="ghost" 
                                     size="sm" 
-                                    className="gap-2 font-bold text-[10px] text-zinc-500"
+                                    className="gap-2 font-bold text-[10px] text-muted-ui"
                                     onClick={() => { setSeconds(0); setIsActive(false); }}
                                 >
                                     <RotateCcw className="h-3 w-3" /> RESET
@@ -246,7 +246,7 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
                         </Button>
                         <Button
                             onClick={handleRecord}
-                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13] font-black px-8 shadow-lg shadow-[#A78BFA]/20"
+                            className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-black px-8 shadow-lg shadow-qa-accent/20"
                         >
                             <Save className="h-4 w-4 mr-2" /> Save Execution Result
                         </Button>

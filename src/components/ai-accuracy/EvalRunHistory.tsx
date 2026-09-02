@@ -14,11 +14,11 @@ interface EvalRunHistoryProps {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-    completed: 'text-emerald-400 bg-emerald-500/10',
-    running: 'text-blue-400 bg-blue-500/10',
-    failed: 'text-red-400 bg-red-500/10',
-    pending: 'text-slate-400 bg-slate-500/10',
-    cancelled: 'text-amber-400 bg-amber-500/10'
+    completed: 'text-state-success bg-state-success-soft',
+    running: 'text-state-info bg-state-info-soft',
+    failed: 'text-state-danger bg-state-danger-soft',
+    pending: 'text-muted-ui bg-surface-elevated/60',
+    cancelled: 'text-state-warning bg-state-warning-soft'
 }
 
 export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, onCompareRuns }: EvalRunHistoryProps) {
@@ -82,7 +82,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                             className={cn(
                                 "h-7 text-[10px] font-bold border-ui",
                                 selectedIds.size === 2
-                                    ? "text-brand border-[#A78BFA]/30 hover:bg-[#A78BFA]/10"
+                                    ? "text-brand border-qa-accent/30 hover:bg-qa-accent/10"
                                     : "text-muted-ui"
                             )}
                         >
@@ -94,7 +94,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
             </div>
 
             {onCompareRuns && completedRuns.length >= 2 && selectedIds.size === 0 && (
-                <p className="text-[10px] text-[#6B7280]/70 italic mb-2">
+                <p className="text-[10px] text-text-muted/70 italic mb-2">
                     Select 2 completed runs to compare them
                 </p>
             )}
@@ -107,8 +107,8 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                         key={run.id}
                         className={cn(
                             "border border-ui rounded-xl p-4 flex items-center gap-3 bg-panel transition-colors",
-                            activeRunId === run.id && !isSelected && "border-[#A78BFA]/40 bg-[#A78BFA]/5",
-                            isSelected && "border-[#A78BFA]/60 bg-[#A78BFA]/10",
+                            activeRunId === run.id && !isSelected && "border-qa-accent/40 bg-qa-accent/5",
+                            isSelected && "border-qa-accent/60 bg-qa-accent/10",
                             isSelectable && "hover:bg-elevated cursor-pointer",
                             !isSelectable && "hover:bg-elevated"
                         )}
@@ -117,7 +117,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                         {isSelectable && (
                             <div className={cn(
                                 "w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center",
-                                isSelected ? "border-[#A78BFA] bg-primary" : "border-ui"
+                                isSelected ? "border-qa-accent bg-primary" : "border-ui"
                             )}>
                                 {isSelected && <div className="w-2 h-2 bg-app rounded-sm" />}
                             </div>
@@ -138,7 +138,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                                 {run.completedPairs}/{run.totalPairs} pairs · {new Date(run.startedAt).toLocaleString()}
                             </p>
                             {run.error && (
-                                <p className="text-[10px] text-red-400 mt-1 truncate">{run.error}</p>
+                                <p className="text-[10px] text-state-danger mt-1 truncate">{run.error}</p>
                             )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
@@ -156,7 +156,7 @@ export function EvalRunHistory({ runs, activeRunId, onSelectRun, onDeleteRun, on
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-muted-ui hover:text-red-400"
+                                className="h-8 w-8 text-muted-ui hover:text-state-danger"
                                 onClick={() => onDeleteRun(run.id)}
                                 title="Delete run"
                             >

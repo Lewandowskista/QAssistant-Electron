@@ -499,9 +499,9 @@ export default function SapPage() {
                 />
 
                 {credentialStatus?.canPersistSecrets === false && (
-                    <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-start gap-3">
-                        <AlertTriangle className="h-4 w-4 text-yellow-300 mt-0.5 shrink-0" />
-                        <p className="text-xs text-yellow-200 leading-relaxed">
+                    <div className="rounded-xl border border-state-warning/40 bg-state-warning-soft px-4 py-3 flex items-start gap-3">
+                        <AlertTriangle className="h-4 w-4 text-state-warning mt-0.5 shrink-0" />
+                        <p className="text-xs text-state-warning leading-relaxed">
                             SAP and CCV2 credentials cannot be stored on this device until insecure plaintext storage is explicitly allowed in Settings.
                         </p>
                     </div>
@@ -554,8 +554,8 @@ export default function SapPage() {
                             className={cn(
                                 "h-9 px-6 font-black text-[10px] uppercase tracking-widest gap-2 shadow-xl",
                                 isConnected
-                                    ? "bg-transparent border border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/5"
-                                    : "bg-primary text-[#0F0F13] hover:bg-[hsl(var(--accent-primary-strong))]"
+                                    ? "bg-transparent border border-state-success-border text-state-success hover:bg-state-success-soft"
+                                    : "bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]"
                             )}
                         >
                             {isConnecting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : isConnected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5 fill-current" />}
@@ -572,9 +572,9 @@ export default function SapPage() {
                 {selectedEnv && (
                     <div className={cn(
                         "rounded-xl border px-4 py-3 text-xs flex flex-wrap items-center gap-3",
-                        isProductionEnv ? "border-[#EF4444]/30 bg-[#EF4444]/10 text-[#FECACA]" : "border-ui bg-app text-soft"
+                        isProductionEnv ? "border-state-danger-border bg-state-danger-soft text-state-danger" : "border-ui bg-app text-soft"
                     )}>
-                        {isProductionEnv ? <AlertTriangle className="h-4 w-4 text-[#F87171]" /> : <Activity className="h-4 w-4 text-brand" />}
+                        {isProductionEnv ? <AlertTriangle className="h-4 w-4 text-state-danger" /> : <Activity className="h-4 w-4 text-brand" />}
                         <span className="font-bold text-foreground">{selectedEnv.name}</span>
                         <span className="uppercase tracking-widest">{selectedEnv.type}</span>
                         <span>HAC: {selectedEnv.hacUrl || "not configured"}</span>
@@ -587,8 +587,8 @@ export default function SapPage() {
             <main className="flex-1 overflow-hidden">
                 {!isConnected ? (
                     <div className="h-full flex flex-col items-center justify-center p-12 text-center relative group">
-                        <div className="w-24 h-24 rounded-3xl bg-panel-muted border border-ui flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-700 shadow-2xl shadow-[#A78BFA]/5">
-                            <ServerCog className="h-10 w-10 text-[#6B7280]/20" strokeWidth={1.5} />
+                        <div className="w-24 h-24 rounded-3xl bg-panel-muted border border-ui flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-700 shadow-2xl shadow-qa-accent/5">
+                            <ServerCog className="h-10 w-10 text-text-muted/20" strokeWidth={1.5} />
                         </div>
                         <h3 className="text-xl font-black text-foreground uppercase tracking-widest">Not Connected</h3>
                         <p className="text-sm text-muted-ui mt-4 max-w-sm font-medium leading-relaxed">
@@ -607,7 +607,7 @@ export default function SapPage() {
                                                 onClick={() => setCronFilter(filter)}
                                                 className={cn(
                                                     "h-7 px-3 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
-                                                    cronFilter === filter ? "bg-primary text-[#0F0F13]" : "text-muted-ui hover:text-foreground hover:bg-elevated"
+                                                    cronFilter === filter ? "bg-primary text-primary-foreground" : "text-muted-ui hover:text-foreground hover:bg-elevated"
                                                 )}
                                             >
                                                 {filter}
@@ -631,13 +631,13 @@ export default function SapPage() {
                                         <tbody className="text-xs">
                                             {filteredCronJobs.map((row) => {
                                                 let color = "text-muted-ui"
-                                                if (row.Status === "RUNNING") color = "text-[#3B82F6]"
-                                                else if (row.Status === "SUCCESS") color = "text-[#10B981]"
-                                                else if (row.Status === "FAILURE") color = "text-[#EF4444]"
-                                                else if (row.Status === "CRITICAL") color = "text-[#E11D48]"
+                                                if (row.Status === "RUNNING") color = "text-state-info"
+                                                else if (row.Status === "SUCCESS") color = "text-state-success"
+                                                else if (row.Status === "FAILURE") color = "text-state-danger"
+                                                else if (row.Status === "CRITICAL") color = "text-state-danger"
 
                                                 return (
-                                                    <tr key={row.Code} className="border-b border-[#2A2A3A]/50 hover:bg-[#1A1A24]/50 transition-colors">
+                                                    <tr key={row.Code} className="border-b border-line/50 hover:bg-surface-alt/50 transition-colors">
                                                         <td className="py-4 px-4 font-black">
                                                             <div className="flex items-center gap-2">
                                                                 <div className={cn("h-1.5 w-1.5 rounded-full", color.replace("text-", "bg-"))} />
@@ -680,12 +680,12 @@ export default function SapPage() {
                                         onChange={e => setNlQuery(e.target.value)}
                                         onKeyDown={e => { if (e.key === "Enter" && !nlLoading) void generateFlexFromNl() }}
                                         placeholder='Ask AI: "find all products in staged catalog with no price"'
-                                        className="flex-1 h-8 bg-panel-muted border-ui text-xs text-foreground placeholder:text-[#6B7280]/60"
+                                        className="flex-1 h-8 bg-panel-muted border-ui text-xs text-foreground placeholder:text-text-muted/60"
                                     />
                                     <Button
                                         onClick={generateFlexFromNl}
                                         disabled={!nlQuery.trim() || nlLoading}
-                                        className="h-8 px-4 bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-brand font-black text-[10px] uppercase gap-2 hover:bg-[#A78BFA]/20"
+                                        className="h-8 px-4 bg-qa-accent/10 border border-qa-accent/30 text-brand font-black text-[10px] uppercase gap-2 hover:bg-qa-accent/20"
                                         variant="ghost"
                                     >
                                         {nlLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
@@ -703,15 +703,15 @@ export default function SapPage() {
                                     <Button
                                         onClick={runFlexSearch}
                                         disabled={!flexQuery.trim() || flexLoading}
-                                        className="absolute bottom-6 right-8 h-10 px-8 bg-primary text-[#0F0F13] font-black text-xs gap-2 shadow-2xl shadow-[#A78BFA]/20"
+                                        className="absolute bottom-6 right-8 h-10 px-8 bg-primary text-primary-foreground font-black text-xs gap-2 shadow-2xl shadow-qa-accent/20"
                                     >
-                                        <Play className="h-4 w-4 fill-current text-[#0F0F13]" /> Execute Query
+                                        <Play className="h-4 w-4 fill-current text-primary-foreground" /> Execute Query
                                     </Button>
                                 </div>
                                 {flexLoading && <div className="p-4 text-xs text-brand">Running query…</div>}
                                 {flexResult ? (
                                     flexResult.Error ? (
-                                        <div className="p-4 text-red-400">{flexResult.Error}</div>
+                                        <div className="p-4 text-state-danger">{flexResult.Error}</div>
                                     ) : (
                                         <div className="flex-1 p-4 overflow-auto">
                                             <table className="w-full table-auto text-xs">
@@ -765,7 +765,7 @@ export default function SapPage() {
                                     <Button
                                         onClick={runCatalogDiff}
                                         disabled={!selectedCatalog || catalogDiffLoading}
-                                        className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase gap-2"
+                                        className="h-8 bg-primary text-primary-foreground font-black text-[10px] uppercase gap-2"
                                     >
                                         {catalogDiffLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                                         Compare Staged vs Online
@@ -803,7 +803,7 @@ export default function SapPage() {
                                                 </div>
                                                 <div className="p-6 bg-app">
                                                     {catalogDiff.missingStagedToOnline?.length === 0 ? (
-                                                        <div className="flex items-center gap-3 text-[#10B981]">
+                                                        <div className="flex items-center gap-3 text-state-success">
                                                             <CheckCircle2 className="h-5 w-5" />
                                                             <span className="text-xs font-bold uppercase tracking-widest">Catalog is fully synchronized</span>
                                                         </div>
@@ -840,25 +840,25 @@ export default function SapPage() {
                                             <SelectItem value="stock">Update Stock Level</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    <div className="flex items-center gap-2 rounded-lg border border-[#EF4444]/20 bg-[#EF4444]/10 px-3 py-1.5">
+                                    <div className="flex items-center gap-2 rounded-lg border border-state-danger-border bg-state-danger-soft px-3 py-1.5">
                                         <Checkbox
                                             checked={impExEnableCode}
                                             onCheckedChange={value => setImpExEnableCode(!!value)}
-                                            className="h-4 w-4 border-ui data-[state=checked]:bg-[#EF4444]"
+                                            className="h-4 w-4 border-ui data-[state=checked]:bg-state-danger"
                                         />
-                                        <span className="text-[10px] text-[#FCA5A5] uppercase tracking-widest font-bold">Enable Code Exec</span>
+                                        <span className="text-[10px] text-state-danger uppercase tracking-widest font-bold">Enable Code Exec</span>
                                     </div>
                                     <Button
                                         variant="ghost"
                                         onClick={handleValidateImpex}
-                                        className="h-8 border-ui text-[10px] font-black text-brand uppercase hover:bg-[#A78BFA]/5 border"
+                                        className="h-8 border-ui text-[10px] font-black text-brand uppercase hover:bg-qa-accent/5 border"
                                     >
                                         Validate Syntax
                                     </Button>
                                     <Button
                                         onClick={runImpEx}
                                         disabled={impExExecuting || !impExScript.trim()}
-                                        className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase"
+                                        className="h-8 bg-primary text-primary-foreground font-black text-[10px] uppercase"
                                     >
                                         {impExExecuting ? "IMPORTING..." : "Import Script"}
                                     </Button>
@@ -866,20 +866,20 @@ export default function SapPage() {
                                 <div className="px-4 py-3 border-b border-ui bg-app text-[10px] uppercase tracking-widest text-soft flex flex-wrap gap-3">
                                     <span>Target: {selectedEnv?.name || "Custom target"}</span>
                                     <span>Environment Type: {selectedEnv?.type || "custom"}</span>
-                                    <span className={isProductionEnv ? "text-[#FCA5A5]" : ""}>{isProductionEnv ? "Production safeguards enabled" : "Non-production target"}</span>
+                                    <span className={isProductionEnv ? "text-state-danger" : ""}>{isProductionEnv ? "Production safeguards enabled" : "Non-production target"}</span>
                                 </div>
                                 <div className="flex-1 bg-app p-4">
                                     <textarea
                                         value={impExScript}
                                         onChange={e => setImpExScript(e.target.value)}
-                                        className="w-full h-full bg-panel border border-ui rounded-2xl p-6 text-foreground font-mono text-sm resize-none focus:outline-none selection:bg-[#A78BFA]/20 app-region-no-drag"
+                                        className="w-full h-full bg-panel border border-ui rounded-2xl p-6 text-foreground font-mono text-sm resize-none focus:outline-none selection:bg-qa-accent/20 app-region-no-drag"
                                         placeholder="# ImpEx Script&#10;INSERT_UPDATE Product;code[unique=true];name[lang=en]&#10;;test_p001;High Fidelity Component"
                                         spellCheck={false}
                                     />
                                 </div>
                                 <div className="h-36 bg-app border-t border-ui p-4 custom-scrollbar overflow-y-auto">
-                                    <div className="text-[9px] font-black text-muted-ui uppercase tracking-widest mb-2 border-b border-[#2A2A3A]/30 pb-1">Console Log</div>
-                                    <div className="font-mono text-[10px] text-[#A78BFA]/60 leading-relaxed whitespace-pre-wrap">
+                                    <div className="text-[9px] font-black text-muted-ui uppercase tracking-widest mb-2 border-b border-line/30 pb-1">Console Log</div>
+                                    <div className="font-mono text-[10px] text-qa-accent/60 leading-relaxed whitespace-pre-wrap">
                                         {impExResult || `Ready for ImpEx import.\nTarget environment: ${selectedEnv?.name || selectedEnvId || "custom target"}`}
                                     </div>
                                 </div>
@@ -905,7 +905,7 @@ export default function SapPage() {
                                     <Button
                                         onClick={fetchCcv2Envs}
                                         disabled={!ccv2Sub.trim() || !ccv2Token.trim() || ccv2Loading}
-                                        className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase"
+                                        className="h-8 bg-primary text-primary-foreground font-black text-[10px] uppercase"
                                     >
                                         {ccv2Loading ? "Loading…" : "Get Environments"}
                                     </Button>
@@ -948,7 +948,7 @@ export default function SapPage() {
                                         <Button
                                             onClick={fetchCcv2Deployments}
                                             disabled={ccv2Loading}
-                                            className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase"
+                                            className="h-8 bg-primary text-primary-foreground font-black text-[10px] uppercase"
                                         >
                                             Load Deployments
                                         </Button>
@@ -992,7 +992,7 @@ export default function SapPage() {
                                     <Button
                                         onClick={fetchCcv2Build}
                                         disabled={ccv2Loading || !ccv2BuildCode.trim()}
-                                        className="h-8 bg-primary text-[#0F0F13] font-black text-[10px] uppercase"
+                                        className="h-8 bg-primary text-primary-foreground font-black text-[10px] uppercase"
                                     >
                                         Get Build
                                     </Button>

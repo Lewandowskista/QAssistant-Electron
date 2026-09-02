@@ -301,7 +301,7 @@ export default function ReportBuilderPage() {
                         e.stopPropagation()
                         handleDeleteTemplate(template.id)
                       }}
-                      className="flex-none opacity-0 group-hover:opacity-100 flex h-6 w-6 items-center justify-center rounded text-red-400 hover:bg-red-400/10 transition-all"
+                      className="flex-none opacity-0 group-hover:opacity-100 flex h-6 w-6 items-center justify-center rounded text-state-danger hover:bg-state-danger-soft transition-all"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -413,7 +413,7 @@ export default function ReportBuilderPage() {
                             : 'border border-[hsl(var(--border-default))] text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--surface-overlay))] hover:border-[hsl(var(--border-strong))]'
                         )}
                       >
-                        <span className={cn('mr-1', exists ? 'text-green-500' : 'text-[hsl(var(--text-secondary))]')}>
+                        <span className={cn('mr-1', exists ? 'text-state-success' : 'text-[hsl(var(--text-secondary))]')}>
                           {exists ? '✓' : '+'}
                         </span>
                         {section.label}

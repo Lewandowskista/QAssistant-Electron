@@ -49,7 +49,7 @@ export function EvalResults({ run }: EvalResultsProps) {
                             {run.completedPairs} of {run.totalPairs} pairs evaluated
                         </span>
                         {failedCount > 0 && (
-                            <span className="text-[10px] font-medium text-red-400 flex items-center gap-1">
+                            <span className="text-[10px] font-medium text-state-danger flex items-center gap-1">
                                 <AlertCircle className="w-3 h-3" />
                                 {failedCount} failed
                             </span>
@@ -86,16 +86,16 @@ export function EvalResults({ run }: EvalResultsProps) {
                 <div className="space-y-2">
                     {run.qaPairResults.map((result, idx) =>
                         result.status === 'failed' ? (
-                            <div key={result.id} className="bg-panel border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
-                                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                            <div key={result.id} className="bg-panel border border-state-danger-border rounded-xl p-4 flex items-start gap-3">
+                                <AlertCircle className="w-4 h-4 text-state-danger mt-0.5 shrink-0" />
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-xs font-bold text-red-400">Evaluation Failed</span>
+                                        <span className="text-xs font-bold text-state-danger">Evaluation Failed</span>
                                         <span className="text-[10px] text-muted-ui">Pair {idx + 1}</span>
                                     </div>
                                     <p className="text-xs text-muted-ui truncate">{result.question}</p>
                                     {result.error && (
-                                        <p className="text-[11px] text-red-400/70 mt-1 font-mono">{result.error}</p>
+                                        <p className="text-[11px] text-state-danger/70 mt-1 font-mono">{result.error}</p>
                                     )}
                                 </div>
                             </div>

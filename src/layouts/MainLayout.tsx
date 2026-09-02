@@ -498,7 +498,7 @@ export default function MainLayout() {
                       Edit Active Project
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      className="text-red-400"
+                      className="text-state-danger"
                       onClick={async () => {
                         const ok = await confirmDelete(`Delete "${activeProject.name}"?`, {
                           description:
@@ -649,7 +649,7 @@ export default function MainLayout() {
                     <button type="button" className="app-chip normal-case tracking-normal text-[11px]" title="Switch active environment">
                       <div
                         className="h-1.5 w-1.5 rounded-full shrink-0"
-                        style={{ backgroundColor: defaultEnv?.color || "#64748b" }}
+                        style={{ backgroundColor: defaultEnv?.color || "hsl(var(--text-muted))" }}
                       />
                       <span className="max-w-[120px] truncate">{defaultEnv?.name || "No Env"}</span>
                       <ChevronDown className="h-3 w-3 text-muted-ui" />
@@ -664,7 +664,7 @@ export default function MainLayout() {
                         onClick={() => activeProjectId && setEnvironmentDefault(activeProjectId, environment.id)}
                         className="flex items-center gap-2 text-sm"
                       >
-                        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: environment.color || "#64748b" }} />
+                        <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: environment.color || "hsl(var(--text-muted))" }} />
                         <span className="flex-1 truncate">{environment.name}</span>
                         {environment.isDefault ? <span className="app-section-label text-primary">Active</span> : null}
                       </DropdownMenuItem>
@@ -737,7 +737,7 @@ export default function MainLayout() {
                   <button
                     type="button"
                     aria-label="Close window"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-ui transition-colors hover:bg-red-500 hover:text-white"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-ui transition-colors hover:bg-state-danger hover:text-primary-foreground"
                     onClick={() => window.electronAPI?.close()}
                   >
                     <X className="h-4 w-4" />

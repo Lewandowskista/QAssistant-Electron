@@ -154,7 +154,7 @@ export default function NotesPage() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search notes…"
-                                className="h-8 pl-7 text-[11px] bg-app border-ui text-foreground placeholder:text-[#6B7280]"
+                                className="h-8 pl-7 text-[11px] bg-app border-ui text-foreground placeholder:text-muted-ui"
                             />
                         </div>
                         <label htmlFor="notes-task-filter" className="sr-only">Filter by linked task</label>
@@ -171,7 +171,7 @@ export default function NotesPage() {
                             onClick={() => setSelectedItemId(note.id)}
                             className={cn(
                                 "p-3 rounded-xl border transition-all cursor-pointer group",
-                                selectedItemId === note.id ? "bg-panel-muted border-[#A78BFA]/40" : "bg-transparent border-transparent hover:bg-[#1A1A24]/50"
+                                selectedItemId === note.id ? "bg-panel-muted border-qa-accent/40" : "bg-transparent border-transparent hover:bg-surface-alt/50"
                             )}
                         >
                             <div className="text-xs font-bold text-foreground mb-1 truncate">{note.title || "Untitled Note"}</div>
@@ -183,7 +183,7 @@ export default function NotesPage() {
                                 ).map((link) => {
                                     const taskId = link.sourceType === 'task' ? link.sourceId : link.targetId
                                     const task = tasks.find((item) => item.id === taskId)
-                                    return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-[#A78BFA]/10 text-brand text-[9px]">{task.title}</span> : null
+                                    return task ? <span key={link.id} className="px-1.5 py-0.5 rounded bg-qa-accent/10 text-brand text-[9px]">{task.title}</span> : null
                                 })}
                             </div>
                         </div>
@@ -191,7 +191,7 @@ export default function NotesPage() {
                 </div>
 
                 <div className="p-4 bg-app border-t border-ui">
-                    <Button onClick={handleAddNote} className="w-full bg-[#A78BFA]/10 text-brand border border-[#A78BFA]/20 hover:bg-[#A78BFA]/20 font-black text-xs h-10 gap-2">
+                    <Button onClick={handleAddNote} className="w-full bg-qa-accent/10 text-brand border border-qa-accent/20 hover:bg-qa-accent/20 font-black text-xs h-10 gap-2">
                         <Plus className="h-4 w-4" /> NEW NOTE
                     </Button>
                 </div>
@@ -237,7 +237,7 @@ export default function NotesPage() {
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => setSourceMode(s => !s)}
-                                    className={cn("h-9 w-9", sourceMode ? "text-brand bg-[#A78BFA]/10" : "text-muted-ui hover:text-brand")}
+                                    className={cn("h-9 w-9", sourceMode ? "text-brand bg-qa-accent/10" : "text-muted-ui hover:text-brand")}
                                     title={sourceMode ? "Switch to Visual Editor" : "Switch to HTML Source"}
                                     aria-label={sourceMode ? "Switch to Visual Editor" : "Switch to HTML Source"}
                                 >
@@ -247,13 +247,13 @@ export default function NotesPage() {
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => setAttachmentsOpen(v => !v)}
-                                    className={cn("h-9 w-9", attachmentsOpen ? "text-brand bg-[#A78BFA]/10" : "text-muted-ui hover:text-brand")}
+                                    className={cn("h-9 w-9", attachmentsOpen ? "text-brand bg-qa-accent/10" : "text-muted-ui hover:text-brand")}
                                     title={attachmentsOpen ? "Hide Attachments" : "Show Attachments"}
                                     aria-label={attachmentsOpen ? "Hide Attachments" : "Show Attachments"}
                                 >
                                     {attachmentsOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                                 </Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-[#EF4444] hover:bg-[#EF4444]/10" aria-label="Delete note">
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedNote.id)} className="text-state-danger hover:bg-state-danger-soft" aria-label="Delete note">
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                                 <div
@@ -261,8 +261,8 @@ export default function NotesPage() {
                                     aria-live="polite"
                                     className={cn(
                                         "h-9 px-3 flex items-center gap-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-[0.12em] transition-all duration-300",
-                                        saveStatus === "saving" && "text-brand bg-[#A78BFA]/10",
-                                        saveStatus === "saved" && "text-emerald-400 bg-emerald-400/10",
+                                        saveStatus === "saving" && "text-brand bg-qa-accent/10",
+                                        saveStatus === "saved" && "text-state-success bg-state-success-soft",
                                         saveStatus === "idle" && "text-muted-ui bg-transparent"
                                     )}
                                 >
@@ -289,7 +289,7 @@ export default function NotesPage() {
                                 </Suspense>
                             )}
                             <aside className={cn(
-                                "border-l border-ui bg-[#13131A]/30 flex flex-col overflow-hidden",
+                                "border-l border-ui bg-surface/30 flex flex-col overflow-hidden",
                                 "transition-[width,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
                                 attachmentsOpen ? "w-64 shrink-0 opacity-100 translate-x-0" : "w-0 border-l-0 opacity-0 translate-x-4"
                             )}>
@@ -312,11 +312,11 @@ export default function NotesPage() {
                                         <p className="text-[10px] text-muted-ui italic text-center py-8">Digital void…</p>
                                     ) : (
                                         selectedNote.attachments.map(at => (
-                                            <div key={at.id} className="p-2 border border-ui rounded-lg flex items-center justify-between group hover:border-[#A78BFA]/50 transition-all cursor-pointer">
+                                            <div key={at.id} className="p-2 border border-ui rounded-lg flex items-center justify-between group hover:border-qa-accent/50 transition-all cursor-pointer">
                                                 <span className="text-xs text-foreground truncate flex-1" onClick={() => api.openFile(at.filePath)}>{at.fileName}</span>
                                                 <div className="flex items-center gap-1">
                                                     <ExternalLink className="h-3 w-3 text-muted-ui opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => api.openFile(at.filePath)} />
-                                                    <Trash2 className="h-3 w-3 text-[#EF4444] opacity-0 group-hover:opacity-100 transition-opacity" onClick={async (e) => {
+                                                    <Trash2 className="h-3 w-3 text-state-danger opacity-0 group-hover:opacity-100 transition-opacity" onClick={async (e) => {
                                                         e.stopPropagation();
                                                         if (!activeProjectId || !selectedNote) return;
                                                         const linkedHandoffs = handoffPackets.filter((packet) => packet.linkedNoteIds.includes(selectedNote.id))

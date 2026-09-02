@@ -50,7 +50,7 @@ export function ConfirmDialog({
                         )}>
                             <AlertTriangle className={cn(
                                 "h-5 w-5",
-                                destructive ? "text-red-400" : "text-primary"
+                                destructive ? "text-state-danger" : "text-primary"
                             )} />
                         </div>
                         <div>
@@ -84,8 +84,8 @@ export function ConfirmDialog({
                             className={cn(
                                 "h-9 px-5 font-bold transition-all",
                                 destructive
-                                    ? "bg-red-500 hover:bg-red-600 text-white"
-                                    : "bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-[#0F0F13]"
+                                    ? "bg-red-500 hover:bg-red-600 text-primary-foreground"
+                                    : "bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground"
                             )}
                         >
                             {confirmLabel}

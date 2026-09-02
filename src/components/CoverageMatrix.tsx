@@ -136,9 +136,9 @@ export default function CoverageMatrix() {
 
     const getCellStyle = (cell: CoverageCell | undefined) => {
         if (!cell?.covered) return "bg-panel-muted text-muted-ui border-ui"
-        if (cell.failed)    return "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20"
-        if (cell.passed)    return "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20"
-        return "bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/20"
+        if (cell.failed)    return "bg-state-danger-soft text-state-danger border-state-danger-border"
+        if (cell.passed)    return "bg-state-success-soft text-state-success border-state-success-border"
+        return "bg-state-info-soft text-state-info border-state-info-border"
     }
 
     const getCellLabel = (cell: CoverageCell | undefined) => {
@@ -203,9 +203,9 @@ export default function CoverageMatrix() {
                 <div className="ml-auto flex items-center gap-3">
                     {/* Legend */}
                     <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider">
-                        <span className="flex items-center gap-1 text-[#10B981]"><span className="w-3 h-3 rounded bg-[#10B981]/20 border border-[#10B981]/30 inline-block" /> All Passed</span>
-                        <span className="flex items-center gap-1 text-[#EF4444]"><span className="w-3 h-3 rounded bg-[#EF4444]/20 border border-[#EF4444]/30 inline-block" /> Has Failures</span>
-                        <span className="flex items-center gap-1 text-[#3B82F6]"><span className="w-3 h-3 rounded bg-[#3B82F6]/20 border border-[#3B82F6]/30 inline-block" /> Not Run Yet</span>
+                        <span className="flex items-center gap-1 text-state-success"><span className="w-3 h-3 rounded bg-state-success/20 border border-state-success-border inline-block" /> All Passed</span>
+                        <span className="flex items-center gap-1 text-state-danger"><span className="w-3 h-3 rounded bg-state-danger/20 border border-state-danger-border inline-block" /> Has Failures</span>
+                        <span className="flex items-center gap-1 text-state-info"><span className="w-3 h-3 rounded bg-state-info/20 border border-state-info-border inline-block" /> Not Run Yet</span>
                         <span className="flex items-center gap-1 text-muted-ui"><span className="inline-block h-3 w-3 rounded border border-ui bg-panel-muted" /> No Coverage</span>
                     </div>
                     <Button variant="outline" size="sm" onClick={exportCsv} className="h-8 border-ui text-[10px] font-bold text-muted-ui gap-2 hover:bg-primary/10 hover:text-primary">
@@ -246,7 +246,7 @@ export default function CoverageMatrix() {
                                         // Count tasks in this column that have no coverage
                                         const uncoveredInCol = matrix.rows.filter(r => !matrix.cells.get(`${r.id}::${col.id}`)?.covered).length
                                         return (
-                                            <td key={col.id} className="p-2 text-center border border-[#A78BFA]/30 bg-[#A78BFA]/5">
+                                            <td key={col.id} className="p-2 text-center border border-qa-accent/30 bg-qa-accent/5">
                                                 <span className={cn("text-[13px] font-bold", uncoveredInCol > 0 ? "text-primary" : "text-muted-ui")}>
                                                     {uncoveredInCol}
                                                 </span>
@@ -279,7 +279,7 @@ export default function CoverageMatrix() {
                                                 )}
                                                 <div className="flex items-center gap-1.5 mt-0.5">
                                                     <div className="h-1 w-20 overflow-hidden rounded-full bg-panel-muted">
-                                                        <div className="h-full bg-[#10B981] rounded-full" style={{ width: `${coveragePct}%` }} />
+                                                        <div className="h-full bg-state-success rounded-full" style={{ width: `${coveragePct}%` }} />
                                                     </div>
                                                     <span className="text-[9px] font-bold text-muted-ui">{coveragePct}%</span>
                                                 </div>
@@ -308,7 +308,7 @@ export default function CoverageMatrix() {
                                                         <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 min-w-[220px] -translate-x-1/2 rounded-lg border border-ui bg-panel p-3 text-left shadow-2xl">
                                                             {cell?.covered && cell.cases.length > 0 ? (
                                                                 <>
-                                                                    <p className="text-[10px] font-bold text-[#10B981] uppercase mb-1.5">✓ Test Coverage</p>
+                                                                    <p className="text-[10px] font-bold text-state-success uppercase mb-1.5">✓ Test Coverage</p>
                                                                     {cell.cases.slice(0, 4).map(tc => (
                                                                         <div key={tc.id} className="flex items-center gap-1.5 py-0.5">
                                                                             <span className={cn("w-1.5 h-1.5 rounded-full flex-none", tc.status === 'passed' ? "bg-emerald-500" : tc.status === 'failed' ? "bg-red-500" : "bg-muted-ui")} />
