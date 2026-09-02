@@ -270,9 +270,11 @@
   }
 
   .app-sidebar {
-    @apply flex flex-col border-r;
+    @apply flex flex-col;
     background: linear-gradient(180deg, hsl(var(--surface-sidebar) / 0.985), hsl(var(--surface-header) / 0.985));
-    border-color: hsl(var(--border-default));
+    /* Inset rule rather than a border, so the rail's content box stays an even
+       84/280px and its centred icons land on whole pixels. */
+    box-shadow: inset -1px 0 0 hsl(var(--border-default));
   }
 
   .app-panel {
@@ -298,13 +300,13 @@
   }
 
   .app-titlebar {
-    @apply border-b backdrop-blur-xl;
+    @apply backdrop-blur-xl;
     background-color: hsl(var(--surface-header) / 0.86);
-    border-color: hsl(var(--border-default));
+    box-shadow: inset 0 -1px 0 hsl(var(--border-default));
   }
 
   .app-section-label {
-    @apply text-[11px] font-semibold uppercase tracking-[0.24em];
+    @apply text-[11px] leading-4 font-semibold uppercase tracking-[0.24em];
     color: hsl(var(--text-muted));
   }
 
@@ -349,7 +351,7 @@
   }
 
   .app-mono-meta {
-    @apply font-mono text-[11px];
+    @apply font-mono text-[11px] leading-4;
     color: hsl(var(--text-secondary));
   }
 
@@ -360,7 +362,7 @@
   }
 
   .app-subtab-trigger {
-    @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-all;
+    @apply inline-flex h-8 items-center gap-2 rounded-xl border border-transparent px-3 text-xs font-semibold transition-colors;
     color: hsl(var(--text-muted));
   }
 
@@ -373,7 +375,7 @@
     background:
       linear-gradient(180deg, hsl(var(--surface-selected) / 0.9), hsl(var(--surface-card) / 0.95));
     color: hsl(var(--accent-primary));
-    border: 1px solid hsl(var(--border-strong));
+    border-color: hsl(var(--border-strong));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
@@ -399,7 +401,7 @@
   }
 
   .app-table th {
-    @apply px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em];
+    @apply px-4 py-3 text-left text-[11px] leading-4 font-semibold uppercase tracking-[0.18em];
     color: hsl(var(--text-muted));
     border-bottom: 1px solid hsl(var(--border-default));
   }
@@ -437,7 +439,7 @@
   }
 
   .app-chip {
-    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em];
+    @apply inline-flex h-7 items-center gap-2 rounded-full border px-3 text-[11px] leading-4 font-semibold uppercase tracking-[0.14em];
     background-color: hsl(var(--surface-card-alt) / 0.72);
     border-color: hsl(var(--border-default));
     color: hsl(var(--text-secondary));
@@ -467,8 +469,15 @@
     @apply px-3 py-2;
   }
 
+  /* Matches .workspace-topbar's h-14 so the rail and content header bands
+     share one baseline and their bottom borders form a single line. */
+  .workspace-rail-header {
+    @apply flex h-14 shrink-0 items-center px-3;
+    box-shadow: inset 0 -1px 0 hsl(var(--border-default));
+  }
+
   .workspace-rail-heading {
-    @apply px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.24em];
+    @apply px-3 pb-1 text-[11px] leading-4 font-semibold uppercase tracking-[0.24em];
     color: hsl(var(--text-muted));
   }
 
@@ -521,7 +530,7 @@
   }
 
   .workspace-topbar {
-    @apply app-titlebar flex h-14 items-center justify-between gap-4 px-4;
+    @apply app-titlebar flex h-14 items-center justify-between gap-4 px-6;
   }
 
   .page-scaffold {
@@ -538,9 +547,9 @@
    * icon + title + actions row that several pages previously hand-rolled.
    */
   .full-bleed-header {
-    @apply flex shrink-0 flex-wrap items-center gap-3 border-b px-5 py-3;
+    @apply flex h-14 shrink-0 items-center gap-3 px-6;
     background-color: hsl(var(--surface-header) / 0.6);
-    border-color: hsl(var(--border-default));
+    box-shadow: inset 0 -1px 0 hsl(var(--border-default));
   }
 
   .full-bleed-header-title {
@@ -549,7 +558,7 @@
   }
 
   .full-bleed-header-eyebrow {
-    @apply text-[11px];
+    @apply text-[11px] leading-4;
     color: hsl(var(--text-muted));
   }
 
@@ -660,7 +669,7 @@
   }
 
   .app-field-label {
-    @apply mb-1.5 block text-[11px] font-medium uppercase tracking-[0.16em];
+    @apply mb-1.5 block text-[11px] leading-4 font-medium uppercase tracking-[0.16em];
     color: hsl(var(--text-muted));
   }
 

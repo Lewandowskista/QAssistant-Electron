@@ -40,7 +40,7 @@ function useRelativeTime(ts: number | null): string | null {
     return `${Math.floor(hrs / 24)}d ago`
 }
 
-export function SyncStatusIndicator() {
+export function SyncStatusIndicator({ collapsed = false }: { collapsed?: boolean } = {}) {
     const {
         status,
         config,
@@ -131,8 +131,9 @@ export function SyncStatusIndicator() {
                         : 'Set up cloud sync'
                 }
                 className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors group',
-                    'hover:bg-elevated text-left',
+                    'w-full flex items-center rounded-xl transition-colors group',
+                    collapsed ? 'justify-center px-0 py-1.5' : 'gap-2.5 px-3 py-2.5 text-left',
+                    'hover:bg-elevated',
                 )}
             >
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 bg-selected">
@@ -142,6 +143,7 @@ export function SyncStatusIndicator() {
                         status === 'syncing' && 'animate-spin',
                     )} />
                 </div>
+                {!collapsed ? (
                 <div className="flex flex-col min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                         <span className={cn('text-xs font-medium', isConfigured ? cfg.color : 'text-muted-ui')}>
@@ -168,11 +170,14 @@ export function SyncStatusIndicator() {
                         <span className="text-[11px] text-muted-ui">Click to set up</span>
                     ) : null}
                 </div>
+                ) : null}
+                {!collapsed ? (
                 <div className={cn(
                     'w-1.5 h-1.5 rounded-full shrink-0',
                     cfg.dot,
                     cfg.pulse && 'animate-pulse'
                 )} />
+                ) : null}
             </button>
 
             {setupOpen && (
