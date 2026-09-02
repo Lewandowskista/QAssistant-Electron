@@ -337,17 +337,22 @@ export default function MainLayout() {
         Skip to main content
       </a>
 
-      <div className={cn("app-shell flex selection:bg-primary/20", isMac && !isPerformanceMode && "backdrop-blur-xl")}>
+      <div className={cn("app-shell flex flex-col selection:bg-primary/20", isMac && !isPerformanceMode && "backdrop-blur-xl")}>
+        {/* macOS traffic-light clearance. Sits above BOTH the rail and the
+            topbar so their header bands start at the same y and their bottom
+            borders line up. Draggable, since it replaces the window titlebar. */}
+        {isMac ? <div className="app-region-drag h-8 shrink-0" aria-hidden="true" /> : null}
+        <div className="flex min-h-0 flex-1">
         <aside
           aria-label="Workspace navigation"
           data-collapsed={railCollapsed}
           className={cn(
             "workspace-rail shrink-0 transition-[width,opacity] duration-300",
-            isMac && !isPerformanceMode && "pt-8 backdrop-blur-md"
+            isMac && !isPerformanceMode && "backdrop-blur-md"
           )}
         >
-          <div className="workspace-rail-section border-b app-divider">
-            <div className={cn("flex items-center gap-3", railCollapsed ? "justify-center" : "justify-between")}>
+          <div className="workspace-rail-header">
+            <div className={cn("flex w-full items-center gap-3", railCollapsed ? "justify-center" : "justify-between")}>
               <div className={cn("flex min-w-0 items-center gap-3", railCollapsed && "justify-center")}>
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10">
                   <FlaskConical className="h-4 w-4 text-primary stroke-[2.4]" />
@@ -376,8 +381,11 @@ export default function MainLayout() {
           <div className="workspace-rail-section space-y-2 border-b app-divider">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" className="workspace-project-button">
-                  <div className={cn("h-8 w-2 shrink-0 rounded-full", activeProject?.color ?? "bg-primary")} />
+                <button type="button" className={cn("workspace-project-button", railCollapsed && "justify-center px-0")}>
+                  {/* Expanded: a thin colour spine beside the project name.
+                      Collapsed: a square swatch, since a 2px bar alone reads
+                      as a stray element. */}
+                  <div className={cn("shrink-0 rounded-full", railCollapsed ? "h-5 w-5 rounded-lg" : "h-8 w-2", activeProject?.color ?? "bg-primary")} />
                   {!railCollapsed ? (
                     <>
                       <div className="min-w-0 flex-1">
@@ -469,7 +477,7 @@ export default function MainLayout() {
                     key={item.href}
                     to={item.href}
                     data-active={isItemActive(location.pathname, item.href)}
-                    className="workspace-rail-item"
+                    className={cn("workspace-rail-item", railCollapsed && "justify-center px-0")}
                     aria-label={item.name}
                     title={railCollapsed ? item.name : undefined}
                   >
@@ -488,7 +496,7 @@ export default function MainLayout() {
                     key={item.href}
                     to={item.href}
                     data-active={isItemActive(location.pathname, item.href)}
-                    className="workspace-rail-item"
+                    className={cn("workspace-rail-item", railCollapsed && "justify-center px-0")}
                     aria-label={item.name}
                     title={railCollapsed ? item.name : undefined}
                   >
@@ -502,12 +510,12 @@ export default function MainLayout() {
 
           <div className="workspace-rail-section border-t app-divider">
             <div className={cn("space-y-2", railCollapsed && "flex flex-col items-center")}>
-              <SyncStatusIndicator />
+              <SyncStatusIndicator collapsed={railCollapsed} />
 
               <Link
                 to="/settings"
                 data-active={location.pathname.startsWith("/settings")}
-                className={cn("workspace-rail-item w-full", railCollapsed && "justify-center")}
+                className={cn("workspace-rail-item w-full", railCollapsed && "justify-center px-0")}
                 aria-label="Settings"
                 title={railCollapsed ? "Settings" : undefined}
               >
@@ -517,7 +525,7 @@ export default function MainLayout() {
 
               <button
                 type="button"
-                className={cn("workspace-rail-item w-full", railCollapsed && "justify-center")}
+                className={cn("workspace-rail-item w-full", railCollapsed && "justify-center px-0")}
                 onClick={() => navigate("/settings?section=account")}
                 aria-label="Open account settings"
               >
@@ -542,7 +550,7 @@ export default function MainLayout() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className={cn("workspace-topbar app-region-drag", isMac && "pl-20")}>
+          <header className="workspace-topbar app-region-drag">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               {railCollapsed ? (
                 <button
@@ -701,6 +709,7 @@ export default function MainLayout() {
           ) : null}
           <Toaster theme={currentTheme} position="bottom-right" style={{ zIndex: Z.TOAST }} />
           {confirmDeleteDialog}
+        </div>
         </div>
       </div>
 
