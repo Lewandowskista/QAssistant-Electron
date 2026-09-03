@@ -11,7 +11,6 @@
 import type {
     Attachment, Note, Project, Task, TestCase, TestPlan,
 } from '../src/types/project'
-import { importLegacyCredential, getCredentialStorageStatus } from './credentialService'
 // Pure row <-> object mapping lives in its own module so it can be tested without
 // the native better-sqlite3 binding. See databaseRows.ts.
 import {
@@ -299,8 +298,8 @@ function createSchema(): void {
             storefront_url    TEXT NOT NULL DEFAULT '',
             solr_admin_url    TEXT NOT NULL DEFAULT '',
             -- Orphaned by the SAP console removal: no longer read or written.
-            -- Left in place so existing databases keep working; drop at the next
-            -- schema bump.
+            -- Kept so existing databases keep loading. Drop at the next schema
+            -- bump. username/password are cleared by clearLegacyEnvironmentSecrets.
             occ_base_path     TEXT NOT NULL DEFAULT '',
             ignore_ssl_errors INTEGER NOT NULL DEFAULT 0,
             username          TEXT,
@@ -670,50 +669,34 @@ function runMigrations(): void {
 }
 
 
-export async function migrateLegacyEnvironmentSecretsToSecureStore(): Promise<{ migrated: number; skipped: number }> {
+/**
+ * Clear the plaintext credentials still sitting in the legacy `environments`
+ * username/password columns.
+ *
+ * These existed only to log into HAC. That feature is gone, so there is nothing
+ * to migrate them *to* — the previous version of this function copied them into
+ * the OS keychain, which now just relocates a secret nobody reads. Clearing them
+ * outright is strictly better: the plaintext leaves the database and nothing new
+ * enters the keychain. Credentials moved to the keychain by an earlier build are
+ * removed separately by removedFeatureCleanup.
+ */
+export function clearLegacyEnvironmentSecrets(): { cleared: number } {
     const database = getDb()
-    const alreadyMigrated = database
+    const alreadyDone = database
         .prepare('SELECT 1 FROM secret_migration_state WHERE key = ?')
         .get('environment_credentials_v1') as { 1: number } | undefined
 
-    if (alreadyMigrated) {
-        return { migrated: 0, skipped: 0 }
-    }
+    if (alreadyDone) return { cleared: 0 }
 
-    const storageStatus = getCredentialStorageStatus()
-    const rows = database.prepare(`
-        SELECT id, username, password
-        FROM environments
-        WHERE username IS NOT NULL OR password IS NOT NULL
-        ORDER BY rowid
-    `).all() as Array<{ id: string; username: string | null; password: string | null }>
+    const result = database
+        .prepare('UPDATE environments SET username = NULL, password = NULL WHERE username IS NOT NULL OR password IS NOT NULL')
+        .run()
 
-    let migrated = 0
-    let skipped = 0
-    const clearSecrets = database.prepare('UPDATE environments SET username = NULL, password = NULL WHERE id = ?')
-    const markMigrated = database.prepare('INSERT OR REPLACE INTO secret_migration_state (key, migrated_at) VALUES (?, ?)')
+    database
+        .prepare('INSERT OR REPLACE INTO secret_migration_state (key, migrated_at) VALUES (?, ?)')
+        .run('environment_credentials_v1', Date.now())
 
-    for (const row of rows) {
-        try {
-            if (row.username) await importLegacyCredential(`Env_${row.id}_Username`, row.username)
-            if (row.password) await importLegacyCredential(`Env_${row.id}_Password`, row.password)
-            clearSecrets.run(row.id)
-            migrated++
-        } catch (error) {
-            skipped++
-            console.warn('[db] Failed to migrate legacy environment secrets:', {
-                environmentId: row.id,
-                mode: storageStatus.mode,
-                error,
-            })
-        }
-    }
-
-    if (skipped === 0) {
-        markMigrated.run('environment_credentials_v1', Date.now())
-    }
-
-    return { migrated, skipped }
+    return { cleared: result.changes ?? 0 }
 }
 
 
@@ -2101,7 +2084,7 @@ export function saveAllProjects(projects: any[]): void {
                     notes: env.notes ?? '', health_check_url: env.healthCheckUrl ?? '',
                     hac_url: env.hacUrl ?? '', back_office_url: env.backOfficeUrl ?? '',
                     storefront_url: env.storefrontUrl ?? '', solr_admin_url: env.solrAdminUrl ?? '',
-                                })
+                })
             }
 
             // project files

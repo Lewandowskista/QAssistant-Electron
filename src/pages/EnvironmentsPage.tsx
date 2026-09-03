@@ -60,14 +60,7 @@ export default function EnvironmentsPage() {
     const selectedEnv = environments.find(e => e.id === selectedEnvId)
 
     useEffect(() => {
-        const load = async () => {
-            if (selectedEnv) {
-                setLocalEnv({ ...selectedEnv })
-            } else {
-                setLocalEnv(null)
-            }
-        }
-        load()
+        setLocalEnv(selectedEnv ? { ...selectedEnv } : null)
     }, [selectedEnvId, environments])
 
     const handleAdd = () => {

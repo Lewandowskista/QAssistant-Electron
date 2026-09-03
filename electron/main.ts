@@ -46,7 +46,7 @@ import {
     getHandoffById,
     getCollaborationEventById,
     getArtifactLinkById,
-    migrateLegacyEnvironmentSecretsToSecureStore,
+    clearLegacyEnvironmentSecrets,
     upsertProjectNote,
     deleteProjectNote,
     upsertProjectTask,
@@ -805,15 +805,21 @@ if (app) {
         try {
             const DB_FILE = path.join(APP_DATA_DIR, 'qassistant.db');
             initDatabase(DB_FILE);
-            migrateLegacyEnvironmentSecretsToSecureStore().catch(error => {
-                console.warn('[db] Legacy environment secret migration failed:', error);
-            });
+            // The SAP console features are gone, so the HAC credentials they owned
+            // are dead weight. Clear the plaintext copies out of the database, then
+            // sweep any that an earlier build had moved into the keychain. Ordered,
+            // not concurrent: the sweep must not race a writer that re-creates the
+            // keys it just deleted.
+            try {
+                const { cleared } = clearLegacyEnvironmentSecrets();
+                if (cleared > 0) console.log(`[db] Cleared legacy credentials from ${cleared} environment row(s).`);
+            } catch (error) {
+                console.warn('[db] Could not clear legacy environment secrets:', error);
+            }
 
-            // The SAP console features are gone; purge the credentials they owned so
-            // they stop sitting in the keychain (and in any cloud snapshot).
             purgeRemovedFeatureCredentials({ listCredentials, getCredential, setCredential, deleteCredential })
-                .then(({ removed }) => { if (removed > 0) scheduleCloudStateUpload(); })
-                .catch(error => { console.warn('[cleanup] Credential sweep failed:', error); });
+                .then(({ removed }: { removed: number }) => { if (removed > 0) scheduleCloudStateUpload(); })
+                .catch((error: unknown) => { console.warn('[cleanup] Credential sweep failed:', error); });
 
             // One-time migration: import projects.json into SQLite if it exists and DB is empty
             migrateJsonToSqlite(PROJECTS_FILE);
