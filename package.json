@@ -22,7 +22,7 @@
     "version:next": "node scripts/release-version.mjs",
     "version:bump:logical": "node scripts/release-version.mjs --apply",
     "version:verify-tag": "node scripts/release-version.mjs --verify-tag",
-    "build:mac": "electron-vite build && electron-builder --mac --publish never",
+    "build:mac": "electron-vite build && electron-builder --mac --arm64 --publish never",
     "build:win": "electron-vite build && electron-builder --win --publish never",
     "lint:styles": "node scripts/check-style-debt.mjs"
   },

@@ -27,10 +27,12 @@ mac:
   target:
     - target: dmg
       arch:
-        - x64
+        - arm64
+    # The zip target is what electron-updater consumes on macOS; the dmg is for
+    # a first install by hand.
     - target: zip
       arch:
-        - x64
+        - arm64
   category: public.app-category.developer-tools
   darkModeSupport: true
   hardenedRuntime: false
