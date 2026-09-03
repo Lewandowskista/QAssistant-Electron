@@ -3,6 +3,7 @@ import { normalizePullRequestAnalysisResult } from './prAnalysis'
 import type { PullRequestAnalysisResult } from './prAnalysis'
 import { sanitizeToonList, sanitizeToonScalar, ToonWriter } from './toon'
 import { SAP_COMMERCE_CONTEXT_BLOCK } from './sapCommerceContext'
+import { coerceMultilineText, coerceSingleLineText } from './aiFieldCoercion'
 
 const NIM_BASE_URL = 'https://integrate.api.nvidia.com/v1'
 
@@ -283,13 +284,50 @@ type NimUsage = {
     total_tokens?: number
 }
 
+/**
+ * NVIDIA NIM provider, and the shared base for any OpenAI-compatible chat backend.
+ *
+ * All prompt construction, TOON context assembly and response parsing live here and are
+ * provider-neutral. Everything provider-specific is isolated behind the `protected` transport
+ * hooks below (endpoint, headers, timeout, request-body shaping, content extraction, model
+ * sequence), so a subclass only overrides those. `OllamaService` in ./ollama.ts does exactly
+ * that — see that file before adding a third backend.
+ */
 export class NimService {
-    private apiKey: string
-    private preferredModel: string
+    protected apiKey: string
+    protected preferredModel: string
 
     constructor(apiKey: string) {
         this.apiKey = apiKey
         this.preferredModel = NIM_TEXT_MODEL_ALLOWLIST[0]
+    }
+
+    // ── Transport hooks (override per provider) ──────────────────────────────
+
+    /** Short tag used in log lines, e.g. "NIM" / "Ollama". */
+    protected get providerTag(): string { return 'NIM' }
+
+    /** Full URL of the OpenAI-compatible chat-completions endpoint. */
+    protected chatCompletionsUrl(): string { return `${NIM_BASE_URL}/chat/completions` }
+
+    /** Headers sent with every chat request. */
+    protected requestHeaders(): Record<string, string> {
+        return { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' }
+    }
+
+    /** Per-request abort deadline. Local backends need far longer than a hosted API. */
+    protected requestTimeoutMs(_feature: string): number { return 120_000 }
+
+    /** Last chance to add provider-specific fields to the request body. */
+    protected decorateRequestBody(_body: Record<string, any>, _feature: string): void { /* no-op for NIM */ }
+
+    /**
+     * Pull the assistant text out of a chat-completions response.
+     * Reasoning models put their chain-of-thought in a side channel and may leave `content`
+     * empty; subclasses that enable reasoning must handle that.
+     */
+    protected extractResponseContent(data: any): string {
+        return data?.choices?.[0]?.message?.content ?? ''
     }
 
     /** Returns true if a model ID looks like a non-chat model (embedding, reranking, etc.) */
@@ -379,7 +417,7 @@ export class NimService {
 
     // ── Internal helpers ─────────────────────────────────────────────────────
 
-    private buildModelSequence(modelOverride?: string): string[] {
+    protected buildModelSequence(modelOverride?: string): string[] {
         return Array.from(new Set([
             modelOverride,
             this.preferredModel,
@@ -387,7 +425,7 @@ export class NimService {
         ].filter(Boolean) as string[]))
     }
 
-    private classifyError(status: number, msg: string): { isRateLimit: boolean; isUnavailable: boolean } {
+    protected classifyError(status: number, msg: string): { isRateLimit: boolean; isUnavailable: boolean } {
         const s = `${status} ${msg}`.toLowerCase()
         return {
             isRateLimit: status === 429 || s.includes('rate_limit') || s.includes('rate limit') || s.includes('too many requests'),
@@ -395,7 +433,7 @@ export class NimService {
         }
     }
 
-    private buildFinalErrorMessage(lastError: any): string {
+    protected buildFinalErrorMessage(lastError: any): string {
         try {
             const msg = typeof lastError?.message === 'string' ? lastError.message : String(lastError ?? 'Unknown error')
             return msg.replace(/https?:\/\/[^\s]*/gi, '[url]').replace(/\n\s+at\s+.*/g, '')
@@ -404,19 +442,19 @@ export class NimService {
         }
     }
 
-    private static logUsage(modelName: string, usage: NimUsage | undefined, feature: string, telemetry?: PromptTelemetry): void {
+    protected static logUsage(modelName: string, usage: NimUsage | undefined, feature: string, telemetry?: PromptTelemetry, tag = 'NIM'): void {
         const parts = Object.entries(telemetry || {})
             .filter(([, v]) => v !== undefined)
             .map(([k, v]) => `${k}=${v}`)
         const telStr = parts.length > 0 ? `${feature} | ${parts.join(' | ')}` : feature
         if (usage) {
-            log.info(`[NIM] ${modelName} | ${telStr} | prompt: ${usage.prompt_tokens ?? '?'} tokens, output: ${usage.completion_tokens ?? '?'} tokens, total: ${usage.total_tokens ?? '?'} tokens`)
+            log.info(`[${tag}] ${modelName} | ${telStr} | prompt: ${usage.prompt_tokens ?? '?'} tokens, output: ${usage.completion_tokens ?? '?'} tokens, total: ${usage.total_tokens ?? '?'} tokens`)
         } else {
-            log.info(`[NIM] ${modelName} | ${telStr}`)
+            log.info(`[${tag}] ${modelName} | ${telStr}`)
         }
     }
 
-    private async executeWithFallback(
+    protected async executeWithFallback(
         systemPrompt: string,
         userPrompt: string,
         modelOverride?: string,
@@ -445,22 +483,20 @@ export class NimService {
                 if (jsonMode) {
                     body.response_format = { type: 'json_object' }
                 }
+                this.decorateRequestBody(body, feature)
 
-                const response = await fetch(`${NIM_BASE_URL}/chat/completions`, {
+                const response = await fetch(this.chatCompletionsUrl(), {
                     method: 'POST',
-                    headers: {
-                        Authorization: `Bearer ${this.apiKey}`,
-                        'Content-Type': 'application/json',
-                    },
+                    headers: this.requestHeaders(),
                     body: JSON.stringify(body),
-                    signal: AbortSignal.timeout(120_000),
+                    signal: AbortSignal.timeout(this.requestTimeoutMs(feature)),
                 })
 
                 if (!response.ok) {
                     const errText = await response.text().catch(() => '')
                     const { isRateLimit, isUnavailable } = this.classifyError(response.status, errText)
                     if (isRateLimit || isUnavailable) {
-                        console.warn(`[NIM] model ${modelName} ${isRateLimit ? 'rate limited' : 'unavailable'}. Trying next fallback...`)
+                        console.warn(`[${this.providerTag}] model ${modelName} ${isRateLimit ? 'rate limited' : 'unavailable'}. Trying next fallback...`)
                         lastError = new Error(`HTTP ${response.status}: ${errText}`)
                         continue
                     }
@@ -469,28 +505,38 @@ export class NimService {
                 }
 
                 const data = await response.json() as any
+                const content = this.extractResponseContent(data)
+
+                // A model that returns no text is a failed attempt, not a success. Reasoning models
+                // can burn the whole output budget on chain-of-thought and leave content empty;
+                // treating that as a valid answer surfaces an unparseable "" to the caller.
+                if (!content.trim()) {
+                    console.warn(`[${this.providerTag}] model ${modelName} returned empty content for ${feature}. Trying next fallback...`)
+                    lastError = new Error(`Model ${modelName} returned an empty response for ${feature}`)
+                    continue
+                }
 
                 if (modelName !== this.preferredModel) {
-                    log.info(`[NIM] switching preferred model to ${modelName} after successful response`)
+                    log.info(`[${this.providerTag}] switching preferred model to ${modelName} after successful response`)
                     this.preferredModel = modelName
                 }
 
-                NimService.logUsage(modelName, data.usage, feature, telemetry)
-                return data.choices?.[0]?.message?.content ?? ''
+                NimService.logUsage(modelName, data.usage, feature, telemetry, this.providerTag)
+                return content
             } catch (err: any) {
                 lastError = err
                 const msg = String(err?.message ?? err)
                 const { isRateLimit, isUnavailable } = this.classifyError(0, msg)
                 if (isRateLimit || isUnavailable) {
-                    console.warn(`[NIM] model ${modelName} error: ${msg}. Trying next fallback...`)
+                    console.warn(`[${this.providerTag}] model ${modelName} error: ${msg}. Trying next fallback...`)
                     continue
                 }
-                console.error(`[NIM] model ${modelName} failed:`, msg)
+                console.error(`[${this.providerTag}] model ${modelName} failed:`, msg)
                 continue
             }
         }
 
-        throw `NIM API Error: ${this.buildFinalErrorMessage(lastError)}`
+        throw `${this.providerTag} API Error: ${this.buildFinalErrorMessage(lastError)}`
     }
 
     // ── Context helpers (shared with GeminiService via same TOON system) ──────
@@ -498,6 +544,7 @@ export class NimService {
     private static sanitizeToonValue(value: string | null | undefined, maxLength = 500): string {
         return sanitizeToonScalar(value, maxLength)
     }
+
 
     private static pushCommentList(writer: ToonWriter, name: string, comments: any[], maxComments = 5): number {
         const visible = comments.slice(0, maxComments)
@@ -924,11 +971,11 @@ export class NimService {
             const priority = PRIORITY_MAP[String(item.priority || 'medium').toLowerCase()] || 'medium'
             return {
                 testCaseId: String(item.testCaseId || `TC-${String(i + 1).padStart(3, '0')}`).substring(0, 50),
-                title: String(item.title || `Test Case ${i + 1}`).substring(0, 300),
-                preConditions: String(item.preConditions || '').substring(0, 2000),
-                steps: String(item.testSteps || item.steps || '').substring(0, 5000),
-                testData: String(item.testData || '').substring(0, 2000),
-                expectedResult: String(item.expectedResult || '').substring(0, 2000),
+                title: coerceSingleLineText(item.title || `Test Case ${i + 1}`).substring(0, 300),
+                preConditions: coerceMultilineText(item.preConditions).substring(0, 2000),
+                steps: coerceMultilineText(item.testSteps ?? item.steps).substring(0, 5000),
+                testData: coerceMultilineText(item.testData).substring(0, 2000),
+                expectedResult: coerceMultilineText(item.expectedResult).substring(0, 2000),
                 priority: priority as any,
                 sourceIssueId: String(item.sourceIssueId || '').substring(0, 100),
                 sapModule: item.sapModule ? String(item.sapModule).substring(0, 100) : undefined,
@@ -1157,37 +1204,71 @@ export class NimService {
         }
         messages.push({ role: 'user', content: user.toString() })
 
-        const models = this.buildModelSequence(modelName)
+        // Chat needs a multi-turn messages array, so it cannot reuse executeWithFallback's
+        // single system+user shape — but it must still go through the same transport hooks
+        // (endpoint, headers, timeout, body decoration, content extraction) or a subclass
+        // provider would silently fall back to NVIDIA's host. See dispatchChatMessages.
+        return this.dispatchChatMessages(messages, modelName, MAX_TOKENS.chat, 'chat', telemetry)
+    }
+
+    /**
+     * Send a prepared multi-turn messages array, walking the model fallback sequence.
+     * Shares every transport hook with executeWithFallback so provider overrides apply.
+     */
+    protected async dispatchChatMessages(
+        messages: Array<{ role: string; content: string }>,
+        modelOverride: string | undefined,
+        maxOutputTokens: number,
+        feature: string,
+        telemetry?: PromptTelemetry,
+    ): Promise<string> {
+        const models = this.buildModelSequence(modelOverride)
         let lastError: any
         for (const currentModelName of models) {
             try {
-                const response = await fetch(`${NIM_BASE_URL}/chat/completions`, {
+                const body: any = {
+                    model: currentModelName,
+                    messages,
+                    max_tokens: maxOutputTokens,
+                    temperature: 0.7,
+                    top_p: 0.9,
+                    stream: false,
+                }
+                this.decorateRequestBody(body, feature)
+
+                const response = await fetch(this.chatCompletionsUrl(), {
                     method: 'POST',
-                    headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: currentModelName, messages, max_tokens: MAX_TOKENS.chat, temperature: 0.7, top_p: 0.9, stream: false }),
-                    signal: AbortSignal.timeout(120_000),
+                    headers: this.requestHeaders(),
+                    body: JSON.stringify(body),
+                    signal: AbortSignal.timeout(this.requestTimeoutMs(feature)),
                 })
                 if (!response.ok) {
                     const errText = await response.text().catch(() => '')
                     const { isRateLimit, isUnavailable } = this.classifyError(response.status, errText)
                     lastError = new Error(`HTTP ${response.status}`)
-                    if (isRateLimit || isUnavailable) { console.warn(`[NIM] chat model ${currentModelName} ${isRateLimit ? 'rate limited' : 'unavailable'}. Trying next...`); continue }
+                    if (isRateLimit || isUnavailable) { console.warn(`[${this.providerTag}] chat model ${currentModelName} ${isRateLimit ? 'rate limited' : 'unavailable'}. Trying next...`); continue }
                     continue
                 }
                 const data = await response.json() as any
-                if (currentModelName !== this.preferredModel) { log.info(`[NIM] switching preferred model to ${currentModelName}`); this.preferredModel = currentModelName }
-                NimService.logUsage(currentModelName, data.usage, 'chat', telemetry)
-                return data.choices?.[0]?.message?.content ?? ''
+                const content = this.extractResponseContent(data)
+                if (!content.trim()) {
+                    console.warn(`[${this.providerTag}] chat model ${currentModelName} returned empty content. Trying next...`)
+                    lastError = new Error(`Model ${currentModelName} returned an empty response`)
+                    continue
+                }
+                if (currentModelName !== this.preferredModel) { log.info(`[${this.providerTag}] switching preferred model to ${currentModelName}`); this.preferredModel = currentModelName }
+                NimService.logUsage(currentModelName, data.usage, feature, telemetry, this.providerTag)
+                return content
             } catch (err: any) {
                 lastError = err
                 const msg = String(err?.message ?? err)
                 const { isRateLimit, isUnavailable } = this.classifyError(0, msg)
-                if (isRateLimit || isUnavailable) { console.warn(`[NIM] chat model ${currentModelName} error: ${msg}. Trying next...`); continue }
-                console.error(`[NIM] chat model ${currentModelName} failed:`, msg)
+                if (isRateLimit || isUnavailable) { console.warn(`[${this.providerTag}] chat model ${currentModelName} error: ${msg}. Trying next...`); continue }
+                console.error(`[${this.providerTag}] chat model ${currentModelName} failed:`, msg)
                 continue
             }
         }
-        throw `NIM Chat API Error: ${this.buildFinalErrorMessage(lastError)}`
+        throw `${this.providerTag} Chat API Error: ${this.buildFinalErrorMessage(lastError)}`
     }
 
     async extractClaims(agentResponse: string, modelOverride?: string, expectedAnswer?: string): Promise<Array<{ claimText: string; claimType: string }>> {

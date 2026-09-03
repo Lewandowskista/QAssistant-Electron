@@ -4,6 +4,7 @@ import { log } from './logger'
 import { normalizePullRequestAnalysisResult } from './prAnalysis'
 import type { PullRequestAnalysisResult } from './prAnalysis'
 import { sanitizeToonList, sanitizeToonScalar, ToonWriter } from './toon'
+import { coerceMultilineText, coerceSingleLineText } from './aiFieldCoercion'
 
 const MODEL_3_5_FLASH = 'gemini-3.5-flash';
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
@@ -1069,11 +1070,11 @@ export class GeminiService {
             const priority = PRIORITY_MAP[rawPriority] || 'medium'
             return {
                 testCaseId: String(item.testCaseId || `TC-${String(i + 1).padStart(3, '0')}`).substring(0, 50),
-                title: String(item.title || `Test Case ${i + 1}`).substring(0, 300),
-                preConditions: String(item.preConditions || '').substring(0, 2000),
-                steps: String(item.testSteps || item.steps || '').substring(0, 5000),
-                testData: String(item.testData || '').substring(0, 2000),
-                expectedResult: String(item.expectedResult || '').substring(0, 2000),
+                title: coerceSingleLineText(item.title || `Test Case ${i + 1}`).substring(0, 300),
+                preConditions: coerceMultilineText(item.preConditions).substring(0, 2000),
+                steps: coerceMultilineText(item.testSteps ?? item.steps).substring(0, 5000),
+                testData: coerceMultilineText(item.testData).substring(0, 2000),
+                expectedResult: coerceMultilineText(item.expectedResult).substring(0, 2000),
                 priority: priority as any,
                 sourceIssueId: String(item.sourceIssueId || '').substring(0, 100),
                 sapModule: item.sapModule ? String(item.sapModule).substring(0, 100) : undefined,

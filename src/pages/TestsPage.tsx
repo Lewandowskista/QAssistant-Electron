@@ -59,6 +59,7 @@ import { sanitizeExecutionsForAi, sanitizeProjectForQaAi, sanitizeTasksForQaAi, 
 import { aiGenerateCases, aiSmokeSubset, aiCriticality, aiTestRunSuggestions } from '@/lib/aiClient'
 import { computeRiskScores } from '@/lib/riskPrioritization'
 import { AiSetupPrompt } from '@/components/ui/AiSetupPrompt'
+import { useAiProviderStatus } from '@/hooks/useAiProviderStatus'
 import { useUserStore } from '@/store/useUserStore'
 import { useShallow } from "zustand/react/shallow"
 
@@ -120,17 +121,10 @@ export default function TestsPage() {
     const [activePlanForCase, setActivePlanForCase] = useState<TestPlan | null>(null)
     const [activeCaseForRun, setActiveCaseForRun] = useState<TestCase | null>(null)
 
-    const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null)
-
-    useEffect(() => {
-        if (!activeProjectId || !api) return
-        Promise.all([
-            api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`),
-            api.secureStoreGet('gemini_api_key'),
-        ]).then(([projectKey, globalKey]) => {
-            setGeminiConfigured(!!(projectKey || globalKey))
-        }).catch(() => setGeminiConfigured(false))
-    }, [activeProjectId, api])
+    // Provider-aware: a keyless local provider (Ollama) is "configured" when its daemon
+    // answers and has a model, not when a Gemini key exists.
+    const aiStatus = useAiProviderStatus(activeProject)
+    const aiConfigured = aiStatus.configured
 
     useEffect(() => {
         if (!activeProjectId) return
@@ -706,11 +700,13 @@ export default function TestsPage() {
 
                             {/* Content Area */}
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                                {geminiConfigured === false && (
+                                {aiConfigured === false && (
                                     <div className="max-w-5xl mx-auto mb-6">
                                         <AiSetupPrompt
                                             featureName="AI Test Case Generation"
-                                            description="Connect a Gemini API key to generate structured test cases from your Linear or Jira issues — including preconditions, steps, test data, and expected results linked back to the originating task."
+                                            description="Configure an AI provider to generate structured test cases from your Linear or Jira issues — including preconditions, steps, test data, and expected results linked back to the originating task."
+                                            provider={aiStatus.provider}
+                                            reason={aiStatus.reason}
                                         />
                                     </div>
                                 )}
@@ -1246,10 +1242,12 @@ export default function TestsPage() {
                                 {/* Content */}
                                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                                     <div className="max-w-5xl mx-auto space-y-8">
-                                        {geminiConfigured === false && (
+                                        {aiConfigured === false && (
                                             <AiSetupPrompt
                                                 featureName="AI Smoke Subset Selection"
-                                                description="Connect a Gemini API key to let AI identify the highest-risk test cases for your smoke run — balancing coverage against execution time, weighted by priority and failure history."
+                                                description="Configure an AI provider to let AI identify the highest-risk test cases for your smoke run — balancing coverage against execution time, weighted by priority and failure history."
+                                                provider={aiStatus.provider}
+                                                reason={aiStatus.reason}
                                             />
                                         )}
                                         {builderStatus && (

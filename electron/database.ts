@@ -79,6 +79,10 @@ function createSchema(): void {
             client_name TEXT,
             description TEXT,
             gemini_model TEXT,
+            ai_provider TEXT,           -- 'gemini' | 'nim' | 'ollama'
+            nim_model TEXT,
+            ollama_model TEXT,
+            ollama_base_url TEXT,       -- blank/NULL means the local Ollama default
             columns_json TEXT,          -- JSON: column definitions
             source_columns_json TEXT,   -- JSON: per-source column overrides
             quality_gates_json TEXT,    -- JSON: QualityGate[]
@@ -623,6 +627,20 @@ function migrateProjectAiCopilotHistory(database: DB): void {
     }
 }
 
+/**
+ * Persist the project's AI provider selection.
+ *
+ * Only `gemini_model` was ever stored, so a project set to NIM (and now Ollama) silently
+ * reverted to Gemini on restart. Adds the missing columns; idempotent.
+ */
+function migrateProjectAiProviderColumns(database: DB): void {
+    for (const column of ['ai_provider', 'nim_model', 'ollama_model', 'ollama_base_url']) {
+        if (!hasColumn(database, 'projects', column)) {
+            database.exec(`ALTER TABLE projects ADD COLUMN ${column} TEXT`)
+        }
+    }
+}
+
 function runMigrations(): void {
     const database = getDb()
     const row = database.prepare('SELECT version FROM schema_version LIMIT 1').get() as { version: number } | undefined
@@ -631,6 +649,7 @@ function runMigrations(): void {
     // This migration is idempotent and also repairs partially upgraded installs.
     migrateSyncQueueWorkspaceScope(database)
     migrateProjectAiCopilotHistory(database)
+    migrateProjectAiProviderColumns(database)
 
     if (currentVersion < SCHEMA_VERSION) {
         database.prepare('DELETE FROM schema_version').run()
@@ -731,6 +750,10 @@ type ProjectRow = {
     client_name: string | null
     description: string | null
     gemini_model: string | null
+    ai_provider: string | null
+    nim_model: string | null
+    ollama_model: string | null
+    ollama_base_url: string | null
     columns_json: string | null
     source_columns_json: string | null
     quality_gates_json: string | null
@@ -765,6 +788,10 @@ function rowToProject(row: ProjectRow): Project {
         apiRequests: [],
         runbooks: [],
         geminiModel: row.gemini_model ?? undefined,
+        aiProvider: (row.ai_provider as 'gemini' | 'nim' | 'ollama' | null) ?? undefined,
+        nimModel: row.nim_model ?? undefined,
+        ollamaModel: row.ollama_model ?? undefined,
+        ollamaBaseUrl: row.ollama_base_url ?? undefined,
         columns: p(row.columns_json) ?? [],
         sourceColumns: p(row.source_columns_json),
         qualityGates: p(row.quality_gates_json) ?? [],
@@ -1961,12 +1988,14 @@ export function saveAllProjects(projects: any[]): void {
 
     const upsertProject = database.prepare(`
         INSERT INTO projects (id, schema_version, name, color, client_name, description, gemini_model,
+            ai_provider, nim_model, ollama_model, ollama_base_url,
             columns_json, source_columns_json, quality_gates_json, report_templates_json,
             report_schedules_json, report_history_json, custom_kpis_json, ai_copilot_history_json,
             linear_connections_json, jira_connections_json,
             linear_connection_legacy_json, jira_connection_legacy_json,
             created_at, updated_at)
         VALUES (@id, @schema_version, @name, @color, @client_name, @description, @gemini_model,
+            @ai_provider, @nim_model, @ollama_model, @ollama_base_url,
             @columns_json, @source_columns_json, @quality_gates_json, @report_templates_json,
             @report_schedules_json, @report_history_json, @custom_kpis_json, @ai_copilot_history_json,
             @linear_connections_json, @jira_connections_json,
@@ -1977,6 +2006,10 @@ export function saveAllProjects(projects: any[]): void {
             name = excluded.name, color = excluded.color,
             client_name = excluded.client_name, description = excluded.description,
             gemini_model = excluded.gemini_model,
+            ai_provider = excluded.ai_provider,
+            nim_model = excluded.nim_model,
+            ollama_model = excluded.ollama_model,
+            ollama_base_url = excluded.ollama_base_url,
             columns_json = excluded.columns_json,
             source_columns_json = excluded.source_columns_json,
             quality_gates_json = excluded.quality_gates_json,
@@ -2181,6 +2214,10 @@ export function saveAllProjects(projects: any[]): void {
                 client_name: proj.clientName ?? null,
                 description: proj.description ?? null,
                 gemini_model: proj.geminiModel ?? null,
+                ai_provider: proj.aiProvider ?? null,
+                nim_model: proj.nimModel ?? null,
+                ollama_model: proj.ollamaModel ?? null,
+                ollama_base_url: proj.ollamaBaseUrl ?? null,
                 columns_json: j(proj.columns),
                 source_columns_json: j(proj.sourceColumns),
                 quality_gates_json: j(proj.qualityGates),

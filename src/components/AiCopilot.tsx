@@ -318,10 +318,16 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [messages])
 
+    /**
+     * Resolves the credential that gates the copilot. Ollama runs locally with no credential at
+     * all, so it reports its host instead — otherwise a working local setup would be blocked
+     * behind a key that can never exist.
+     */
     const fetchApiKey = useCallback(async (): Promise<string | null> => {
         const api = window.electronAPI
         const { projects, activeProjectId: pid } = useProjectStore.getState()
         const proj = projects.find(p => p.id === pid)
+        if (proj?.aiProvider === 'ollama') return proj.ollamaBaseUrl?.trim() || 'local'
         const keyName = proj?.aiProvider === 'nim' ? 'nim_api_key' : 'gemini_api_key'
         return getApiKey(api, keyName, activeProjectId)
     }, [activeProjectId])
@@ -432,7 +438,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                     {
                         id: crypto.randomUUID(),
                         role: "assistant",
-                        content: "No AI API key configured. Add it in Settings → Google AI Studio or NVIDIA NIM.",
+                        content: "No AI provider configured. Set one up in Settings → Google AI Studio, NVIDIA NIM, or Ollama (Local Models).",
                         timestamp: Date.now(),
                         isError: true,
                     },
@@ -924,7 +930,7 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                 {apiKeyMissing && (
                     <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-state-warning-soft border border-state-warning-border text-state-warning text-[11px] flex items-center gap-2">
                         <Sparkles className="h-3 w-3 shrink-0" />
-                        Configure a Gemini API key in Settings to use AI Copilot.
+                        Configure an AI provider in Settings to use AI Copilot.
                     </div>
                 )}
 

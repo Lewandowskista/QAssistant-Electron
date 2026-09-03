@@ -56,6 +56,7 @@ const SETTINGS_GROUPS: Array<{ label: string; sections: Array<{ id: string; labe
         sections: [
             { id: "gemini", label: "Google AI Studio", icon: Cpu },
             { id: "nim", label: "NVIDIA NIM", icon: Cpu },
+            { id: "ollama", label: "Ollama (Local)", icon: Cpu },
         ],
     },
     {
@@ -233,6 +234,16 @@ export default function SettingsPage() {
     const [availableModels, setAvailableModels] = useState<string[]>([])
     const [modelsLoading, setModelsLoading] = useState(false)
 
+    // ── Ollama (local) ────────────────────────────────────────────────────────
+    const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
+    const [ollamaModel, setOllamaModel] = useState('')
+    const [ollamaStatusMsg, setOllamaStatusMsg] = useState<StatusState>(null)
+    const [ollamaReachable, setOllamaReachable] = useState<boolean | null>(null)
+    const [ollamaModels, setOllamaModels] = useState<import('../types/electron').OllamaModelInfoEntry[]>([])
+    const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
+    const [ollamaHealthMap, setOllamaHealthMap] = useState<Record<string, { status: 'up' | 'degraded' | 'down'; latencyMs: number; error?: string }>>({})
+    const [ollamaHealthLoading, setOllamaHealthLoading] = useState(false)
+
     // ── NVIDIA NIM ────────────────────────────────────────────────────────────
     const [nimKey, setNimKey] = useState('')
     const [nimModel, setNimModel] = useState('')
@@ -402,6 +413,8 @@ export default function SettingsPage() {
             if (activeProject?.geminiModel) setGeminiModel(activeProject.geminiModel)
             if (storedNim) setNimKey(storedNim)
             if (activeProject?.nimModel) setNimModel(activeProject.nimModel)
+            if (activeProject?.ollamaBaseUrl) setOllamaBaseUrl(activeProject.ollamaBaseUrl)
+            if (activeProject?.ollamaModel) setOllamaModel(activeProject.ollamaModel)
             if (storedCcv2Sub) setCcv2Sub(storedCcv2Sub)
             if (storedCcv2Token) setCcv2Token(storedCcv2Token)
             setAppVersion(ver || '')
@@ -733,6 +746,67 @@ export default function SettingsPage() {
             flash(setGeminiStatus, `Error: ${e.message}`, false)
         } finally {
             setModelsLoading(false)
+        }
+    }
+
+    // ── Ollama (local) ────────────────────────────────────────────────────────
+    // No credential to store: Ollama runs unauthenticated on localhost, so the whole config is
+    // the (optional) base URL plus which installed model to prefer.
+    const saveOllama = async () => {
+        if (activeProject) {
+            await updateProject(activeProject.id, {
+                ollamaBaseUrl: ollamaBaseUrl.trim() || undefined,
+                ollamaModel: ollamaModel || undefined,
+                aiProvider: 'ollama',
+            })
+        }
+        flash(setOllamaStatusMsg, 'Ollama settings saved. This project now runs AI fully locally.', true)
+    }
+
+    const checkOllama = async () => {
+        setOllamaModelsLoading(true)
+        flash(setOllamaStatusMsg, 'Contacting Ollama…', true)
+        try {
+            const res: any = await api.ollamaStatus({ baseUrl: ollamaBaseUrl.trim() || undefined })
+            if (res?.__isError) throw new Error(res.message)
+            setOllamaReachable(!!res.reachable)
+            if (!res.reachable) {
+                setOllamaModels([])
+                flash(setOllamaStatusMsg, 'Ollama is not reachable. Is the daemon running?', false, 8000)
+                return
+            }
+            const installed: any = await api.ollamaInstalledModels({ baseUrl: ollamaBaseUrl.trim() || undefined })
+            const list = Array.isArray(installed) ? installed : []
+            setOllamaModels(list)
+            if (list.length === 0) {
+                flash(setOllamaStatusMsg, 'Ollama is running but has no chat models. Pull one, e.g. `ollama pull gpt-oss:20b`.', false, 10000)
+                return
+            }
+            if (!ollamaModel || !res.models?.includes(ollamaModel)) setOllamaModel(res.models?.[0] || list[0].name)
+            flash(setOllamaStatusMsg, `Connected — ${list.length} local model${list.length === 1 ? '' : 's'} available.`, true, 6000)
+        } catch (e: any) {
+            setOllamaReachable(false)
+            flash(setOllamaStatusMsg, `Error: ${e.message}`, false, 8000)
+        } finally {
+            setOllamaModelsLoading(false)
+        }
+    }
+
+    const checkOllamaHealth = async () => {
+        if (ollamaModels.length === 0) return
+        setOllamaHealthLoading(true)
+        flash(setOllamaStatusMsg, 'Probing local models — the first response loads the model from disk and can take a while…', true, 10000)
+        try {
+            const names = ollamaModels.map(m => m.name)
+            const res: any = await api.ollamaProbeModels({ baseUrl: ollamaBaseUrl.trim() || undefined, models: names })
+            if (res?.__isError) throw new Error(res.message)
+            setOllamaHealthMap(res || {})
+            const up = Object.values(res || {}).filter((h: any) => h.status === 'up').length
+            flash(setOllamaStatusMsg, `${up}/${names.length} model${names.length === 1 ? '' : 's'} responding.`, true, 6000)
+        } catch (e: any) {
+            flash(setOllamaStatusMsg, `Error: ${e.message}`, false, 8000)
+        } finally {
+            setOllamaHealthLoading(false)
         }
     }
 
@@ -1449,6 +1523,79 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         )}
                     </div>
                     <StatusBanner s={nimStatus} />
+                </Sec>
+
+                {/* ── Ollama (local) ───────────────────────────────────────── */}
+                <Sec id="ollama" title="Ollama (Local Models)" icon={<Cpu className="h-4 w-4" />} activeSection={activeSection}>
+                    <div className="flex items-center justify-between mb-4">
+                        <p className="text-xs text-muted-ui max-w-md">Run AI entirely on this machine — no API key, and no project data leaves your device. Requires the Ollama daemon with at least one chat model pulled.</p>
+                        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-brand font-bold text-xs flex-none ml-4" onClick={() => api.openUrl('https://ollama.com/download')}><ExternalLink className="h-3.5 w-3.5" />Install Ollama</Button>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <FieldLabel>Host</FieldLabel>
+                            <Input
+                                value={ollamaBaseUrl}
+                                onChange={e => setOllamaBaseUrl(e.target.value)}
+                                placeholder="http://localhost:11434"
+                                className={inp}
+                            />
+                            <p className="text-xs text-muted-ui mt-1">Leave blank for the local default (http://localhost:11434).</p>
+                        </div>
+                        <div>
+                            <FieldLabel>Preferred Model</FieldLabel>
+                            {ollamaModels.length > 0 ? (
+                                <select
+                                    className={`${inp} w-full appearance-none px-3 cursor-pointer`}
+                                    value={ollamaModels.some(m => m.name === ollamaModel) ? ollamaModel : (ollamaModels[0]?.name || '')}
+                                    onChange={e => setOllamaModel(e.target.value)}
+                                >
+                                    {ollamaModels.map(m => {
+                                        const health = ollamaHealthMap[m.name]
+                                        const dot = health ? (health.status === 'up' ? '🟢' : health.status === 'degraded' ? '🟡' : '🔴') : '⚪'
+                                        const gb = m.sizeBytes ? ` ${(m.sizeBytes / 1e9).toFixed(1)}GB` : ''
+                                        const params = m.parameterSize ? ` · ${m.parameterSize}` : ''
+                                        const quant = m.quantization ? ` ${m.quantization}` : ''
+                                        const latency = health?.status === 'up' ? ` · ${(health.latencyMs / 1000).toFixed(1)}s` : ''
+                                        return <option key={m.name} value={m.name}>{dot} {m.name}{gb}{params}{quant}{latency}</option>
+                                    })}
+                                </select>
+                            ) : (
+                                <Input
+                                    value={ollamaModel}
+                                    onChange={e => setOllamaModel(e.target.value)}
+                                    placeholder="e.g. gpt-oss:20b"
+                                    className={inp}
+                                />
+                            )}
+                            <p className="text-xs text-muted-ui mt-1">gpt-oss:20b is recommended — a mixture-of-experts model that generates fast on Apple silicon.</p>
+                        </div>
+                    </div>
+                    {ollamaReachable === false && (
+                        <div className="mt-3 rounded-md border border-state-warning-border bg-state-warning-soft px-3 py-2">
+                            <p className="text-xs text-foreground leading-relaxed">
+                                Ollama is not responding. Start it, then run <span className="font-mono text-brand">ollama pull gpt-oss:20b</span> if you have not pulled a model yet.
+                            </p>
+                        </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9" onClick={saveOllama}>Save Ollama Settings</Button>
+                        <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={checkOllama} disabled={ollamaModelsLoading}>
+                            {ollamaModelsLoading ? 'Checking…' : ollamaModels.length > 0 ? 'Refresh Models' : 'Check Connection'}
+                        </Button>
+                        {ollamaModels.length > 0 && (
+                            <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={checkOllamaHealth} disabled={ollamaHealthLoading}>
+                                {ollamaHealthLoading ? 'Probing…' : 'Check Model Health'}
+                            </Button>
+                        )}
+                        {activeProject?.aiProvider === 'ollama' && (
+                            <span className="text-xs text-state-success font-semibold ml-1">✓ Active provider for this project</span>
+                        )}
+                        {activeProject?.aiProvider !== 'ollama' && (
+                            <span className="text-xs text-muted-ui ml-1">Saving switches this project to local AI.</span>
+                        )}
+                    </div>
+                    <StatusBanner s={ollamaStatusMsg} />
                 </Sec>
 
                 {/* ── SAP CCv2 ─────────────────────────────────────────────── */}

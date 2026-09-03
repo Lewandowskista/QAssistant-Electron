@@ -39,6 +39,15 @@ export interface NimModelMetaEntry {
     notes?: string;
 }
 
+/** A model installed in the local Ollama store. */
+export interface OllamaModelInfoEntry {
+    name: string;
+    sizeBytes: number;
+    parameterSize?: string;
+    quantization?: string;
+    family?: string;
+}
+
 export interface ElectronAPI {
     // Window controls
     minimize: () => void;
@@ -144,6 +153,13 @@ export interface ElectronAPI {
     nimListModels: (args: { apiKey: string }) => Promise<string[]>;
     nimProbeModels: (args: { apiKey: string; models: string[] }) => Promise<Record<string, ModelHealthEntry>>;
     nimGetModelMetadata: (args?: { models?: string[] }) => Promise<Record<string, NimModelMetaEntry>>;
+    /** Installed Ollama chat models, preferred ones first. Empty when none are pulled. */
+    ollamaListModels: (args?: { baseUrl?: string }) => Promise<string[]>;
+    /** Installed models with size/quantisation detail, for the settings picker. */
+    ollamaInstalledModels: (args?: { baseUrl?: string }) => Promise<OllamaModelInfoEntry[]>;
+    /** Whether an Ollama daemon answers, plus the models it has. */
+    ollamaStatus: (args?: { baseUrl?: string }) => Promise<{ reachable: boolean; models: string[] }>;
+    ollamaProbeModels: (args: { baseUrl?: string; models: string[] }) => Promise<Record<string, ModelHealthEntry>>;
 
     // Integrations (Linear)
     syncLinear: (args: any) => Promise<any>;

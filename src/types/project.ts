@@ -445,7 +445,10 @@ export type Project = {
 
     geminiModel?: string
     nimModel?: string
-    aiProvider?: 'gemini' | 'nim'
+    ollamaModel?: string
+    /** Ollama host. Empty/undefined means the local default (http://localhost:11434). */
+    ollamaBaseUrl?: string
+    aiProvider?: 'gemini' | 'nim' | 'ollama'
     columns?: { id: string, title: string, color?: string, textColor?: string, type?: string }[]
     sourceColumns?: Partial<Record<'manual' | 'linear' | 'jira', { id: string, title: string, color?: string, textColor?: string, type?: string }[]>>
     qualityGates?: QualityGate[]

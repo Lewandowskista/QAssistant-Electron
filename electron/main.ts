@@ -87,6 +87,7 @@ import {
 } from './cloudState'
 import { GeminiService } from './gemini';
 import { NimService } from './nim';
+import { OllamaService } from './ollama';
 import { AiRateLimiter } from './aiRateLimiter';
 import { startServer, stopServer, setOAuthCompleteCallback, getServerPort, isServerRunning } from './server';
 import { startReminderService } from './reminders';
@@ -476,6 +477,17 @@ if (app) {
             return nimServiceInstance;
         }
 
+        // Singleton OllamaService cache keyed by base URL (Ollama has no API key).
+        let ollamaServiceInstance: OllamaService | null = null;
+        let ollamaServiceUrl: string | null = null;
+        function getOllamaService(baseUrl: string): OllamaService {
+            if (ollamaServiceInstance === null || ollamaServiceUrl !== baseUrl) {
+                ollamaServiceInstance = new OllamaService(baseUrl);
+                ollamaServiceUrl = baseUrl;
+            }
+            return ollamaServiceInstance;
+        }
+
         registerProjectHandlers(ipcMain, {
             getAllProjects,
             saveAllProjects,
@@ -542,6 +554,7 @@ if (app) {
             waitForAiTurn,
             getGeminiService,
             getNimService,
+            getOllamaService,
             accuracy,
             errMsg,
             assertString,
