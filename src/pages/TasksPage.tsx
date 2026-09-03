@@ -825,12 +825,12 @@ export default function TasksPage() {
 
             <ConfirmDialog
                 open={!!taskToDelete}
-                onCancel={() => setTaskToDelete(null)}
                 title="Delete Task"
                 description="Permanent action."
                 confirmLabel="Delete"
                 destructive
                 onConfirm={() => { if (activeProjectId && taskToDelete) deleteTask(activeProjectId, taskToDelete.id) }}
+                onClose={() => setTaskToDelete(null)}
             />
 
             <Suspense fallback={null}>

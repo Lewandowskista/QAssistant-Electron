@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter, Routes, Route } from 'react-router-dom'
+import { ModalLockGuard } from '@/hooks/useModalLockGuard'
 import './index.css'
 
 import MainLayout from '@/layouts/MainLayout'
@@ -99,6 +100,8 @@ if (!rootElement) throw new Error("Root element not found")
 
 createRoot(rootElement).render(
   <AppAuthBoundary>
+    {/* Backstop against an orphaned Radix modal lock freezing all input. */}
+    <ModalLockGuard />
     <HashRouter>
       <Suspense fallback={
         <div className="flex items-center justify-center h-full w-full bg-background">
