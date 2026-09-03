@@ -38,6 +38,28 @@ function generateId(): string {
 
 const MAX_AI_COPILOT_HISTORY_ENTRIES = 150
 const EMPTY_NOTES: Note[] = []
+/**
+ * Next display id for a collection, e.g. TC-001.
+ *
+ * Two bugs this replaces. `` `TC-${n}`.padStart(6, '0') `` pads the whole string,
+ * so it produced "00TC-1" rather than "TC-001". And the number came from the
+ * collection's length, so deleting a case then adding one reused an existing id
+ * — the automation API resolves incoming results by the first displayId match,
+ * so a duplicate means the wrong test case receives the result.
+ *
+ * Derives from the highest number already present instead, so ids are unique for
+ * the life of the collection.
+ */
+export function nextDisplayId(prefix: string, existing: Array<{ displayId?: string }>): string {
+    const pattern = new RegExp(`^${prefix}-(\\d+)$`)
+    let highest = 0
+    for (const item of existing) {
+        const match = item.displayId?.match(pattern)
+        if (match) highest = Math.max(highest, Number(match[1]))
+    }
+    return `${prefix}-${String(highest + 1).padStart(3, '0')}`
+}
+
 const EMPTY_TASKS: Task[] = []
 const EMPTY_TEST_PLANS: TestPlan[] = []
 const EMPTY_HANDOFFS: HandoffPacket[] = []
@@ -1436,7 +1458,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const tasks = p.tasks.filter(t => t.id !== taskId)
-                return { ...p, tasks }
+                // The database cascades handoffs and events but not artifact
+                // links, and the store previously dropped neither — so the next
+                // full write re-inserted orphaned rows referencing a gone task.
+                const handoffIds = new Set((p.handoffPackets ?? []).filter(h => h.taskId === taskId).map(h => h.id))
+                return {
+                    ...p,
+                    tasks,
+                    handoffPackets: (p.handoffPackets ?? []).filter(h => h.taskId !== taskId),
+                    collaborationEvents: (p.collaborationEvents ?? []).filter(e => e.taskId !== taskId),
+                    artifactLinks: (p.artifactLinks ?? []).filter(link => {
+                        const refersToTask = (link.sourceType === 'task' && link.sourceId === taskId)
+                            || (link.targetType === 'task' && link.targetId === taskId)
+                        const refersToHandoff = (link.sourceType === 'handoff' && handoffIds.has(link.sourceId))
+                            || (link.targetType === 'handoff' && handoffIds.has(link.targetId))
+                        return !refersToTask && !refersToHandoff
+                    }),
+                }
             }
             return p
         })
@@ -1495,7 +1533,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         const testCase: TestCase = {
             id: generateId(),
-            displayId: `TC-${(activePlan.testCases.length + 1)}`.padStart(6, '0'),
+            displayId: nextDisplayId('TC', activePlan.testCases),
             title: `Verify: ${task.title}`,
             preConditions: "Task context provided from board.",
             steps: task.description || "Refer to task description.",
@@ -1536,7 +1574,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const id = generateId()
         const plan: TestPlan = {
             id,
-            displayId: `TP-${(get().projects.find(p => p.id === projectId)?.testPlans.length || 0) + 1}`.padStart(6, '0'),
+            displayId: nextDisplayId('TP', get().projects.find(p => p.id === projectId)?.testPlans ?? []),
             name,
             description,
             testCases: [],
@@ -1644,7 +1682,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const newPlan: TestPlan = {
             ...planToDuplicate,
             id: newPlanId,
-            displayId: `TP-${(activeProject.testPlans.length + 1)}`.padStart(6, '0'),
+            displayId: nextDisplayId('TP', activeProject.testPlans),
             name: `${planToDuplicate.name} (Copy)`,
             testCases: planToDuplicate.testCases.map(tc => ({
                 ...tc,
@@ -1703,7 +1741,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const activePlan = activeProject?.testPlans.find(tp => tp.id === planId)
         const testCase: TestCase = {
             id: generateId(),
-            displayId: `TC-${(activePlan?.testCases.length || 0) + 1}`.padStart(6, '0'),
+            displayId: nextDisplayId('TC', activePlan?.testCases ?? []),
             title: data.title || "Untitled Case",
             preConditions: data.preConditions || "",
             steps: data.steps || "",

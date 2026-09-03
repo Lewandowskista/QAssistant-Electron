@@ -1383,6 +1383,13 @@ export function deleteProjectTask(projectId: string, taskId: string): void {
         database.prepare('DELETE FROM tasks WHERE project_id = ? AND id = ?').run(projectId, taskId)
         database.prepare('DELETE FROM handoff_packets WHERE project_id = ? AND task_id = ?').run(projectId, taskId)
         database.prepare('DELETE FROM collaboration_events WHERE project_id = ? AND task_id = ?').run(projectId, taskId)
+        // Artifact links are not covered by a foreign key, so they have to go
+        // explicitly or they dangle at a task that no longer exists.
+        database.prepare(`
+            DELETE FROM artifact_links
+            WHERE project_id = ?
+              AND ((source_type = 'task' AND source_id = ?) OR (target_type = 'task' AND target_id = ?))
+        `).run(projectId, taskId, taskId)
         database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
     })()
 }

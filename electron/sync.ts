@@ -1134,6 +1134,11 @@ export async function flushPendingMutations() {
                     await pullSingleRow(mutation.table_name, mutation.row_id)
                     removeSyncMutation(mutation.id)
                     notifyRenderer('sync-conflict-detected', { table: mutation.table_name, id: mutation.row_id })
+                    // pullSingleRow has just replaced the local row with the
+                    // remote one, so the renderer is showing the version that
+                    // was discarded. The conflict toast tells the user their
+                    // view has been refreshed; without this it has not been.
+                    notifyRenderer('sync-data-updated', { table: mutation.table_name, id: mutation.row_id })
                     continue
                 }
 
