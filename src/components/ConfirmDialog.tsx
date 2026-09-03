@@ -126,6 +126,9 @@ export function useConfirm() {
     const confirm = useCallback(
         (title: string, options?: { description?: string; confirmLabel?: string; destructive?: boolean }): Promise<boolean> => {
             return new Promise((resolve) => {
+                // A second confirm() while one is still pending would otherwise
+                // overwrite the ref and leave the first caller awaiting forever.
+                pending.current?.resolve(false)
                 pending.current = { resolve, value: false }
                 setState({ open: true, title, ...options })
             })

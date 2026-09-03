@@ -362,6 +362,14 @@ export default function TestDataPage() {
                                     <SelectItem value="Products">Products</SelectItem>
                                     <SelectItem value="Promotions">Promotions</SelectItem>
                                     <SelectItem value="Custom">Custom</SelectItem>
+                                    {/* category is a free-form string, so a group
+                                        created elsewhere can carry a value that is
+                                        not offered here. Without this the trigger
+                                        renders blank and the user cannot see or
+                                        keep the group's current category. */}
+                                    {groupForm.category
+                                        && !['Users', 'Products', 'Promotions', 'Custom'].includes(groupForm.category)
+                                        && <SelectItem value={groupForm.category}>{groupForm.category}</SelectItem>}
                                 </SelectContent>
                             </Select>
                         </div>

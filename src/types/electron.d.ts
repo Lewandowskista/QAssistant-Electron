@@ -276,6 +276,7 @@ export interface ElectronAPI {
     getSystemInfo: () => Promise<{ platform: string; arch: string; nodeVersion: string; electronVersion: string; appVersion: string }>;
     onAppUpdateStatus: (callback: (state: AppUpdateState) => void) => () => void;
     onIpcReady: (callback: () => void) => () => void;
+    onProjectsChanged: (callback: (info: { source: string }) => void) => () => void;
     onFlushPendingSave: (callback: () => void) => () => void;
     notifyFlushComplete: () => void;
     isMinimizedToTray: () => Promise<boolean>;

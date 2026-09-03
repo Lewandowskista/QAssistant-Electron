@@ -66,7 +66,11 @@ export function useAiProviderStatus(project?: Project | null): AiProviderStatus 
             projectId ? api.secureStoreGet(`project:${projectId}:${keyName}`) : Promise.resolve(null),
             api.secureStoreGet(keyName),
         ])
-            .then(([scoped, global]) => done(!!(scoped || global), `No ${AI_PROVIDER_LABELS[provider]} API key saved.`))
+            .then(([scoped, global]) => {
+                const configured = !!(scoped || global)
+                // Only carry a reason when there is something to explain.
+                done(configured, configured ? undefined : `No ${AI_PROVIDER_LABELS[provider]} API key saved.`)
+            })
             .catch(() => done(false, 'Could not read stored credentials.'))
 
         return () => { cancelled = true }

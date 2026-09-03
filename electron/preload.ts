@@ -257,6 +257,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('sync-mutation-failed', listener);
     return () => ipcRenderer.removeListener('sync-mutation-failed', listener);
   },
+  // Main writes to SQLite directly (automation API, cloud sync). This tells the
+  // renderer its cache is behind so it can re-read before writing again.
+  onProjectsChanged: (callback: (info: { source: string }) => void) => {
+    const listener = (_e: unknown, info: { source: string }) => callback(info);
+    ipcRenderer.on('projects-changed', listener);
+    return () => ipcRenderer.removeListener('projects-changed', listener);
+  },
   onFlushPendingSave: (callback: () => void) => {
     const listener = () => callback();
     ipcRenderer.on('flush-pending-save', listener);

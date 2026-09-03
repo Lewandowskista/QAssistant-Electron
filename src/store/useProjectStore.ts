@@ -100,6 +100,7 @@ const saveProjectsToDisk = (projects: Project[]): Promise<boolean> => {
  */
 let _debounceSaveTimer: ReturnType<typeof setTimeout> | null = null
 let _flushListenerRegistered = false
+let _projectsChangedListenerRegistered = false
 /**
  * The `projects` argument is deliberately ignored: it is a snapshot from when the
  * call was made, and any granular write that lands inside the debounce window
@@ -622,6 +623,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         // Register the flush listener exactly once — loadProjects may be called
         // multiple times (e.g. after import), and stacking listeners causes duplicate saves.
+        // Main can write to the database without going through this store — the
+        // automation API and cloud sync both do. Re-read when it says so, or the
+        // next full write from this stale cache reverts those changes.
+        if (!_projectsChangedListenerRegistered && window.electronAPI.onProjectsChanged) {
+            _projectsChangedListenerRegistered = true
+            window.electronAPI.onProjectsChanged(({ source }) => {
+                console.info(`[store] Reloading projects: changed by ${source}.`)
+                void useProjectStore.getState().loadProjects()
+            })
+        }
+
         if (!_flushListenerRegistered && window.electronAPI.onFlushPendingSave) {
             _flushListenerRegistered = true
             window.electronAPI.onFlushPendingSave(async () => {

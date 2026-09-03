@@ -91,7 +91,7 @@ import { GeminiService } from './gemini';
 import { NimService } from './nim';
 import { OllamaService } from './ollama';
 import { AiRateLimiter } from './aiRateLimiter';
-import { startServer, stopServer, setOAuthCompleteCallback, getServerPort, isServerRunning } from './server';
+import { startServer, stopServer, setOAuthCompleteCallback, setServerWindowSender, getServerPort, isServerRunning } from './server';
 import { startReminderService } from './reminders';
 import * as health from './health';
 import * as report from './report';
@@ -765,6 +765,9 @@ if (app) {
         });
         setSyncLogDir(APP_DATA_DIR);
         setAuthWindowSender((channel: string, ...args: any[]) => {
+            mainWindow?.webContents.send(channel, ...args);
+        });
+        setServerWindowSender((channel: string, ...args: unknown[]) => {
             mainWindow?.webContents.send(channel, ...args);
         });
         configureAuthIo({

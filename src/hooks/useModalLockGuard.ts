@@ -14,7 +14,15 @@ export const OPEN_LAYER_SELECTORS = [
     '[data-radix-popper-content-wrapper]',
     '[data-radix-menu-content]',
     '[data-radix-select-content]',
-    '[data-radix-focus-guard]',
+    /*
+     * Deliberately NOT '[data-radix-focus-guard]'. Radix's focus guards are
+     * body-level spans removed by the same reference counting that strands
+     * `body { pointer-events: none }`. When a layer fails to deregister, the
+     * guards leak too — so treating them as evidence of an open layer would make
+     * this guard permanently believe a layer is open, in exactly the case it
+     * exists to fix. Every selector here is scoped to layer *content*, which is
+     * unmounted with the layer.
+     */
 ] as const
 
 const OPEN_LAYER_SELECTOR = OPEN_LAYER_SELECTORS.join(',')

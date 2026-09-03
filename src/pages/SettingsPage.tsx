@@ -865,7 +865,7 @@ export default function SettingsPage() {
         if (!activeProject) { flash(setShareStatus, 'No project selected.', false); return }
         const content = JSON.stringify(sanitizeProjectForPersistence(activeProject), null, 2)
         await api.saveFileDialog({ defaultName: `${activeProject.name.replace(/\s+/g, '_')}_export.json`, content })
-        flash(setShareStatus, 'Project exported. Environment passwords, API keys, and tokens were stripped and must be re-entered on the target machine.', true, 6000)
+        flash(setShareStatus, 'Project exported. API keys and tokens were stripped and must be re-entered on the target machine.', true, 6000)
     }
 
     const importProjectFromFile = async () => {
