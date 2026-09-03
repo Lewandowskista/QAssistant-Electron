@@ -35,7 +35,7 @@ import {
 import * as oauth from './oauth';
 import * as github from './github';
 import { assertString, assertArray, assertObject, assertOptionalString, assertNumber } from './ipc-validation';
-import { AI_RATE_LIMIT_MS, MAX_SAP_HAC_INSTANCES } from './constants';
+import { AI_RATE_LIMIT_MS } from './constants';
 import { initFileStorage } from './fileStorage';
 import {
     initDatabase,
@@ -63,6 +63,7 @@ import {
     deleteProjectTestRunSession,
 } from './database';
 import { migrateJsonToSqlite } from './migration';
+import { purgeRemovedFeatureCredentials } from './removedFeatureCleanup';
 import {
     initSync, teardownSync, getStatus as getSyncStatus, getSyncConfig,
     createWorkspace, joinWorkspace, disconnectWorkspace, getWorkspaceInfo, getWorkspaceInvite, rotateWorkspaceInvite,
@@ -97,7 +98,6 @@ import * as reportBuilder from './report-builder';
 import * as integrations from './integrations';
 import { saveFile, saveBytes, deleteFile } from './fileStorage';
 import * as bugReport from './bug-report';
-import { SapHacService } from './sapHac';
 import { sendWebhook } from './webhook';
 import * as accuracy from './accuracy';
 import {
@@ -621,8 +621,6 @@ if (app) {
             health,
             oauth,
             github,
-            SapHacService,
-            MAX_SAP_HAC_INSTANCES,
             isServerRunning,
             startServer,
             crypto,
@@ -810,6 +808,12 @@ if (app) {
             migrateLegacyEnvironmentSecretsToSecureStore().catch(error => {
                 console.warn('[db] Legacy environment secret migration failed:', error);
             });
+
+            // The SAP console features are gone; purge the credentials they owned so
+            // they stop sitting in the keychain (and in any cloud snapshot).
+            purgeRemovedFeatureCredentials({ listCredentials, getCredential, setCredential, deleteCredential })
+                .then(({ removed }) => { if (removed > 0) scheduleCloudStateUpload(); })
+                .catch(error => { console.warn('[cleanup] Credential sweep failed:', error); });
 
             // One-time migration: import projects.json into SQLite if it exists and DB is empty
             migrateJsonToSqlite(PROJECTS_FILE);

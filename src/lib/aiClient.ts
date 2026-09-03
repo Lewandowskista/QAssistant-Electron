@@ -119,14 +119,6 @@ export async function aiStandupSummary(args: {
     return api().aiStandupSummary({ apiKey, provider, modelName: args.modelName ?? modelName, ...args })
 }
 
-export async function aiGenerateFlexSearch(args: {
-    naturalLanguageQuery: string
-    modelName?: string
-}): Promise<string> {
-    const { apiKey, provider, modelName } = await resolveAiArgs()
-    return api().aiGenerateFlexSearch({ apiKey, provider, modelName: args.modelName ?? modelName, ...args })
-}
-
 export async function aiFindDuplicateBugs(args: {
     newBugTitle: string
     newBugDescription: string

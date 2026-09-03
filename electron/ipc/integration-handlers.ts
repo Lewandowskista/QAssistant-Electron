@@ -5,8 +5,6 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
     health: any
     oauth: any
     github: any
-    SapHacService: any
-    MAX_SAP_HAC_INSTANCES: number
     isServerRunning: () => boolean
     startServer: (apiKey: string, port: number) => void
     crypto: typeof import('node:crypto')
@@ -40,18 +38,6 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
     });
     ipcMain.handle('test-jira-connection', async (_e: any, { domain, email, apiToken, token }: any) => {
         try { return await deps.integrations.getJiraProjects(domain, email, apiToken || token); }
-        catch (e) { return { success: false, error: deps.errMsg(e) }; }
-    });
-    ipcMain.handle('ccv2-get-environments', async (_e: any, { subscriptionCode, apiToken }: any) => {
-        try { return await deps.health.ccv2GetEnvironments(subscriptionCode, apiToken); }
-        catch (e) { return { success: false, error: deps.errMsg(e) }; }
-    });
-    ipcMain.handle('ccv2-get-deployments', async (_e: any, { subscriptionCode, apiToken, environmentCode }: any) => {
-        try { return await deps.health.ccv2GetDeployments(subscriptionCode, apiToken, environmentCode); }
-        catch (e) { return { success: false, error: deps.errMsg(e) }; }
-    });
-    ipcMain.handle('ccv2-get-build', async (_e: any, { subscriptionCode, apiToken, buildCode }: any) => {
-        try { return await deps.health.ccv2GetBuild(subscriptionCode, apiToken, buildCode); }
         catch (e) { return { success: false, error: deps.errMsg(e) }; }
     });
     ipcMain.handle('check-environments-health', async (_e: any, { environments }: any) => {
@@ -153,118 +139,6 @@ export function registerIntegrationHandlers(ipcMain: Electron.IpcMain, deps: {
         deps.assertString(projectKey, 'projectKey'); deps.assertString(title, 'title', 500);
         try { return await deps.integrations.createJiraIssue(domain, email, apiKey, projectKey, title, description, issueTypeName); }
         catch (e) { return { success: false, error: deps.errMsg(e) }; }
-    });
-
-    // SAP HAC Handlers
-    const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0'])
-    /**
-     * Validate that a renderer-supplied SAP HAC baseUrl is a safe, non-loopback HTTPS URL.
-     * Without this, a compromised renderer could redirect the main process's authenticated
-     * SAP session cookies to an arbitrary server (SSRF / credential exfiltration).
-     */
-    function assertSapHacBaseUrl(url: string): void {
-        let parsed: URL
-        try { parsed = new URL(url) } catch {
-            throw new Error(`Invalid SAP HAC URL: ${url}`)
-        }
-        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-            throw new Error(`SAP HAC URL must use http or https (got ${parsed.protocol})`)
-        }
-        if (LOOPBACK_HOSTNAMES.has(parsed.hostname.toLowerCase())) {
-            throw new Error(`SAP HAC URL must not target localhost or loopback addresses`)
-        }
-    }
-
-    const sapHacInstances = new Map<string, any>();
-    const getSapHac = (baseUrl: string, ignoreSsl = false) => {
-        assertSapHacBaseUrl(baseUrl)
-        if (sapHacInstances.has(baseUrl)) {
-            // Move to end of Map iteration order to implement LRU eviction
-            const existing = sapHacInstances.get(baseUrl);
-            sapHacInstances.delete(baseUrl);
-            sapHacInstances.set(baseUrl, existing);
-            return existing;
-        }
-        // Evict least-recently-used entry when cache is full
-        if (sapHacInstances.size >= deps.MAX_SAP_HAC_INSTANCES) {
-            const lruKey = sapHacInstances.keys().next().value;
-            if (typeof lruKey === 'string') {
-                sapHacInstances.delete(lruKey);
-            }
-        }
-        const instance = new deps.SapHacService(baseUrl, ignoreSsl);
-        sapHacInstances.set(baseUrl, instance);
-        return instance;
-    };
-
-    ipcMain.handle('sap-hac-login', async (_e: any, { baseUrl, user, pass, ignoreSsl }: any) => {
-        deps.assertString(baseUrl, 'baseUrl', 500);
-        deps.assertString(user, 'user', 200);
-        deps.assertString(pass, 'pass', 500);
-        try {
-            const svc = getSapHac(baseUrl, ignoreSsl);
-            const success = await svc.login(user, pass);
-            return success ? { success: true } : { success: false, error: 'Login failed' };
-        } catch (e: any) {
-            return { success: false, error: e.message || String(e) };
-        }
-    });
-    ipcMain.handle('sap-hac-get-cronjobs', async (_e: any, { baseUrl }: any) => {
-        deps.assertString(baseUrl, 'baseUrl', 500);
-        try {
-            const data = await getSapHac(baseUrl).getCronJobs();
-            return { success: true, data };
-        } catch (e: any) {
-            return { success: false, error: e.message || String(e) };
-        }
-    });
-    ipcMain.handle('sap-hac-flexible-search', async (_e: any, { baseUrl, query, max }: any) => {
-        deps.assertString(baseUrl, 'baseUrl', 500);
-        deps.assertString(query, 'query', 50_000);
-        try {
-            const data = await getSapHac(baseUrl).runFlexibleSearch(query, max);
-            return { success: !data.Error, data, error: data.Error || undefined };
-        } catch (e: any) {
-            return { success: false, error: e.message || String(e) };
-        }
-    });
-    ipcMain.handle('sap-hac-import-impex', async (_e: any, { baseUrl, script, enableCode }: any) => {
-        deps.assertString(baseUrl, 'baseUrl', 500);
-        deps.assertString(script, 'script', 500_000);
-        try {
-            const data = await getSapHac(baseUrl).importImpEx(script, enableCode);
-            return { success: data.Success, data, error: data.Success ? undefined : data.Log };
-        } catch (e: any) {
-            return { success: false, error: e.message || String(e) };
-        }
-    });
-    ipcMain.handle('sap-hac-get-catalog-versions', async (_e: any, { baseUrl }: any) => {
-        deps.assertString(baseUrl, 'baseUrl', 500);
-        try {
-            const data = await getSapHac(baseUrl).getCatalogVersions();
-            return { success: true, data };
-        } catch (e: any) {
-            return { success: false, error: e.message || String(e) };
-        }
-    });
-    ipcMain.handle('sap-hac-get-catalog-ids', async (_e: any, { baseUrl }: any) => {
-        deps.assertString(baseUrl, 'baseUrl', 500);
-        try {
-            const data = await getSapHac(baseUrl).getCatalogIds();
-            return { success: true, data };
-        } catch (e: any) {
-            return { success: false, error: e.message || String(e) };
-        }
-    });
-    ipcMain.handle('sap-hac-get-catalog-sync-diff', async (_e: any, { baseUrl, catalogId, maxMissing }: any) => {
-        deps.assertString(baseUrl, 'baseUrl', 500);
-        deps.assertString(catalogId, 'catalogId', 500);
-        try {
-            const data = await getSapHac(baseUrl).getCatalogSyncDiff(catalogId, maxMissing);
-            return { success: true, data };
-        } catch (e: any) {
-            return { success: false, error: e.message || String(e) };
-        }
     });
 
     // OAuth

@@ -667,7 +667,7 @@ export class NimService {
             const sapEnvs = (project.sapCommerce.environments || []).slice(0, 5)
             if (sapEnvs.length > 0) {
                 const summary = sapEnvs.map((e: any) => {
-                    const tags = [e.type, e.isDefault ? 'default' : '', e.hacUrl ? 'hac' : '', e.backOfficeUrl ? 'backoffice' : '', e.occBasePath ? `occ=${sanitizeToonScalar(e.occBasePath, 80)}` : ''].filter(Boolean).join('+')
+                    const tags = [e.type, e.isDefault ? 'default' : '', e.hacUrl ? 'hac' : '', e.backOfficeUrl ? 'backoffice' : ''].filter(Boolean).join('+')
                     return `${sanitizeToonScalar(e.name, 60)}(${sanitizeToonScalar(tags, 120)})`
                 }).join(',')
                 writer.field('sap_commerce_envs', summary, { style: 'literal' })
@@ -1414,27 +1414,6 @@ export class NimService {
         return await this.executeWithFallback(sysLines.join('\n'), user.toString(), modelName, 0.6, 1024, false, 'standup_summary', {
             recent_runs: Math.min(metrics.recentRuns.length, 8), recently_verified: Math.min(metrics.recentlyVerified.length, 10), high_priority_open: Math.min(metrics.highPriorityOpen.length, 10),
         })
-    }
-
-    async generateFlexSearch(naturalLanguageQuery: string, modelName?: string): Promise<string> {
-        const sysLines: string[] = [
-            '@role:sap_commerce_flexsearch_expert',
-            '@task:natural_language_to_flexsearch',
-            '@output_format:raw_flexsearch_sql_only—no_markdown—no_explanation—no_code_block_fences',
-            '@rules:output_only_the_select_statement|use_SAP_FlexibleSearch_syntax_with_curly_braces_for_types_and_attributes|qualify_attributes_as_{TypeAlias:attribute}|use_AS_aliases|be_concise|if_unsure_produce_best_effort_query',
-        ]
-        sysLines.push(SAP_COMMERCE_CONTEXT_BLOCK.substring(0, 3000))
-        const userLines = [
-            'natural_language_request{',
-            ` query:${NimService.sanitizeToonValue(naturalLanguageQuery, 500)}`,
-            '}',
-            'instructions{',
-            ' produce:single_FlexibleSearch_SELECT_statement',
-            ' syntax:use_curly_braces_for_type_and_attribute_references_e.g._{Product_AS_p}_{p:code}',
-            ' output:raw_SQL_only—no_preamble—no_explanation—no_markdown',
-            '}',
-        ]
-        return await this.executeWithFallback(sysLines.join('\n'), userLines.join('\n'), modelName, 0.2, 1024, false, 'flexsearch_generation', { query_chars: Math.min(naturalLanguageQuery.length, 500) })
     }
 
     async findDuplicateBugs(

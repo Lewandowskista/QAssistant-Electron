@@ -74,7 +74,7 @@ const ROLE_CONTENT: Record<AiRole, {
             "What are the riskiest areas in this sprint?",
             "Summarize the current test pass rate and suggest improvements.",
             "Which failed tests should I prioritize for retest?",
-            "What SAP ImpEx would help me test product catalog sync?",
+            "What should I check when a product does not appear on the storefront?",
         ],
     },
     dev: {

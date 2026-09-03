@@ -207,16 +207,6 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
 
-    ipcMain.handle('ai-generate-flexsearch', async (_e: any, { apiKey, naturalLanguageQuery, modelName, provider }: any) => {
-        await deps.waitForAiTurn('ai-generate-flexsearch');
-        try {
-            deps.assertString(apiKey, 'apiKey');
-            deps.assertString(naturalLanguageQuery, 'naturalLanguageQuery', 1000);
-            return await getSvc(provider, apiKey).generateFlexSearch(naturalLanguageQuery, modelName);
-        }
-        catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
-    });
-
     ipcMain.handle('ai-find-duplicate-bugs', async (_e: any, { apiKey, newBugTitle, newBugDescription, newBugReproSteps, affectedComponents, existingBugs, modelName, provider }: any) => {
         await deps.waitForAiTurn('ai-find-duplicate-bugs');
         try {

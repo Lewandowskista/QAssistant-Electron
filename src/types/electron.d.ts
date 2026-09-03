@@ -3,7 +3,6 @@ import { UserProfile } from './user';
 import { AuthStatus } from './auth';
 import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem, GitHubComment, GitHubWorkflowJob, GitHubWorkflow } from './github';
 import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiAnalyzePullRequestRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiPullRequestAnalysisResult, AiProvider, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
-import { CronJobEntry, FlexibleSearchResult, ImpExResult } from '@/lib/sapHac';
 import { AppUpdateState } from './update';
 import {
     SyncConfig,
@@ -137,7 +136,6 @@ export interface ElectronAPI {
     aiTestRunSuggestions: (args: AiTestRunSuggestionsRequest) => Promise<string>;
     aiSmokeSubset: (args: AiSmokeSubsetRequest) => Promise<string[]>;
     aiChat: (args: AiChatRequest) => Promise<string>;
-    aiGenerateFlexSearch: (args: { apiKey: string; provider?: AiProvider; naturalLanguageQuery: string; modelName?: string }) => Promise<string>;
     aiStandupSummary: (args: { apiKey: string; provider?: AiProvider; metrics: Record<string, unknown>; modelName?: string }) => Promise<string>;
     aiFindDuplicateBugs: (args: {
         apiKey: string;
@@ -181,17 +179,6 @@ export interface ElectronAPI {
     createJiraIssue: (args: any) => Promise<string | null>;
     testJiraConnection: (args: any) => Promise<{ success: boolean; error?: string }>;
 
-    // SAP
-    ccv2GetEnvironments: (args: any) => Promise<any[]>;
-    ccv2GetDeployments: (args: any) => Promise<any[]>;
-    ccv2GetBuild: (args: any) => Promise<any | null>;
-    sapHacLogin: (baseUrl: string, user: string, pass: string, ignoreSsl?: boolean) => Promise<{ success: boolean; error?: string }>;
-    sapHacGetCronJobs: (baseUrl: string) => Promise<ApiResponse<CronJobEntry[]>>;
-    sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) => Promise<ApiResponse<FlexibleSearchResult>>;
-    sapHacImportImpEx: (baseUrl: string, script: string, enableCode?: boolean) => Promise<ApiResponse<ImpExResult>>;
-    sapHacGetCatalogVersions: (baseUrl: string) => Promise<ApiResponse<any[]>>;
-    sapHacGetCatalogIds: (baseUrl: string) => Promise<{ success: boolean; data?: string[]; error?: string }>;
-    sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) => Promise<{ success: boolean; data?: any; error?: string }>;
 
     // Automation API
     automationApiStart: (args: { apiKey: string; port?: number }) => Promise<any>;

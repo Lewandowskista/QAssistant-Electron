@@ -283,8 +283,6 @@ export type QaEnvironment = {
     backOfficeUrl: string
     storefrontUrl: string
     solrAdminUrl: string
-    occBasePath: string
-    ignoreSslErrors: boolean
 }
 
 export type TestDataEntry = {

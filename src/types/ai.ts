@@ -52,7 +52,6 @@ export interface AiSafeEnvironment {
     backOfficeUrl?: string
     storefrontUrl?: string
     solrAdminUrl?: string
-    occBasePath?: string
 }
 
 export interface QaAiTestCase {

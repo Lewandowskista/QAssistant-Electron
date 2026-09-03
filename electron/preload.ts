@@ -95,7 +95,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiTestRunSuggestions: (args: any) => invoke('ai-test-run-suggestions', args),
   aiSmokeSubset: (args: any) => invoke('ai-smoke-subset', args),
   aiChat: (args: any) => invoke('ai-chat', args),
-  aiGenerateFlexSearch: (args: any) => invoke('ai-generate-flexsearch', args),
   aiStandupSummary: (args: any) => invoke('ai-standup-summary', args),
   aiFindDuplicateBugs: (args: any) => invoke('ai-find-duplicate-bugs', args),
   aiAnalyzePullRequest: (args: any) => invoke('ai-analyze-pull-request', args),
@@ -133,9 +132,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   automationApiStatus: () => ipcRenderer.invoke('automation-api-status'),
   testLinearConnection: (args: any) => ipcRenderer.invoke('test-linear-connection', args),
   testJiraConnection: (args: any) => ipcRenderer.invoke('test-jira-connection', args),
-  ccv2GetEnvironments: (args: any) => ipcRenderer.invoke('ccv2-get-environments', args),
-  ccv2GetDeployments: (args: any) => ipcRenderer.invoke('ccv2-get-deployments', args),
-  ccv2GetBuild: (args: any) => ipcRenderer.invoke('ccv2-get-build', args),
   copyToAttachments: (sourcePath: string) => ipcRenderer.invoke('copy-to-attachments', sourcePath),
   saveBytesAttachment: (bytes: Uint8Array, fileName: string) => ipcRenderer.invoke('save-bytes-attachment', { bytes, fileName }),
   deleteAttachment: (args: any) => ipcRenderer.invoke('delete-attachment', typeof args === 'string' ? { filePath: args } : args),
@@ -158,13 +154,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('app-update-status', listener);
   },
   isMinimizedToTray: () => ipcRenderer.invoke('is-minimized-to-tray'),
-  sapHacLogin: (baseUrl: string, user: string, pass: string, ignoreSsl?: boolean) => ipcRenderer.invoke('sap-hac-login', { baseUrl, user, pass, ignoreSsl }),
-  sapHacGetCronJobs: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-cronjobs', { baseUrl }),
-  sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) => ipcRenderer.invoke('sap-hac-flexible-search', { baseUrl, query, max }),
-  sapHacImportImpEx: (baseUrl: string, script: string, enableCode?: boolean) => ipcRenderer.invoke('sap-hac-import-impex', { baseUrl, script, enableCode }),
-  sapHacGetCatalogVersions: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-catalog-versions', { baseUrl }),
-  sapHacGetCatalogIds: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-catalog-ids', { baseUrl }),
-  sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) => ipcRenderer.invoke('sap-hac-get-catalog-sync-diff', { baseUrl, catalogId, maxMissing }),
   appQuit: () => ipcRenderer.send('app-quit'),
 
   // User profile

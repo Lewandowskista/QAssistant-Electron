@@ -21,8 +21,8 @@ const sapProject = {
     description: 'Storefront and OCC regression',
     aiProvider: 'ollama' as const,
     environments: [
-        { id: 'e1', name: 'DEV01', type: 'dev', isDefault: false, hacUrl: 'https://dev01/hac', occBasePath: '/occ/v2' },
-        { id: 'e2', name: 'STG01', type: 'staging', isDefault: true, hacUrl: 'https://stg01/hac', occBasePath: '/occ/v2' },
+        { id: 'e1', name: 'DEV01', type: 'dev', isDefault: false, hacUrl: 'https://dev01/hac' },
+        { id: 'e2', name: 'STG01', type: 'staging', isDefault: true, hacUrl: 'https://stg01/hac' },
     ],
     tasks: [],
     testPlans: [],
@@ -31,7 +31,7 @@ const sapProject = {
     sapCommerce: {
         enabled: true,
         environments: [
-            { id: 'e1', name: 'DEV01', type: 'dev', isDefault: false, hacUrl: 'https://dev01/hac', occBasePath: '/occ/v2' },
+            { id: 'e1', name: 'DEV01', type: 'dev', isDefault: false, hacUrl: 'https://dev01/hac' },
         ],
     },
 }

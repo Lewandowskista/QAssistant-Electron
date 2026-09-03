@@ -69,7 +69,6 @@ const REASONING_EFFORT: Record<string, 'low' | 'medium' | 'high'> = {
     claim_extraction: 'low',
     claim_verification: 'low',
     dimension_scoring: 'low',
-    flexsearch: 'low',
     standup: 'low',
     duplicate_bugs: 'low',
     rerank: 'low',
@@ -83,7 +82,6 @@ const DEFAULT_REASONING_EFFORT: 'low' | 'medium' | 'high' = 'low'
  */
 const TIMEOUT_MS: Record<string, number> = {
     chat: 300_000,
-    flexsearch: 180_000,
     smoke_subset: 180_000,
     suggestions: 300_000,
     criticality: 600_000,

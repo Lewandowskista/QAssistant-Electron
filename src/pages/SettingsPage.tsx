@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import {
-    Zap, Globe, Cpu, Server, Share2, Database, Search,
+    Zap, Globe, Cpu, Share2, Database, Search,
     Plus, X, Edit2, Check, Copy, RefreshCw, ExternalLink,
     Eye, EyeOff, Trash2, Upload, Download, Bell, Sun, User, LogOut, AlertTriangle, BookOpen
 } from "lucide-react"
@@ -45,7 +45,6 @@ const SETTINGS_GROUPS: Array<{ label: string; sections: Array<{ id: string; labe
         sections: [
             { id: "linear", label: "Linear", icon: Zap },
             { id: "jira", label: "Jira", icon: Globe },
-            { id: "ccv2", label: "CCv2", icon: Server },
             { id: "sharing", label: "Project Sharing", icon: Upload },
             { id: "webhooks", label: "Webhooks", icon: Bell },
             { id: "automation", label: "Automation API", icon: Share2 },
@@ -255,11 +254,6 @@ export default function SettingsPage() {
     const [nimModelMeta, setNimModelMeta] = useState<Record<string, import('../types/electron').NimModelMetaEntry>>({})
     const [nimSuggestedModel, setNimSuggestedModel] = useState<string | null>(null)
 
-    // ── CCv2 ─────────────────────────────────────────────────────────────────
-    const [ccv2Sub, setCcv2Sub] = useState('')
-    const [ccv2Token, setCcv2Token] = useState('')
-    const [ccv2Status, setCcv2Status] = useState<StatusState>(null)
-    const [ccv2Testing, setCcv2Testing] = useState(false)
     const [storedCreds, setStoredCreds] = useState<string[]>([])
 
     // ── Project sharing ───────────────────────────────────────────────────────
@@ -396,12 +390,10 @@ export default function SettingsPage() {
 
             const projectPrefix = activeProject ? `project:${activeProject.id}:` : ''
 
-            const [storedKey, storedGemini, storedNim, storedCcv2Sub, storedCcv2Token, ver, path, info, updateState, perfSnapshot] = await Promise.all([
+            const [storedKey, storedGemini, storedNim, ver, path, info, updateState, perfSnapshot] = await Promise.all([
                 activeProject ? api.secureStoreGet(`${projectPrefix}automation_api_key`) : Promise.resolve(null),
                 activeProject ? api.secureStoreGet(`${projectPrefix}gemini_api_key`) : Promise.resolve(null),
                 activeProject ? api.secureStoreGet(`${projectPrefix}nim_api_key`) : Promise.resolve(null),
-                activeProject ? api.secureStoreGet(`${projectPrefix}ccv2_subscription_code`) : Promise.resolve(null),
-                activeProject ? api.secureStoreGet(`${projectPrefix}ccv2_api_token`) : Promise.resolve(null),
                 api.getAppVersion(),
                 api.getAppDataPath(),
                 api.getSystemInfo(),
@@ -415,8 +407,6 @@ export default function SettingsPage() {
             if (activeProject?.nimModel) setNimModel(activeProject.nimModel)
             if (activeProject?.ollamaBaseUrl) setOllamaBaseUrl(activeProject.ollamaBaseUrl)
             if (activeProject?.ollamaModel) setOllamaModel(activeProject.ollamaModel)
-            if (storedCcv2Sub) setCcv2Sub(storedCcv2Sub)
-            if (storedCcv2Token) setCcv2Token(storedCcv2Token)
             setAppVersion(ver || '')
             setDataPath(path || '')
             setSysInfo(info)
@@ -688,35 +678,6 @@ export default function SettingsPage() {
         }
     }
 
-    // ── CCv2 ─────────────────────────────────────────────────────────────────
-    const saveCcv2 = async () => {
-        if (!ccv2Sub.trim() || !ccv2Token.trim()) { flash(setCcv2Status, 'Fill in both Subscription Code and API Token.', false); return }
-        if (!(await ensureCredentialWritesAllowed(setCcv2Status, 'CCV2 credentials cannot be saved until insecure plaintext storage is explicitly allowed in Settings.'))) return
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-        await api.secureStoreSet(`${prefix}ccv2_subscription_code`, ccv2Sub.trim())
-        await api.secureStoreSet(`${prefix}ccv2_api_token`, ccv2Token.trim())
-        flash(setCcv2Status, 'CCv2 credentials saved.', true)
-    }
-    const testCcv2 = async () => {
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-        const sub = await api.secureStoreGet(`${prefix}ccv2_subscription_code`)
-        const tok = await api.secureStoreGet(`${prefix}ccv2_api_token`)
-        if (!sub || !tok) { flash(setCcv2Status, 'Save credentials first.', false); return }
-        setCcv2Testing(true)
-        try {
-            const envs = await api.ccv2GetEnvironments({ subscriptionCode: sub, apiToken: tok })
-            flash(setCcv2Status, `✓ Connected — ${Array.isArray(envs) ? envs.length : 0} environment(s) found.`, true)
-        } catch (e: any) {
-            flash(setCcv2Status, `Connection failed: ${e.message}`, false)
-        } finally { setCcv2Testing(false) }
-    }
-    const disconnectCcv2 = async () => {
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-        await api.secureStoreDelete(`${prefix}ccv2_subscription_code`)
-        await api.secureStoreDelete(`${prefix}ccv2_api_token`)
-        setCcv2Sub(''); setCcv2Token('')
-        flash(setCcv2Status, 'CCv2 credentials removed.', true)
-    }
 
     // ── Gemini ────────────────────────────────────────────────────────────────
     const saveGemini = async () => {
@@ -1598,38 +1559,10 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     <StatusBanner s={ollamaStatusMsg} />
                 </Sec>
 
-                {/* ── SAP CCv2 ─────────────────────────────────────────────── */}
-                <Sec id="ccv2" title="SAP Commerce Cloud v2 (CCv2)" icon={<Server className="h-4 w-4" />} activeSection={activeSection}>
-                    <div className="flex items-center justify-between mb-4">
-                        <p className="text-xs text-muted-ui max-w-md">Enter your subscription code and Management API token to enable the CCv2 Deployments panel on the SAP page.</p>
-                        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-brand font-bold text-xs flex-none ml-4" onClick={() => api.openUrl('https://help.sap.com/docs/SAP_COMMERCE_CLOUD_PUBLIC_CLOUD')}><ExternalLink className="h-3.5 w-3.5" />API Docs</Button>
-                    </div>
-                    <div className="space-y-3">
-                        <div>
-                            <FieldLabel>Subscription Code</FieldLabel>
-                            <Input value={ccv2Sub} onChange={e => setCcv2Sub(e.target.value)} placeholder="Your CCv2 subscription code" className={inp} />
-                            <p className="text-[11px] text-muted-ui mt-1">Found in the SAP Commerce Cloud Portal under your project settings</p>
-                        </div>
-                        <div>
-                            <FieldLabel>API Token</FieldLabel>
-                            <Input type={showSecrets ? 'text' : 'password'} value={ccv2Token} onChange={e => setCcv2Token(e.target.value)} placeholder="Bearer token from the CCv2 portal" className={inp} />
-                            <p className="text-[11px] text-muted-ui mt-1">Generate in Cloud Portal → API Token Management</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-4">
-                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9" onClick={saveCcv2}>Save Credentials</Button>
-                        <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={testCcv2} disabled={ccv2Testing}>
-                            {ccv2Testing ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : null}Test Connection
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-9 text-state-danger hover:bg-state-danger-soft font-bold" onClick={disconnectCcv2}>Disconnect</Button>
-                    </div>
-                    <StatusBanner s={ccv2Status} />
-                </Sec>
-
                 {/* ── PROJECT SHARING ──────────────────────────────────────── */}
                 <Sec id="sharing" title="Project Sharing" icon={<Upload className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>Export / Import</SectionLabel>
-                    <p className="text-xs text-muted-ui mb-4">Export the current project to a JSON file to share with teammates, or import a project from a shared file. Environment usernames/passwords, API keys, and tokens are stripped during export and import and must be re-entered on the receiving machine.</p>
+                    <p className="text-xs text-muted-ui mb-4">Export the current project to a JSON file to share with teammates, or import a project from a shared file. API keys and tokens are stripped during export and import and must be re-entered on the receiving machine.</p>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold gap-2" onClick={exportProject} disabled={!activeProject}>
                             <Download className="h-3.5 w-3.5" />Export Project…

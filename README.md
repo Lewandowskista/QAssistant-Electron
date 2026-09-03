@@ -11,6 +11,11 @@ QAssistant is an Electron desktop workspace for balanced QA/dev teams that need 
 
 It is designed for local-first usage. Project data lives on disk on the user's machine, integrations stay optional, and teams can pilot the app without standing up a backend.
 
+QAssistant targets teams testing e-commerce storefronts, and carries an SAP Commerce
+knowledge layer that the AI assistant draws on when generating test cases and
+answering questions. It does not replace the SAP consoles: use HAC, Backoffice and
+the Cloud Portal directly for platform operations.
+
 ## Who It Is For
 
 - QA engineers running regression, retest, and release-readiness workflows
@@ -96,7 +101,7 @@ The demo workspace includes:
 - `Tests`: test plans, case generation, regression suite building, and execution history
 - `Release Queue`: ready-for-QA fixes, missing-evidence handoffs, and retest focus
 - `GitHub` / `Code Reviews`: repo, PR, checks, deployment, and review visibility
-- `Environments`, `API`, `Runbooks`, `SAP`, `Reports`: support tooling around delivery and diagnosis
+- `Environments`, `Runbooks`, `Reports`: support tooling around delivery and diagnosis
 
 ## Integrations
 
@@ -138,7 +143,8 @@ Then set `Settings → Ollama (Local Models)`, pick the model and save — that 
 project to local inference. Leave `Host` blank for the default `http://localhost:11434`.
 
 `gpt-oss:20b` is the recommended default: a mixture-of-experts model (~3.6B active of 20B)
-so it generates quickly, with a 128K context that fits the injected SAP Commerce block.
+so it generates quickly, with a 128K context that fits the injected SAP Commerce
+knowledge block.
 Expect responses in tens of seconds rather than the low seconds of a hosted API — local
 timeouts are correspondingly generous.
 

@@ -7,7 +7,7 @@ interface HealthEntry {
     lastChecked: string;
     latencyMs?: number;
 }
-import { Plus, Trash2, Save, Activity, Server, ShieldCheck, Globe, Database, Key, StickyNote, Star, Bug, Monitor, Lock, Unlock, AlertTriangle } from "lucide-react"
+import { Plus, Trash2, Save, Activity, Server, Globe, Database, StickyNote, Star, Bug, Monitor } from "lucide-react"
 import { BugReportDialog } from "@/components/BugReportDialog"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -40,12 +40,7 @@ const ENV_TYPES: { id: EnvironmentType; label: string }[] = [
     { id: 'custom', label: 'Custom' },
 ]
 
-type EditableEnvironment = QaEnvironment & {
-    username?: string
-    password?: string
-}
-
-type CredentialStorageStatus = Awaited<ReturnType<typeof window.electronAPI.getCredentialStorageStatus>>
+type EditableEnvironment = QaEnvironment
 
 export default function EnvironmentsPage() {
     const api = window.electronAPI
@@ -57,31 +52,23 @@ export default function EnvironmentsPage() {
     const [localEnv, setLocalEnv] = useState<EditableEnvironment | null>(null)
     const [healthStatuses, setHealthStatuses] = useState<Record<string, HealthEntry>>({})
     const [bugDialogOpen, setBugDialogOpen] = useState(false)
-    const [showPassword, setShowPassword] = useState(false)
     const [isAddModalOpen, setIsAddModalOpen] = useState(false)
     const [newEnvName, setNewEnvName] = useState("")
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [envToDelete, setEnvToDelete] = useState<string | null>(null)
-    const [credentialStatus, setCredentialStatus] = useState<CredentialStorageStatus | null>(null)
 
     const selectedEnv = environments.find(e => e.id === selectedEnvId)
 
     useEffect(() => {
         const load = async () => {
             if (selectedEnv) {
-                const username = await api.secureStoreGet(`Env_${selectedEnv.id}_Username`)
-                const password = await api.secureStoreGet(`Env_${selectedEnv.id}_Password`)
-                setLocalEnv({ ...selectedEnv, username: username || "", password: password || "" })
+                setLocalEnv({ ...selectedEnv })
             } else {
                 setLocalEnv(null)
             }
         }
         load()
     }, [selectedEnvId, environments])
-
-    useEffect(() => {
-        api.getCredentialStorageStatus?.().then(setCredentialStatus).catch(() => {})
-    }, [api])
 
     const handleAdd = () => {
         setNewEnvName("")
@@ -97,23 +84,7 @@ export default function EnvironmentsPage() {
 
     const handleSave = async () => {
         if (!activeProjectId || !localEnv) return
-        const status = await api.getCredentialStorageStatus?.()
-        setCredentialStatus(status ?? null)
-        if (status?.canPersistSecrets === false && ((localEnv.username || '').trim() || (localEnv.password || '').trim())) {
-            setTestStatus("Credential storage is blocked until insecure plaintext storage is explicitly allowed in Settings.")
-            return
-        }
-
-        // Save to project store (exclude credentials from plain JSON)
-        const { username, password, ...envData } = localEnv
-        await updateEnvironment(activeProjectId, localEnv.id, envData).catch(console.error)
-
-        // Save credentials securely
-        if (username) await api.secureStoreSet(`Env_${localEnv.id}_Username`, username)
-        else await api.secureStoreDelete(`Env_${localEnv.id}_Username`)
-
-        if (password) await api.secureStoreSet(`Env_${localEnv.id}_Password`, password)
-        else await api.secureStoreDelete(`Env_${localEnv.id}_Password`)
+        await updateEnvironment(activeProjectId, localEnv.id, localEnv).catch(console.error)
     }
 
     const handleDelete = (id: string) => {
@@ -136,31 +107,6 @@ export default function EnvironmentsPage() {
             setHealthStatuses(result);
         } catch (e: any) {
             console.error('Health check failed', e);
-        }
-    }
-
-    const [testStatus, setTestStatus] = useState("")
-    const [isTesting, setIsTesting] = useState(false)
-
-    const handleTestConnection = async () => {
-        if (!localEnv?.baseUrl) {
-            setTestStatus("Enter a Base URL to test.")
-            return
-        }
-        setIsTesting(true)
-        setTestStatus("Testing connection…")
-        try {
-            const res = await api.checkEnvironmentsHealth([localEnv])
-            const status = res[localEnv.id]
-            if (status?.status === 'healthy') {
-                setTestStatus(`✓ Reachable — Latency: ${status.latencyMs}ms`)
-            } else {
-                setTestStatus("✗ Unreachable: Connection failed.")
-            }
-        } catch (e: any) {
-            setTestStatus(`✗ Error: ${e.message}`)
-        } finally {
-            setIsTesting(false)
         }
     }
 
@@ -273,14 +219,6 @@ export default function EnvironmentsPage() {
             <main className="flex-1 overflow-y-auto custom-scrollbar bg-app">
                 {localEnv ? (
                     <div className="max-w-4xl mx-auto p-10 space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
-                        {credentialStatus?.canPersistSecrets === false && (
-                            <div className="rounded-2xl border border-state-warning/40 bg-state-warning-soft px-4 py-3 flex items-start gap-3">
-                                <AlertTriangle className="h-4 w-4 text-state-warning mt-0.5 shrink-0" />
-                                <p className="text-xs text-state-warning leading-relaxed">
-                                    Environment credentials cannot be saved on this device until insecure plaintext storage is explicitly allowed in Settings.
-                                </p>
-                            </div>
-                        )}
                         <header className="flex items-start justify-between gap-4 flex-wrap">
                             <div className="flex items-center gap-4 min-w-0">
                                 <div className="w-14 h-14 rounded-2xl bg-panel-muted border border-ui flex items-center justify-center shrink-0">
@@ -360,11 +298,12 @@ export default function EnvironmentsPage() {
                                 </div>
                             </div>
 
-                            {/* SAP Commerce Integration Section */}
+                            {/* Quick links a tester opens by hand. Stored for navigation
+                                only — the app makes no requests to them. */}
                             <div className="space-y-6">
                                 <div className="flex items-center gap-2 pb-3 border-b border-ui">
                                     <Database className="h-4 w-4 text-qa-accent/70" />
-                                    <h3 className="app-section-label">SAP Commerce cluster</h3>
+                                    <h3 className="app-section-label">Quick links</h3>
                                 </div>
 
                                 <div className="bg-surface-alt/40 rounded-2xl border border-ui p-6 space-y-5">
@@ -400,88 +339,9 @@ export default function EnvironmentsPage() {
                                             className="h-10 bg-panel border-ui text-foreground text-xs"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label className="app-field-label px-1">OCC root path</Label>
-                                        <Input
-                                            value={localEnv.occBasePath}
-                                            onChange={e => setLocalEnv({ ...localEnv, occBasePath: e.target.value })}
-                                            placeholder="/occ/v2"
-                                            className="h-10 bg-panel border-ui text-foreground text-xs"
-                                        />
-                                    </div>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Security & Credentials */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div className="bg-state-success-soft rounded-2xl border border-state-success-border p-6 flex flex-col gap-4">
-                                <div className="flex items-center gap-3">
-                                    <div className={cn("p-2 rounded-lg", localEnv.ignoreSslErrors ? "bg-state-danger-soft text-state-danger" : "bg-state-success-soft text-state-success")}>
-                                        <ShieldCheck className="h-5 w-5" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="text-sm font-semibold text-foreground">Ignore SSL errors</h4>
-                                        <p className="text-xs text-muted-ui leading-tight mt-0.5">Bypass validation for self-signed or internal certs (insecure).</p>
-                                    </div>
-                                    <Checkbox
-                                        checked={localEnv.ignoreSslErrors}
-                                        onCheckedChange={val => setLocalEnv({ ...localEnv, ignoreSslErrors: !!val })}
-                                        className="h-5 w-5 border-ui data-[state=checked]:bg-state-danger"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="bg-surface-alt/40 rounded-2xl border border-ui p-6 space-y-4">
-                                <div className="flex items-center gap-2 pb-2 border-b border-ui">
-                                    <Key className="h-4 w-4 text-qa-accent/70" />
-                                    <h3 className="app-section-label">HAC credentials</h3>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="app-field-label px-1">Username</Label>
-                                        <Input
-                                            value={localEnv.username || ""}
-                                            onChange={e => setLocalEnv({ ...localEnv, username: e.target.value })}
-                                            className="h-10 bg-panel border-ui text-foreground text-xs font-mono"
-                                        />
-                                    </div>
-                                    <div className="space-y-2 relative">
-                                        <Label className="app-field-label px-1">Password</Label>
-                                        <Input
-                                            type={showPassword ? "text" : "password"}
-                                            value={localEnv.password || ""}
-                                            onChange={e => setLocalEnv({ ...localEnv, password: e.target.value })}
-                                            className="h-10 bg-panel border-ui text-foreground text-xs font-mono pr-10"
-                                        />
-                                        <button
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-3 top-8 text-muted-ui hover:text-foreground transition-colors"
-                                        >
-                                            {showPassword ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <p className="app-helper-text">Credentials are stored securely.</p>
-                                    <Button
-                                        onClick={handleTestConnection}
-                                        disabled={isTesting}
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 border-qa-accent/20 text-brand hover:bg-qa-accent/10"
-                                    >
-                                        {isTesting ? "Testing…" : "Test connection"}
-                                    </Button>
-                                </div>
-                                {testStatus && (
-                                    <p className={cn("text-xs font-medium", testStatus.startsWith('✓') ? "text-state-success" : "text-state-danger")}>
-                                        {testStatus}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
                         {/* Deployment Notes */}
                         <div className="space-y-4 pt-4 border-t border-ui">
                             <div className="flex items-center justify-between">

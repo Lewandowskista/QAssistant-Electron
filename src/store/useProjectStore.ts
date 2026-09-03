@@ -540,9 +540,6 @@ export interface ProjectState {
     addChecklistItem: (projectId: string, checklistId: string, text: string) => Promise<string>
     deleteChecklistItem: (projectId: string, checklistId: string, itemId: string) => Promise<void>
 
-    addApiRequest: (projectId: string, data: Partial<ApiRequest>) => Promise<string>
-    updateApiRequest: (projectId: string, requestId: string, updates: Partial<ApiRequest>) => Promise<void>
-    deleteApiRequest: (projectId: string, requestId: string) => Promise<void>
 
     // Runbooks
     addRunbook: (projectId: string, name: string, category: RunbookCategory) => Promise<Runbook>
@@ -1779,9 +1776,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             hacUrl: "",
             backOfficeUrl: "",
             storefrontUrl: "",
-            solrAdminUrl: "",
-            occBasePath: "",
-            ignoreSslErrors: false
+            solrAdminUrl: ""
         }
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
@@ -2141,23 +2136,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         if (window.electronAPI && persistedChecklist) await persistChecklistToDisk(projectId, persistedChecklist)
     },
 
-    addApiRequest: async (projectId: string, data: Partial<ApiRequest>) => {
-        const req: ApiRequest = { id: generateId(), name: data.name || 'New Request', category: data.category || 'Custom', method: data.method || 'GET', url: data.url || '', headers: data.headers || '', body: data.body || '', createdAt: Date.now(), updatedAt: Date.now() }
-        const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: [...(p.apiRequests || []), req] } : p)
-        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
-        set({ projects })
-        return req.id
-    },
-    updateApiRequest: async (projectId: string, requestId: string, updates: Partial<ApiRequest>) => {
-        const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: p.apiRequests.map(r => r.id === requestId ? { ...r, ...updates, updatedAt: Date.now() } : r) } : p)
-        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
-        set({ projects })
-    },
-    deleteApiRequest: async (projectId: string, requestId: string) => {
-        const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: p.apiRequests.filter(r => r.id !== requestId) } : p)
-        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
-        set({ projects })
-    },
 
     addRunbook: async (projectId: string, name: string, category: RunbookCategory) => {
         const runbook: Runbook = {

@@ -298,6 +298,9 @@ function createSchema(): void {
             back_office_url   TEXT NOT NULL DEFAULT '',
             storefront_url    TEXT NOT NULL DEFAULT '',
             solr_admin_url    TEXT NOT NULL DEFAULT '',
+            -- Orphaned by the SAP console removal: no longer read or written.
+            -- Left in place so existing databases keep working; drop at the next
+            -- schema bump.
             occ_base_path     TEXT NOT NULL DEFAULT '',
             ignore_ssl_errors INTEGER NOT NULL DEFAULT 0,
             username          TEXT,
@@ -832,8 +835,7 @@ function hydrateProject(projectRow: ProjectRow): Project {
         isDefault: bool(e.is_default), createdAt: e.created_at,
         baseUrl: e.base_url, notes: e.notes, healthCheckUrl: e.health_check_url,
         hacUrl: e.hac_url, backOfficeUrl: e.back_office_url, storefrontUrl: e.storefront_url,
-        solrAdminUrl: e.solr_admin_url, occBasePath: e.occ_base_path,
-        ignoreSslErrors: bool(e.ignore_ssl_errors),
+        solrAdminUrl: e.solr_admin_url,
     }))
 
     const fileRows = database.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
@@ -1062,9 +1064,8 @@ export function getAllProjects(): Project[] {
             baseUrl: e.base_url, notes: e.notes,
             healthCheckUrl: e.health_check_url, hacUrl: e.hac_url,
             backOfficeUrl: e.back_office_url, storefrontUrl: e.storefront_url,
-            solrAdminUrl: e.solr_admin_url, occBasePath: e.occ_base_path,
-            ignoreSslErrors: bool(e.ignore_ssl_errors),
-        }))
+            solrAdminUrl: e.solr_admin_url,
+            }))
 
         // project files
         const fileRows = database.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
@@ -1522,10 +1523,10 @@ export function upsertProjectEnvironment(projectId: string, env: any): void {
         database.prepare(`
             INSERT OR REPLACE INTO environments (id, project_id, name, type, color, is_default, created_at,
                 base_url, notes, health_check_url, hac_url, back_office_url, storefront_url,
-                solr_admin_url, occ_base_path, ignore_ssl_errors)
+                solr_admin_url)
             VALUES (@id, @project_id, @name, @type, @color, @is_default, @created_at,
                 @base_url, @notes, @health_check_url, @hac_url, @back_office_url, @storefront_url,
-                @solr_admin_url, @occ_base_path, @ignore_ssl_errors)
+                @solr_admin_url)
         `).run({
             id: env.id,
             project_id: projectId,
@@ -1541,8 +1542,6 @@ export function upsertProjectEnvironment(projectId: string, env: any): void {
             back_office_url: env.backOfficeUrl ?? '',
             storefront_url: env.storefrontUrl ?? '',
             solr_admin_url: env.solrAdminUrl ?? '',
-            occ_base_path: env.occBasePath ?? '',
-            ignore_ssl_errors: env.ignoreSslErrors ? 1 : 0,
         })
         database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
     })()
@@ -1801,10 +1800,10 @@ export function saveAllProjects(projects: any[]): void {
     const insertEnv = database.prepare(`
         INSERT OR REPLACE INTO environments (id, project_id, name, type, color, is_default, created_at,
             base_url, notes, health_check_url, hac_url, back_office_url, storefront_url,
-            solr_admin_url, occ_base_path, ignore_ssl_errors)
+            solr_admin_url)
         VALUES (@id, @project_id, @name, @type, @color, @is_default, @created_at,
             @base_url, @notes, @health_check_url, @hac_url, @back_office_url, @storefront_url,
-            @solr_admin_url, @occ_base_path, @ignore_ssl_errors)
+            @solr_admin_url)
     `)
 
     const insertFile = database.prepare(`
@@ -2102,9 +2101,7 @@ export function saveAllProjects(projects: any[]): void {
                     notes: env.notes ?? '', health_check_url: env.healthCheckUrl ?? '',
                     hac_url: env.hacUrl ?? '', back_office_url: env.backOfficeUrl ?? '',
                     storefront_url: env.storefrontUrl ?? '', solr_admin_url: env.solrAdminUrl ?? '',
-                    occ_base_path: env.occBasePath ?? '',
-                    ignore_ssl_errors: env.ignoreSslErrors ? 1 : 0,
-                })
+                                })
             }
 
             // project files

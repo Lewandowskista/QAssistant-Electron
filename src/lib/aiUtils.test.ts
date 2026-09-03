@@ -103,7 +103,7 @@ describe('ai utils', () => {
 
     it('does not include SAP commerce context when the Settings toggle is off', () => {
         const sapEnvironment = demoProject.environments.find((environment) =>
-            environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl || environment.occBasePath
+            environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl
         )
         if (!sapEnvironment) throw new Error('expected demo project to include a SAP-capable environment')
 
@@ -158,7 +158,7 @@ describe('ai utils', () => {
         }))
 
         const sapEnvironment = demoProject.environments.find((environment) =>
-            environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl || environment.occBasePath
+            environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl
         )
         if (!sapEnvironment) throw new Error('expected demo project to include a SAP-capable environment')
 
