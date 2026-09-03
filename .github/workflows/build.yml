@@ -56,19 +56,16 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Install canvas-darwin-x64 for cross-compile
-        run: |
-          npm pack @napi-rs/canvas-darwin-x64@0.1.80
-          mkdir -p node_modules/@napi-rs/canvas-darwin-x64
-          tar -xzf napi-rs-canvas-darwin-x64-0.1.80.tgz -C node_modules/@napi-rs/canvas-darwin-x64 --strip-components=1
-
-      - name: Build Mac (Intel x64)
-        run: npx electron-vite build && npx electron-builder --mac --x64 --publish never
+      # No cross-compile step: the macOS runner is arm64, so npm has already
+      # installed @napi-rs/canvas-darwin-arm64 (a transitive dependency of
+      # pdf-parse). Building x64 was what needed the binary fetched by hand.
+      - name: Build Mac (Apple Silicon arm64)
+        run: npx electron-vite build && npx electron-builder --mac --arm64 --publish never
 
       - name: Upload Mac Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: QAssistant-mac-x64
+          name: QAssistant-mac-arm64
           path: |
             dist/*.dmg
             dist/**/*.dmg

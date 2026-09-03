@@ -78,16 +78,11 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Install canvas-darwin-x64 for cross-compile
-        run: |
-          npm pack @napi-rs/canvas-darwin-x64@0.1.80
-          mkdir -p node_modules/@napi-rs/canvas-darwin-x64
-          tar -xzf napi-rs-canvas-darwin-x64-0.1.80.tgz -C node_modules/@napi-rs/canvas-darwin-x64 --strip-components=1
-
+      # No cross-compile step: see the comment in build.yml.
       - name: Verify Release Tag Matches package.json
         run: npm run version:verify-tag -- "${GITHUB_REF_NAME}"
 
       - name: Build and Publish macOS Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-vite build && npx electron-builder --mac --x64 --publish always
+        run: npx electron-vite build && npx electron-builder --mac --arm64 --publish always
