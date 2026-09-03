@@ -1502,7 +1502,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             testData: "",
             expectedResult: "Feature works as described.",
             actualResult: "",
-            priority: task.priority === 'high' ? 'major' : (task.priority === 'medium' ? 'medium' : 'low'),
+            // 'critical' previously fell through to 'low', the opposite of intent.
+            priority: task.priority === 'critical' ? 'blocker'
+                : task.priority === 'high' ? 'major'
+                    : task.priority === 'medium' ? 'medium'
+                        : 'low',
             status: 'not-run',
             sourceIssueId: task.sourceIssueId,
             updatedAt: Date.now()
@@ -1892,20 +1896,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     deleteEnvironment: async (projectId: string, envId: string) => {
+        // Promoting a new default has to be a copy, not a mutation: the old array
+        // holds objects shared with the previous zustand state.
+        let promotedDefault: QaEnvironment | undefined
         const updatedProjects = get().projects.map(p => {
-            if (p.id === projectId) {
-                const environments = (p.environments || []).filter(e => e.id !== envId)
-                // If we deleted the default, set first remaining as default
-                if (environments.length > 0 && !environments.some(e => e.isDefault)) {
-                    environments[0].isDefault = true
-                }
-                return { ...p, environments }
+            if (p.id !== projectId) return p
+            const remaining = (p.environments || []).filter(e => e.id !== envId)
+            if (remaining.length > 0 && !remaining.some(e => e.isDefault)) {
+                promotedDefault = { ...remaining[0], isDefault: true }
+                return { ...p, environments: [promotedDefault, ...remaining.slice(1)] }
             }
-            return p
+            return { ...p, environments: remaining }
         })
         set({ projects: updatedProjects })
+
         if (window.electronAPI) {
             await deleteEnvironmentFromDisk(projectId, envId)
+            // The promotion is a second change and needs its own write, or after a
+            // restart the project has no default environment at all.
+            if (promotedDefault) await persistEnvironmentToDisk(projectId, promotedDefault)
         }
     },
 

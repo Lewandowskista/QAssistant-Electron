@@ -38,6 +38,7 @@ export function useLinearAutoSync({
 
             const conns = activeProject.linearConnections || []
             let allSyncedTasks: Task[] = []
+            const failed: string[] = []
 
             for (const conn of conns) {
                 try {
@@ -45,19 +46,45 @@ export function useLinearAutoSync({
                         `project:${activeProject.id}:linear_api_key_${conn.id}`
                     ) || await window.electronAPI.secureStoreGet(`linear_api_key_${conn.id}`)
 
-                    if (apiKey) {
-                        const syncedTasks = await api.syncLinear({
-                            apiKey,
-                            teamKey: conn.teamId,
-                            connectionId: conn.id
-                        })
-                        allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
+                    if (!apiKey) {
+                        // No credential is not a failure — the connection is simply
+                        // not set up — but its tasks must not be treated as gone.
+                        failed.push(conn.id)
+                        continue
                     }
+
+                    const syncedTasks = await api.syncLinear({
+                        apiKey,
+                        teamKey: conn.teamId,
+                        connectionId: conn.id
+                    })
+
+                    // Handlers report failure in the result rather than throwing,
+                    // so a non-array here means the sync did not happen.
+                    if (!Array.isArray(syncedTasks)) {
+                        failed.push(conn.id)
+                        console.warn(`Linear sync for connection ${conn.id} returned an error:`, syncedTasks)
+                        continue
+                    }
+
+                    allSyncedTasks = [...allSyncedTasks, ...syncedTasks]
                 } catch (e) {
+                    failed.push(conn.id)
                     if (!isBackground) {
                         console.warn(`Failed to sync Linear connection ${conn.id}:`, e)
                     }
                 }
+            }
+
+            /*
+             * onSyncComplete replaces every Linear-sourced task with what it is
+             * given, so handing it a partial result deletes the rest. A network
+             * blip, a 429 or an expired key used to wipe the whole Linear board
+             * every 45 seconds. Only publish when every connection succeeded.
+             */
+            if (failed.length > 0) {
+                console.warn(`[linear] Skipping task update: ${failed.length} of ${conns.length} connection(s) did not sync.`)
+                return
             }
 
             await onSyncComplete(allSyncedTasks)
@@ -91,7 +118,12 @@ export function useLinearAutoSync({
         const handleVisibilityChange = () => {
             // Only poll when document is visible (window not minimized/hidden)
             if (document.hidden) {
-                if (intervalRef.current) clearInterval(intervalRef.current)
+                // Null the ref too: the resume branch below checks it, so leaving
+                // it set meant polling never restarted after the tab was hidden.
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current)
+                    intervalRef.current = null
+                }
             } else {
                 if (!intervalRef.current) {
                     intervalRef.current = setInterval(() => performSync(true), intervalMs)
