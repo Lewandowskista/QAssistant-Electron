@@ -47,7 +47,7 @@ const HANDOFF_TEMPLATES: HandoffTemplate[] = [
         severity: 'major',
         reproStepsTemplate: '1. Import the attached ImpEx / run the data setup script\n2. Navigate to [catalog / product / order]\n3. Verify the data attributes listed below\n\nAffected items: [codes or IDs]',
         expectedResultTemplate: 'The data attributes [list] should reflect the values defined in the ImpEx / data script.',
-        actualResultTemplate: 'Attribute [name] shows [actual value] instead of [expected value]. FlexSearch query result attached.',
+        actualResultTemplate: 'Attribute [name] shows [actual value] instead of [expected value]. Evidence attached.',
     },
     {
         id: 'performance',

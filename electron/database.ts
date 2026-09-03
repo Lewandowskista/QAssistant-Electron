@@ -9,10 +9,19 @@
  */
 
 import type {
-    Attachment, Note, Project, Task, TaskSeverity, CollabState, Reproducibility, Frequency,
-    TestCase, TestPlan,
+    Attachment, Note, Project, Task, TestCase, TestPlan,
 } from '../src/types/project'
-import { importLegacyCredential, getCredentialStorageStatus } from './credentialService'
+// Pure row <-> object mapping lives in its own module so it can be tested without
+// the native better-sqlite3 binding. See databaseRows.ts.
+import {
+    j, p, bool, asEnum,
+    rowToProject, rowToTask, rowToHandoff, rowToCollaborationEvent,
+} from './databaseRows'
+import { AI_GENERATION_RATINGS } from './databaseRows'
+import type {
+    ProjectRow, TaskRow, NoteRow, NoteAttachmentRow, HandoffRow,
+    CollaborationEventRow, TestPlanRow, TestCaseRow,
+} from './databaseRows'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Database = require('better-sqlite3')
@@ -21,7 +30,7 @@ type DB = ReturnType<typeof Database>
 let db: DB | null = null
 
 // ─── Schema version ──────────────────────────────────────────────────────────
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -79,6 +88,10 @@ function createSchema(): void {
             client_name TEXT,
             description TEXT,
             gemini_model TEXT,
+            ai_provider TEXT,           -- 'gemini' | 'nim' | 'ollama'
+            nim_model TEXT,
+            ollama_model TEXT,
+            ollama_base_url TEXT,       -- blank/NULL means the local Ollama default
             columns_json TEXT,          -- JSON: column definitions
             source_columns_json TEXT,   -- JSON: per-source column overrides
             quality_gates_json TEXT,    -- JSON: QualityGate[]
@@ -195,6 +208,9 @@ function createSchema(): void {
             test_type           TEXT,
             linked_defect_ids_json TEXT,    -- JSON: string[]
             change_log_json     TEXT,       -- JSON: ChangeLogEntry[]
+            ai_generated        INTEGER NOT NULL DEFAULT 0,
+            ai_generation_rating TEXT,      -- 'useful' | 'irrelevant' | 'caught_bug'
+            ai_generation_rated_at INTEGER,
             updated_at          INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_test_cases_plan ON test_cases(test_plan_id);
@@ -285,6 +301,9 @@ function createSchema(): void {
             back_office_url   TEXT NOT NULL DEFAULT '',
             storefront_url    TEXT NOT NULL DEFAULT '',
             solr_admin_url    TEXT NOT NULL DEFAULT '',
+            -- Orphaned by the SAP console removal: no longer read or written.
+            -- Kept so existing databases keep loading. Drop at the next schema
+            -- bump. username/password are cleared by clearLegacyEnvironmentSecrets.
             occ_base_path     TEXT NOT NULL DEFAULT '',
             ignore_ssl_errors INTEGER NOT NULL DEFAULT 0,
             username          TEXT,
@@ -454,7 +473,9 @@ function createSchema(): void {
             timestamp   INTEGER NOT NULL,
             title       TEXT NOT NULL DEFAULT '',
             details     TEXT,
-            metadata_json TEXT      -- JSON: Record<string, any>
+            metadata_json TEXT,     -- JSON: Record<string, any>
+            actor_user_id TEXT,     -- Supabase auth.uid() of the actor
+            actor_display_name TEXT -- display name at the time of the event
         );
         CREATE INDEX IF NOT EXISTS idx_collab_events_project ON collaboration_events(project_id);
         CREATE INDEX IF NOT EXISTS idx_collab_events_task ON collaboration_events(task_id);
@@ -481,7 +502,9 @@ function createSchema(): void {
             timestamp   INTEGER NOT NULL,
             type        TEXT NOT NULL DEFAULT 'observation',
             description TEXT NOT NULL DEFAULT '',
-            severity    TEXT
+            severity    TEXT,
+            attachment_path      TEXT,
+            attachment_file_name TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_exp_obs_session ON exploratory_observations(session_id);
 
@@ -623,6 +646,43 @@ function migrateProjectAiCopilotHistory(database: DB): void {
     }
 }
 
+/**
+ * Persist the project's AI provider selection.
+ *
+ * Only `gemini_model` was ever stored, so a project set to NIM (and now Ollama) silently
+ * reverted to Gemini on restart. Adds the missing columns; idempotent.
+ */
+function migrateProjectAiProviderColumns(database: DB): void {
+    for (const column of ['ai_provider', 'nim_model', 'ollama_model', 'ollama_base_url']) {
+        if (!hasColumn(database, 'projects', column)) {
+            database.exec(`ALTER TABLE projects ADD COLUMN ${column} TEXT`)
+        }
+    }
+}
+
+/**
+ * Columns the renderer has always written but the schema never had, so the
+ * values were dropped on save and the features quietly reset on restart:
+ * AI-generation flags and ratings on test cases, screenshot paths on
+ * exploratory observations, and actor identity on collaboration events.
+ */
+function migrateMissingEntityColumns(database: DB): void {
+    const additions: Array<[table: string, column: string, ddl: string]> = [
+        ['test_cases', 'ai_generated', 'INTEGER NOT NULL DEFAULT 0'],
+        ['test_cases', 'ai_generation_rating', 'TEXT'],
+        ['test_cases', 'ai_generation_rated_at', 'INTEGER'],
+        ['collaboration_events', 'actor_user_id', 'TEXT'],
+        ['collaboration_events', 'actor_display_name', 'TEXT'],
+        ['exploratory_observations', 'attachment_path', 'TEXT'],
+        ['exploratory_observations', 'attachment_file_name', 'TEXT'],
+    ]
+    for (const [table, column, ddl] of additions) {
+        if (!hasColumn(database, table, column)) {
+            database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`)
+        }
+    }
+}
+
 function runMigrations(): void {
     const database = getDb()
     const row = database.prepare('SELECT version FROM schema_version LIMIT 1').get() as { version: number } | undefined
@@ -631,6 +691,8 @@ function runMigrations(): void {
     // This migration is idempotent and also repairs partially upgraded installs.
     migrateSyncQueueWorkspaceScope(database)
     migrateProjectAiCopilotHistory(database)
+    migrateProjectAiProviderColumns(database)
+    migrateMissingEntityColumns(database)
 
     if (currentVersion < SCHEMA_VERSION) {
         database.prepare('DELETE FROM schema_version').run()
@@ -638,356 +700,37 @@ function runMigrations(): void {
     }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function j(v: unknown): string | null {
-    if (v === undefined || v === null) return null
-    return JSON.stringify(v)
-}
-
-function p<T>(v: string | null | undefined): T | undefined {
-    if (v === null || v === undefined) return undefined
-    try { return JSON.parse(v) as T } catch { return undefined }
-}
-
-function bool(v: number | null | undefined): boolean {
-    return v === 1
-}
 
 /**
- * Coerce an untyped DB string column into a known union, falling back when the
- * stored value is outside the union (e.g. a record synced from a newer schema or
- * edited out-of-band). Returns `fallback` (which may be undefined) on mismatch so
- * a stray value never reaches the renderer's discriminated-union logic untyped.
+ * Clear the plaintext credentials still sitting in the legacy `environments`
+ * username/password columns.
+ *
+ * These existed only to log into HAC. That feature is gone, so there is nothing
+ * to migrate them *to* — the previous version of this function copied them into
+ * the OS keychain, which now just relocates a secret nobody reads. Clearing them
+ * outright is strictly better: the plaintext leaves the database and nothing new
+ * enters the keychain. Credentials moved to the keychain by an earlier build are
+ * removed separately by removedFeatureCleanup.
  */
-function asEnum<T extends string>(value: string | null | undefined, allowed: readonly T[], fallback: T): T
-function asEnum<T extends string>(value: string | null | undefined, allowed: readonly T[], fallback?: undefined): T | undefined
-function asEnum<T extends string>(value: string | null | undefined, allowed: readonly T[], fallback?: T): T | undefined {
-    if (value != null && (allowed as readonly string[]).includes(value)) return value as T
-    if (value != null) console.warn(`[db] Unexpected enum value '${value}' (allowed: ${allowed.join('|')}); using fallback '${fallback ?? 'undefined'}'`)
-    return fallback
-}
-
-const TASK_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
-const TASK_SEVERITIES: readonly TaskSeverity[] = ['cosmetic', 'minor', 'major', 'critical', 'blocker']
-const TASK_SOURCES = ['manual', 'linear', 'jira'] as const
-const COLLAB_STATES: readonly CollabState[] = ['draft', 'ready_for_dev', 'dev_acknowledged', 'in_fix', 'ready_for_qa', 'qa_retesting', 'verified', 'closed']
-const REPRODUCIBILITIES: readonly Reproducibility[] = ['always', 'sometimes', 'rarely', 'once', 'unable']
-const FREQUENCIES: readonly Frequency[] = ['everytime', 'often', 'occasionally', 'once']
-
-export async function migrateLegacyEnvironmentSecretsToSecureStore(): Promise<{ migrated: number; skipped: number }> {
+export function clearLegacyEnvironmentSecrets(): { cleared: number } {
     const database = getDb()
-    const alreadyMigrated = database
+    const alreadyDone = database
         .prepare('SELECT 1 FROM secret_migration_state WHERE key = ?')
         .get('environment_credentials_v1') as { 1: number } | undefined
 
-    if (alreadyMigrated) {
-        return { migrated: 0, skipped: 0 }
-    }
+    if (alreadyDone) return { cleared: 0 }
 
-    const storageStatus = getCredentialStorageStatus()
-    const rows = database.prepare(`
-        SELECT id, username, password
-        FROM environments
-        WHERE username IS NOT NULL OR password IS NOT NULL
-        ORDER BY rowid
-    `).all() as Array<{ id: string; username: string | null; password: string | null }>
+    const result = database
+        .prepare('UPDATE environments SET username = NULL, password = NULL WHERE username IS NOT NULL OR password IS NOT NULL')
+        .run()
 
-    let migrated = 0
-    let skipped = 0
-    const clearSecrets = database.prepare('UPDATE environments SET username = NULL, password = NULL WHERE id = ?')
-    const markMigrated = database.prepare('INSERT OR REPLACE INTO secret_migration_state (key, migrated_at) VALUES (?, ?)')
+    database
+        .prepare('INSERT OR REPLACE INTO secret_migration_state (key, migrated_at) VALUES (?, ?)')
+        .run('environment_credentials_v1', Date.now())
 
-    for (const row of rows) {
-        try {
-            if (row.username) await importLegacyCredential(`Env_${row.id}_Username`, row.username)
-            if (row.password) await importLegacyCredential(`Env_${row.id}_Password`, row.password)
-            clearSecrets.run(row.id)
-            migrated++
-        } catch (error) {
-            skipped++
-            console.warn('[db] Failed to migrate legacy environment secrets:', {
-                environmentId: row.id,
-                mode: storageStatus.mode,
-                error,
-            })
-        }
-    }
-
-    if (skipped === 0) {
-        markMigrated.run('environment_credentials_v1', Date.now())
-    }
-
-    return { migrated, skipped }
+    return { cleared: result.changes ?? 0 }
 }
 
-// ─── Project row ↔ Project object ─────────────────────────────────────────────
-
-type ProjectRow = {
-    id: string
-    schema_version: number | null
-    name: string
-    color: string
-    client_name: string | null
-    description: string | null
-    gemini_model: string | null
-    columns_json: string | null
-    source_columns_json: string | null
-    quality_gates_json: string | null
-    report_templates_json: string | null
-    report_schedules_json: string | null
-    report_history_json: string | null
-    custom_kpis_json: string | null
-    ai_copilot_history_json: string | null
-    linear_connections_json: string | null
-    jira_connections_json: string | null
-    linear_connection_legacy_json: string | null
-    jira_connection_legacy_json: string | null
-}
-
-function rowToProject(row: ProjectRow): Project {
-    return {
-        id: row.id,
-        schemaVersion: row.schema_version ?? undefined,
-        name: row.name,
-        color: row.color,
-        clientName: row.client_name ?? undefined,
-        description: row.description ?? undefined,
-        tasks: [],
-        notes: [],
-        testPlans: [],
-        environments: [],
-        testExecutions: [],
-        testRunSessions: [],
-        files: [],
-        testDataGroups: [],
-        checklists: [],
-        apiRequests: [],
-        runbooks: [],
-        geminiModel: row.gemini_model ?? undefined,
-        columns: p(row.columns_json) ?? [],
-        sourceColumns: p(row.source_columns_json),
-        qualityGates: p(row.quality_gates_json) ?? [],
-        reportTemplates: p(row.report_templates_json) ?? [],
-        reportSchedules: p(row.report_schedules_json) ?? [],
-        reportHistory: p(row.report_history_json) ?? [],
-        customKpis: p(row.custom_kpis_json) ?? [],
-        aiCopilotHistory: p(row.ai_copilot_history_json) ?? [],
-        linearConnections: p(row.linear_connections_json) ?? [],
-        jiraConnections: p(row.jira_connections_json) ?? [],
-        linearConnection: p(row.linear_connection_legacy_json),
-        jiraConnection: p(row.jira_connection_legacy_json),
-    }
-}
-
-// ─── Task row ↔ Task object ───────────────────────────────────────────────────
-
-type TaskRow = {
-    id: string
-    project_id: string
-    title: string
-    description: string
-    status: string
-    priority: string
-    severity: string | null
-    acceptance_criteria: string | null
-    version: string | null
-    source_issue_id: string | null
-    external_id: string | null
-    ticket_url: string | null
-    issue_type: string | null
-    raw_description: string | null
-    assignee: string | null
-    labels: string | null
-    components_json: string | null
-    due_date: number | null
-    source: string | null
-    connection_id: string | null
-    attachment_urls_json: string | null
-    analysis_history_json: string | null
-    linked_test_case_id: string | null
-    linked_defect_ids_json: string | null
-    collab_state: string
-    active_handoff_id: string | null
-    last_collab_updated_at: number | null
-    reproducibility: string | null
-    frequency: string | null
-    affected_environments_json: string | null
-    sprint_json: string | null
-    created_at: number
-    updated_at: number
-}
-
-function rowToTask(row: TaskRow): Task {
-    return {
-        id: row.id,
-        title: row.title,
-        description: row.description,
-        status: row.status,
-        priority: asEnum(row.priority, TASK_PRIORITIES, 'medium'),
-        severity: asEnum(row.severity, TASK_SEVERITIES),
-        acceptanceCriteria: row.acceptance_criteria ?? undefined,
-        version: row.version ?? undefined,
-        sourceIssueId: row.source_issue_id ?? undefined,
-        externalId: row.external_id ?? undefined,
-        ticketUrl: row.ticket_url ?? undefined,
-        issueType: row.issue_type ?? undefined,
-        rawDescription: row.raw_description ?? undefined,
-        assignee: row.assignee ?? undefined,
-        labels: row.labels ?? undefined,
-        components: p<string[]>(row.components_json) ?? [],
-        dueDate: row.due_date ?? undefined,
-        source: asEnum(row.source, TASK_SOURCES),
-        connectionId: row.connection_id ?? undefined,
-        attachmentUrls: p<string[]>(row.attachment_urls_json) ?? undefined,
-        analysisHistory: p(row.analysis_history_json) ?? [],
-        linkedTestCaseId: row.linked_test_case_id ?? undefined,
-        linkedDefectIds: p<string[]>(row.linked_defect_ids_json) ?? [],
-        collabState: asEnum(row.collab_state, COLLAB_STATES),
-        activeHandoffId: row.active_handoff_id ?? undefined,
-        lastCollabUpdatedAt: row.last_collab_updated_at ?? undefined,
-        reproducibility: asEnum(row.reproducibility, REPRODUCIBILITIES),
-        frequency: asEnum(row.frequency, FREQUENCIES),
-        affectedEnvironments: p<string[]>(row.affected_environments_json),
-        sprint: p(row.sprint_json),
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-    }
-}
-
-type NoteRow = {
-    id: string
-    title: string
-    content: string
-    updated_at: number
-}
-
-type NoteAttachmentRow = {
-    id: string
-    file_name: string
-    file_path: string
-    mime_type: string | null
-    file_size_bytes: number | null
-}
-
-type HandoffRow = {
-    id: string
-    task_id: string
-    type: string
-    created_by_role: string
-    created_at: number
-    updated_at: number
-    summary: string
-    repro_steps: string
-    expected_result: string
-    actual_result: string
-    environment_id: string | null
-    environment_name: string | null
-    severity: string | null
-    branch_name: string | null
-    release_version: string | null
-    reproducibility: string | null
-    frequency: string | null
-    linked_test_case_ids_json: string | null
-    linked_execution_refs_json: string | null
-    linked_note_ids_json: string | null
-    linked_file_ids_json: string | null
-    linked_prs_json: string | null
-    developer_response: string | null
-    qa_verification_notes: string | null
-    resolution_summary: string | null
-    acknowledged_at: number | null
-    completed_at: number | null
-    is_complete: number | null
-    missing_fields_json: string | null
-}
-
-type CollaborationEventRow = {
-    id: string
-    task_id: string
-    handoff_id: string | null
-    event_type: string
-    actor_role: string
-    timestamp: number
-    title: string
-    details: string | null
-    metadata_json: string | null
-}
-
-type TestPlanRow = {
-    id: string
-    display_id: string
-    name: string
-    description: string
-    is_archived: number | null
-    is_regression_suite: number | null
-    source: TestPlan['source']
-    criticality: string | null
-    created_at: number
-    updated_at: number
-}
-
-type TestCaseRow = {
-    id: string
-    display_id: string
-    title: string
-    pre_conditions: string
-    steps: string
-    test_data: string
-    expected_result: string
-    actual_result: string
-    priority: TestCase['priority']
-    status: TestCase['status']
-    sap_module: TestCase['sapModule'] | null
-    source_issue_id: string | null
-    tags_json: string | null
-    components_json: string | null
-    assigned_to: string | null
-    estimated_minutes: number | null
-    test_type: TestCase['testType'] | null
-    linked_defect_ids_json: string | null
-    change_log_json: string | null
-    updated_at: number
-}
-
-function rowToHandoff(row: HandoffRow): any {
-    return {
-        id: row.id, taskId: row.task_id, type: row.type,
-        createdByRole: row.created_by_role, createdAt: row.created_at, updatedAt: row.updated_at,
-        summary: row.summary, reproSteps: row.repro_steps,
-        expectedResult: row.expected_result, actualResult: row.actual_result,
-        environmentId: row.environment_id ?? undefined, environmentName: row.environment_name ?? undefined,
-        severity: row.severity ?? undefined, branchName: row.branch_name ?? undefined,
-        releaseVersion: row.release_version ?? undefined,
-        reproducibility: row.reproducibility ?? undefined, frequency: row.frequency ?? undefined,
-        linkedTestCaseIds: p<string[]>(row.linked_test_case_ids_json) ?? [],
-        linkedExecutionRefs: p(row.linked_execution_refs_json) ?? [],
-        linkedNoteIds: p<string[]>(row.linked_note_ids_json) ?? [],
-        linkedFileIds: p<string[]>(row.linked_file_ids_json) ?? [],
-        linkedPrs: p(row.linked_prs_json) ?? [],
-        developerResponse: row.developer_response ?? undefined,
-        qaVerificationNotes: row.qa_verification_notes ?? undefined,
-        resolutionSummary: row.resolution_summary ?? undefined,
-        acknowledgedAt: row.acknowledged_at ?? undefined,
-        completedAt: row.completed_at ?? undefined,
-        isComplete: bool(row.is_complete),
-        missingFields: p<string[]>(row.missing_fields_json) ?? undefined,
-    }
-}
-
-function rowToCollaborationEvent(row: CollaborationEventRow): any {
-    return {
-        id: row.id,
-        taskId: row.task_id,
-        handoffId: row.handoff_id ?? undefined,
-        eventType: row.event_type,
-        actorRole: row.actor_role,
-        timestamp: row.timestamp,
-        title: row.title,
-        details: row.details ?? undefined,
-        metadata: p(row.metadata_json),
-    }
-}
 
 function hydrateProject(projectRow: ProjectRow): Project {
     const database = getDb()
@@ -1046,6 +789,9 @@ function hydrateProject(projectRow: ProjectRow): Project {
                 testType: tc.test_type ?? undefined,
                 linkedDefectIds: p<string[]>(tc.linked_defect_ids_json) ?? [],
                 changeLog: p(tc.change_log_json) ?? [],
+                aiGenerated: bool(tc.ai_generated),
+                aiGenerationRating: asEnum(tc.ai_generation_rating, AI_GENERATION_RATINGS),
+                aiGenerationRatedAt: tc.ai_generation_rated_at ?? undefined,
                 updatedAt: tc.updated_at,
             })),
         }
@@ -1107,8 +853,7 @@ function hydrateProject(projectRow: ProjectRow): Project {
         isDefault: bool(e.is_default), createdAt: e.created_at,
         baseUrl: e.base_url, notes: e.notes, healthCheckUrl: e.health_check_url,
         hacUrl: e.hac_url, backOfficeUrl: e.back_office_url, storefrontUrl: e.storefront_url,
-        solrAdminUrl: e.solr_admin_url, occBasePath: e.occ_base_path,
-        ignoreSslErrors: bool(e.ignore_ssl_errors),
+        solrAdminUrl: e.solr_admin_url,
     }))
 
     const fileRows = database.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
@@ -1181,6 +926,8 @@ function hydrateProject(projectRow: ProjectRow): Project {
             observations: obsRows.map((o: any) => ({
                 id: o.id, timestamp: o.timestamp, type: o.type,
                 description: o.description, severity: o.severity ?? undefined,
+                attachmentPath: o.attachment_path ?? undefined,
+                attachmentFileName: o.attachment_file_name ?? undefined,
             })),
         }
     })
@@ -1198,6 +945,18 @@ function hydrateProject(projectRow: ProjectRow): Project {
 }
 
 // ─── Read all projects (full denormalised document, mirrors old JSON shape) ────
+
+/**
+ * Delete one project and everything under it.
+ *
+ * The only way a project is removed from the database. Child rows go with it via
+ * ON DELETE CASCADE. Returns false when the id was not present.
+ */
+export function deleteProject(projectId: string): boolean {
+    const database = getDb()
+    const result = database.prepare('DELETE FROM projects WHERE id = ?').run(projectId)
+    return (result.changes ?? 0) > 0
+}
 
 export function getAllProjects(): Project[] {
     const database = getDb()
@@ -1263,6 +1022,9 @@ export function getAllProjects(): Project[] {
                     testType: tc.test_type ?? undefined,
                     linkedDefectIds: p<string[]>(tc.linked_defect_ids_json) ?? undefined,
                     changeLog: p(tc.change_log_json) ?? undefined,
+                    aiGenerated: bool(tc.ai_generated),
+                    aiGenerationRating: asEnum(tc.ai_generation_rating, AI_GENERATION_RATINGS),
+                    aiGenerationRatedAt: tc.ai_generation_rated_at ?? undefined,
                     updatedAt: tc.updated_at,
                 }))
             }
@@ -1337,9 +1099,8 @@ export function getAllProjects(): Project[] {
             baseUrl: e.base_url, notes: e.notes,
             healthCheckUrl: e.health_check_url, hacUrl: e.hac_url,
             backOfficeUrl: e.back_office_url, storefrontUrl: e.storefront_url,
-            solrAdminUrl: e.solr_admin_url, occBasePath: e.occ_base_path,
-            ignoreSslErrors: bool(e.ignore_ssl_errors),
-        }))
+            solrAdminUrl: e.solr_admin_url,
+            }))
 
         // project files
         const fileRows = database.prepare('SELECT * FROM project_files WHERE project_id = ? ORDER BY rowid').all(pid) as any[]
@@ -1436,6 +1197,8 @@ export function getAllProjects(): Project[] {
             eventType: e.event_type, actorRole: e.actor_role, timestamp: e.timestamp,
             title: e.title, details: e.details ?? undefined,
             metadata: p(e.metadata_json),
+            actorUserId: e.actor_user_id ?? undefined,
+            actorDisplayName: e.actor_display_name ?? undefined,
         }))
 
         // exploratory sessions + observations
@@ -1450,6 +1213,8 @@ export function getAllProjects(): Project[] {
                 observations: obsRows.map((o: any) => ({
                     id: o.id, timestamp: o.timestamp, type: o.type,
                     description: o.description, severity: o.severity ?? undefined,
+                    attachmentPath: o.attachment_path ?? undefined,
+                    attachmentFileName: o.attachment_file_name ?? undefined,
                 }))
             }
         })
@@ -1618,6 +1383,13 @@ export function deleteProjectTask(projectId: string, taskId: string): void {
         database.prepare('DELETE FROM tasks WHERE project_id = ? AND id = ?').run(projectId, taskId)
         database.prepare('DELETE FROM handoff_packets WHERE project_id = ? AND task_id = ?').run(projectId, taskId)
         database.prepare('DELETE FROM collaboration_events WHERE project_id = ? AND task_id = ?').run(projectId, taskId)
+        // Artifact links are not covered by a foreign key, so they have to go
+        // explicitly or they dangle at a task that no longer exists.
+        database.prepare(`
+            DELETE FROM artifact_links
+            WHERE project_id = ?
+              AND ((source_type = 'task' AND source_id = ?) OR (target_type = 'task' AND target_id = ?))
+        `).run(projectId, taskId, taskId)
         database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
     })()
 }
@@ -1679,8 +1451,8 @@ export function insertProjectCollaborationEvent(projectId: string, event: any): 
     const database = getDb()
     database.transaction(() => {
         database.prepare(`
-            INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json, actor_user_id, actor_display_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             event.id,
             projectId,
@@ -1692,6 +1464,8 @@ export function insertProjectCollaborationEvent(projectId: string, event: any): 
             event.title ?? '',
             event.details ?? null,
             j(event.metadata),
+            event.actorUserId ?? null,
+            event.actorDisplayName ?? null,
         )
         database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
     })()
@@ -1711,11 +1485,13 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
         INSERT OR REPLACE INTO test_cases (id, test_plan_id, project_id, display_id, title,
             pre_conditions, steps, test_data, expected_result, actual_result, priority, status,
             sap_module, source_issue_id, tags_json, components_json, assigned_to,
-            estimated_minutes, test_type, linked_defect_ids_json, change_log_json, updated_at)
+            estimated_minutes, test_type, linked_defect_ids_json, change_log_json,
+            ai_generated, ai_generation_rating, ai_generation_rated_at, updated_at)
         VALUES (@id, @test_plan_id, @project_id, @display_id, @title,
             @pre_conditions, @steps, @test_data, @expected_result, @actual_result, @priority, @status,
             @sap_module, @source_issue_id, @tags_json, @components_json, @assigned_to,
-            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json, @updated_at)
+            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json,
+            @ai_generated, @ai_generation_rating, @ai_generation_rated_at, @updated_at)
     `)
     const touchProject = database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
 
@@ -1760,6 +1536,9 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
                 test_type: tc.testType ?? null,
                 linked_defect_ids_json: j(tc.linkedDefectIds),
                 change_log_json: j(tc.changeLog),
+                ai_generated: tc.aiGenerated ? 1 : 0,
+                ai_generation_rating: tc.aiGenerationRating ?? null,
+                ai_generation_rated_at: tc.aiGenerationRatedAt ?? null,
                 updated_at: tc.updatedAt,
             })
         }
@@ -1797,10 +1576,10 @@ export function upsertProjectEnvironment(projectId: string, env: any): void {
         database.prepare(`
             INSERT OR REPLACE INTO environments (id, project_id, name, type, color, is_default, created_at,
                 base_url, notes, health_check_url, hac_url, back_office_url, storefront_url,
-                solr_admin_url, occ_base_path, ignore_ssl_errors)
+                solr_admin_url)
             VALUES (@id, @project_id, @name, @type, @color, @is_default, @created_at,
                 @base_url, @notes, @health_check_url, @hac_url, @back_office_url, @storefront_url,
-                @solr_admin_url, @occ_base_path, @ignore_ssl_errors)
+                @solr_admin_url)
         `).run({
             id: env.id,
             project_id: projectId,
@@ -1816,8 +1595,6 @@ export function upsertProjectEnvironment(projectId: string, env: any): void {
             back_office_url: env.backOfficeUrl ?? '',
             storefront_url: env.storefrontUrl ?? '',
             solr_admin_url: env.solrAdminUrl ?? '',
-            occ_base_path: env.occBasePath ?? '',
-            ignore_ssl_errors: env.ignoreSslErrors ? 1 : 0,
         })
         database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
     })()
@@ -1961,12 +1738,14 @@ export function saveAllProjects(projects: any[]): void {
 
     const upsertProject = database.prepare(`
         INSERT INTO projects (id, schema_version, name, color, client_name, description, gemini_model,
+            ai_provider, nim_model, ollama_model, ollama_base_url,
             columns_json, source_columns_json, quality_gates_json, report_templates_json,
             report_schedules_json, report_history_json, custom_kpis_json, ai_copilot_history_json,
             linear_connections_json, jira_connections_json,
             linear_connection_legacy_json, jira_connection_legacy_json,
             created_at, updated_at)
         VALUES (@id, @schema_version, @name, @color, @client_name, @description, @gemini_model,
+            @ai_provider, @nim_model, @ollama_model, @ollama_base_url,
             @columns_json, @source_columns_json, @quality_gates_json, @report_templates_json,
             @report_schedules_json, @report_history_json, @custom_kpis_json, @ai_copilot_history_json,
             @linear_connections_json, @jira_connections_json,
@@ -1977,6 +1756,10 @@ export function saveAllProjects(projects: any[]): void {
             name = excluded.name, color = excluded.color,
             client_name = excluded.client_name, description = excluded.description,
             gemini_model = excluded.gemini_model,
+            ai_provider = excluded.ai_provider,
+            nim_model = excluded.nim_model,
+            ollama_model = excluded.ollama_model,
+            ollama_base_url = excluded.ollama_base_url,
             columns_json = excluded.columns_json,
             source_columns_json = excluded.source_columns_json,
             quality_gates_json = excluded.quality_gates_json,
@@ -2027,11 +1810,13 @@ export function saveAllProjects(projects: any[]): void {
         INSERT OR REPLACE INTO test_cases (id, test_plan_id, project_id, display_id, title,
             pre_conditions, steps, test_data, expected_result, actual_result, priority, status,
             sap_module, source_issue_id, tags_json, components_json, assigned_to,
-            estimated_minutes, test_type, linked_defect_ids_json, change_log_json, updated_at)
+            estimated_minutes, test_type, linked_defect_ids_json, change_log_json,
+            ai_generated, ai_generation_rating, ai_generation_rated_at, updated_at)
         VALUES (@id, @test_plan_id, @project_id, @display_id, @title,
             @pre_conditions, @steps, @test_data, @expected_result, @actual_result, @priority, @status,
             @sap_module, @source_issue_id, @tags_json, @components_json, @assigned_to,
-            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json, @updated_at)
+            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json,
+            @ai_generated, @ai_generation_rating, @ai_generation_rated_at, @updated_at)
     `)
     const deleteCasesByPlan = database.prepare('DELETE FROM test_cases WHERE test_plan_id = @plan_id AND project_id = @project_id')
 
@@ -2070,10 +1855,10 @@ export function saveAllProjects(projects: any[]): void {
     const insertEnv = database.prepare(`
         INSERT OR REPLACE INTO environments (id, project_id, name, type, color, is_default, created_at,
             base_url, notes, health_check_url, hac_url, back_office_url, storefront_url,
-            solr_admin_url, occ_base_path, ignore_ssl_errors)
+            solr_admin_url)
         VALUES (@id, @project_id, @name, @type, @color, @is_default, @created_at,
             @base_url, @notes, @health_check_url, @hac_url, @back_office_url, @storefront_url,
-            @solr_admin_url, @occ_base_path, @ignore_ssl_errors)
+            @solr_admin_url)
     `)
 
     const insertFile = database.prepare(`
@@ -2137,8 +1922,8 @@ export function saveAllProjects(projects: any[]): void {
     `)
 
     const insertEvent = database.prepare(`
-        INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json)
-        VALUES (@id, @project_id, @task_id, @handoff_id, @event_type, @actor_role, @timestamp, @title, @details, @metadata_json)
+        INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json, actor_user_id, actor_display_name)
+        VALUES (@id, @project_id, @task_id, @handoff_id, @event_type, @actor_role, @timestamp, @title, @details, @metadata_json, @actor_user_id, @actor_display_name)
     `)
 
     const insertExpSession = database.prepare(`
@@ -2146,8 +1931,8 @@ export function saveAllProjects(projects: any[]): void {
         VALUES (@id, @project_id, @charter, @timebox, @tester, @started_at, @completed_at, @notes, @discovered_bug_ids_json)
     `)
     const insertExpObs = database.prepare(`
-        INSERT OR REPLACE INTO exploratory_observations (id, session_id, project_id, timestamp, type, description, severity)
-        VALUES (@id, @session_id, @project_id, @timestamp, @type, @description, @severity)
+        INSERT OR REPLACE INTO exploratory_observations (id, session_id, project_id, timestamp, type, description, severity, attachment_path, attachment_file_name)
+        VALUES (@id, @session_id, @project_id, @timestamp, @type, @description, @severity, @attachment_path, @attachment_file_name)
     `)
     const deleteObsBySession = database.prepare('DELETE FROM exploratory_observations WHERE session_id = @session_id')
 
@@ -2156,19 +1941,16 @@ export function saveAllProjects(projects: any[]): void {
         VALUES (@id, @project_id, @name, @created_at, @updated_at, @high_accuracy_mode, @reference_docs_json, @qa_pairs_json, @eval_runs_json)
     `)
 
-    // Collect all incoming project IDs to prune deleted ones after the upsert
-    const incomingProjectIds = new Set<string>(projects.map((p: any) => p.id))
-    const existingIds = (database.prepare('SELECT id FROM projects').all() as { id: string }[]).map(r => r.id)
-
-    const deleteProjectById = database.prepare('DELETE FROM projects WHERE id = ?')
-
+    /*
+     * Deliberately NOT pruning projects absent from `projects`.
+     *
+     * This used to delete any project the incoming array did not mention, which
+     * made a full write destructive by omission: a renderer whose read had failed,
+     * or whose in-memory cache predated a write by the automation API or cloud
+     * sync, would silently delete real projects. Deletion now goes through
+     * deleteProject() so it can only happen when someone asked for it.
+     */
     const runAll = database.transaction(() => {
-        // Remove projects that are no longer in the array
-        for (const existingId of existingIds) {
-            if (!incomingProjectIds.has(existingId)) {
-                deleteProjectById.run(existingId)
-            }
-        }
 
         for (const proj of projects) {
             const pid = proj.id
@@ -2181,6 +1963,10 @@ export function saveAllProjects(projects: any[]): void {
                 client_name: proj.clientName ?? null,
                 description: proj.description ?? null,
                 gemini_model: proj.geminiModel ?? null,
+                ai_provider: proj.aiProvider ?? null,
+                nim_model: proj.nimModel ?? null,
+                ollama_model: proj.ollamaModel ?? null,
+                ollama_base_url: proj.ollamaBaseUrl ?? null,
                 columns_json: j(proj.columns),
                 source_columns_json: j(proj.sourceColumns),
                 quality_gates_json: j(proj.qualityGates),
@@ -2282,6 +2068,9 @@ export function saveAllProjects(projects: any[]): void {
                         test_type: tc.testType ?? null,
                         linked_defect_ids_json: j(tc.linkedDefectIds),
                         change_log_json: j(tc.changeLog),
+                        ai_generated: tc.aiGenerated ? 1 : 0,
+                        ai_generation_rating: tc.aiGenerationRating ?? null,
+                        ai_generation_rated_at: tc.aiGenerationRatedAt ?? null,
                         updated_at: tc.updatedAt,
                     })
                 }
@@ -2367,8 +2156,6 @@ export function saveAllProjects(projects: any[]): void {
                     notes: env.notes ?? '', health_check_url: env.healthCheckUrl ?? '',
                     hac_url: env.hacUrl ?? '', back_office_url: env.backOfficeUrl ?? '',
                     storefront_url: env.storefrontUrl ?? '', solr_admin_url: env.solrAdminUrl ?? '',
-                    occ_base_path: env.occBasePath ?? '',
-                    ignore_ssl_errors: env.ignoreSslErrors ? 1 : 0,
                 })
             }
 
@@ -2489,6 +2276,8 @@ export function saveAllProjects(projects: any[]): void {
                     actor_role: ev.actorRole, timestamp: ev.timestamp,
                     title: ev.title ?? '', details: ev.details ?? null,
                     metadata_json: j(ev.metadata),
+                    actor_user_id: ev.actorUserId ?? null,
+                    actor_display_name: ev.actorDisplayName ?? null,
                 })
             }
 
@@ -2508,7 +2297,7 @@ export function saveAllProjects(projects: any[]): void {
                 })
                 deleteObsBySession.run({ session_id: sess.id })
                 for (const obs of sess.observations ?? []) {
-                    insertExpObs.run({ id: obs.id, session_id: sess.id, project_id: pid, timestamp: obs.timestamp, type: obs.type ?? 'observation', description: obs.description ?? '', severity: obs.severity ?? null })
+                    insertExpObs.run({ id: obs.id, session_id: sess.id, project_id: pid, timestamp: obs.timestamp, type: obs.type ?? 'observation', description: obs.description ?? '', severity: obs.severity ?? null, attachment_path: obs.attachmentPath ?? null, attachment_file_name: obs.attachmentFileName ?? null })
                 }
             }
 
@@ -2634,9 +2423,9 @@ export function getTaskById(taskId: string): any | null {
         id: e.id, taskId: e.task_id, handoffId: e.handoff_id ?? undefined,
         eventType: e.event_type, actorRole: e.actor_role, timestamp: e.timestamp,
         title: e.title, details: e.details ?? undefined,
+        metadata: p(e.metadata_json),
         actorUserId: e.actor_user_id ?? undefined,
         actorDisplayName: e.actor_display_name ?? undefined,
-        metadata: p(e.metadata_json),
     }))
 
     return task

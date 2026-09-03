@@ -67,7 +67,6 @@ function sanitizeEnvironment(environment: QaEnvironment): AiSafeEnvironment {
         backOfficeUrl: environment.backOfficeUrl || undefined,
         storefrontUrl: environment.storefrontUrl || undefined,
         solrAdminUrl: environment.solrAdminUrl || undefined,
-        occBasePath: environment.occBasePath || undefined,
     }
 }
 
@@ -219,7 +218,7 @@ function sanitizeHandoffsForDevAi(handoffs: HandoffPacket[] | undefined): DevAiH
 
 function sanitizeSapEnvironments(environments: QaEnvironment[]): SanitizedSapEnvironment[] {
     return environments
-        .filter((environment) => environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl || environment.occBasePath)
+        .filter((environment) => environment.hacUrl || environment.backOfficeUrl || environment.storefrontUrl || environment.solrAdminUrl)
         .map((environment) => sanitizeEnvironment(environment))
 }
 
@@ -244,6 +243,7 @@ export function sanitizeProjectForQaAi(project: Project | undefined, selection?:
         description: project.description,
         geminiModel: project.geminiModel,
         nimModel: project.nimModel,
+        ollamaModel: project.ollamaModel,
         aiProvider: project.aiProvider,
         environments: sanitizedEnvironments,
         tasks: sanitizeTasksForQaAi(tasks, environments),
@@ -271,6 +271,7 @@ export function sanitizeProjectForDevAi(project: Project | undefined, selection?
         description: project.description,
         geminiModel: project.geminiModel,
         nimModel: project.nimModel,
+        ollamaModel: project.ollamaModel,
         aiProvider: project.aiProvider,
         environments: environments.map((environment) => sanitizeEnvironment(environment)),
         tasks: sanitizeTasksForDevAi(tasks, environments),

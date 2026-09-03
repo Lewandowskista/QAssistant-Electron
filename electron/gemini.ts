@@ -4,6 +4,7 @@ import { log } from './logger'
 import { normalizePullRequestAnalysisResult } from './prAnalysis'
 import type { PullRequestAnalysisResult } from './prAnalysis'
 import { sanitizeToonList, sanitizeToonScalar, ToonWriter } from './toon'
+import { coerceMultilineText, coerceSingleLineText } from './aiFieldCoercion'
 
 const MODEL_3_5_FLASH = 'gemini-3.5-flash';
 const MODEL_2_5_FLASH = 'gemini-2.5-flash';
@@ -422,7 +423,6 @@ export class GeminiService {
                         environment.isDefault ? 'default' : '',
                         environment.hacUrl ? 'hac' : '',
                         environment.backOfficeUrl ? 'backoffice' : '',
-                        environment.occBasePath ? `occ=${sanitizeToonScalar(environment.occBasePath, 80)}` : '',
                     ].filter(Boolean).join('+')
                     return `${sanitizeToonScalar(environment.name, 60)}(${sanitizeToonScalar(tags, 120)})`
                 }).join(',')
@@ -1069,11 +1069,11 @@ export class GeminiService {
             const priority = PRIORITY_MAP[rawPriority] || 'medium'
             return {
                 testCaseId: String(item.testCaseId || `TC-${String(i + 1).padStart(3, '0')}`).substring(0, 50),
-                title: String(item.title || `Test Case ${i + 1}`).substring(0, 300),
-                preConditions: String(item.preConditions || '').substring(0, 2000),
-                steps: String(item.testSteps || item.steps || '').substring(0, 5000),
-                testData: String(item.testData || '').substring(0, 2000),
-                expectedResult: String(item.expectedResult || '').substring(0, 2000),
+                title: coerceSingleLineText(item.title || `Test Case ${i + 1}`).substring(0, 300),
+                preConditions: coerceMultilineText(item.preConditions).substring(0, 2000),
+                steps: coerceMultilineText(item.testSteps ?? item.steps).substring(0, 5000),
+                testData: coerceMultilineText(item.testData).substring(0, 2000),
+                expectedResult: coerceMultilineText(item.expectedResult).substring(0, 2000),
                 priority: priority as any,
                 sourceIssueId: String(item.sourceIssueId || '').substring(0, 100),
                 sapModule: item.sapModule ? String(item.sapModule).substring(0, 100) : undefined,
@@ -1629,32 +1629,6 @@ export class GeminiService {
             recent_runs: Math.min(metrics.recentRuns.length, 8),
             recently_verified: Math.min(metrics.recentlyVerified.length, 10),
             high_priority_open: Math.min(metrics.highPriorityOpen.length, 10),
-        })
-    }
-
-    /** Convert a plain-English question into a SAP Commerce FlexSearch (FlexibleSearch) SQL query */
-    async generateFlexSearch(naturalLanguageQuery: string, modelName?: string): Promise<string> {
-        const sysLines: string[] = [
-            '@role:sap_commerce_flexsearch_expert',
-            '@task:natural_language_to_flexsearch',
-            '@output_format:raw_flexsearch_sql_only—no_markdown—no_explanation—no_code_block_fences',
-            '@rules:output_only_the_select_statement|use_SAP_FlexibleSearch_syntax_with_curly_braces_for_types_and_attributes|qualify_attributes_as_{TypeAlias:attribute}|use_AS_aliases|be_concise|if_unsure_produce_best_effort_query',
-        ]
-        sysLines.push(SAP_COMMERCE_CONTEXT_BLOCK.substring(0, 3000))
-
-        const userLines: string[] = [
-            'natural_language_request{',
-            ` query:${GeminiService.sanitizeToonValue(naturalLanguageQuery, 500)}`,
-            '}',
-            'instructions{',
-            ' produce:single_FlexibleSearch_SELECT_statement',
-            ' syntax:use_curly_braces_for_type_and_attribute_references_e.g._{Product_AS_p}_{p:code}',
-            ' output:raw_SQL_only—no_preamble—no_explanation—no_markdown',
-            '}',
-        ]
-
-        return await this.executeWithFallback(userLines.join('\n'), modelName, 0.2, 1024, sysLines.join('\n'), false, 'flexsearch_generation', {
-            query_chars: Math.min(naturalLanguageQuery.length, 500),
         })
     }
 

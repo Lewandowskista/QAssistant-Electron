@@ -12,8 +12,6 @@ export const REQUEST_TIMEOUT_MS = 30_000
 /** Timeout for long-running AI generation calls */
 export const AI_GENERATION_TIMEOUT_MS = 60_000
 
-/** Maximum number of cached SAP HAC service instances before evicting the oldest */
-export const MAX_SAP_HAC_INSTANCES = 10
 
 /** Default port for the local Automation API server */
 export const AUTOMATION_API_DEFAULT_PORT = 3_030

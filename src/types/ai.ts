@@ -4,7 +4,7 @@ import type { UserRole } from './user'
 export type AiRole = UserRole
 
 /** AI backend selected per-project; injected into every AI IPC call by aiClient.ts. */
-export type AiProvider = 'gemini' | 'nim'
+export type AiProvider = 'gemini' | 'nim' | 'ollama'
 
 export interface AiContextSelection {
     taskIds?: string[]
@@ -52,7 +52,6 @@ export interface AiSafeEnvironment {
     backOfficeUrl?: string
     storefrontUrl?: string
     solrAdminUrl?: string
-    occBasePath?: string
 }
 
 export interface QaAiTestCase {
@@ -143,7 +142,8 @@ export interface QaProjectAiContext {
     description?: string
     geminiModel?: string
     nimModel?: string
-    aiProvider?: 'gemini' | 'nim'
+    ollamaModel?: string
+    aiProvider?: AiProvider
     environments: AiSafeEnvironment[]
     tasks: QaAiTask[]
     testPlans: QaAiTestPlanSummary[]
@@ -162,7 +162,8 @@ export interface DevProjectAiContext {
     description?: string
     geminiModel?: string
     nimModel?: string
-    aiProvider?: 'gemini' | 'nim'
+    ollamaModel?: string
+    aiProvider?: AiProvider
     environments: AiSafeEnvironment[]
     tasks: DevAiTask[]
     handoffs: DevAiHandoff[]

@@ -481,8 +481,6 @@ export const demoProject: Project = {
             backOfficeUrl: 'https://staging.example.invalid/backoffice',
             storefrontUrl: 'https://staging.example.invalid',
             solrAdminUrl: '',
-            occBasePath: '/occ/v2',
-            ignoreSslErrors: false,
         },
         {
             id: 'env-uat',
@@ -498,8 +496,6 @@ export const demoProject: Project = {
             backOfficeUrl: '',
             storefrontUrl: 'https://uat.example.invalid',
             solrAdminUrl: '',
-            occBasePath: '/occ/v2',
-            ignoreSslErrors: true,
         },
     ],
     testExecutions: [

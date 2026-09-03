@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,8 +12,12 @@ interface ConfirmDialogProps {
     confirmLabel?: string
     cancelLabel?: string
     destructive?: boolean
+    /** Records the confirm decision. Does not close — Radix's Action does that. */
     onConfirm: () => void
-    onCancel: () => void
+    /** Records the cancel decision. Does not close — Radix's Cancel does that. */
+    onCancel?: () => void
+    /** Invoked once when the dialog actually closes, whatever caused it. */
+    onClose: () => void
 }
 
 /**
@@ -30,9 +34,16 @@ export function ConfirmDialog({
     destructive = false,
     onConfirm,
     onCancel,
+    onClose,
 }: ConfirmDialogProps) {
     return (
-        <AlertDialogPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onCancel() }}>
+        /*
+         * Radix's Action/Cancel close the dialog themselves, so `onClose` is the single
+         * close path: the buttons only record the decision (onConfirm/onCancel) and
+         * Radix's own handler drives the close. Treating onOpenChange(false) as a
+         * *cancel* would overwrite a recorded confirm, silently dropping the action.
+         */
+        <AlertDialogPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onClose() }}>
             <AlertDialogPrimitive.Portal>
                 <AlertDialogPrimitive.Overlay
                     data-radix-dialog-overlay=""
@@ -106,27 +117,59 @@ export function useConfirm() {
         description?: string
         confirmLabel?: string
         destructive?: boolean
-        resolve?: (confirmed: boolean) => void
     }>({ open: false, title: "" })
+
+    // The caller's continuation is held here rather than resolved inline — see the
+    // close effect below for why the ordering matters.
+    const pending = useRef<{ resolve: (confirmed: boolean) => void; value: boolean } | null>(null)
 
     const confirm = useCallback(
         (title: string, options?: { description?: string; confirmLabel?: string; destructive?: boolean }): Promise<boolean> => {
             return new Promise((resolve) => {
-                setState({ open: true, title, ...options, resolve })
+                // A second confirm() while one is still pending would otherwise
+                // overwrite the ref and leave the first caller awaiting forever.
+                pending.current?.resolve(false)
+                pending.current = { resolve, value: false }
+                setState({ open: true, title, ...options })
             })
         },
         []
     )
 
-    const handleConfirm = () => {
-        state.resolve?.(true)
-        setState(prev => ({ ...prev, open: false }))
-    }
+    /**
+     * Hand control back to the caller only after the close has committed.
+     *
+     * Resolving the promise inline (the previous behaviour) ran the caller's
+     * continuation as a microtask — before React committed `open: false`. A
+     * destructive callback could then unmount the trigger's subtree while Radix was
+     * still unwinding its modal-layer stack: Radix restores
+     * `body { pointer-events: none }` only when its layer counter returns to zero,
+     * so a layer that never deregistered left the style orphaned and the entire
+     * window unclickable, with nothing logged.
+     *
+     * Effects flush children-first, so by the time this runs the AlertDialog's own
+     * cleanup (and its layer deregistration) has already happened.
+     */
+    useEffect(() => {
+        if (state.open) return
+        const p = pending.current
+        if (!p) return
+        pending.current = null
+        p.resolve(p.value)
+    }, [state.open])
 
-    const handleCancel = () => {
-        state.resolve?.(false)
-        setState(prev => ({ ...prev, open: false }))
-    }
+    // Never leave an awaiting caller hanging if the dialog's owner unmounts.
+    useEffect(() => () => {
+        const p = pending.current
+        pending.current = null
+        p?.resolve(false)
+    }, [])
+
+    // Record the decision only. Radix closes the dialog itself, and `handleClose`
+    // below is what flips our state — keeping exactly one close path.
+    const handleConfirm = () => { if (pending.current) pending.current.value = true }
+    const handleCancel = () => { if (pending.current) pending.current.value = false }
+    const handleClose = () => setState(prev => ({ ...prev, open: false }))
 
     const dialog = (
         <ConfirmDialog
@@ -137,6 +180,7 @@ export function useConfirm() {
             destructive={state.destructive}
             onConfirm={handleConfirm}
             onCancel={handleCancel}
+            onClose={handleClose}
         />
     )
 

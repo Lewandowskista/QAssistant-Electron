@@ -3,7 +3,6 @@ import { UserProfile } from './user';
 import { AuthStatus } from './auth';
 import { GitHubRepo, GitHubPullRequest, GitHubPrDetail, GitHubCommit, GitHubReview, GitHubWorkflowRun, GitHubDeployment, GitHubSearchItem, GitHubComment, GitHubWorkflowJob, GitHubWorkflow } from './github';
 import { AiAnalyzeIssueRequest, AiAnalyzeProjectRequest, AiAnalyzePullRequestRequest, AiChatRequest, AiCriticalityRequest, AiGenerateCasesRequest, AiPullRequestAnalysisResult, AiProvider, AiSmokeSubsetRequest, AiTestRunSuggestionsRequest } from './ai';
-import { CronJobEntry, FlexibleSearchResult, ImpExResult } from '@/lib/sapHac';
 import { AppUpdateState } from './update';
 import {
     SyncConfig,
@@ -39,6 +38,15 @@ export interface NimModelMetaEntry {
     notes?: string;
 }
 
+/** A model installed in the local Ollama store. */
+export interface OllamaModelInfoEntry {
+    name: string;
+    sizeBytes: number;
+    parameterSize?: string;
+    quantization?: string;
+    family?: string;
+}
+
 export interface ElectronAPI {
     // Window controls
     minimize: () => void;
@@ -53,8 +61,9 @@ export interface ElectronAPI {
 
     // Data persistence
     getAppDataPath: () => Promise<string>;
-    readProjectsFile: () => Promise<Project[]>;
-    writeProjectsFile: (data: Project[]) => Promise<{ success: boolean; error?: string }>;
+    readProjectsFile: () => Promise<{ ok: true; projects: Project[] } | { ok: false; error: string }>;
+    writeProjectsFile: (data: Project[]) => Promise<{ ok: boolean; error?: string }>;
+    deleteProject: (projectId: string) => Promise<{ ok: boolean; deleted?: boolean; error?: string }>;
     upsertProjectNote: (projectId: string, note: any) => Promise<boolean>;
     deleteProjectNote: (projectId: string, noteId: string) => Promise<boolean>;
     upsertProjectTask: (projectId: string, task: any) => Promise<boolean>;
@@ -128,7 +137,6 @@ export interface ElectronAPI {
     aiTestRunSuggestions: (args: AiTestRunSuggestionsRequest) => Promise<string>;
     aiSmokeSubset: (args: AiSmokeSubsetRequest) => Promise<string[]>;
     aiChat: (args: AiChatRequest) => Promise<string>;
-    aiGenerateFlexSearch: (args: { apiKey: string; provider?: AiProvider; naturalLanguageQuery: string; modelName?: string }) => Promise<string>;
     aiStandupSummary: (args: { apiKey: string; provider?: AiProvider; metrics: Record<string, unknown>; modelName?: string }) => Promise<string>;
     aiFindDuplicateBugs: (args: {
         apiKey: string;
@@ -144,6 +152,13 @@ export interface ElectronAPI {
     nimListModels: (args: { apiKey: string }) => Promise<string[]>;
     nimProbeModels: (args: { apiKey: string; models: string[] }) => Promise<Record<string, ModelHealthEntry>>;
     nimGetModelMetadata: (args?: { models?: string[] }) => Promise<Record<string, NimModelMetaEntry>>;
+    /** Installed Ollama chat models, preferred ones first. Empty when none are pulled. */
+    ollamaListModels: (args?: { baseUrl?: string }) => Promise<string[]>;
+    /** Installed models with size/quantisation detail, for the settings picker. */
+    ollamaInstalledModels: (args?: { baseUrl?: string }) => Promise<OllamaModelInfoEntry[]>;
+    /** Whether an Ollama daemon answers, plus the models it has. */
+    ollamaStatus: (args?: { baseUrl?: string }) => Promise<{ reachable: boolean; models: string[] }>;
+    ollamaProbeModels: (args: { baseUrl?: string; models: string[] }) => Promise<Record<string, ModelHealthEntry>>;
 
     // Integrations (Linear)
     syncLinear: (args: any) => Promise<any>;
@@ -165,17 +180,6 @@ export interface ElectronAPI {
     createJiraIssue: (args: any) => Promise<string | null>;
     testJiraConnection: (args: any) => Promise<{ success: boolean; error?: string }>;
 
-    // SAP
-    ccv2GetEnvironments: (args: any) => Promise<any[]>;
-    ccv2GetDeployments: (args: any) => Promise<any[]>;
-    ccv2GetBuild: (args: any) => Promise<any | null>;
-    sapHacLogin: (baseUrl: string, user: string, pass: string, ignoreSsl?: boolean) => Promise<{ success: boolean; error?: string }>;
-    sapHacGetCronJobs: (baseUrl: string) => Promise<ApiResponse<CronJobEntry[]>>;
-    sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) => Promise<ApiResponse<FlexibleSearchResult>>;
-    sapHacImportImpEx: (baseUrl: string, script: string, enableCode?: boolean) => Promise<ApiResponse<ImpExResult>>;
-    sapHacGetCatalogVersions: (baseUrl: string) => Promise<ApiResponse<any[]>>;
-    sapHacGetCatalogIds: (baseUrl: string) => Promise<{ success: boolean; data?: string[]; error?: string }>;
-    sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) => Promise<{ success: boolean; data?: any; error?: string }>;
 
     // Automation API
     automationApiStart: (args: { apiKey: string; port?: number }) => Promise<any>;
@@ -272,6 +276,7 @@ export interface ElectronAPI {
     getSystemInfo: () => Promise<{ platform: string; arch: string; nodeVersion: string; electronVersion: string; appVersion: string }>;
     onAppUpdateStatus: (callback: (state: AppUpdateState) => void) => () => void;
     onIpcReady: (callback: () => void) => () => void;
+    onProjectsChanged: (callback: (info: { source: string }) => void) => () => void;
     onFlushPendingSave: (callback: () => void) => () => void;
     notifyFlushComplete: () => void;
     isMinimizedToTray: () => Promise<boolean>;

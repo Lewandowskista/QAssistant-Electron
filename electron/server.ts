@@ -152,13 +152,24 @@ function buildApp(apiToken: string, port: number) {
      * all inside one SQLite transaction so a concurrent renderer write can't be
      * lost between our read and our save. `mutate` returns the value to send back.
      */
-    const mutateProjects = <T>(mutate: (projects: any[]) => T): T =>
-        runInTransaction(() => {
+    const mutateProjects = <T>(mutate: (projects: any[]) => T): T => {
+        const result = runInTransaction(() => {
             const projects = readProjects()
-            const result = mutate(projects)
+            const value = mutate(projects)
             writeProjects(projects)
-            return result
+            return value
         })
+        // Tell the renderer to re-read. Its in-memory copy is now behind the
+        // database, and a full write from that stale copy would undo this change.
+        // Fired after the transaction commits so the renderer cannot read a
+        // half-applied state.
+        try {
+            sendToWindow?.('projects-changed', { source: 'automation-api' })
+        } catch (error) {
+            log.warn('[QAssistant] Could not notify the renderer of an API write:', error)
+        }
+        return result
+    }
 
     // ── Public health endpoint (no auth) ─────────────────────────────────────
     app_.get('/health', (_req: Request, res: Response) => {
@@ -612,6 +623,17 @@ function buildApp(apiToken: string, port: number) {
     })
 
     return app_
+}
+
+/**
+ * Notifier for renderer-visible changes. The automation API writes straight to
+ * SQLite, so without this the renderer's cache silently goes stale and its next
+ * full write reverts whatever the API just recorded.
+ */
+let sendToWindow: ((channel: string, ...args: unknown[]) => void) | null = null
+
+export function setServerWindowSender(sender: (channel: string, ...args: unknown[]) => void): void {
+    sendToWindow = sender
 }
 
 export function startServer(apiToken: string, port: number = 3030): Promise<void> {

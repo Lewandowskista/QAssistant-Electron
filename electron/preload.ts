@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readProjectsFile: () => ipcRenderer.invoke('read-projects-file'),
   writeProjectsFile: (data: any) => ipcRenderer.invoke('write-projects-file', data),
   upsertProjectNote: (projectId: string, note: any) => ipcRenderer.invoke('upsert-project-note', { projectId, note }),
+  deleteProject: (projectId: string) => ipcRenderer.invoke('delete-project', { projectId }),
   deleteProjectNote: (projectId: string, noteId: string) => ipcRenderer.invoke('delete-project-note', { projectId, noteId }),
   upsertProjectTask: (projectId: string, task: any) => ipcRenderer.invoke('upsert-project-task', { projectId, task }),
   deleteProjectTask: (projectId: string, taskId: string) => ipcRenderer.invoke('delete-project-task', { projectId, taskId }),
@@ -95,13 +96,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiTestRunSuggestions: (args: any) => invoke('ai-test-run-suggestions', args),
   aiSmokeSubset: (args: any) => invoke('ai-smoke-subset', args),
   aiChat: (args: any) => invoke('ai-chat', args),
-  aiGenerateFlexSearch: (args: any) => invoke('ai-generate-flexsearch', args),
   aiStandupSummary: (args: any) => invoke('ai-standup-summary', args),
   aiFindDuplicateBugs: (args: any) => invoke('ai-find-duplicate-bugs', args),
   aiAnalyzePullRequest: (args: any) => invoke('ai-analyze-pull-request', args),
   nimListModels: (args: any) => invoke('nim-list-models', args),
   nimProbeModels: (args: any) => invoke('nim-probe-models', args),
   nimGetModelMetadata: (args?: any) => invoke('nim-get-model-metadata', args ?? {}),
+  ollamaListModels: (args?: any) => invoke('ollama-list-models', args ?? {}),
+  ollamaInstalledModels: (args?: any) => invoke('ollama-installed-models', args ?? {}),
+  ollamaStatus: (args?: any) => invoke('ollama-status', args ?? {}),
+  ollamaProbeModels: (args: any) => invoke('ollama-probe-models', args),
   importTestResults: (args: any) => ipcRenderer.invoke('import-test-results', typeof args === 'string' ? { filePath: args } : args),
   readCsvFile: (args: any) => ipcRenderer.invoke('read-csv-file', typeof args === 'string' ? { filePath: args } : args),
   saveFileDialog: (args: any, content?: string) => ipcRenderer.invoke('save-file-dialog', typeof args === 'string' ? { defaultName: args, content } : args),
@@ -129,9 +133,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   automationApiStatus: () => ipcRenderer.invoke('automation-api-status'),
   testLinearConnection: (args: any) => ipcRenderer.invoke('test-linear-connection', args),
   testJiraConnection: (args: any) => ipcRenderer.invoke('test-jira-connection', args),
-  ccv2GetEnvironments: (args: any) => ipcRenderer.invoke('ccv2-get-environments', args),
-  ccv2GetDeployments: (args: any) => ipcRenderer.invoke('ccv2-get-deployments', args),
-  ccv2GetBuild: (args: any) => ipcRenderer.invoke('ccv2-get-build', args),
   copyToAttachments: (sourcePath: string) => ipcRenderer.invoke('copy-to-attachments', sourcePath),
   saveBytesAttachment: (bytes: Uint8Array, fileName: string) => ipcRenderer.invoke('save-bytes-attachment', { bytes, fileName }),
   deleteAttachment: (args: any) => ipcRenderer.invoke('delete-attachment', typeof args === 'string' ? { filePath: args } : args),
@@ -154,13 +155,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('app-update-status', listener);
   },
   isMinimizedToTray: () => ipcRenderer.invoke('is-minimized-to-tray'),
-  sapHacLogin: (baseUrl: string, user: string, pass: string, ignoreSsl?: boolean) => ipcRenderer.invoke('sap-hac-login', { baseUrl, user, pass, ignoreSsl }),
-  sapHacGetCronJobs: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-cronjobs', { baseUrl }),
-  sapHacFlexibleSearch: (baseUrl: string, query: string, max?: number) => ipcRenderer.invoke('sap-hac-flexible-search', { baseUrl, query, max }),
-  sapHacImportImpEx: (baseUrl: string, script: string, enableCode?: boolean) => ipcRenderer.invoke('sap-hac-import-impex', { baseUrl, script, enableCode }),
-  sapHacGetCatalogVersions: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-catalog-versions', { baseUrl }),
-  sapHacGetCatalogIds: (baseUrl: string) => ipcRenderer.invoke('sap-hac-get-catalog-ids', { baseUrl }),
-  sapHacGetCatalogSyncDiff: (baseUrl: string, catalogId: string, maxMissing?: number) => ipcRenderer.invoke('sap-hac-get-catalog-sync-diff', { baseUrl, catalogId, maxMissing }),
   appQuit: () => ipcRenderer.send('app-quit'),
 
   // User profile
@@ -262,6 +256,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event: any, data: any) => callback(data);
     ipcRenderer.on('sync-mutation-failed', listener);
     return () => ipcRenderer.removeListener('sync-mutation-failed', listener);
+  },
+  // Main writes to SQLite directly (automation API, cloud sync). This tells the
+  // renderer its cache is behind so it can re-read before writing again.
+  onProjectsChanged: (callback: (info: { source: string }) => void) => {
+    const listener = (_e: unknown, info: { source: string }) => callback(info);
+    ipcRenderer.on('projects-changed', listener);
+    return () => ipcRenderer.removeListener('projects-changed', listener);
   },
   onFlushPendingSave: (callback: () => void) => {
     const listener = () => callback();

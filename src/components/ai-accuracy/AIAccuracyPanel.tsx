@@ -79,14 +79,36 @@ export default function AIAccuracyPanel() {
     const handleRunEvaluation = async () => {
         if (!activeSuite) return
         const api = window.electronAPI
-        const apiKey = await api.secureStoreGet(`project:${activeProjectId}:gemini_api_key`)
-            || await api.secureStoreGet('gemini_api_key')
-        if (!apiKey) {
-            toast.error('Gemini API key not configured. Go to Settings to add it.')
-            return
+        // Provider-aware gate. The evaluation calls themselves resolve provider, key and model
+        // per-call inside aiClient (see resolveAiArgs), so this only checks that the project's
+        // chosen backend is usable — Ollama is local and has no key to look up.
+        const provider = activeProject?.aiProvider === 'nim' ? 'nim'
+            : activeProject?.aiProvider === 'ollama' ? 'ollama' : 'gemini'
+        let apiKey: string | null = null
+        if (provider === 'ollama') {
+            const status: any = await api.ollamaStatus({ baseUrl: activeProject?.ollamaBaseUrl || undefined })
+            if (status?.__isError || !status?.reachable) {
+                toast.error('Ollama is not reachable. Start it, then try again.')
+                return
+            }
+            if (!status.models?.length) {
+                toast.error('Ollama has no chat models installed. Pull one, e.g. `ollama pull gpt-oss:20b`.')
+                return
+            }
+            apiKey = 'local'
+        } else {
+            const keyName = provider === 'nim' ? 'nim_api_key' : 'gemini_api_key'
+            apiKey = await api.secureStoreGet(`project:${activeProjectId}:${keyName}`)
+                || await api.secureStoreGet(keyName)
+            if (!apiKey) {
+                toast.error(`${provider === 'nim' ? 'NVIDIA NIM' : 'Google AI Studio'} API key not configured. Go to Settings to add it.`)
+                return
+            }
         }
 
-        const modelName = activeProject?.geminiModel
+        const modelName = provider === 'nim' ? activeProject?.nimModel
+            : provider === 'ollama' ? activeProject?.ollamaModel
+            : activeProject?.geminiModel
 
         setIsEvaluating(true)
         setEvalProgress({ completed: 0, total: activeSuite.qaPairs.length })

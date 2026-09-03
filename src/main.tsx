@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter, Routes, Route } from 'react-router-dom'
+import { ModalLockGuard } from '@/hooks/useModalLockGuard'
 import './index.css'
 
 import MainLayout from '@/layouts/MainLayout'
@@ -28,8 +29,6 @@ const FilesPage = lazy(() => import('@/pages/FilesPage'))
 const EnvironmentsPage = lazy(() => import('@/pages/EnvironmentsPage'))
 const TestDataPage = lazy(() => import('@/pages/TestDataPage'))
 const ChecklistsPage = lazy(() => import('@/pages/ChecklistsPage'))
-const ApiPage = lazy(() => import('@/pages/ApiPage'))
-const SapPage = lazy(() => import('@/pages/SapPage'))
 const RunbooksPage = lazy(() => import('@/pages/RunbooksPage'))
 const GitHubPage = lazy(() => import('@/pages/GitHubPage'))
 const CodeReviewsPage = lazy(() => import('@/pages/CodeReviewsPage'))
@@ -99,6 +98,8 @@ if (!rootElement) throw new Error("Root element not found")
 
 createRoot(rootElement).render(
   <AppAuthBoundary>
+    {/* Backstop against an orphaned Radix modal lock freezing all input. */}
+    <ModalLockGuard />
     <HashRouter>
       <Suspense fallback={
         <div className="flex items-center justify-center h-full w-full bg-background">
@@ -112,8 +113,6 @@ createRoot(rootElement).render(
             <Route path="tests" element={<Screen name="Tests" fallback={<SkeletonPage panels={2} />}><RequireProject><TestsPage /></RequireProject></Screen>} />
             <Route path="test-data" element={<Screen name="Test Data" fallback={<SkeletonSplitPane />}><RequireProject><TestDataPage /></RequireProject></Screen>} />
             <Route path="checklists" element={<Screen name="Checklists" fallback={<SkeletonPage />}><RequireProject><ChecklistsPage /></RequireProject></Screen>} />
-            <Route path="sap" element={<Screen name="SAP" fallback={<SkeletonPage panels={2} />}><RequireProject><SapPage /></RequireProject></Screen>} />
-            <Route path="api" element={<Screen name="API" fallback={<SkeletonSplitPane />}><RequireProject><ApiPage /></RequireProject></Screen>} />
             <Route path="runbooks" element={<Screen name="Runbooks" fallback={<SkeletonPage />}><RequireProject><RunbooksPage /></RequireProject></Screen>} />
             <Route path="notes" element={<Screen name="Notes" fallback={<SkeletonSplitPane />}><RequireProject><NotesPage /></RequireProject></Screen>} />
             <Route path="files" element={<Screen name="Files" fallback={<SkeletonPage />}><RequireProject><FilesPage /></RequireProject></Screen>} />

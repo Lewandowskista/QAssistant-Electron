@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import {
-    Zap, Globe, Cpu, Server, Share2, Database, Search,
+    Zap, Globe, Cpu, Share2, Database, Search,
     Plus, X, Edit2, Check, Copy, RefreshCw, ExternalLink,
     Eye, EyeOff, Trash2, Upload, Download, Bell, Sun, User, LogOut, AlertTriangle, BookOpen
 } from "lucide-react"
@@ -45,7 +45,6 @@ const SETTINGS_GROUPS: Array<{ label: string; sections: Array<{ id: string; labe
         sections: [
             { id: "linear", label: "Linear", icon: Zap },
             { id: "jira", label: "Jira", icon: Globe },
-            { id: "ccv2", label: "CCv2", icon: Server },
             { id: "sharing", label: "Project Sharing", icon: Upload },
             { id: "webhooks", label: "Webhooks", icon: Bell },
             { id: "automation", label: "Automation API", icon: Share2 },
@@ -56,6 +55,7 @@ const SETTINGS_GROUPS: Array<{ label: string; sections: Array<{ id: string; labe
         sections: [
             { id: "gemini", label: "Google AI Studio", icon: Cpu },
             { id: "nim", label: "NVIDIA NIM", icon: Cpu },
+            { id: "ollama", label: "Ollama (Local)", icon: Cpu },
         ],
     },
     {
@@ -187,7 +187,7 @@ export default function SettingsPage() {
     const performanceMode = useSettingsStore(s => s.settings.performanceMode ?? 'auto')
     const resolvedPerformanceMode = useSettingsStore(s => s.resolvedPerformanceMode)
     const respectReducedMotion = useSettingsStore(s => s.settings.respectReducedMotion === true)
-    const { projects, activeProjectId, updateProject, importProject } = useProjectStore()
+    const { projects, activeProjectId, updateProject, importProject, purgeAllProjects } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
 
     const [showSecrets, setShowSecrets] = useState(false)
@@ -233,6 +233,16 @@ export default function SettingsPage() {
     const [availableModels, setAvailableModels] = useState<string[]>([])
     const [modelsLoading, setModelsLoading] = useState(false)
 
+    // ── Ollama (local) ────────────────────────────────────────────────────────
+    const [ollamaBaseUrl, setOllamaBaseUrl] = useState('')
+    const [ollamaModel, setOllamaModel] = useState('')
+    const [ollamaStatusMsg, setOllamaStatusMsg] = useState<StatusState>(null)
+    const [ollamaReachable, setOllamaReachable] = useState<boolean | null>(null)
+    const [ollamaModels, setOllamaModels] = useState<import('../types/electron').OllamaModelInfoEntry[]>([])
+    const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
+    const [ollamaHealthMap, setOllamaHealthMap] = useState<Record<string, { status: 'up' | 'degraded' | 'down'; latencyMs: number; error?: string }>>({})
+    const [ollamaHealthLoading, setOllamaHealthLoading] = useState(false)
+
     // ── NVIDIA NIM ────────────────────────────────────────────────────────────
     const [nimKey, setNimKey] = useState('')
     const [nimModel, setNimModel] = useState('')
@@ -244,11 +254,6 @@ export default function SettingsPage() {
     const [nimModelMeta, setNimModelMeta] = useState<Record<string, import('../types/electron').NimModelMetaEntry>>({})
     const [nimSuggestedModel, setNimSuggestedModel] = useState<string | null>(null)
 
-    // ── CCv2 ─────────────────────────────────────────────────────────────────
-    const [ccv2Sub, setCcv2Sub] = useState('')
-    const [ccv2Token, setCcv2Token] = useState('')
-    const [ccv2Status, setCcv2Status] = useState<StatusState>(null)
-    const [ccv2Testing, setCcv2Testing] = useState(false)
     const [storedCreds, setStoredCreds] = useState<string[]>([])
 
     // ── Project sharing ───────────────────────────────────────────────────────
@@ -385,12 +390,10 @@ export default function SettingsPage() {
 
             const projectPrefix = activeProject ? `project:${activeProject.id}:` : ''
 
-            const [storedKey, storedGemini, storedNim, storedCcv2Sub, storedCcv2Token, ver, path, info, updateState, perfSnapshot] = await Promise.all([
+            const [storedKey, storedGemini, storedNim, ver, path, info, updateState, perfSnapshot] = await Promise.all([
                 activeProject ? api.secureStoreGet(`${projectPrefix}automation_api_key`) : Promise.resolve(null),
                 activeProject ? api.secureStoreGet(`${projectPrefix}gemini_api_key`) : Promise.resolve(null),
                 activeProject ? api.secureStoreGet(`${projectPrefix}nim_api_key`) : Promise.resolve(null),
-                activeProject ? api.secureStoreGet(`${projectPrefix}ccv2_subscription_code`) : Promise.resolve(null),
-                activeProject ? api.secureStoreGet(`${projectPrefix}ccv2_api_token`) : Promise.resolve(null),
                 api.getAppVersion(),
                 api.getAppDataPath(),
                 api.getSystemInfo(),
@@ -402,8 +405,8 @@ export default function SettingsPage() {
             if (activeProject?.geminiModel) setGeminiModel(activeProject.geminiModel)
             if (storedNim) setNimKey(storedNim)
             if (activeProject?.nimModel) setNimModel(activeProject.nimModel)
-            if (storedCcv2Sub) setCcv2Sub(storedCcv2Sub)
-            if (storedCcv2Token) setCcv2Token(storedCcv2Token)
+            if (activeProject?.ollamaBaseUrl) setOllamaBaseUrl(activeProject.ollamaBaseUrl)
+            if (activeProject?.ollamaModel) setOllamaModel(activeProject.ollamaModel)
             setAppVersion(ver || '')
             setDataPath(path || '')
             setSysInfo(info)
@@ -675,35 +678,6 @@ export default function SettingsPage() {
         }
     }
 
-    // ── CCv2 ─────────────────────────────────────────────────────────────────
-    const saveCcv2 = async () => {
-        if (!ccv2Sub.trim() || !ccv2Token.trim()) { flash(setCcv2Status, 'Fill in both Subscription Code and API Token.', false); return }
-        if (!(await ensureCredentialWritesAllowed(setCcv2Status, 'CCV2 credentials cannot be saved until insecure plaintext storage is explicitly allowed in Settings.'))) return
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-        await api.secureStoreSet(`${prefix}ccv2_subscription_code`, ccv2Sub.trim())
-        await api.secureStoreSet(`${prefix}ccv2_api_token`, ccv2Token.trim())
-        flash(setCcv2Status, 'CCv2 credentials saved.', true)
-    }
-    const testCcv2 = async () => {
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-        const sub = await api.secureStoreGet(`${prefix}ccv2_subscription_code`)
-        const tok = await api.secureStoreGet(`${prefix}ccv2_api_token`)
-        if (!sub || !tok) { flash(setCcv2Status, 'Save credentials first.', false); return }
-        setCcv2Testing(true)
-        try {
-            const envs = await api.ccv2GetEnvironments({ subscriptionCode: sub, apiToken: tok })
-            flash(setCcv2Status, `✓ Connected — ${Array.isArray(envs) ? envs.length : 0} environment(s) found.`, true)
-        } catch (e: any) {
-            flash(setCcv2Status, `Connection failed: ${e.message}`, false)
-        } finally { setCcv2Testing(false) }
-    }
-    const disconnectCcv2 = async () => {
-        const prefix = activeProject ? `project:${activeProject.id}:` : ''
-        await api.secureStoreDelete(`${prefix}ccv2_subscription_code`)
-        await api.secureStoreDelete(`${prefix}ccv2_api_token`)
-        setCcv2Sub(''); setCcv2Token('')
-        flash(setCcv2Status, 'CCv2 credentials removed.', true)
-    }
 
     // ── Gemini ────────────────────────────────────────────────────────────────
     const saveGemini = async () => {
@@ -733,6 +707,67 @@ export default function SettingsPage() {
             flash(setGeminiStatus, `Error: ${e.message}`, false)
         } finally {
             setModelsLoading(false)
+        }
+    }
+
+    // ── Ollama (local) ────────────────────────────────────────────────────────
+    // No credential to store: Ollama runs unauthenticated on localhost, so the whole config is
+    // the (optional) base URL plus which installed model to prefer.
+    const saveOllama = async () => {
+        if (activeProject) {
+            await updateProject(activeProject.id, {
+                ollamaBaseUrl: ollamaBaseUrl.trim() || undefined,
+                ollamaModel: ollamaModel || undefined,
+                aiProvider: 'ollama',
+            })
+        }
+        flash(setOllamaStatusMsg, 'Ollama settings saved. This project now runs AI fully locally.', true)
+    }
+
+    const checkOllama = async () => {
+        setOllamaModelsLoading(true)
+        flash(setOllamaStatusMsg, 'Contacting Ollama…', true)
+        try {
+            const res: any = await api.ollamaStatus({ baseUrl: ollamaBaseUrl.trim() || undefined })
+            if (res?.__isError) throw new Error(res.message)
+            setOllamaReachable(!!res.reachable)
+            if (!res.reachable) {
+                setOllamaModels([])
+                flash(setOllamaStatusMsg, 'Ollama is not reachable. Is the daemon running?', false, 8000)
+                return
+            }
+            const installed: any = await api.ollamaInstalledModels({ baseUrl: ollamaBaseUrl.trim() || undefined })
+            const list = Array.isArray(installed) ? installed : []
+            setOllamaModels(list)
+            if (list.length === 0) {
+                flash(setOllamaStatusMsg, 'Ollama is running but has no chat models. Pull one, e.g. `ollama pull gpt-oss:20b`.', false, 10000)
+                return
+            }
+            if (!ollamaModel || !res.models?.includes(ollamaModel)) setOllamaModel(res.models?.[0] || list[0].name)
+            flash(setOllamaStatusMsg, `Connected — ${list.length} local model${list.length === 1 ? '' : 's'} available.`, true, 6000)
+        } catch (e: any) {
+            setOllamaReachable(false)
+            flash(setOllamaStatusMsg, `Error: ${e.message}`, false, 8000)
+        } finally {
+            setOllamaModelsLoading(false)
+        }
+    }
+
+    const checkOllamaHealth = async () => {
+        if (ollamaModels.length === 0) return
+        setOllamaHealthLoading(true)
+        flash(setOllamaStatusMsg, 'Probing local models — the first response loads the model from disk and can take a while…', true, 10000)
+        try {
+            const names = ollamaModels.map(m => m.name)
+            const res: any = await api.ollamaProbeModels({ baseUrl: ollamaBaseUrl.trim() || undefined, models: names })
+            if (res?.__isError) throw new Error(res.message)
+            setOllamaHealthMap(res || {})
+            const up = Object.values(res || {}).filter((h: any) => h.status === 'up').length
+            flash(setOllamaStatusMsg, `${up}/${names.length} model${names.length === 1 ? '' : 's'} responding.`, true, 6000)
+        } catch (e: any) {
+            flash(setOllamaStatusMsg, `Error: ${e.message}`, false, 8000)
+        } finally {
+            setOllamaHealthLoading(false)
         }
     }
 
@@ -830,7 +865,7 @@ export default function SettingsPage() {
         if (!activeProject) { flash(setShareStatus, 'No project selected.', false); return }
         const content = JSON.stringify(sanitizeProjectForPersistence(activeProject), null, 2)
         await api.saveFileDialog({ defaultName: `${activeProject.name.replace(/\s+/g, '_')}_export.json`, content })
-        flash(setShareStatus, 'Project exported. Environment passwords, API keys, and tokens were stripped and must be re-entered on the target machine.', true, 6000)
+        flash(setShareStatus, 'Project exported. API keys and tokens were stripped and must be re-entered on the target machine.', true, 6000)
     }
 
     const importProjectFromFile = async () => {
@@ -1451,38 +1486,83 @@ POST /api/projects/{id}/executions/batch`}</pre>
                     <StatusBanner s={nimStatus} />
                 </Sec>
 
-                {/* ── SAP CCv2 ─────────────────────────────────────────────── */}
-                <Sec id="ccv2" title="SAP Commerce Cloud v2 (CCv2)" icon={<Server className="h-4 w-4" />} activeSection={activeSection}>
+                {/* ── Ollama (local) ───────────────────────────────────────── */}
+                <Sec id="ollama" title="Ollama (Local Models)" icon={<Cpu className="h-4 w-4" />} activeSection={activeSection}>
                     <div className="flex items-center justify-between mb-4">
-                        <p className="text-xs text-muted-ui max-w-md">Enter your subscription code and Management API token to enable the CCv2 Deployments panel on the SAP page.</p>
-                        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-brand font-bold text-xs flex-none ml-4" onClick={() => api.openUrl('https://help.sap.com/docs/SAP_COMMERCE_CLOUD_PUBLIC_CLOUD')}><ExternalLink className="h-3.5 w-3.5" />API Docs</Button>
+                        <p className="text-xs text-muted-ui max-w-md">Run AI entirely on this machine — no API key, and no project data leaves your device. Requires the Ollama daemon with at least one chat model pulled.</p>
+                        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-brand font-bold text-xs flex-none ml-4" onClick={() => api.openUrl('https://ollama.com/download')}><ExternalLink className="h-3.5 w-3.5" />Install Ollama</Button>
                     </div>
-                    <div className="space-y-3">
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <div>
-                            <FieldLabel>Subscription Code</FieldLabel>
-                            <Input value={ccv2Sub} onChange={e => setCcv2Sub(e.target.value)} placeholder="Your CCv2 subscription code" className={inp} />
-                            <p className="text-[11px] text-muted-ui mt-1">Found in the SAP Commerce Cloud Portal under your project settings</p>
+                            <FieldLabel>Host</FieldLabel>
+                            <Input
+                                value={ollamaBaseUrl}
+                                onChange={e => setOllamaBaseUrl(e.target.value)}
+                                placeholder="http://localhost:11434"
+                                className={inp}
+                            />
+                            <p className="text-xs text-muted-ui mt-1">Leave blank for the local default (http://localhost:11434).</p>
                         </div>
                         <div>
-                            <FieldLabel>API Token</FieldLabel>
-                            <Input type={showSecrets ? 'text' : 'password'} value={ccv2Token} onChange={e => setCcv2Token(e.target.value)} placeholder="Bearer token from the CCv2 portal" className={inp} />
-                            <p className="text-[11px] text-muted-ui mt-1">Generate in Cloud Portal → API Token Management</p>
+                            <FieldLabel>Preferred Model</FieldLabel>
+                            {ollamaModels.length > 0 ? (
+                                <select
+                                    className={`${inp} w-full appearance-none px-3 cursor-pointer`}
+                                    value={ollamaModels.some(m => m.name === ollamaModel) ? ollamaModel : (ollamaModels[0]?.name || '')}
+                                    onChange={e => setOllamaModel(e.target.value)}
+                                >
+                                    {ollamaModels.map(m => {
+                                        const health = ollamaHealthMap[m.name]
+                                        const dot = health ? (health.status === 'up' ? '🟢' : health.status === 'degraded' ? '🟡' : '🔴') : '⚪'
+                                        const gb = m.sizeBytes ? ` ${(m.sizeBytes / 1e9).toFixed(1)}GB` : ''
+                                        const params = m.parameterSize ? ` · ${m.parameterSize}` : ''
+                                        const quant = m.quantization ? ` ${m.quantization}` : ''
+                                        const latency = health?.status === 'up' ? ` · ${(health.latencyMs / 1000).toFixed(1)}s` : ''
+                                        return <option key={m.name} value={m.name}>{dot} {m.name}{gb}{params}{quant}{latency}</option>
+                                    })}
+                                </select>
+                            ) : (
+                                <Input
+                                    value={ollamaModel}
+                                    onChange={e => setOllamaModel(e.target.value)}
+                                    placeholder="e.g. gpt-oss:20b"
+                                    className={inp}
+                                />
+                            )}
+                            <p className="text-xs text-muted-ui mt-1">gpt-oss:20b is recommended — a mixture-of-experts model that generates fast on Apple silicon.</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-4">
-                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9" onClick={saveCcv2}>Save Credentials</Button>
-                        <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={testCcv2} disabled={ccv2Testing}>
-                            {ccv2Testing ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : null}Test Connection
+                    {ollamaReachable === false && (
+                        <div className="mt-3 rounded-md border border-state-warning-border bg-state-warning-soft px-3 py-2">
+                            <p className="text-xs text-foreground leading-relaxed">
+                                Ollama is not responding. Start it, then run <span className="font-mono text-brand">ollama pull gpt-oss:20b</span> if you have not pulled a model yet.
+                            </p>
+                        </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <Button size="sm" className="bg-primary hover:bg-[hsl(var(--accent-primary-strong))] text-primary-foreground font-bold h-9" onClick={saveOllama}>Save Ollama Settings</Button>
+                        <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={checkOllama} disabled={ollamaModelsLoading}>
+                            {ollamaModelsLoading ? 'Checking…' : ollamaModels.length > 0 ? 'Refresh Models' : 'Check Connection'}
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-9 text-state-danger hover:bg-state-danger-soft font-bold" onClick={disconnectCcv2}>Disconnect</Button>
+                        {ollamaModels.length > 0 && (
+                            <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold" onClick={checkOllamaHealth} disabled={ollamaHealthLoading}>
+                                {ollamaHealthLoading ? 'Probing…' : 'Check Model Health'}
+                            </Button>
+                        )}
+                        {activeProject?.aiProvider === 'ollama' && (
+                            <span className="text-xs text-state-success font-semibold ml-1">✓ Active provider for this project</span>
+                        )}
+                        {activeProject?.aiProvider !== 'ollama' && (
+                            <span className="text-xs text-muted-ui ml-1">Saving switches this project to local AI.</span>
+                        )}
                     </div>
-                    <StatusBanner s={ccv2Status} />
+                    <StatusBanner s={ollamaStatusMsg} />
                 </Sec>
 
                 {/* ── PROJECT SHARING ──────────────────────────────────────── */}
                 <Sec id="sharing" title="Project Sharing" icon={<Upload className="h-4 w-4" />} activeSection={activeSection}>
                     <SectionLabel>Export / Import</SectionLabel>
-                    <p className="text-xs text-muted-ui mb-4">Export the current project to a JSON file to share with teammates, or import a project from a shared file. Environment usernames/passwords, API keys, and tokens are stripped during export and import and must be re-entered on the receiving machine.</p>
+                    <p className="text-xs text-muted-ui mb-4">Export the current project to a JSON file to share with teammates, or import a project from a shared file. API keys and tokens are stripped during export and import and must be re-entered on the receiving machine.</p>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" className="h-9 border-ui text-soft font-bold gap-2" onClick={exportProject} disabled={!activeProject}>
                             <Download className="h-3.5 w-3.5" />Export Project…
@@ -1835,7 +1915,10 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         <Button variant="ghost" size="sm" className="h-9 text-state-danger hover:bg-state-danger-soft font-bold gap-2"
                             onClick={async () => {
                                 const ok = await confirmDialog('Permanently delete all project data?', { description: 'This action cannot be undone. All projects, test cases, tasks, notes, and runs will be erased.', confirmLabel: 'Purge All Data', destructive: true })
-                                if (ok) api.writeProjectsFile([])
+                                if (!ok) return
+                                const { ok: purged, deleted } = await purgeAllProjects()
+                                if (purged) toast.success(deleted === 1 ? 'Deleted 1 project.' : `Deleted ${deleted} projects.`)
+                                else toast.error('Some projects could not be deleted. The list has been reloaded.')
                             }}>
                             <Trash2 className="h-3.5 w-3.5" />Purge All Data
                         </Button>

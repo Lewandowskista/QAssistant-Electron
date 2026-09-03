@@ -4,7 +4,6 @@ import {
     BookOpen,
     CheckSquare,
     ClipboardCheck,
-    Code,
     Compass,
     Database,
     FileText,
@@ -15,7 +14,6 @@ import {
     ListChecks,
     MessageSquare,
     Rocket,
-    ServerCog,
 } from "lucide-react"
 
 export type NavItem = {
@@ -47,10 +45,8 @@ export const UTILITY_ITEMS: NavItem[] = [
     { name: "Reports", href: "/reports", icon: BarChart3, roles: ["qa"] },
     { name: "GitHub", href: "/github", icon: GitBranch },
     { name: "Environments", href: "/environments", icon: Globe },
-    { name: "API", href: "/api", icon: Code },
     { name: "Runbooks", href: "/runbooks", icon: BookOpen },
     { name: "Deployments", href: "/deployments", icon: Rocket, roles: ["dev"] },
-    { name: "SAP HAC", href: "/sap", icon: ServerCog, roles: ["qa"] },
     { name: "Docs", href: "/docs", icon: BookOpen },
 ]
 

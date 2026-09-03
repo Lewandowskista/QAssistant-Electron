@@ -22,17 +22,33 @@ async function persistProfile(profile: UserProfile): Promise<void> {
     await window.electronAPI.writeUserProfile(profile)
 }
 
+/**
+ * The state patch for a profile change. activeRole and identities are stored as
+ * plain values rather than getters, so every write to `profile` has to refresh
+ * them here — going through this helper is what stops a call site forgetting.
+ */
+function profilePatch(profile: UserProfile | null) {
+    return {
+        profile,
+        activeRole: profile?.activeRole ?? ('qa' as UserRole),
+        identities: profile?.identities ?? [],
+    }
+}
+
 export const useUserStore = create<UserState>((set, get) => ({
     profile: null,
     isLoaded: false,
 
-    get activeRole() {
-        return get().profile?.activeRole ?? 'qa'
-    },
-
-    get identities() {
-        return get().profile?.identities ?? []
-    },
+    /*
+     * Plain values, not getters. zustand's set() does Object.assign, which copies
+     * a getter's *current value* and replaces the accessor — so after the first
+     * set() these stopped tracking `profile` and returned whatever they happened
+     * to evaluate to at store creation. AiCopilot reads state.activeRole, so the
+     * Copilot kept using a stale role for context and history filtering.
+     * Kept in sync by every mutation that touches `profile`.
+     */
+    activeRole: 'qa',
+    identities: [],
 
     isConnected(provider: AuthProvider) {
         return !!(get().profile?.identities.find(i => i.provider === provider))
@@ -44,10 +60,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     async loadProfile() {
         const data = await window.electronAPI.readUserProfile()
-        set({
-            profile: data ?? null,
-            isLoaded: true,
-        })
+        set({ ...profilePatch(data ?? null), isLoaded: true })
     },
 
     async setRole(role: UserRole) {
@@ -56,7 +69,7 @@ export const useUserStore = create<UserState>((set, get) => ({
             activeRole: role,
             identities: current?.identities ?? [],
         }
-        set({ profile: updated })
+        set(profilePatch(updated))
         await persistProfile(updated)
     },
 
@@ -67,7 +80,7 @@ export const useUserStore = create<UserState>((set, get) => ({
             activeRole: current?.activeRole ?? 'qa',
             identities: [...identities, identity],
         }
-        set({ profile: updated })
+        set(profilePatch(updated))
         await persistProfile(updated)
     },
 
@@ -78,7 +91,7 @@ export const useUserStore = create<UserState>((set, get) => ({
             ...current,
             identities: current.identities.filter(i => i.provider !== provider),
         }
-        set({ profile: updated })
+        set(profilePatch(updated))
         await persistProfile(updated)
     },
 }))

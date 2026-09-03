@@ -35,7 +35,7 @@ import {
 import * as oauth from './oauth';
 import * as github from './github';
 import { assertString, assertArray, assertObject, assertOptionalString, assertNumber } from './ipc-validation';
-import { AI_RATE_LIMIT_MS, MAX_SAP_HAC_INSTANCES } from './constants';
+import { AI_RATE_LIMIT_MS } from './constants';
 import { initFileStorage } from './fileStorage';
 import {
     initDatabase,
@@ -46,8 +46,9 @@ import {
     getHandoffById,
     getCollaborationEventById,
     getArtifactLinkById,
-    migrateLegacyEnvironmentSecretsToSecureStore,
+    clearLegacyEnvironmentSecrets,
     upsertProjectNote,
+    deleteProject,
     deleteProjectNote,
     upsertProjectTask,
     deleteProjectTask,
@@ -63,6 +64,7 @@ import {
     deleteProjectTestRunSession,
 } from './database';
 import { migrateJsonToSqlite } from './migration';
+import { purgeRemovedFeatureCredentials } from './removedFeatureCleanup';
 import {
     initSync, teardownSync, getStatus as getSyncStatus, getSyncConfig,
     createWorkspace, joinWorkspace, disconnectWorkspace, getWorkspaceInfo, getWorkspaceInvite, rotateWorkspaceInvite,
@@ -87,8 +89,9 @@ import {
 } from './cloudState'
 import { GeminiService } from './gemini';
 import { NimService } from './nim';
+import { OllamaService } from './ollama';
 import { AiRateLimiter } from './aiRateLimiter';
-import { startServer, stopServer, setOAuthCompleteCallback, getServerPort, isServerRunning } from './server';
+import { startServer, stopServer, setOAuthCompleteCallback, setServerWindowSender, getServerPort, isServerRunning } from './server';
 import { startReminderService } from './reminders';
 import * as health from './health';
 import * as report from './report';
@@ -96,7 +99,6 @@ import * as reportBuilder from './report-builder';
 import * as integrations from './integrations';
 import { saveFile, saveBytes, deleteFile } from './fileStorage';
 import * as bugReport from './bug-report';
-import { SapHacService } from './sapHac';
 import { sendWebhook } from './webhook';
 import * as accuracy from './accuracy';
 import {
@@ -476,9 +478,21 @@ if (app) {
             return nimServiceInstance;
         }
 
+        // Singleton OllamaService cache keyed by base URL (Ollama has no API key).
+        let ollamaServiceInstance: OllamaService | null = null;
+        let ollamaServiceUrl: string | null = null;
+        function getOllamaService(baseUrl: string): OllamaService {
+            if (ollamaServiceInstance === null || ollamaServiceUrl !== baseUrl) {
+                ollamaServiceInstance = new OllamaService(baseUrl);
+                ollamaServiceUrl = baseUrl;
+            }
+            return ollamaServiceInstance;
+        }
+
         registerProjectHandlers(ipcMain, {
             getAllProjects,
             saveAllProjects,
+            deleteProject,
             upsertProjectNote,
             deleteProjectNote,
             upsertProjectTask,
@@ -542,6 +556,7 @@ if (app) {
             waitForAiTurn,
             getGeminiService,
             getNimService,
+            getOllamaService,
             accuracy,
             errMsg,
             assertString,
@@ -608,8 +623,6 @@ if (app) {
             health,
             oauth,
             github,
-            SapHacService,
-            MAX_SAP_HAC_INSTANCES,
             isServerRunning,
             startServer,
             crypto,
@@ -754,6 +767,9 @@ if (app) {
         setAuthWindowSender((channel: string, ...args: any[]) => {
             mainWindow?.webContents.send(channel, ...args);
         });
+        setServerWindowSender((channel: string, ...args: unknown[]) => {
+            mainWindow?.webContents.send(channel, ...args);
+        });
         configureAuthIo({
             readSettings: async () => await readSettings(),
             writeSettings: async (next) => {
@@ -794,9 +810,21 @@ if (app) {
         try {
             const DB_FILE = path.join(APP_DATA_DIR, 'qassistant.db');
             initDatabase(DB_FILE);
-            migrateLegacyEnvironmentSecretsToSecureStore().catch(error => {
-                console.warn('[db] Legacy environment secret migration failed:', error);
-            });
+            // The SAP console features are gone, so the HAC credentials they owned
+            // are dead weight. Clear the plaintext copies out of the database, then
+            // sweep any that an earlier build had moved into the keychain. Ordered,
+            // not concurrent: the sweep must not race a writer that re-creates the
+            // keys it just deleted.
+            try {
+                const { cleared } = clearLegacyEnvironmentSecrets();
+                if (cleared > 0) console.log(`[db] Cleared legacy credentials from ${cleared} environment row(s).`);
+            } catch (error) {
+                console.warn('[db] Could not clear legacy environment secrets:', error);
+            }
+
+            purgeRemovedFeatureCredentials({ listCredentials, getCredential, setCredential, deleteCredential })
+                .then(({ removed }: { removed: number }) => { if (removed > 0) scheduleCloudStateUpload(); })
+                .catch((error: unknown) => { console.warn('[cleanup] Credential sweep failed:', error); });
 
             // One-time migration: import projects.json into SQLite if it exists and DB is empty
             migrateJsonToSqlite(PROJECTS_FILE);

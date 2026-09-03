@@ -1,7 +1,7 @@
 /* cspell:disable-file */
 import {
   LayoutDashboard, CheckSquare, FlaskConical, FileText, GitBranch,
-  Rocket, Globe, Compass, Code, ServerCog, Database, BarChart3,
+  Rocket, Globe, Compass, Code, Database, BarChart3,
   Activity, ClipboardCheck, Folder, Settings, Cpu,
   Keyboard, Zap, ListChecks, type LucideIcon,
 } from "lucide-react"
@@ -255,7 +255,7 @@ export const DOC_SECTIONS: DocSection[] = [
       {
         id: "environments-management",
         title: "Environment Management",
-        content: "Create and configure environments for your testing needs:\n\n- **Types** — Development, Staging, Production, or Custom\n- **URLs** — Base URL, HAC URL, Backoffice URL, Storefront URL, Solr Admin URL, OCC Base Path, Health Check URL\n- **Credentials** — username and password stored securely in the OS keychain\n- **SSL** — option to ignore SSL errors for self-signed certificates\n- **Notes** — free-text description or instructions\n- **Default Environment** — set one environment as the default, shown in the titlebar selector",
+        content: "Create and configure environments for your testing needs:\n\n- **Types** — Development, Staging, Production, or Custom\n- **Quick links** — Base URL, HAC, Backoffice, Storefront, Solr Admin, Health Check. Stored for navigation; the app only requests the health-check URL\n- **Notes** — free-text description or instructions\n- **Default Environment** — set one environment as the default, shown in the titlebar selector",
         tips: ["Set your most-used environment as the default. The titlebar environment selector lets you quick-switch during testing."],
       },
       {
@@ -308,73 +308,6 @@ export const DOC_SECTIONS: DocSection[] = [
         title: "PR Detail Panel",
         content: "Click any PR to open a side panel with:\n\n- Full PR description with expand/collapse\n- Complete list of commits\n- Files changed with addition/deletion counts\n- Review status and reviewer details\n- Comments and conversation thread\n- Quick link to open on GitHub",
         tips: ["This page is only visible to users with the Developer role. Switch roles in Settings > Account & Identity."],
-      },
-    ],
-  },
-
-  // ─── 10. API Page ────────────────────────────────────────────────────────
-  {
-    id: "api",
-    title: "API Testing",
-    icon: ServerCog,
-    description: "A built-in REST API request builder and testing tool with templates and environment variable support.",
-    subsections: [
-      {
-        id: "api-requests",
-        title: "Request Builder",
-        content: "Create and manage API requests:\n\n- **Methods** — GET, POST, PUT, PATCH, DELETE\n- **URL** — with environment variable substitution\n- **Headers** — JSON editor for custom headers\n- **Body** — JSON or form data editor\n- **Categories** — organize requests into groups\n\nSearch and filter your request library by name or URL.",
-      },
-      {
-        id: "api-execution",
-        title: "Sending Requests",
-        content: "Execute requests and inspect responses:\n\n- Click **Send** to execute the request\n- View the response body and headers in separate tabs\n- See the HTTP status code and response time (ms)\n- Status icon indicates success (green) or error (red)\n\nResponses are displayed in a formatted JSON viewer.",
-      },
-      {
-        id: "api-templates",
-        title: "API Templates",
-        content: "Pre-built request templates for common APIs:\n\n- **OCC API Templates** — SAP Commerce OCC endpoints (products, carts, orders)\n- **HAC Templates** — SAP Hybris Administration Console endpoints\n\nSelect a template to auto-populate the request fields, then customize as needed.",
-        tips: ["Templates use environment variables like `{{baseUrl}}` that resolve to the active environment's configuration."],
-      },
-    ],
-  },
-
-  // ─── 11. SAP Commerce ───────────────────────────────────────────────────
-  {
-    id: "sap",
-    title: "SAP Commerce",
-    icon: Database,
-    description: "Deep integration with SAP Commerce Cloud (Hybris), including HAC access, FlexSearch, ImpEx, catalog management, and CCv2 deployments.",
-    subsections: [
-      {
-        id: "sap-hac",
-        title: "HAC Connection",
-        content: "Connect to the Hybris Administration Console:\n\n- Enter the HAC URL from your environment configuration\n- Authenticate with your HAC credentials\n- Once connected, all HAC tabs become available\n\nThe connection persists within the session. Re-authenticate if the session expires.",
-        tips: ["Enable the SAP Commerce Context toggle in Settings > General to show SAP-specific features throughout the app."],
-      },
-      {
-        id: "sap-flexsearch",
-        title: "FlexSearch",
-        content: "Execute FlexSearch (HyperSQL) queries against the Hybris database:\n\n- Write custom queries or use pre-defined templates:\n  - **Products** — query product catalog\n  - **Catalogs** — list catalog versions\n  - **Locked Users** — find locked accounts\n  - **Promotions** — query active promotions\n- Set max results limit\n- Results displayed in a sortable grid\n- **AI-powered** — describe what you want in natural language and the AI generates the FlexSearch query",
-      },
-      {
-        id: "sap-impex",
-        title: "ImpEx",
-        content: "Import and export data using ImpEx scripts:\n\n- Write custom ImpEx or use snippets:\n  - **Product Insert** — add new products\n  - **Customer Insert** — add new customers\n  - **Product Removal** — remove products\n  - **Stock Level Insert** — update stock levels\n- Toggle code mode for syntax highlighting\n- Execute scripts directly against the connected HAC instance",
-      },
-      {
-        id: "sap-catalog",
-        title: "Catalog Management",
-        content: "Manage SAP catalog versions:\n\n- List all catalog versions in the system\n- Lookup specific catalog IDs\n- **Sync Diff Analysis** — compare staged vs online catalog versions\n- Identify missing items between catalog versions\n\nThis helps ensure catalog synchronization is complete before releases.",
-      },
-      {
-        id: "sap-cronjobs",
-        title: "Cron Jobs",
-        content: "Monitor and manage HAC cron jobs:\n\n- List all active and inactive cron jobs\n- View job status and schedule\n- Trigger job execution manually\n- Monitor job completion",
-      },
-      {
-        id: "sap-ccv2",
-        title: "Commerce Cloud v2 (CCv2)",
-        content: "Manage your SAP Commerce Cloud v2 environments:\n\n- View all CCv2 environments\n- Track deployment history and status\n- Monitor build status\n- See deployment strategy indicators\n\nConfigure CCv2 access in Settings > SAP Commerce Cloud v2 with your subscription code and API token.",
       },
     ],
   },
@@ -528,7 +461,7 @@ export const DOC_SECTIONS: DocSection[] = [
       {
         id: "settings-general",
         title: "General",
-        content: "General application settings:\n\n- **SAP Commerce Context** — enable/disable SAP-specific features throughout the app\n- **Minimize to Tray** — keep QAssistant running in the system tray when closed",
+        content: "General application settings:\n\n- **SAP Commerce Context** — include SAP Commerce domain knowledge in AI prompts\n- **Minimize to Tray** — keep QAssistant running in the system tray when closed",
       },
       {
         id: "settings-automation",
@@ -549,11 +482,6 @@ export const DOC_SECTIONS: DocSection[] = [
         id: "settings-ai",
         title: "Google AI Studio",
         content: "Configure the Gemini AI integration:\n\n- **API Key** — enter your Google AI Studio API key\n- **Model Selection** — choose from available Gemini models or enter a custom model ID\n- **Model Discovery** — fetch the list of available models from the API\n\nThe AI powers test case generation, issue analysis, standup summaries, and more.",
-      },
-      {
-        id: "settings-ccv2",
-        title: "SAP Commerce Cloud v2",
-        content: "Connect to SAP CCv2:\n\n- **Subscription Code** — your CCv2 subscription identifier\n- **API Token** — authentication token for the CCv2 API\n- **Test Connection** — verify access\n- **Disconnect** — remove the configuration",
       },
       {
         id: "settings-sharing",
@@ -614,7 +542,7 @@ export const DOC_SECTIONS: DocSection[] = [
       {
         id: "ai-capabilities",
         title: "AI Capabilities",
-        content: "AI is integrated throughout the app:\n\n- **Test Case Generation** (Tests) — generate comprehensive test cases from task descriptions or free text\n- **Issue Analysis** (Tasks) — deep analysis of bugs with root cause assessment\n- **Criticality Assessment** (Tests) — determine which tests matter most\n- **Test Run Suggestions** (Tests) — AI recommends what to test next\n- **Smoke Test Subset** (Tests) — minimal test set for quick validation\n- **PR Analysis** (GitHub) — summarize pull requests, flag hotspots, suggest QA checks, and match impacted existing tests\n- **Standup Summary** (Dashboard) — auto-generate daily standup reports\n- **Duplicate Bug Detection** (Tasks) — find semantically similar bugs\n- **FlexSearch Generation** (SAP) — natural language to SQL query conversion\n- **AI Accuracy Evaluation** (Tests) — evaluate chatbot response quality\n- **AI Copilot** (Global) — conversational chat assistant available from the titlebar",
+        content: "AI is integrated throughout the app:\n\n- **Test Case Generation** (Tests) — generate comprehensive test cases from task descriptions or free text\n- **Issue Analysis** (Tasks) — deep analysis of bugs with root cause assessment\n- **Criticality Assessment** (Tests) — determine which tests matter most\n- **Test Run Suggestions** (Tests) — AI recommends what to test next\n- **Smoke Test Subset** (Tests) — minimal test set for quick validation\n- **PR Analysis** (GitHub) — summarize pull requests, flag hotspots, suggest QA checks, and match impacted existing tests\n- **Standup Summary** (Dashboard) — auto-generate daily standup reports\n- **Duplicate Bug Detection** (Tasks) — find semantically similar bugs\n- **AI Accuracy Evaluation** (Tests) — evaluate chatbot response quality\n- **AI Copilot** (Global) — conversational chat assistant available from the titlebar",
       },
       {
         id: "ai-copilot",

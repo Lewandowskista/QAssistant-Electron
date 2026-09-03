@@ -57,8 +57,6 @@ const FULL_BLEED_ROUTES = [
   "/test-data",
   "/checklists",
   "/environments",
-  "/api",
-  "/sap",
   "/runbooks",
   "/github",
   "/code-reviews",

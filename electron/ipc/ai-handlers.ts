@@ -6,6 +6,8 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
     waitForAiTurn: (channel: string) => Promise<void>
     getGeminiService: (apiKey: string) => any
     getNimService: (apiKey: string) => any
+    /** Ollama needs no credential; it is addressed by base URL (empty = local default). */
+    getOllamaService: (baseUrl: string) => any
     accuracy: { readDocumentText: (filePath: string) => Promise<string>; chunkDocument: (text: string, mode: string) => any[] }
     errMsg: (err: unknown) => string
     assertString: (v: unknown, name: string, maxLen?: number) => void
@@ -13,7 +15,10 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
     assertObject: (v: unknown, name: string) => void
 }): void {
     function getSvc(provider: string | undefined, apiKey: string): any {
-        return provider === 'nim' ? deps.getNimService(apiKey) : deps.getGeminiService(apiKey)
+        // For 'ollama' the apiKey slot carries the base URL, since local inference has no key.
+        if (provider === 'ollama') return deps.getOllamaService(apiKey)
+        if (provider === 'nim') return deps.getNimService(apiKey)
+        return deps.getGeminiService(apiKey)
     }
 
     ipcMain.handle('ai-generate-cases', async (_e: any, { apiKey, tasks, sourceName, project, designDoc, modelName, comments, provider }: any) => {
@@ -56,6 +61,38 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
             if (entry) meta[m] = { ...entry, qaScore: nimQaScore(entry) }
         }
         return meta
+    });
+    ipcMain.handle('ollama-list-models', async (_e: any, { baseUrl }: any) => {
+        try {
+            deps.assertString(baseUrl ?? '', 'baseUrl', 500);
+            return await deps.getOllamaService(baseUrl ?? '').listAvailableModels();
+        }
+        catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
+    });
+    ipcMain.handle('ollama-installed-models', async (_e: any, { baseUrl }: any) => {
+        try {
+            deps.assertString(baseUrl ?? '', 'baseUrl', 500);
+            return await deps.getOllamaService(baseUrl ?? '').listInstalledModels();
+        }
+        catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
+    });
+    ipcMain.handle('ollama-status', async (_e: any, { baseUrl }: any) => {
+        try {
+            deps.assertString(baseUrl ?? '', 'baseUrl', 500);
+            const svc = deps.getOllamaService(baseUrl ?? '');
+            const reachable = await svc.isReachable();
+            const models = reachable ? await svc.listAvailableModels() : [];
+            return { reachable, models };
+        }
+        catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
+    });
+    ipcMain.handle('ollama-probe-models', async (_e: any, { baseUrl, models }: any) => {
+        try {
+            deps.assertString(baseUrl ?? '', 'baseUrl', 500);
+            deps.assertArray(models, 'models', 100);
+            return await deps.getOllamaService(baseUrl ?? '').probeAllModels(models);
+        }
+        catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });
     ipcMain.handle('ai-analyze-issue', async (_e: any, { apiKey, task, comments, project, modelName, provider }: any) => {
         await deps.waitForAiTurn('ai-analyze-issue');
@@ -166,16 +203,6 @@ export function registerAiHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.assertString(apiKey, 'apiKey');
             deps.assertObject(metrics, 'metrics');
             return await getSvc(provider, apiKey).generateStandupSummary(metrics, modelName);
-        }
-        catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
-    });
-
-    ipcMain.handle('ai-generate-flexsearch', async (_e: any, { apiKey, naturalLanguageQuery, modelName, provider }: any) => {
-        await deps.waitForAiTurn('ai-generate-flexsearch');
-        try {
-            deps.assertString(apiKey, 'apiKey');
-            deps.assertString(naturalLanguageQuery, 'naturalLanguageQuery', 1000);
-            return await getSvc(provider, apiKey).generateFlexSearch(naturalLanguageQuery, modelName);
         }
         catch (err: any) { return { __isError: true, message: deps.errMsg(err) }; }
     });

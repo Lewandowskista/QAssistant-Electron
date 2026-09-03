@@ -1,8 +1,7 @@
 import { useState } from "react"
-/* cspell:ignore IMPEX */
 import { useProjectStore, TestDataEntry, TestDataGroup } from "@/store/useProjectStore"
 import { toast } from "sonner"
-import { DatabaseZap, Plus, Trash2, Search, TerminalSquare, Layers, ShieldCheck, Trash, Edit2, Download, Upload, Copy } from "lucide-react"
+import { DatabaseZap, Plus, Trash2, Search, Layers, ShieldCheck, Trash, Edit2, Download, Upload, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { FullBleedHeader } from "@/components/ui/workspace"
@@ -10,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { safeInvoke } from "@/lib/safeInvoke"
-import { IMPEX_TEMPLATES } from "@/data/impexTemplates"
 import {
     Select,
     SelectContent,
@@ -27,8 +25,6 @@ import {
 } from "@/components/ui/dialog"
 import FormattedText from "@/components/FormattedText"
 
-type ViewState = 'Groups' | 'ImpEx'
-
 export default function TestDataPage() {
     const {
         projects,
@@ -42,7 +38,6 @@ export default function TestDataPage() {
     } = useProjectStore()
 
     const activeProject = projects.find(p => p.id === activeProjectId)
-    const [view, setView] = useState<ViewState>('Groups')
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
@@ -175,7 +170,7 @@ export default function TestDataPage() {
             {/* Sidebar */}
             <aside className="w-[280px] flex-none bg-panel border-r border-qa-border flex flex-col">
                 <div className="p-4 border-b border-qa-border">
-                    <h3 className="app-section-label">{view === 'Groups' ? 'Data groups' : 'ImpEx templates'}</h3>
+                    <h3 className="app-section-label">Data groups</h3>
                 </div>
 
                 <div className="p-3">
@@ -191,8 +186,7 @@ export default function TestDataPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    {view === 'Groups' ? (
-                        filteredGroups.map(group => (
+                    {filteredGroups.map(group => (
                             <div
                                 key={group.id}
                                 onClick={() => setSelectedGroupId(group.id)}
@@ -226,74 +220,25 @@ export default function TestDataPage() {
                                     <span className="text-qa-text-muted">{group.entries.length} records</span>
                                 </div>
                             </div>
-                        ))
-                    ) : (
-                        [...new Set(IMPEX_TEMPLATES.map(t => t.category))].map(cat => (
-                            <div key={cat} className="p-3 rounded-xl border border-transparent hover:bg-surface-alt/50 cursor-pointer text-xs font-medium text-qa-accent">
-                                {cat}
-                            </div>
-                        ))
-                    )}
+                    ))}
                 </div>
 
                 <div className="p-4 bg-app border-t border-qa-border space-y-2">
-                    <Button onClick={() => handleOpenGroupModal()} className={cn("w-full h-10 text-xs gap-2", view === 'Groups' ? "bg-qa-accent text-primary-foreground" : "bg-qa-accent/10 text-qa-accent border border-qa-accent/20")}>
+                    <Button onClick={() => handleOpenGroupModal()} className="w-full h-10 text-xs gap-2 bg-qa-accent text-primary-foreground">
                         <Plus className="h-4 w-4" /> New data group
-                    </Button>
-                    <Button onClick={() => setView(view === 'Groups' ? 'ImpEx' : 'Groups')} className={cn("w-full h-10 text-xs gap-2", view === 'ImpEx' ? "bg-qa-accent text-primary-foreground" : "bg-selected text-qa-accent border border-qa-accent/20")}>
-                        {view === 'Groups' ? 'SAP ImpEx templates →' : '← Back to data groups'}
                     </Button>
                 </div>
             </aside>
 
             {/* Main Panel */}
             <main className="flex-1 flex flex-col min-w-0 bg-app">
-                {!selectedGroupId && view === 'Groups' ? (
+                {!selectedGroupId ? (
                     <div className="h-full flex items-center justify-center p-6">
                         <EmptyState
                             icon={DatabaseZap}
                             title="Select a data collection"
                             description="Store and replicate reusable test environments."
                         />
-                    </div>
-                ) : view === 'ImpEx' ? (
-                    <div className="h-full flex flex-col p-8 space-y-8 animate-in slide-in-from-right-4 duration-500 overflow-y-auto custom-scrollbar">
-                        <header className="flex items-center justify-between border-b border-qa-border pb-6">
-                            <div>
-                                <h2 className="text-xl font-semibold text-qa-text tracking-tight">SAP Commerce ImpEx templates</h2>
-                                <p className="text-xs text-qa-text-muted mt-1">Ready-made ImpEx snippets</p>
-                            </div>
-                            <Button onClick={() => setView('Groups')} variant="outline" className="h-9 border-qa-border text-qa-text-muted text-xs">← Back to groups</Button>
-                        </header>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {IMPEX_TEMPLATES.map(template => (
-                                <div key={template.id} className="group p-6 bg-panel border border-qa-border rounded-[2rem] hover:border-qa-accent/50 transition-all cursor-pointer relative flex flex-col">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-xl bg-panel-muted flex items-center justify-center border border-qa-border">
-                                            <TerminalSquare className="h-5 w-5 text-qa-accent" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-semibold text-qa-text truncate">{template.name}</div>
-                                            <div className="text-[11px] text-qa-text-muted">{template.category}</div>
-                                        </div>
-                                    </div>
-                                    <p className="text-[11px] text-qa-text-muted mb-4 line-clamp-2">{template.description}</p>
-                                    <pre className="text-[11px] font-mono text-qa-text-muted bg-app p-3 rounded-xl overflow-hidden truncate flex-1">
-                                        {template.script}
-                                    </pre>
-                                    <Button
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(template.script)
-                                            toast.success('Snippet copied to clipboard')
-                                        }}
-                                        className="mt-4 w-full h-8 bg-qa-accent/10 text-qa-accent hover:bg-qa-accent/20 border border-qa-accent/20 text-xs gap-2"
-                                    >
-                                        <Copy className="h-3 w-3" /> Copy snippet
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
                     </div>
                 ) : (
                     <div className="h-full flex flex-col animate-in fade-in duration-500">
@@ -403,7 +348,7 @@ export default function TestDataPage() {
                                 value={groupForm.name}
                                 onChange={(e) => setGroupForm(prev => ({ ...prev, name: e.target.value }))}
                                 className="h-11 bg-panel-muted border-qa-border text-qa-text font-bold rounded-xl"
-                                placeholder="e.g. Prod Credentials"
+                                placeholder="e.g. B2B checkout users"
                             />
                         </div>
                         <div className="space-y-2">
@@ -416,8 +361,15 @@ export default function TestDataPage() {
                                     <SelectItem value="Users">Users</SelectItem>
                                     <SelectItem value="Products">Products</SelectItem>
                                     <SelectItem value="Promotions">Promotions</SelectItem>
-                                    <SelectItem value="Credentials">Credentials</SelectItem>
                                     <SelectItem value="Custom">Custom</SelectItem>
+                                    {/* category is a free-form string, so a group
+                                        created elsewhere can carry a value that is
+                                        not offered here. Without this the trigger
+                                        renders blank and the user cannot see or
+                                        keep the group's current category. */}
+                                    {groupForm.category
+                                        && !['Users', 'Products', 'Promotions', 'Custom'].includes(groupForm.category)
+                                        && <SelectItem value={groupForm.category}>{groupForm.category}</SelectItem>}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -471,7 +423,7 @@ export default function TestDataPage() {
                                 value={entryForm.value}
                                 onChange={(e) => setEntryForm(prev => ({ ...prev, value: e.target.value }))}
                                 className="h-10 bg-panel-muted border-qa-border text-qa-text rounded-xl"
-                                placeholder="Sensitive data or params…"
+                                placeholder="Value used by the test…"
                             />
                         </div>
                         <div className="space-y-2">

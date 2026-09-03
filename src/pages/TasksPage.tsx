@@ -147,6 +147,7 @@ export default function TasksPage() {
     const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false)
     const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false)
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+    const [confirmedTaskDelete, setConfirmedTaskDelete] = useState(false)
     const [syncTimestamp, setSyncTimestamp] = useState<number | null>(null)
     const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null)
     const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([])
@@ -825,12 +826,21 @@ export default function TasksPage() {
 
             <ConfirmDialog
                 open={!!taskToDelete}
-                onCancel={() => setTaskToDelete(null)}
                 title="Delete Task"
                 description="Permanent action."
                 confirmLabel="Delete"
                 destructive
-                onConfirm={() => { if (activeProjectId && taskToDelete) deleteTask(activeProjectId, taskToDelete.id) }}
+                // Record the decision only. Deleting here would unmount the
+                // trigger's subtree while Radix is still unwinding its layer
+                // stack — the freeze onClose exists to avoid.
+                onConfirm={() => setConfirmedTaskDelete(true)}
+                onClose={() => {
+                    const target = taskToDelete
+                    const confirmed = confirmedTaskDelete
+                    setConfirmedTaskDelete(false)
+                    setTaskToDelete(null)
+                    if (confirmed && activeProjectId && target) deleteTask(activeProjectId, target.id)
+                }}
             />
 
             <Suspense fallback={null}>

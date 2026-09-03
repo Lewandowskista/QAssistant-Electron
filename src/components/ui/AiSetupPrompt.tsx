@@ -5,9 +5,19 @@ import { Button } from "@/components/ui/button"
 type Props = {
     featureName: string
     description: string
+    /** Which provider the project is set to, so the CTA points at the right setup. */
+    provider?: 'gemini' | 'nim' | 'ollama'
+    /** Why the provider is not usable yet (missing key, daemon down, no models pulled). */
+    reason?: string
 }
 
-export function AiSetupPrompt({ featureName, description }: Props) {
+const CTA_LABEL: Record<string, string> = {
+    gemini: 'Configure Google AI Studio',
+    nim: 'Configure NVIDIA NIM',
+    ollama: 'Configure Ollama',
+}
+
+export function AiSetupPrompt({ featureName, description, provider = 'gemini', reason }: Props) {
     const navigate = useNavigate()
 
     return (
@@ -17,6 +27,9 @@ export function AiSetupPrompt({ featureName, description }: Props) {
                 <span className="text-sm font-semibold">{featureName}</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+            {reason && (
+                <p className="text-xs text-state-warning leading-relaxed">{reason}</p>
+            )}
             <div className="rounded-lg border border-ui bg-surface-app/60 p-3 text-xs text-muted-ui font-mono leading-relaxed">
                 <span className="text-brand">// Sample output</span>{"\n"}
                 {"{"}
@@ -32,7 +45,7 @@ export function AiSetupPrompt({ featureName, description }: Props) {
                 className="self-start gap-2 border-qa-accent/40 text-brand hover:bg-qa-accent/10 hover:border-qa-accent"
                 onClick={() => navigate('/settings')}
             >
-                Configure Gemini API
+                {CTA_LABEL[provider] ?? 'Configure AI provider'}
                 <ArrowRight className="h-3.5 w-3.5" />
             </Button>
         </div>

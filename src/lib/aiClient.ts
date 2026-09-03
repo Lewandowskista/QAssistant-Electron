@@ -8,10 +8,23 @@ import { getApiKey } from '@/lib/credentials'
 
 const api = () => window.electronAPI
 
-async function resolveAiArgs(): Promise<{ apiKey: string; provider: 'gemini' | 'nim'; modelName?: string }> {
+async function resolveAiArgs(): Promise<{ apiKey: string; provider: 'gemini' | 'nim' | 'ollama'; modelName?: string }> {
     const store = useProjectStore.getState()
     const project = store.projects.find(p => p.id === store.activeProjectId)
-    const provider: 'gemini' | 'nim' = project?.aiProvider === 'nim' ? 'nim' : 'gemini'
+    const configured = project?.aiProvider
+    const provider: 'gemini' | 'nim' | 'ollama' =
+        configured === 'nim' ? 'nim' : configured === 'ollama' ? 'ollama' : 'gemini'
+
+    if (provider === 'ollama') {
+        // Local inference has no credential. The main process reads the `apiKey` slot as the
+        // Ollama base URL, and an empty string means the local default (localhost:11434).
+        return {
+            apiKey: project?.ollamaBaseUrl?.trim() || '',
+            provider,
+            modelName: project?.ollamaModel || undefined,
+        }
+    }
+
     const keyName = provider === 'nim' ? 'nim_api_key' : 'gemini_api_key'
     const apiKey = (await getApiKey(api(), keyName, project?.id)) ?? ''
     const modelName = provider === 'nim' ? project?.nimModel : project?.geminiModel
@@ -104,14 +117,6 @@ export async function aiStandupSummary(args: {
 }): Promise<string> {
     const { apiKey, provider, modelName } = await resolveAiArgs()
     return api().aiStandupSummary({ apiKey, provider, modelName: args.modelName ?? modelName, ...args })
-}
-
-export async function aiGenerateFlexSearch(args: {
-    naturalLanguageQuery: string
-    modelName?: string
-}): Promise<string> {
-    const { apiKey, provider, modelName } = await resolveAiArgs()
-    return api().aiGenerateFlexSearch({ apiKey, provider, modelName: args.modelName ?? modelName, ...args })
 }
 
 export async function aiFindDuplicateBugs(args: {

@@ -17,6 +17,7 @@ import { demoProject } from '@/data/demoProject'
 import { enrichHandoffCompleteness, migrateLegacyExecutionsToSessions, PROJECT_SCHEMA_VERSION } from '@/lib/collaboration'
 import { measureAsync } from '@/lib/perf'
 import { sanitizeEnvironmentForPersistence, sanitizeProjectForPersistence } from '@/lib/projectSanitization'
+import { remapProjectForImport } from '@/lib/projectImport'
 import { getSyncActorIdentity, registerProjectSyncBridge } from './syncProjectBridge'
 
 export type {
@@ -37,6 +38,28 @@ function generateId(): string {
 
 const MAX_AI_COPILOT_HISTORY_ENTRIES = 150
 const EMPTY_NOTES: Note[] = []
+/**
+ * Next display id for a collection, e.g. TC-001.
+ *
+ * Two bugs this replaces. `` `TC-${n}`.padStart(6, '0') `` pads the whole string,
+ * so it produced "00TC-1" rather than "TC-001". And the number came from the
+ * collection's length, so deleting a case then adding one reused an existing id
+ * — the automation API resolves incoming results by the first displayId match,
+ * so a duplicate means the wrong test case receives the result.
+ *
+ * Derives from the highest number already present instead, so ids are unique for
+ * the life of the collection.
+ */
+export function nextDisplayId(prefix: string, existing: Array<{ displayId?: string }>): string {
+    const pattern = new RegExp(`^${prefix}-(\\d+)$`)
+    let highest = 0
+    for (const item of existing) {
+        const match = item.displayId?.match(pattern)
+        if (match) highest = Math.max(highest, Number(match[1]))
+    }
+    return `${prefix}-${String(highest + 1).padStart(3, '0')}`
+}
+
 const EMPTY_TASKS: Task[] = []
 const EMPTY_TEST_PLANS: TestPlan[] = []
 const EMPTY_HANDOFFS: HandoffPacket[] = []
@@ -49,19 +72,44 @@ const EMPTY_JIRA_CONNECTIONS: Project['jiraConnections'] = []
 const EMPTY_TEST_RUN_SESSIONS: TestRunSession[] = []
 
 /**
+ * True once a project read has failed. While set, every write is refused.
+ *
+ * A read failure leaves the store with no projects in memory. Writing that empty
+ * state back is how a transient read error turns into permanent data loss, so the
+ * store stays read-only until a load succeeds.
+ */
+let _loadFailed = false
+
+/**
  * Persistence helper — writes projects to the SQLite database via IPC.
  * better-sqlite3 is synchronous on the main-process side, so writes are
  * atomic and do not require debouncing for correctness. We still fire-and-
  * forget (no await at call sites) to keep the UI non-blocking.
- * Returns a Promise<boolean> so callers can detect failures if needed.
+ * Returns a Promise<boolean> reporting whether the write actually landed —
+ * the main process reports failure in its result rather than by rejecting.
  */
 const saveProjectsToDisk = (projects: Project[]): Promise<boolean> => {
     if (!window.electronAPI) return Promise.resolve(false)
+    if (_loadFailed) {
+        console.error('[store] Refusing to write projects: the last read failed, so in-memory state is not authoritative.')
+        return Promise.resolve(false)
+    }
     return window.electronAPI.writeProjectsFile(projects.map(sanitizeProjectForPersistence))
-        .then(() => true)
+        .then((result: { ok: boolean; error?: string } | boolean | undefined) => {
+            // A resolved promise is not success: the handler returns { ok: false }
+            // when the write threw. Treating resolution as success is how save
+            // failures went unnoticed.
+            const ok = typeof result === 'object' && result !== null ? result.ok !== false : result !== false
+            if (!ok) {
+                const detail = typeof result === 'object' && result?.error ? ` (${result.error})` : ''
+                console.error(`[store] Project write reported failure${detail}`)
+                toast.error('Failed to save — your changes were not written to disk.', { duration: 8000 })
+            }
+            return ok
+        })
         .catch((error: unknown) => {
             console.error('Failed to persist projects to SQLite:', error)
-            toast.error('Failed to save — your changes may not have been written to disk.')
+            toast.error('Failed to save — your changes may not have been written to disk.', { duration: 8000 })
             return false
         })
 };
@@ -75,11 +123,17 @@ const saveProjectsToDisk = (projects: Project[]): Promise<boolean> => {
  */
 let _debounceSaveTimer: ReturnType<typeof setTimeout> | null = null
 let _flushListenerRegistered = false
-const debouncedSaveProjectsToDisk = (projects: Project[]): void => {
+let _projectsChangedListenerRegistered = false
+/**
+ * The `projects` argument is deliberately ignored: it is a snapshot from when the
+ * call was made, and any granular write that lands inside the debounce window
+ * would be overwritten by it. Read the live state when the timer fires instead.
+ */
+const debouncedSaveProjectsToDisk = (_projects?: Project[]): void => {
     if (_debounceSaveTimer !== null) clearTimeout(_debounceSaveTimer)
     _debounceSaveTimer = setTimeout(() => {
         _debounceSaveTimer = null
-        saveProjectsToDisk(projects)
+        saveProjectsToDisk(useProjectStore.getState().projects)
     }, 300)
 }
 
@@ -450,6 +504,7 @@ export interface ProjectState {
     addProject: (name: string, color: string) => Promise<void>
     updateProject: (id: string, updates: Partial<Omit<Project, 'id'>>) => Promise<void>
     deleteProject: (id: string) => Promise<void>
+    purgeAllProjects: () => Promise<{ ok: boolean; deleted: number }>
     importProject: (project: Project) => Promise<void>
     seedDemoProject: () => Promise<void>
     appendAiCopilotHistoryEntry: (projectId: string, entry: Omit<AiCopilotHistoryEntry, 'id' | 'createdAt'>) => Promise<void>
@@ -540,9 +595,6 @@ export interface ProjectState {
     addChecklistItem: (projectId: string, checklistId: string, text: string) => Promise<string>
     deleteChecklistItem: (projectId: string, checklistId: string, itemId: string) => Promise<void>
 
-    addApiRequest: (projectId: string, data: Partial<ApiRequest>) => Promise<string>
-    updateApiRequest: (projectId: string, requestId: string, updates: Partial<ApiRequest>) => Promise<void>
-    deleteApiRequest: (projectId: string, requestId: string) => Promise<void>
 
     // Runbooks
     addRunbook: (projectId: string, name: string, category: RunbookCategory) => Promise<Runbook>
@@ -594,6 +646,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         // Register the flush listener exactly once — loadProjects may be called
         // multiple times (e.g. after import), and stacking listeners causes duplicate saves.
+        // Main can write to the database without going through this store — the
+        // automation API and cloud sync both do. Re-read when it says so, or the
+        // next full write from this stale cache reverts those changes.
+        if (!_projectsChangedListenerRegistered && window.electronAPI.onProjectsChanged) {
+            _projectsChangedListenerRegistered = true
+            window.electronAPI.onProjectsChanged(({ source }) => {
+                console.info(`[store] Reloading projects: changed by ${source}.`)
+                void useProjectStore.getState().loadProjects()
+            })
+        }
+
         if (!_flushListenerRegistered && window.electronAPI.onFlushPendingSave) {
             _flushListenerRegistered = true
             window.electronAPI.onFlushPendingSave(async () => {
@@ -612,8 +675,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
 
         try {
-            const rawProjects = await measureAsync('projectLoadMs', () => window.electronAPI.readProjectsFile())
+            const result = await measureAsync('projectLoadMs', () => window.electronAPI.readProjectsFile())
+
+            // The handler distinguishes "read failed" from "no projects". Older
+            // builds returned a bare array, so accept both shapes.
+            const rawProjects = Array.isArray(result)
+                ? result
+                : result?.ok === true ? result.projects : null
+
+            if (rawProjects === null) {
+                const detail = !Array.isArray(result) && result && result.ok === false ? result.error : 'unknown error'
+                throw new Error(`Project read failed: ${detail}`)
+            }
+
             const projects = (rawProjects || []).map((p: any) => normalizeProject(p))
+            _loadFailed = false
 
             set({
                 projects,
@@ -622,9 +698,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             })
         } catch (e) {
             console.error('Failed to load projects from disk:', e)
+            // Latch read-only. Without this the empty in-memory state gets written
+            // back on the next mutation and the database is pruned to match it.
+            _loadFailed = true
             toast.error(
-                'Could not read your project data. Your data has NOT been deleted. Please check the file at your data path or contact support.',
-                { duration: 10000 }
+                'Could not read your project data. Nothing has been deleted, and saving is disabled until this is resolved. Restart the app, and check the data folder from Settings if it persists.',
+                { duration: 30000 }
             )
             set({ initialized: true })
         }
@@ -715,47 +794,67 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     deleteProject: async (id: string) => {
-        const updatedProjects = get().projects.filter(p => p.id !== id)
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
+        // Deletion is explicit: a full write no longer prunes projects it was not
+        // given, so removing one from the array is not enough to delete it.
+        if (window.electronAPI?.deleteProject) {
+            const result = await window.electronAPI.deleteProject(id).catch((error: unknown) => {
+                console.error('[store] deleteProject failed:', error)
+                return { ok: false as const, error: String(error) }
+            })
+            if (!result?.ok) {
+                toast.error('Could not delete the project. Nothing was removed.')
+                return
+            }
         }
+
+        const updatedProjects = get().projects.filter(p => p.id !== id)
         set({
             projects: updatedProjects,
             activeProjectId: get().activeProjectId === id ? (updatedProjects[0]?.id || null) : get().activeProjectId
         })
     },
 
-    importProject: async (project: Project) => {
-        // Assign a new UUID to avoid collisions with existing projects
-        const newProject: Project = {
-            ...project,
-            id: generateId(),
-            tasks: (project.tasks || []).map(t => normalizeTask({ ...t, id: generateId() })),
-            notes: (project.notes || []).map(n => ({ ...n, id: generateId() })),
-            testPlans: (project.testPlans || []).map(tp => ({
-                ...tp,
-                id: generateId(),
-                testCases: (tp.testCases || []).map(tc => ({ ...tc, id: generateId() }))
-            })),
-            environments: (project.environments || []).map(e => ({ ...e, id: generateId() })),
-            testExecutions: (project.testExecutions || []).map(te => ({ ...te, id: generateId() })),
-            testDataGroups: (project.testDataGroups || []).map(tdg => ({
-                ...tdg,
-                id: generateId(),
-                entries: (tdg.entries || []).map(e => ({ ...e, id: generateId() }))
-            })),
-            checklists: (project.checklists || []).map(c => ({
-                ...c,
-                id: generateId(),
-                items: (c.items || []).map(i => ({ ...i, id: generateId() }))
-            })),
-            apiRequests: (project.apiRequests || []).map(ar => ({ ...ar, id: generateId() })),
-            linearConnections: (project.linearConnections || []).map(lc => ({ ...lc, id: generateId() })),
-            jiraConnections: (project.jiraConnections || []).map(jc => ({ ...jc, id: generateId() })),
-            handoffPackets: (project.handoffPackets || []).map((packet) => ({ ...packet, id: generateId() })),
-            artifactLinks: (project.artifactLinks || []).map((link) => ({ ...link, id: generateId() })),
-            collaborationEvents: (project.collaborationEvents || []).map((event) => ({ ...event, id: generateId() })),
+    /**
+     * Delete every project. Used by Settings → Purge All Data.
+     *
+     * Previously this wrote an empty array straight to the IPC layer, which both
+     * bypassed the store — leaving every project on screen until a restart, and
+     * liable to be re-persisted by the next autosave — and depended on the full
+     * write pruning by omission, which it no longer does.
+     */
+    purgeAllProjects: async () => {
+        const ids = get().projects.map(p => p.id)
+        let deleted = 0
+        let failed = 0
+
+        for (const id of ids) {
+            const result = await window.electronAPI?.deleteProject?.(id).catch((error: unknown) => {
+                console.error('[store] purge: deleteProject failed:', error)
+                return { ok: false as const }
+            })
+            if (result?.ok) deleted += 1
+            else failed += 1
         }
+
+        // Only drop from memory what actually left the database, so the UI keeps
+        // showing anything that survived.
+        if (failed === 0) {
+            set({ projects: [], activeProjectId: null })
+        } else {
+            await get().loadProjects()
+        }
+        return { ok: failed === 0, deleted }
+    },
+
+    importProject: async (project: Project) => {
+        // Every entity gets a fresh id so an import cannot collide with existing
+        // rows, and every reference between them is rewritten to match. See
+        // remapProjectForImport for why the second half matters.
+        const { project: remapped } = remapProjectForImport(project, generateId)
+        const newProject = normalizeProject({
+            ...remapped,
+            tasks: (remapped.tasks ?? []).map((task: Task) => normalizeTask(task)),
+        })
 
         const updatedProjects = [...get().projects, newProject]
         if (window.electronAPI) {
@@ -1359,7 +1458,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
                 const tasks = p.tasks.filter(t => t.id !== taskId)
-                return { ...p, tasks }
+                // The database cascades handoffs and events but not artifact
+                // links, and the store previously dropped neither — so the next
+                // full write re-inserted orphaned rows referencing a gone task.
+                const handoffIds = new Set((p.handoffPackets ?? []).filter(h => h.taskId === taskId).map(h => h.id))
+                return {
+                    ...p,
+                    tasks,
+                    handoffPackets: (p.handoffPackets ?? []).filter(h => h.taskId !== taskId),
+                    collaborationEvents: (p.collaborationEvents ?? []).filter(e => e.taskId !== taskId),
+                    artifactLinks: (p.artifactLinks ?? []).filter(link => {
+                        const refersToTask = (link.sourceType === 'task' && link.sourceId === taskId)
+                            || (link.targetType === 'task' && link.targetId === taskId)
+                        const refersToHandoff = (link.sourceType === 'handoff' && handoffIds.has(link.sourceId))
+                            || (link.targetType === 'handoff' && handoffIds.has(link.targetId))
+                        return !refersToTask && !refersToHandoff
+                    }),
+                }
             }
             return p
         })
@@ -1418,14 +1533,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
         const testCase: TestCase = {
             id: generateId(),
-            displayId: `TC-${(activePlan.testCases.length + 1)}`.padStart(6, '0'),
+            displayId: nextDisplayId('TC', activePlan.testCases),
             title: `Verify: ${task.title}`,
             preConditions: "Task context provided from board.",
             steps: task.description || "Refer to task description.",
             testData: "",
             expectedResult: "Feature works as described.",
             actualResult: "",
-            priority: task.priority === 'high' ? 'major' : (task.priority === 'medium' ? 'medium' : 'low'),
+            // 'critical' previously fell through to 'low', the opposite of intent.
+            priority: task.priority === 'critical' ? 'blocker'
+                : task.priority === 'high' ? 'major'
+                    : task.priority === 'medium' ? 'medium'
+                        : 'low',
             status: 'not-run',
             sourceIssueId: task.sourceIssueId,
             updatedAt: Date.now()
@@ -1455,7 +1574,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const id = generateId()
         const plan: TestPlan = {
             id,
-            displayId: `TP-${(get().projects.find(p => p.id === projectId)?.testPlans.length || 0) + 1}`.padStart(6, '0'),
+            displayId: nextDisplayId('TP', get().projects.find(p => p.id === projectId)?.testPlans ?? []),
             name,
             description,
             testCases: [],
@@ -1563,7 +1682,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const newPlan: TestPlan = {
             ...planToDuplicate,
             id: newPlanId,
-            displayId: `TP-${(activeProject.testPlans.length + 1)}`.padStart(6, '0'),
+            displayId: nextDisplayId('TP', activeProject.testPlans),
             name: `${planToDuplicate.name} (Copy)`,
             testCases: planToDuplicate.testCases.map(tc => ({
                 ...tc,
@@ -1622,7 +1741,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         const activePlan = activeProject?.testPlans.find(tp => tp.id === planId)
         const testCase: TestCase = {
             id: generateId(),
-            displayId: `TC-${(activePlan?.testCases.length || 0) + 1}`.padStart(6, '0'),
+            displayId: nextDisplayId('TC', activePlan?.testCases ?? []),
             title: data.title || "Untitled Case",
             preConditions: data.preConditions || "",
             steps: data.steps || "",
@@ -1779,9 +1898,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             hacUrl: "",
             backOfficeUrl: "",
             storefrontUrl: "",
-            solrAdminUrl: "",
-            occBasePath: "",
-            ignoreSslErrors: false
+            solrAdminUrl: ""
         }
         const updatedProjects = get().projects.map(p => {
             if (p.id === projectId) {
@@ -1817,20 +1934,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     deleteEnvironment: async (projectId: string, envId: string) => {
+        // Promoting a new default has to be a copy, not a mutation: the old array
+        // holds objects shared with the previous zustand state.
+        let promotedDefault: QaEnvironment | undefined
         const updatedProjects = get().projects.map(p => {
-            if (p.id === projectId) {
-                const environments = (p.environments || []).filter(e => e.id !== envId)
-                // If we deleted the default, set first remaining as default
-                if (environments.length > 0 && !environments.some(e => e.isDefault)) {
-                    environments[0].isDefault = true
-                }
-                return { ...p, environments }
+            if (p.id !== projectId) return p
+            const remaining = (p.environments || []).filter(e => e.id !== envId)
+            if (remaining.length > 0 && !remaining.some(e => e.isDefault)) {
+                promotedDefault = { ...remaining[0], isDefault: true }
+                return { ...p, environments: [promotedDefault, ...remaining.slice(1)] }
             }
-            return p
+            return { ...p, environments: remaining }
         })
         set({ projects: updatedProjects })
+
         if (window.electronAPI) {
             await deleteEnvironmentFromDisk(projectId, envId)
+            // The promotion is a second change and needs its own write, or after a
+            // restart the project has no default environment at all.
+            if (promotedDefault) await persistEnvironmentToDisk(projectId, promotedDefault)
         }
     },
 
@@ -2141,23 +2263,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         if (window.electronAPI && persistedChecklist) await persistChecklistToDisk(projectId, persistedChecklist)
     },
 
-    addApiRequest: async (projectId: string, data: Partial<ApiRequest>) => {
-        const req: ApiRequest = { id: generateId(), name: data.name || 'New Request', category: data.category || 'Custom', method: data.method || 'GET', url: data.url || '', headers: data.headers || '', body: data.body || '', createdAt: Date.now(), updatedAt: Date.now() }
-        const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: [...(p.apiRequests || []), req] } : p)
-        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
-        set({ projects })
-        return req.id
-    },
-    updateApiRequest: async (projectId: string, requestId: string, updates: Partial<ApiRequest>) => {
-        const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: p.apiRequests.map(r => r.id === requestId ? { ...r, ...updates, updatedAt: Date.now() } : r) } : p)
-        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
-        set({ projects })
-    },
-    deleteApiRequest: async (projectId: string, requestId: string) => {
-        const projects = get().projects.map(p => p.id === projectId ? { ...p, apiRequests: p.apiRequests.filter(r => r.id !== requestId) } : p)
-        if (window.electronAPI) debouncedSaveProjectsToDisk(projects)
-        set({ projects })
-    },
 
     addRunbook: async (projectId: string, name: string, category: RunbookCategory) => {
         const runbook: Runbook = {
