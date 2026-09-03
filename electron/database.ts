@@ -14,9 +14,10 @@ import type {
 // Pure row <-> object mapping lives in its own module so it can be tested without
 // the native better-sqlite3 binding. See databaseRows.ts.
 import {
-    j, p, bool,
+    j, p, bool, asEnum,
     rowToProject, rowToTask, rowToHandoff, rowToCollaborationEvent,
 } from './databaseRows'
+import { AI_GENERATION_RATINGS } from './databaseRows'
 import type {
     ProjectRow, TaskRow, NoteRow, NoteAttachmentRow, HandoffRow,
     CollaborationEventRow, TestPlanRow, TestCaseRow,
@@ -29,7 +30,7 @@ type DB = ReturnType<typeof Database>
 let db: DB | null = null
 
 // ─── Schema version ──────────────────────────────────────────────────────────
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -207,6 +208,9 @@ function createSchema(): void {
             test_type           TEXT,
             linked_defect_ids_json TEXT,    -- JSON: string[]
             change_log_json     TEXT,       -- JSON: ChangeLogEntry[]
+            ai_generated        INTEGER NOT NULL DEFAULT 0,
+            ai_generation_rating TEXT,      -- 'useful' | 'irrelevant' | 'caught_bug'
+            ai_generation_rated_at INTEGER,
             updated_at          INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_test_cases_plan ON test_cases(test_plan_id);
@@ -469,7 +473,9 @@ function createSchema(): void {
             timestamp   INTEGER NOT NULL,
             title       TEXT NOT NULL DEFAULT '',
             details     TEXT,
-            metadata_json TEXT      -- JSON: Record<string, any>
+            metadata_json TEXT,     -- JSON: Record<string, any>
+            actor_user_id TEXT,     -- Supabase auth.uid() of the actor
+            actor_display_name TEXT -- display name at the time of the event
         );
         CREATE INDEX IF NOT EXISTS idx_collab_events_project ON collaboration_events(project_id);
         CREATE INDEX IF NOT EXISTS idx_collab_events_task ON collaboration_events(task_id);
@@ -496,7 +502,9 @@ function createSchema(): void {
             timestamp   INTEGER NOT NULL,
             type        TEXT NOT NULL DEFAULT 'observation',
             description TEXT NOT NULL DEFAULT '',
-            severity    TEXT
+            severity    TEXT,
+            attachment_path      TEXT,
+            attachment_file_name TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_exp_obs_session ON exploratory_observations(session_id);
 
@@ -652,6 +660,29 @@ function migrateProjectAiProviderColumns(database: DB): void {
     }
 }
 
+/**
+ * Columns the renderer has always written but the schema never had, so the
+ * values were dropped on save and the features quietly reset on restart:
+ * AI-generation flags and ratings on test cases, screenshot paths on
+ * exploratory observations, and actor identity on collaboration events.
+ */
+function migrateMissingEntityColumns(database: DB): void {
+    const additions: Array<[table: string, column: string, ddl: string]> = [
+        ['test_cases', 'ai_generated', 'INTEGER NOT NULL DEFAULT 0'],
+        ['test_cases', 'ai_generation_rating', 'TEXT'],
+        ['test_cases', 'ai_generation_rated_at', 'INTEGER'],
+        ['collaboration_events', 'actor_user_id', 'TEXT'],
+        ['collaboration_events', 'actor_display_name', 'TEXT'],
+        ['exploratory_observations', 'attachment_path', 'TEXT'],
+        ['exploratory_observations', 'attachment_file_name', 'TEXT'],
+    ]
+    for (const [table, column, ddl] of additions) {
+        if (!hasColumn(database, table, column)) {
+            database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`)
+        }
+    }
+}
+
 function runMigrations(): void {
     const database = getDb()
     const row = database.prepare('SELECT version FROM schema_version LIMIT 1').get() as { version: number } | undefined
@@ -661,6 +692,7 @@ function runMigrations(): void {
     migrateSyncQueueWorkspaceScope(database)
     migrateProjectAiCopilotHistory(database)
     migrateProjectAiProviderColumns(database)
+    migrateMissingEntityColumns(database)
 
     if (currentVersion < SCHEMA_VERSION) {
         database.prepare('DELETE FROM schema_version').run()
@@ -757,6 +789,9 @@ function hydrateProject(projectRow: ProjectRow): Project {
                 testType: tc.test_type ?? undefined,
                 linkedDefectIds: p<string[]>(tc.linked_defect_ids_json) ?? [],
                 changeLog: p(tc.change_log_json) ?? [],
+                aiGenerated: bool(tc.ai_generated),
+                aiGenerationRating: asEnum(tc.ai_generation_rating, AI_GENERATION_RATINGS),
+                aiGenerationRatedAt: tc.ai_generation_rated_at ?? undefined,
                 updatedAt: tc.updated_at,
             })),
         }
@@ -891,6 +926,8 @@ function hydrateProject(projectRow: ProjectRow): Project {
             observations: obsRows.map((o: any) => ({
                 id: o.id, timestamp: o.timestamp, type: o.type,
                 description: o.description, severity: o.severity ?? undefined,
+                attachmentPath: o.attachment_path ?? undefined,
+                attachmentFileName: o.attachment_file_name ?? undefined,
             })),
         }
     })
@@ -985,6 +1022,9 @@ export function getAllProjects(): Project[] {
                     testType: tc.test_type ?? undefined,
                     linkedDefectIds: p<string[]>(tc.linked_defect_ids_json) ?? undefined,
                     changeLog: p(tc.change_log_json) ?? undefined,
+                    aiGenerated: bool(tc.ai_generated),
+                    aiGenerationRating: asEnum(tc.ai_generation_rating, AI_GENERATION_RATINGS),
+                    aiGenerationRatedAt: tc.ai_generation_rated_at ?? undefined,
                     updatedAt: tc.updated_at,
                 }))
             }
@@ -1157,6 +1197,8 @@ export function getAllProjects(): Project[] {
             eventType: e.event_type, actorRole: e.actor_role, timestamp: e.timestamp,
             title: e.title, details: e.details ?? undefined,
             metadata: p(e.metadata_json),
+            actorUserId: e.actor_user_id ?? undefined,
+            actorDisplayName: e.actor_display_name ?? undefined,
         }))
 
         // exploratory sessions + observations
@@ -1171,6 +1213,8 @@ export function getAllProjects(): Project[] {
                 observations: obsRows.map((o: any) => ({
                     id: o.id, timestamp: o.timestamp, type: o.type,
                     description: o.description, severity: o.severity ?? undefined,
+                    attachmentPath: o.attachment_path ?? undefined,
+                    attachmentFileName: o.attachment_file_name ?? undefined,
                 }))
             }
         })
@@ -1400,8 +1444,8 @@ export function insertProjectCollaborationEvent(projectId: string, event: any): 
     const database = getDb()
     database.transaction(() => {
         database.prepare(`
-            INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json, actor_user_id, actor_display_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             event.id,
             projectId,
@@ -1413,6 +1457,8 @@ export function insertProjectCollaborationEvent(projectId: string, event: any): 
             event.title ?? '',
             event.details ?? null,
             j(event.metadata),
+            event.actorUserId ?? null,
+            event.actorDisplayName ?? null,
         )
         database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
     })()
@@ -1432,11 +1478,13 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
         INSERT OR REPLACE INTO test_cases (id, test_plan_id, project_id, display_id, title,
             pre_conditions, steps, test_data, expected_result, actual_result, priority, status,
             sap_module, source_issue_id, tags_json, components_json, assigned_to,
-            estimated_minutes, test_type, linked_defect_ids_json, change_log_json, updated_at)
+            estimated_minutes, test_type, linked_defect_ids_json, change_log_json,
+            ai_generated, ai_generation_rating, ai_generation_rated_at, updated_at)
         VALUES (@id, @test_plan_id, @project_id, @display_id, @title,
             @pre_conditions, @steps, @test_data, @expected_result, @actual_result, @priority, @status,
             @sap_module, @source_issue_id, @tags_json, @components_json, @assigned_to,
-            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json, @updated_at)
+            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json,
+            @ai_generated, @ai_generation_rating, @ai_generation_rated_at, @updated_at)
     `)
     const touchProject = database.prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
 
@@ -1481,6 +1529,9 @@ export function upsertProjectTestPlan(projectId: string, plan: any): void {
                 test_type: tc.testType ?? null,
                 linked_defect_ids_json: j(tc.linkedDefectIds),
                 change_log_json: j(tc.changeLog),
+                ai_generated: tc.aiGenerated ? 1 : 0,
+                ai_generation_rating: tc.aiGenerationRating ?? null,
+                ai_generation_rated_at: tc.aiGenerationRatedAt ?? null,
                 updated_at: tc.updatedAt,
             })
         }
@@ -1752,11 +1803,13 @@ export function saveAllProjects(projects: any[]): void {
         INSERT OR REPLACE INTO test_cases (id, test_plan_id, project_id, display_id, title,
             pre_conditions, steps, test_data, expected_result, actual_result, priority, status,
             sap_module, source_issue_id, tags_json, components_json, assigned_to,
-            estimated_minutes, test_type, linked_defect_ids_json, change_log_json, updated_at)
+            estimated_minutes, test_type, linked_defect_ids_json, change_log_json,
+            ai_generated, ai_generation_rating, ai_generation_rated_at, updated_at)
         VALUES (@id, @test_plan_id, @project_id, @display_id, @title,
             @pre_conditions, @steps, @test_data, @expected_result, @actual_result, @priority, @status,
             @sap_module, @source_issue_id, @tags_json, @components_json, @assigned_to,
-            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json, @updated_at)
+            @estimated_minutes, @test_type, @linked_defect_ids_json, @change_log_json,
+            @ai_generated, @ai_generation_rating, @ai_generation_rated_at, @updated_at)
     `)
     const deleteCasesByPlan = database.prepare('DELETE FROM test_cases WHERE test_plan_id = @plan_id AND project_id = @project_id')
 
@@ -1862,8 +1915,8 @@ export function saveAllProjects(projects: any[]): void {
     `)
 
     const insertEvent = database.prepare(`
-        INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json)
-        VALUES (@id, @project_id, @task_id, @handoff_id, @event_type, @actor_role, @timestamp, @title, @details, @metadata_json)
+        INSERT OR REPLACE INTO collaboration_events (id, project_id, task_id, handoff_id, event_type, actor_role, timestamp, title, details, metadata_json, actor_user_id, actor_display_name)
+        VALUES (@id, @project_id, @task_id, @handoff_id, @event_type, @actor_role, @timestamp, @title, @details, @metadata_json, @actor_user_id, @actor_display_name)
     `)
 
     const insertExpSession = database.prepare(`
@@ -1871,8 +1924,8 @@ export function saveAllProjects(projects: any[]): void {
         VALUES (@id, @project_id, @charter, @timebox, @tester, @started_at, @completed_at, @notes, @discovered_bug_ids_json)
     `)
     const insertExpObs = database.prepare(`
-        INSERT OR REPLACE INTO exploratory_observations (id, session_id, project_id, timestamp, type, description, severity)
-        VALUES (@id, @session_id, @project_id, @timestamp, @type, @description, @severity)
+        INSERT OR REPLACE INTO exploratory_observations (id, session_id, project_id, timestamp, type, description, severity, attachment_path, attachment_file_name)
+        VALUES (@id, @session_id, @project_id, @timestamp, @type, @description, @severity, @attachment_path, @attachment_file_name)
     `)
     const deleteObsBySession = database.prepare('DELETE FROM exploratory_observations WHERE session_id = @session_id')
 
@@ -2008,6 +2061,9 @@ export function saveAllProjects(projects: any[]): void {
                         test_type: tc.testType ?? null,
                         linked_defect_ids_json: j(tc.linkedDefectIds),
                         change_log_json: j(tc.changeLog),
+                        ai_generated: tc.aiGenerated ? 1 : 0,
+                        ai_generation_rating: tc.aiGenerationRating ?? null,
+                        ai_generation_rated_at: tc.aiGenerationRatedAt ?? null,
                         updated_at: tc.updatedAt,
                     })
                 }
@@ -2213,6 +2269,8 @@ export function saveAllProjects(projects: any[]): void {
                     actor_role: ev.actorRole, timestamp: ev.timestamp,
                     title: ev.title ?? '', details: ev.details ?? null,
                     metadata_json: j(ev.metadata),
+                    actor_user_id: ev.actorUserId ?? null,
+                    actor_display_name: ev.actorDisplayName ?? null,
                 })
             }
 
@@ -2232,7 +2290,7 @@ export function saveAllProjects(projects: any[]): void {
                 })
                 deleteObsBySession.run({ session_id: sess.id })
                 for (const obs of sess.observations ?? []) {
-                    insertExpObs.run({ id: obs.id, session_id: sess.id, project_id: pid, timestamp: obs.timestamp, type: obs.type ?? 'observation', description: obs.description ?? '', severity: obs.severity ?? null })
+                    insertExpObs.run({ id: obs.id, session_id: sess.id, project_id: pid, timestamp: obs.timestamp, type: obs.type ?? 'observation', description: obs.description ?? '', severity: obs.severity ?? null, attachment_path: obs.attachmentPath ?? null, attachment_file_name: obs.attachmentFileName ?? null })
                 }
             }
 
@@ -2358,9 +2416,9 @@ export function getTaskById(taskId: string): any | null {
         id: e.id, taskId: e.task_id, handoffId: e.handoff_id ?? undefined,
         eventType: e.event_type, actorRole: e.actor_role, timestamp: e.timestamp,
         title: e.title, details: e.details ?? undefined,
+        metadata: p(e.metadata_json),
         actorUserId: e.actor_user_id ?? undefined,
         actorDisplayName: e.actor_display_name ?? undefined,
-        metadata: p(e.metadata_json),
     }))
 
     return task

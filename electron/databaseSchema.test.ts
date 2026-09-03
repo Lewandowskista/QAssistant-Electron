@@ -91,6 +91,9 @@ describe('every statement in database.ts', () => {
         expect(failures, `SQL that does not match the schema:\n${failures.join('\n')}`).toEqual([])
     })
 
+    // Counts comma-separated value expressions rather than '?' characters, so a
+    // statement that supplies a literal for one column (e.g. retry_count 0) is
+    // handled correctly alongside named and positional placeholders.
     it('binds as many values as it names columns', () => {
         const mismatches: string[] = []
 

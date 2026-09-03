@@ -54,6 +54,7 @@ const TASK_SOURCES = ['manual', 'linear', 'jira'] as const
 const COLLAB_STATES: readonly CollabState[] = ['draft', 'ready_for_dev', 'dev_acknowledged', 'in_fix', 'ready_for_qa', 'qa_retesting', 'verified', 'closed']
 const REPRODUCIBILITIES: readonly Reproducibility[] = ['always', 'sometimes', 'rarely', 'once', 'unable']
 const FREQUENCIES: readonly Frequency[] = ['everytime', 'often', 'occasionally', 'once']
+export const AI_GENERATION_RATINGS = ['useful', 'irrelevant', 'caught_bug'] as const
 // ─── Project row ↔ Project object ─────────────────────────────────────────────
 
 export type ProjectRow = {
@@ -253,6 +254,8 @@ export type CollaborationEventRow = {
     title: string
     details: string | null
     metadata_json: string | null
+    actor_user_id: string | null
+    actor_display_name: string | null
 }
 
 export type TestPlanRow = {
@@ -288,6 +291,9 @@ export type TestCaseRow = {
     test_type: TestCase['testType'] | null
     linked_defect_ids_json: string | null
     change_log_json: string | null
+    ai_generated: number | null
+    ai_generation_rating: string | null
+    ai_generation_rated_at: number | null
     updated_at: number
 }
 
@@ -327,5 +333,7 @@ export function rowToCollaborationEvent(row: CollaborationEventRow): any {
         title: row.title,
         details: row.details ?? undefined,
         metadata: p(row.metadata_json),
+        actorUserId: row.actor_user_id ?? undefined,
+        actorDisplayName: row.actor_display_name ?? undefined,
     }
 }

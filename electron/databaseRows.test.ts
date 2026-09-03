@@ -352,6 +352,8 @@ describe('rowToCollaborationEvent', () => {
             title: 'Fix ready for QA',
             details: null,
             metadata_json: null,
+            actor_user_id: null,
+            actor_display_name: null,
             ...overrides,
         } as CollaborationEventRow
     }
@@ -373,11 +375,16 @@ describe('rowToCollaborationEvent', () => {
         expect(event.metadata).toEqual({ prNumber: 12, repo: 'acme/storefront' })
     })
 
-    // Known gap, tracked for the persistence phase: actor_user_id and
-    // actor_display_name are written by the store and read by the timeline, but
-    // the schema has no such columns so the mapping cannot carry them. When those
-    // columns land, assert them here.
-    it('does not yet carry actor identity', () => {
+    it('carries actor identity, which the timeline attributes events by', () => {
+        const event = rowToCollaborationEvent(eventRow({
+            actor_user_id: 'auth-uid-1',
+            actor_display_name: 'Sam Rivera',
+        }))
+        expect(event.actorUserId).toBe('auth-uid-1')
+        expect(event.actorDisplayName).toBe('Sam Rivera')
+    })
+
+    it('leaves actor identity undefined on an event recorded before it was stored', () => {
         const event = rowToCollaborationEvent(eventRow())
         expect(event.actorUserId).toBeUndefined()
         expect(event.actorDisplayName).toBeUndefined()
