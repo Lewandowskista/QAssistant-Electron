@@ -12,11 +12,20 @@
  * sqlite, which needs no native module. That verifies the parts a type checker
  * cannot: every statement parses, every column exists, and every INSERT binds
  * the exact parameters the application passes.
+ *
+ * `node:sqlite` landed in Node 22.5, and this project still supports Node 20
+ * (see .nvmrc and the engines field), so the suite skips itself rather than
+ * failing where the module is unavailable. Anyone on Node 22+ — and CI, once it
+ * moves off Node 20 — gets the coverage.
  */
 import { describe, it, expect } from 'vitest'
-import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+
+type SqliteModule = typeof import('node:sqlite')
+const sqlite: SqliteModule | null = await import('node:sqlite').catch(() => null)
+const describeWithSqlite = sqlite ? describe : describe.skip
+type Db = InstanceType<SqliteModule['DatabaseSync']>
 
 const SOURCE = readFileSync(join(__dirname, 'database.ts'), 'utf8')
 
@@ -44,14 +53,14 @@ function quotedSql(): string[] {
     ].filter(sql => !sql.includes('${'))
 }
 
-function freshDb(): DatabaseSync {
-    const db = new DatabaseSync(':memory:')
+function freshDb(): Db {
+    const db = new sqlite!.DatabaseSync(':memory:')
     db.exec('PRAGMA foreign_keys = ON')
     for (const block of schemaBlocks()) db.exec(block)
     return db
 }
 
-describe('schema', () => {
+describeWithSqlite('schema', () => {
     it('executes cleanly', () => {
         const blocks = schemaBlocks()
         expect(blocks.length).toBeGreaterThan(0)
@@ -74,7 +83,7 @@ describe('schema', () => {
     })
 })
 
-describe('every statement in database.ts', () => {
+describeWithSqlite('every statement in database.ts', () => {
     it('prepares against the real schema', () => {
         const db = freshDb()
         const failures: string[] = []
@@ -117,8 +126,8 @@ describe('every statement in database.ts', () => {
  * catch a missing or surplus named parameter: better-sqlite3 throws on both, and
  * so does node:sqlite.
  */
-describe('upserts accept the parameters the app passes', () => {
-    function withProject(db: DatabaseSync) {
+describeWithSqlite('upserts accept the parameters the app passes', () => {
+    function withProject(db: Db) {
         db.prepare('INSERT INTO projects (id, name, color) VALUES (?, ?, ?)').run('p1', 'Storefront QA', '#6366f1')
     }
 
@@ -174,7 +183,7 @@ describe('upserts accept the parameters the app passes', () => {
     })
 })
 
-describe('legacy environment secrets', () => {
+describeWithSqlite('legacy environment secrets', () => {
     it('are cleared from the plaintext columns', () => {
         const db = freshDb()
         db.prepare('INSERT INTO projects (id, name, color) VALUES (?, ?, ?)').run('p1', 'P', '#fff')
