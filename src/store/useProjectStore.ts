@@ -17,6 +17,7 @@ import { demoProject } from '@/data/demoProject'
 import { enrichHandoffCompleteness, migrateLegacyExecutionsToSessions, PROJECT_SCHEMA_VERSION } from '@/lib/collaboration'
 import { measureAsync } from '@/lib/perf'
 import { sanitizeEnvironmentForPersistence, sanitizeProjectForPersistence } from '@/lib/projectSanitization'
+import { remapProjectForImport } from '@/lib/projectImport'
 import { getSyncActorIdentity, registerProjectSyncBridge } from './syncProjectBridge'
 
 export type {
@@ -824,36 +825,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     importProject: async (project: Project) => {
-        // Assign a new UUID to avoid collisions with existing projects
-        const newProject: Project = {
-            ...project,
-            id: generateId(),
-            tasks: (project.tasks || []).map(t => normalizeTask({ ...t, id: generateId() })),
-            notes: (project.notes || []).map(n => ({ ...n, id: generateId() })),
-            testPlans: (project.testPlans || []).map(tp => ({
-                ...tp,
-                id: generateId(),
-                testCases: (tp.testCases || []).map(tc => ({ ...tc, id: generateId() }))
-            })),
-            environments: (project.environments || []).map(e => ({ ...e, id: generateId() })),
-            testExecutions: (project.testExecutions || []).map(te => ({ ...te, id: generateId() })),
-            testDataGroups: (project.testDataGroups || []).map(tdg => ({
-                ...tdg,
-                id: generateId(),
-                entries: (tdg.entries || []).map(e => ({ ...e, id: generateId() }))
-            })),
-            checklists: (project.checklists || []).map(c => ({
-                ...c,
-                id: generateId(),
-                items: (c.items || []).map(i => ({ ...i, id: generateId() }))
-            })),
-            apiRequests: (project.apiRequests || []).map(ar => ({ ...ar, id: generateId() })),
-            linearConnections: (project.linearConnections || []).map(lc => ({ ...lc, id: generateId() })),
-            jiraConnections: (project.jiraConnections || []).map(jc => ({ ...jc, id: generateId() })),
-            handoffPackets: (project.handoffPackets || []).map((packet) => ({ ...packet, id: generateId() })),
-            artifactLinks: (project.artifactLinks || []).map((link) => ({ ...link, id: generateId() })),
-            collaborationEvents: (project.collaborationEvents || []).map((event) => ({ ...event, id: generateId() })),
-        }
+        // Every entity gets a fresh id so an import cannot collide with existing
+        // rows, and every reference between them is rewritten to match. See
+        // remapProjectForImport for why the second half matters.
+        const { project: remapped } = remapProjectForImport(project, generateId)
+        const newProject = normalizeProject({
+            ...remapped,
+            tasks: (remapped.tasks ?? []).map((task: Task) => normalizeTask(task)),
+        })
 
         const updatedProjects = [...get().projects, newProject]
         if (window.electronAPI) {
