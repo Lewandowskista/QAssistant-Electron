@@ -187,7 +187,7 @@ export default function SettingsPage() {
     const performanceMode = useSettingsStore(s => s.settings.performanceMode ?? 'auto')
     const resolvedPerformanceMode = useSettingsStore(s => s.resolvedPerformanceMode)
     const respectReducedMotion = useSettingsStore(s => s.settings.respectReducedMotion === true)
-    const { projects, activeProjectId, updateProject, importProject } = useProjectStore()
+    const { projects, activeProjectId, updateProject, importProject, purgeAllProjects } = useProjectStore()
     const activeProject = projects.find(p => p.id === activeProjectId)
 
     const [showSecrets, setShowSecrets] = useState(false)
@@ -1915,7 +1915,10 @@ POST /api/projects/{id}/executions/batch`}</pre>
                         <Button variant="ghost" size="sm" className="h-9 text-state-danger hover:bg-state-danger-soft font-bold gap-2"
                             onClick={async () => {
                                 const ok = await confirmDialog('Permanently delete all project data?', { description: 'This action cannot be undone. All projects, test cases, tasks, notes, and runs will be erased.', confirmLabel: 'Purge All Data', destructive: true })
-                                if (ok) api.writeProjectsFile([])
+                                if (!ok) return
+                                const { ok: purged, deleted } = await purgeAllProjects()
+                                if (purged) toast.success(deleted === 1 ? 'Deleted 1 project.' : `Deleted ${deleted} projects.`)
+                                else toast.error('Some projects could not be deleted. The list has been reloaded.')
                             }}>
                             <Trash2 className="h-3.5 w-3.5" />Purge All Data
                         </Button>

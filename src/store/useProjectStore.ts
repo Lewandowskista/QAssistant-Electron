@@ -49,19 +49,44 @@ const EMPTY_JIRA_CONNECTIONS: Project['jiraConnections'] = []
 const EMPTY_TEST_RUN_SESSIONS: TestRunSession[] = []
 
 /**
+ * True once a project read has failed. While set, every write is refused.
+ *
+ * A read failure leaves the store with no projects in memory. Writing that empty
+ * state back is how a transient read error turns into permanent data loss, so the
+ * store stays read-only until a load succeeds.
+ */
+let _loadFailed = false
+
+/**
  * Persistence helper — writes projects to the SQLite database via IPC.
  * better-sqlite3 is synchronous on the main-process side, so writes are
  * atomic and do not require debouncing for correctness. We still fire-and-
  * forget (no await at call sites) to keep the UI non-blocking.
- * Returns a Promise<boolean> so callers can detect failures if needed.
+ * Returns a Promise<boolean> reporting whether the write actually landed —
+ * the main process reports failure in its result rather than by rejecting.
  */
 const saveProjectsToDisk = (projects: Project[]): Promise<boolean> => {
     if (!window.electronAPI) return Promise.resolve(false)
+    if (_loadFailed) {
+        console.error('[store] Refusing to write projects: the last read failed, so in-memory state is not authoritative.')
+        return Promise.resolve(false)
+    }
     return window.electronAPI.writeProjectsFile(projects.map(sanitizeProjectForPersistence))
-        .then(() => true)
+        .then((result: { ok: boolean; error?: string } | boolean | undefined) => {
+            // A resolved promise is not success: the handler returns { ok: false }
+            // when the write threw. Treating resolution as success is how save
+            // failures went unnoticed.
+            const ok = typeof result === 'object' && result !== null ? result.ok !== false : result !== false
+            if (!ok) {
+                const detail = typeof result === 'object' && result?.error ? ` (${result.error})` : ''
+                console.error(`[store] Project write reported failure${detail}`)
+                toast.error('Failed to save — your changes were not written to disk.', { duration: 8000 })
+            }
+            return ok
+        })
         .catch((error: unknown) => {
             console.error('Failed to persist projects to SQLite:', error)
-            toast.error('Failed to save — your changes may not have been written to disk.')
+            toast.error('Failed to save — your changes may not have been written to disk.', { duration: 8000 })
             return false
         })
 };
@@ -75,11 +100,16 @@ const saveProjectsToDisk = (projects: Project[]): Promise<boolean> => {
  */
 let _debounceSaveTimer: ReturnType<typeof setTimeout> | null = null
 let _flushListenerRegistered = false
-const debouncedSaveProjectsToDisk = (projects: Project[]): void => {
+/**
+ * The `projects` argument is deliberately ignored: it is a snapshot from when the
+ * call was made, and any granular write that lands inside the debounce window
+ * would be overwritten by it. Read the live state when the timer fires instead.
+ */
+const debouncedSaveProjectsToDisk = (_projects?: Project[]): void => {
     if (_debounceSaveTimer !== null) clearTimeout(_debounceSaveTimer)
     _debounceSaveTimer = setTimeout(() => {
         _debounceSaveTimer = null
-        saveProjectsToDisk(projects)
+        saveProjectsToDisk(useProjectStore.getState().projects)
     }, 300)
 }
 
@@ -450,6 +480,7 @@ export interface ProjectState {
     addProject: (name: string, color: string) => Promise<void>
     updateProject: (id: string, updates: Partial<Omit<Project, 'id'>>) => Promise<void>
     deleteProject: (id: string) => Promise<void>
+    purgeAllProjects: () => Promise<{ ok: boolean; deleted: number }>
     importProject: (project: Project) => Promise<void>
     seedDemoProject: () => Promise<void>
     appendAiCopilotHistoryEntry: (projectId: string, entry: Omit<AiCopilotHistoryEntry, 'id' | 'createdAt'>) => Promise<void>
@@ -609,8 +640,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
 
         try {
-            const rawProjects = await measureAsync('projectLoadMs', () => window.electronAPI.readProjectsFile())
+            const result = await measureAsync('projectLoadMs', () => window.electronAPI.readProjectsFile())
+
+            // The handler distinguishes "read failed" from "no projects". Older
+            // builds returned a bare array, so accept both shapes.
+            const rawProjects = Array.isArray(result)
+                ? result
+                : result?.ok === true ? result.projects : null
+
+            if (rawProjects === null) {
+                const detail = !Array.isArray(result) && result && result.ok === false ? result.error : 'unknown error'
+                throw new Error(`Project read failed: ${detail}`)
+            }
+
             const projects = (rawProjects || []).map((p: any) => normalizeProject(p))
+            _loadFailed = false
 
             set({
                 projects,
@@ -619,9 +663,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             })
         } catch (e) {
             console.error('Failed to load projects from disk:', e)
+            // Latch read-only. Without this the empty in-memory state gets written
+            // back on the next mutation and the database is pruned to match it.
+            _loadFailed = true
             toast.error(
-                'Could not read your project data. Your data has NOT been deleted. Please check the file at your data path or contact support.',
-                { duration: 10000 }
+                'Could not read your project data. Nothing has been deleted, and saving is disabled until this is resolved. Restart the app, and check the data folder from Settings if it persists.',
+                { duration: 30000 }
             )
             set({ initialized: true })
         }
@@ -712,14 +759,56 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     },
 
     deleteProject: async (id: string) => {
-        const updatedProjects = get().projects.filter(p => p.id !== id)
-        if (window.electronAPI) {
-            saveProjectsToDisk(updatedProjects)
+        // Deletion is explicit: a full write no longer prunes projects it was not
+        // given, so removing one from the array is not enough to delete it.
+        if (window.electronAPI?.deleteProject) {
+            const result = await window.electronAPI.deleteProject(id).catch((error: unknown) => {
+                console.error('[store] deleteProject failed:', error)
+                return { ok: false as const, error: String(error) }
+            })
+            if (!result?.ok) {
+                toast.error('Could not delete the project. Nothing was removed.')
+                return
+            }
         }
+
+        const updatedProjects = get().projects.filter(p => p.id !== id)
         set({
             projects: updatedProjects,
             activeProjectId: get().activeProjectId === id ? (updatedProjects[0]?.id || null) : get().activeProjectId
         })
+    },
+
+    /**
+     * Delete every project. Used by Settings → Purge All Data.
+     *
+     * Previously this wrote an empty array straight to the IPC layer, which both
+     * bypassed the store — leaving every project on screen until a restart, and
+     * liable to be re-persisted by the next autosave — and depended on the full
+     * write pruning by omission, which it no longer does.
+     */
+    purgeAllProjects: async () => {
+        const ids = get().projects.map(p => p.id)
+        let deleted = 0
+        let failed = 0
+
+        for (const id of ids) {
+            const result = await window.electronAPI?.deleteProject?.(id).catch((error: unknown) => {
+                console.error('[store] purge: deleteProject failed:', error)
+                return { ok: false as const }
+            })
+            if (result?.ok) deleted += 1
+            else failed += 1
+        }
+
+        // Only drop from memory what actually left the database, so the UI keeps
+        // showing anything that survived.
+        if (failed === 0) {
+            set({ projects: [], activeProjectId: null })
+        } else {
+            await get().loadProjects()
+        }
+        return { ok: failed === 0, deleted }
     },
 
     importProject: async (project: Project) => {

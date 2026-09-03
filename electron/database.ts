@@ -909,6 +909,18 @@ function hydrateProject(projectRow: ProjectRow): Project {
 
 // ─── Read all projects (full denormalised document, mirrors old JSON shape) ────
 
+/**
+ * Delete one project and everything under it.
+ *
+ * The only way a project is removed from the database. Child rows go with it via
+ * ON DELETE CASCADE. Returns false when the id was not present.
+ */
+export function deleteProject(projectId: string): boolean {
+    const database = getDb()
+    const result = database.prepare('DELETE FROM projects WHERE id = ?').run(projectId)
+    return (result.changes ?? 0) > 0
+}
+
 export function getAllProjects(): Project[] {
     const database = getDb()
 
@@ -1869,19 +1881,16 @@ export function saveAllProjects(projects: any[]): void {
         VALUES (@id, @project_id, @name, @created_at, @updated_at, @high_accuracy_mode, @reference_docs_json, @qa_pairs_json, @eval_runs_json)
     `)
 
-    // Collect all incoming project IDs to prune deleted ones after the upsert
-    const incomingProjectIds = new Set<string>(projects.map((p: any) => p.id))
-    const existingIds = (database.prepare('SELECT id FROM projects').all() as { id: string }[]).map(r => r.id)
-
-    const deleteProjectById = database.prepare('DELETE FROM projects WHERE id = ?')
-
+    /*
+     * Deliberately NOT pruning projects absent from `projects`.
+     *
+     * This used to delete any project the incoming array did not mention, which
+     * made a full write destructive by omission: a renderer whose read had failed,
+     * or whose in-memory cache predated a write by the automation API or cloud
+     * sync, would silently delete real projects. Deletion now goes through
+     * deleteProject() so it can only happen when someone asked for it.
+     */
     const runAll = database.transaction(() => {
-        // Remove projects that are no longer in the array
-        for (const existingId of existingIds) {
-            if (!incomingProjectIds.has(existingId)) {
-                deleteProjectById.run(existingId)
-            }
-        }
 
         for (const proj of projects) {
             const pid = proj.id

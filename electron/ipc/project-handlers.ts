@@ -4,6 +4,7 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
     getAllProjects: () => any
     saveAllProjects: (data: any) => void
     upsertProjectNote: (projectId: string, note: any) => void
+    deleteProject: (projectId: string) => boolean
     deleteProjectNote: (projectId: string, noteId: string) => void
     upsertProjectTask: (projectId: string, task: any) => void
     deleteProjectTask: (projectId: string, taskId: string) => void
@@ -29,10 +30,26 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
     ipcMain.handle('get-app-data-path', () => deps.APP_DATA_DIR);
     ipcMain.handle('read-projects-file', () => {
         try {
-            return deps.getAllProjects();
+            return { ok: true, projects: deps.getAllProjects() };
         } catch (e) {
+            // Never return [] here. An empty array is indistinguishable from a
+            // genuinely empty workspace, and the renderer's next full write would
+            // then prune every project from the database.
             console.error('Error reading projects from SQLite:', e);
-            return [];
+            return { ok: false, error: e instanceof Error ? e.message : String(e) };
+        }
+    });
+    // Explicit project deletion. A full write no longer prunes, so this is the
+    // only path that removes a project.
+    ipcMain.handle('delete-project', (_e: any, { projectId }: any) => {
+        try {
+            deps.assertString(projectId, 'projectId', 200);
+            const deleted = deps.deleteProject(projectId);
+            deps.scheduleCloudStateUpload();
+            return { ok: true, deleted };
+        } catch (e) {
+            console.error('Error deleting project:', e);
+            return { ok: false, error: e instanceof Error ? e.message : String(e) };
         }
     });
     ipcMain.handle('write-projects-file', (_e: any, data: any) => {
@@ -43,11 +60,11 @@ export function registerProjectHandlers(ipcMain: Electron.IpcMain, deps: {
             deps.saveAllProjects(data);
             deps.scheduleCloudStateUpload();
             deps.measureMainMetric('lastFullProjectWriteMs', startedAt);
-            return true;
+            return { ok: true };
         } catch (e) {
             deps.measureMainMetric('lastFullProjectWriteMs', startedAt);
             console.error('Error writing projects to SQLite:', e);
-            return false;
+            return { ok: false, error: e instanceof Error ? e.message : String(e) };
         }
     });
     ipcMain.handle('upsert-project-note', (_e: any, { projectId, note }: any) => {

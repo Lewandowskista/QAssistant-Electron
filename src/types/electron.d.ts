@@ -61,8 +61,9 @@ export interface ElectronAPI {
 
     // Data persistence
     getAppDataPath: () => Promise<string>;
-    readProjectsFile: () => Promise<Project[]>;
-    writeProjectsFile: (data: Project[]) => Promise<{ success: boolean; error?: string }>;
+    readProjectsFile: () => Promise<{ ok: true; projects: Project[] } | { ok: false; error: string }>;
+    writeProjectsFile: (data: Project[]) => Promise<{ ok: boolean; error?: string }>;
+    deleteProject: (projectId: string) => Promise<{ ok: boolean; deleted?: boolean; error?: string }>;
     upsertProjectNote: (projectId: string, note: any) => Promise<boolean>;
     deleteProjectNote: (projectId: string, noteId: string) => Promise<boolean>;
     upsertProjectTask: (projectId: string, task: any) => Promise<boolean>;

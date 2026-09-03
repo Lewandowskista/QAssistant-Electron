@@ -48,6 +48,7 @@ import {
     getArtifactLinkById,
     clearLegacyEnvironmentSecrets,
     upsertProjectNote,
+    deleteProject,
     deleteProjectNote,
     upsertProjectTask,
     deleteProjectTask,
@@ -491,6 +492,7 @@ if (app) {
         registerProjectHandlers(ipcMain, {
             getAllProjects,
             saveAllProjects,
+            deleteProject,
             upsertProjectNote,
             deleteProjectNote,
             upsertProjectTask,

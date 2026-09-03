@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readProjectsFile: () => ipcRenderer.invoke('read-projects-file'),
   writeProjectsFile: (data: any) => ipcRenderer.invoke('write-projects-file', data),
   upsertProjectNote: (projectId: string, note: any) => ipcRenderer.invoke('upsert-project-note', { projectId, note }),
+  deleteProject: (projectId: string) => ipcRenderer.invoke('delete-project', { projectId }),
   deleteProjectNote: (projectId: string, noteId: string) => ipcRenderer.invoke('delete-project-note', { projectId, noteId }),
   upsertProjectTask: (projectId: string, task: any) => ipcRenderer.invoke('upsert-project-task', { projectId, task }),
   deleteProjectTask: (projectId: string, taskId: string) => ipcRenderer.invoke('delete-project-task', { projectId, taskId }),
