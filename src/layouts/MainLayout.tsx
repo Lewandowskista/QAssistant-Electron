@@ -179,6 +179,7 @@ export default function MainLayout() {
   const [isPinned, setIsPinned] = useState(isPinnedStore)
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(false)
   const [railCollapsed, setRailCollapsedState] = useState(() => {
     try { return localStorage.getItem(RAIL_COLLAPSED_KEY) === "true" } catch { return false }
   })
@@ -208,6 +209,7 @@ export default function MainLayout() {
       navigate("/tasks")
     })
     const removeMaxListener = api.onMaximizedStatus?.((status: boolean) => setIsMaximized(status))
+    const removeFullScreenListener = api.onFullScreenStatus?.((status: boolean) => setIsFullScreen(status))
     const removeSettingsListener = api.onOpenSettings?.(() => navigate("/settings"))
     const removeIpcReadyListener = api.onIpcReady?.(() => {
       const { projects: currentProjects } = useProjectStore.getState()
@@ -226,6 +228,7 @@ export default function MainLayout() {
       removePaletteListener?.()
       removeTaskListener?.()
       removeMaxListener?.()
+      removeFullScreenListener?.()
       removeSettingsListener?.()
       removeIpcReadyListener?.()
       window.removeEventListener("open-project-dialog", handleOpenDialog)
@@ -338,8 +341,10 @@ export default function MainLayout() {
       <div className={cn("app-shell flex flex-col selection:bg-primary/20", isMac && !isPerformanceMode && "backdrop-blur-xl")}>
         {/* macOS traffic-light clearance. Sits above BOTH the rail and the
             topbar so their header bands start at the same y and their bottom
-            borders line up. Draggable, since it replaces the window titlebar. */}
-        {isMac ? <div className="app-region-drag h-8 shrink-0" aria-hidden="true" /> : null}
+            borders line up. Draggable, since it replaces the window titlebar.
+            In fullscreen macOS hides the traffic lights, so the strip would be
+            32px of dead space at the top of the screen — omit it. */}
+        {isMac && !isFullScreen ? <div className="app-region-drag h-8 shrink-0" aria-hidden="true" /> : null}
         <div className="flex min-h-0 flex-1">
         <aside
           aria-label="Workspace navigation"

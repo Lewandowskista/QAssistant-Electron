@@ -53,6 +53,7 @@ export interface ElectronAPI {
     maximize: () => void;
     close: () => void;
     onMaximizedStatus: (callback: (status: boolean) => void) => () => void;
+    onFullScreenStatus: (callback: (status: boolean) => void) => () => void;
     
     // Shortcuts / Events
     onCommandPalette: (callback: () => void) => () => void;

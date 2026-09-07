@@ -278,10 +278,23 @@ if (app) {
                 measureMainMetric('windowReadyToShowMs', windowCreateStartedAt);
                 mainWindow.show();
                 mainWindow.webContents.send('window-maximized-status', mainWindow.isMaximized());
+                mainWindow.webContents.send('window-fullscreen-status', mainWindow.isFullScreen());
                 mainWindow.webContents.send(getAppUpdateEventChannel(), getAppUpdateState());
                 startDeferredServices();
             }
         });
+
+        // Window-state changes after launch. The renderer draws its own titlebar,
+        // so it has to know when macOS hides the traffic lights (fullscreen) and
+        // whether to show a maximize or restore glyph. Previously both were sent
+        // once at ready-to-show and never again, so the UI went stale on the first
+        // transition.
+        const sendMaximized = () => mainWindow?.webContents.send('window-maximized-status', mainWindow.isMaximized());
+        const sendFullScreen = () => mainWindow?.webContents.send('window-fullscreen-status', mainWindow.isFullScreen());
+        mainWindow.on('maximize', sendMaximized);
+        mainWindow.on('unmaximize', sendMaximized);
+        mainWindow.on('enter-full-screen', sendFullScreen);
+        mainWindow.on('leave-full-screen', sendFullScreen);
 
         // Auto-sync on focus: pull remote changes whenever the user brings the app to the foreground
         mainWindow.on('focus', () => {
