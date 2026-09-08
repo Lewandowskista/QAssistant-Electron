@@ -6,6 +6,7 @@ import {
     ExternalLink,
     Loader2,
     MessageSquare,
+    MoreHorizontal,
     Tag,
     Target,
     Trash2,
@@ -15,6 +16,13 @@ import {
 import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import FormattedText from "@/components/FormattedText"
@@ -196,43 +204,69 @@ export function TaskDetailsSidebar({
 
     return (
         <InspectorDrawer>
-            <div className="space-y-4 border-b border-ui p-5">
+            {/*
+              Header is deliberately dense. The previous version stacked a title,
+              a padded card with a 2-column meta grid, and a three-button footer,
+              which together took more than half the drawer and left the tabbed
+              content — the part a tester actually reads — a short strip. Meta is
+              now one wrapping line, secondary actions live in a menu, and the
+              tabs get the remaining height.
+            */}
+            <div className="space-y-3 border-b border-ui px-5 pb-3 pt-4">
                 <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
+                    <div className="min-w-0 space-y-0.5">
                         <p className="app-section-label">{selectedTask.sourceIssueId || selectedTask.externalId || "MANUAL TASK"}</p>
-                        <h2 className="text-lg font-semibold leading-tight text-foreground">{selectedTask.title}</h2>
+                        <h2 className="text-base font-semibold leading-snug text-foreground">{selectedTask.title}</h2>
                     </div>
-                    <Button aria-label="Close task details" variant="ghost" size="icon" className="h-8 w-8 text-muted-ui hover:text-foreground" onClick={onClose}>
-                        <X className="h-4 w-4" />
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button aria-label="More task actions" variant="ghost" size="icon" className="h-8 w-8 text-muted-ui hover:text-foreground">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                                <DropdownMenuItem onSelect={() => onGenerateBugReport()}>
+                                    <Target className="mr-2 h-3.5 w-3.5" /> Generate bug report
+                                </DropdownMenuItem>
+                                {selectedTask.source !== "manual" && selectedTask.ticketUrl ? (
+                                    <DropdownMenuItem onSelect={() => api.openUrl(selectedTask.ticketUrl)}>
+                                        <ExternalLink className="mr-2 h-3.5 w-3.5" /> Open source ticket
+                                    </DropdownMenuItem>
+                                ) : null}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => onDelete()} className="text-state-danger focus:text-state-danger">
+                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete task
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button aria-label="Close task details" variant="ghost" size="icon" className="h-8 w-8 text-muted-ui hover:text-foreground" onClick={onClose}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
 
-                <div className="space-y-3 rounded-2xl border border-ui bg-background p-4">
-                    <div className="flex flex-wrap gap-2">
-                        <TaskStateBadge label={statusLabel} tone="neutral" />
-                        <TaskStateBadge label={collabStateLabel(selectedTask.collabState)} tone={collabStateTone(selectedTask.collabState)} />
-                        {taskView?.handoffState === "incomplete" ? <TaskStateBadge label={`Need ${taskView.handoffMissingFields[0] || "evidence"}`} tone={handoffStateTone(taskView.handoffState)} /> : null}
-                        {taskView && taskView.dueState !== "none" && taskView.dueLabel ? <TaskStateBadge label={taskView.dueLabel} tone={dueStateTone(taskView.dueState)} /> : null}
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-xs text-soft">
-                        <div>
-                            <span className="text-muted-ui">Assignee</span>
-                            <p className="mt-1 text-foreground">{selectedTask.assignee || "Unassigned"}</p>
-                        </div>
-                        <div>
-                            <span className="text-muted-ui">Due date</span>
-                            <p className="mt-1 text-foreground">{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"}</p>
-                        </div>
-                        <div>
-                            <span className="text-muted-ui">Components</span>
-                            <p className="mt-1 text-foreground">{selectedTask.components?.join(", ") || "No components"}</p>
-                        </div>
-                        <div>
-                            <span className="text-muted-ui">Handoff</span>
-                            <p className="mt-1 text-foreground">{activeHandoff ? (activeHandoff.isComplete ? "Complete" : "Needs fields") : "No handoff"}</p>
-                        </div>
-                    </div>
-                    {workflowSummary ? <p className="text-sm text-foreground">{workflowSummary.nextAction}</p> : null}
+                {/* One wrapping line: state badges, then the facts a tester scans for. */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-soft">
+                    <TaskStateBadge label={statusLabel} tone="neutral" />
+                    <TaskStateBadge label={collabStateLabel(selectedTask.collabState)} tone={collabStateTone(selectedTask.collabState)} />
+                    {taskView?.handoffState === "incomplete" ? <TaskStateBadge label={`Need ${taskView.handoffMissingFields[0] || "evidence"}`} tone={handoffStateTone(taskView.handoffState)} /> : null}
+                    {activeHandoff?.isComplete && taskView ? <TaskStateBadge label="Handoff complete" tone={handoffStateTone(taskView.handoffState)} /> : null}
+                    {taskView && taskView.dueState !== "none" && taskView.dueLabel ? <TaskStateBadge label={taskView.dueLabel} tone={dueStateTone(taskView.dueState)} /> : null}
+                    <span className="inline-flex items-center gap-1"><User className="h-3 w-3 text-muted-ui" aria-hidden="true" />{selectedTask.assignee || "Unassigned"}</span>
+                    <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3 text-muted-ui" aria-hidden="true" />{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"}</span>
+                    {selectedTask.components?.length ? (
+                        <span className="inline-flex items-center gap-1"><Tag className="h-3 w-3 text-muted-ui" aria-hidden="true" />{selectedTask.components.join(", ")}</span>
+                    ) : null}
+                </div>
+
+                {/* Primary action sits beside the "what next" hint it usually answers. */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <Button size="sm" className="h-8 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => onAnalyze(selectedTask)} disabled={isAnalyzing}>
+                        {isAnalyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ActivityIcon className="h-3.5 w-3.5" />}
+                        {isAnalyzing ? "Analyzing…" : "Analyze Issue"}
+                    </Button>
+                    {workflowSummary ? <p className="min-w-0 text-xs text-soft">{workflowSummary.nextAction}</p> : null}
                 </div>
             </div>
 
@@ -421,23 +455,6 @@ export function TaskDetailsSidebar({
                 </div>
             </Tabs>
 
-            <div className="space-y-2 border-t border-ui bg-background p-5">
-                <Button className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => onAnalyze(selectedTask)} disabled={isAnalyzing}>
-                    {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ActivityIcon className="h-4 w-4" />}
-                    {isAnalyzing ? "Analyzing…" : "Analyze Issue"}
-                </Button>
-                <Button className="w-full gap-1.5 border border-state-success-border bg-state-success-soft text-[11px] font-bold text-state-success" onClick={onGenerateBugReport}>
-                    <Target className="h-3.5 w-3.5" /> Generate Bug Report
-                </Button>
-                {selectedTask.source !== "manual" && selectedTask.ticketUrl && (
-                    <Button className="w-full gap-1.5 border border-primary/20 bg-primary/10 text-[11px] font-bold text-primary" onClick={() => api.openUrl(selectedTask.ticketUrl)}>
-                        <ExternalLink className="h-3.5 w-3.5" /> Open Source Ticket
-                    </Button>
-                )}
-                <Button className="w-full gap-1.5 border border-state-danger-border bg-state-danger-soft text-[11px] font-bold text-state-danger" onClick={onDelete}>
-                    <Trash2 className="h-3.5 w-3.5" /> Delete Task
-                </Button>
-            </div>
         </InspectorDrawer>
     )
 }
