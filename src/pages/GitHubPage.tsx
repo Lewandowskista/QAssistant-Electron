@@ -13,6 +13,7 @@ import { cn, formatTimeAgo } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { PrAnalysisCard } from '@/components/github/PrAnalysisCard'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { RepoSelector } from '@/components/github/RepoSelector'
 import { CheckStatusIcon, mergeableLabel, ReviewSummaryBadges } from '@/components/github/StatusBadges'
 import { SubtabBar } from '@/components/ui/subtab-bar'
@@ -560,42 +561,38 @@ function GitHubContent() {
                         <div className="p-4 space-y-1">
                             {/* Branch selector */}
                             {branches.length > 0 && (
-                                <div className="relative mb-3">
-                                    <button
-                                        onClick={() => setBranchDropdownOpen(prev => !prev)}
-                                        className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-ui bg-panel hover:bg-elevated transition-colors text-xs font-semibold text-foreground w-full"
-                                    >
-                                        <GitBranch className="h-3.5 w-3.5 text-brand shrink-0" />
-                                        <span className="flex-1 text-left font-mono truncate">{selectedBranch ?? selectedRepo.defaultBranch}</span>
-                                        <ChevronDown className="h-3 w-3 text-muted-ui shrink-0" />
-                                    </button>
-                                    {branchDropdownOpen && (
-                                        <>
-                                            <div className="fixed inset-0 z-layer-sticky" onClick={() => setBranchDropdownOpen(false)} />
-                                            <div className="absolute left-0 top-full mt-1 z-50 w-full max-h-60 overflow-y-auto bg-panel-muted border border-ui rounded-lg shadow-xl custom-scrollbar">
-                                                {branches.map(branch => (
-                                                    <button
-                                                        key={branch.name}
-                                                        onClick={() => {
-                                                            setSelectedBranch(branch.name)
-                                                            setBranchDropdownOpen(false)
-                                                            if (selectedRepo) loadRepoData(selectedRepo, true, branch.name)
-                                                        }}
-                                                        className={cn(
-                                                            "w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-elevated transition-colors text-left",
-                                                            selectedBranch === branch.name && "bg-selected"
-                                                        )}
-                                                    >
-                                                        <GitBranch className="h-3 w-3 text-muted-ui shrink-0" />
-                                                        <span className="font-mono text-foreground truncate flex-1">{branch.name}</span>
-                                                        {branch.name === selectedRepo.defaultBranch && (
-                                                            <span className="text-[11px] text-muted-ui bg-elevated px-1.5 rounded">default</span>
-                                                        )}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </>
-                                    )}
+                                <div className="mb-3">
+                                    <DropdownMenu open={branchDropdownOpen} onOpenChange={setBranchDropdownOpen}>
+                                        <DropdownMenuTrigger asChild>
+                                            <button
+                                                type="button"
+                                                aria-label="Select branch"
+                                                className="flex w-full items-center gap-2 rounded-md border border-ui bg-panel px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-elevated"
+                                            >
+                                                <GitBranch className="h-3.5 w-3.5 shrink-0 text-brand" />
+                                                <span className="flex-1 truncate text-left font-mono">{selectedBranch ?? selectedRepo.defaultBranch}</span>
+                                                <ChevronDown className="h-3 w-3 shrink-0 text-muted-ui" />
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="start" className="max-h-60 w-[--radix-dropdown-menu-trigger-width] overflow-y-auto custom-scrollbar">
+                                            {branches.map(branch => (
+                                                <DropdownMenuItem
+                                                    key={branch.name}
+                                                    onSelect={() => {
+                                                        setSelectedBranch(branch.name)
+                                                        if (selectedRepo) loadRepoData(selectedRepo, true, branch.name)
+                                                    }}
+                                                    className={cn("gap-2 text-xs", selectedBranch === branch.name && "bg-selected")}
+                                                >
+                                                    <GitBranch className="h-3 w-3 shrink-0 text-muted-ui" />
+                                                    <span className="flex-1 truncate font-mono text-foreground">{branch.name}</span>
+                                                    {branch.name === selectedRepo.defaultBranch && (
+                                                        <span className="rounded bg-elevated px-1.5 text-[11px] text-muted-ui">default</span>
+                                                    )}
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             )}
                             {commits.length === 0 ? (

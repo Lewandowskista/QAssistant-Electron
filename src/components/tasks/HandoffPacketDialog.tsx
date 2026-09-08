@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -179,7 +179,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[760px] bg-panel border-ui text-foreground">
+            <DialogContent size="lg">
                 <DialogHeader>
                     <DialogTitle>{handoff ? 'Edit Handoff Packet' : 'Create Handoff Packet'}</DialogTitle>
                     <DialogDescription className="text-muted-ui">
@@ -187,6 +187,7 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                     </DialogDescription>
                 </DialogHeader>
 
+                <DialogBody className="space-y-4 py-4">
                 {!handoff && (
                     <div className="rounded-lg border border-ui bg-app p-3 flex items-center gap-3">
                         <span className="text-[11px] font-black text-muted-ui uppercase tracking-widest shrink-0">Template</span>
@@ -326,8 +327,9 @@ export function HandoffPacketDialog({ open, onOpenChange, activeProject, task, h
                         ))}
                     </div>
                 </div>
+                </DialogBody>
 
-                <DialogFooter>
+                <DialogFooter className="border-t border-ui pt-4">
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                     <Button onClick={handleSave} disabled={isSaving} className="bg-primary text-primary-foreground hover:bg-[hsl(var(--accent-primary-strong))]">
                         {isSaving ? 'Saving…' : 'Save Packet'}

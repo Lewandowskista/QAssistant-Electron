@@ -35,7 +35,8 @@ import { SyncStatusIndicator } from "@/components/sync/SyncStatusIndicator"
 import { cn } from "@/lib/utils"
 import { recordRendererMetric } from "@/lib/perf"
 import { Z } from "@/lib/constants"
-import { PRIMARY_ITEMS, UTILITY_ITEMS, isItemActive, matchesRole } from "@/lib/navigation"
+import { overlayOwnsKeyboard } from "@/lib/overlays"
+import { SETTINGS_ITEM, isItemActive, resolveNavItem, visibleGroups } from "@/lib/navigation"
 import { Project, useProjectStore } from "@/store/useProjectStore"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { useSyncStore } from "@/store/useSyncStore"
@@ -295,7 +296,15 @@ export default function MainLayout() {
       if (isCtrl && event.key === "k") {
         event.preventDefault()
         setPaletteOpen((prev) => !prev)
-      } else if (isCtrl && event.key === "n") {
+        return
+      }
+
+      // Everything below navigates away. Doing that from under an open modal
+      // discards whatever the user was filling in, with the modal left stranded
+      // over an unrelated page — so a layer on top blocks these.
+      if (overlayOwnsKeyboard()) return
+
+      if (isCtrl && event.key === "n") {
         event.preventDefault()
         const { projects: currentProjects, activeProjectId: currentActiveProjectId } = useProjectStore.getState()
         if (currentProjects.length > 0 && !currentActiveProjectId) setActiveProject(currentProjects[0].id)
@@ -312,8 +321,10 @@ export default function MainLayout() {
       }
     }
 
-    window.addEventListener("keydown", handleGlobalKey)
-    return () => window.removeEventListener("keydown", handleGlobalKey)
+    // Capture phase so the layer check sees the stack as it was when the key
+    // was pressed — see the note on the task board's Escape handler.
+    window.addEventListener("keydown", handleGlobalKey, true)
+    return () => window.removeEventListener("keydown", handleGlobalKey, true)
   }, [activeRole, navigate, setActiveProject])
 
   const handlePinToggle = async () => {
@@ -323,12 +334,8 @@ export default function MainLayout() {
     await saveSettings({ alwaysOnTop: next })
   }
 
-  const filteredPrimaryItems = PRIMARY_ITEMS.filter((item) => matchesRole(item, activeRole))
-  const filteredUtilityItems = UTILITY_ITEMS.filter((item) => matchesRole(item, activeRole))
-
-  const activeNavItem = [...PRIMARY_ITEMS, ...UTILITY_ITEMS]
-    .filter((item) => matchesRole(item, activeRole))
-    .find((item) => isItemActive(location.pathname, item.href))
+  const navGroups = useMemo(() => visibleGroups(activeRole), [activeRole])
+  const activeNavItem = resolveNavItem(location.pathname, activeRole)
 
   return (
     <>
@@ -472,43 +479,34 @@ export default function MainLayout() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-            <div className="workspace-rail-section">
-              {!railCollapsed ? <div className="workspace-rail-heading">Work</div> : null}
-              <div className="space-y-0">
-                {filteredPrimaryItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    data-active={isItemActive(location.pathname, item.href)}
-                    className={cn("workspace-rail-item", railCollapsed && "justify-center px-0")}
-                    aria-label={item.name}
-                    title={railCollapsed ? item.name : undefined}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    {!railCollapsed ? <span className="truncate">{item.name}</span> : null}
-                  </Link>
-                ))}
+            {navGroups.map((group, index) => (
+              <div
+                key={group.id}
+                className={cn(
+                  "workspace-rail-section",
+                  // Collapsed to icons the headings are gone, so a hairline is the
+                  // only thing left telling one group from the next.
+                  railCollapsed && index > 0 && "border-t app-divider"
+                )}
+              >
+                {!railCollapsed ? <div className="workspace-rail-heading">{group.label}</div> : null}
+                <div className="space-y-0">
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.href}
+                      to={item.href}
+                      data-active={isItemActive(location.pathname, item.href)}
+                      className={cn("workspace-rail-item", railCollapsed && "justify-center px-0")}
+                      aria-label={item.name}
+                      title={railCollapsed ? item.name : undefined}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      {!railCollapsed ? <span className="truncate">{item.name}</span> : null}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
-
-            <div className="workspace-rail-section">
-              {!railCollapsed ? <div className="workspace-rail-heading">Utilities</div> : null}
-              <div className="space-y-0">
-                {filteredUtilityItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    data-active={isItemActive(location.pathname, item.href)}
-                    className={cn("workspace-rail-item", railCollapsed && "justify-center px-0")}
-                    aria-label={item.name}
-                    title={railCollapsed ? item.name : undefined}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    {!railCollapsed ? <span className="truncate">{item.name}</span> : null}
-                  </Link>
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
 
           <div className="workspace-rail-section border-t app-divider">
@@ -516,14 +514,14 @@ export default function MainLayout() {
               <SyncStatusIndicator collapsed={railCollapsed} />
 
               <Link
-                to="/settings"
-                data-active={location.pathname.startsWith("/settings")}
+                to={SETTINGS_ITEM.href}
+                data-active={location.pathname.startsWith(SETTINGS_ITEM.href)}
                 className={cn("workspace-rail-item w-full", railCollapsed && "justify-center px-0")}
-                aria-label="Settings"
-                title={railCollapsed ? "Settings" : undefined}
+                aria-label={SETTINGS_ITEM.name}
+                title={railCollapsed ? SETTINGS_ITEM.name : undefined}
               >
-                <Settings className="h-4 w-4 shrink-0" />
-                {!railCollapsed ? <span className="truncate">Settings</span> : null}
+                <SETTINGS_ITEM.icon className="h-4 w-4 shrink-0" />
+                {!railCollapsed ? <span className="truncate">{SETTINGS_ITEM.name}</span> : null}
               </Link>
 
               <button
@@ -565,19 +563,24 @@ export default function MainLayout() {
                   <ChevronRight className="h-4 w-4" />
                 </button>
               ) : null}
-              {activeNavItem ? (
-                <div className="flex min-w-0 items-center gap-3">
+              {/* The workspace's only page title. Pages used to repeat it (and
+                  their icon) in a second band right underneath; now this is the
+                  h1 and the bar below carries actions only. */}
+              <div className="flex min-w-0 items-center gap-3">
+                {activeNavItem ? (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-ui bg-panel-muted">
-                    <activeNavItem.icon className="h-4 w-4 text-primary" />
+                    <activeNavItem.icon className="h-4 w-4 text-primary" aria-hidden="true" />
                   </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-foreground">{activeNavItem.name}</div>
-                    <div className="app-helper-text truncate">
-                      {activeProject?.name ?? "Select a project to start working"}
-                    </div>
+                ) : null}
+                <div className="min-w-0">
+                  <h1 className="truncate text-sm font-semibold text-foreground">
+                    {activeNavItem?.name ?? "QAssistant"}
+                  </h1>
+                  <div className="app-helper-text truncate">
+                    {activeProject?.name ?? "Select a project to start working"}
                   </div>
                 </div>
-              ) : null}
+              </div>
             </div>
 
             <div className="app-region-no-drag flex shrink-0 items-center gap-1">

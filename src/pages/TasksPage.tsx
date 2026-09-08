@@ -18,8 +18,8 @@ import { Plus } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { ActionToolbar, CompactPageHeader, InlineStatusSummary, PageScaffold, SurfaceBlock } from "@/components/ui/workspace"
-import { cn } from "@/lib/utils"
+import { FullBleedHeader, InlineStatusSummary, SurfaceBlock } from "@/components/ui/workspace"
+import { SegmentedControl } from "@/components/ui/segmented-control"
 import { getConnectionApiKey } from "@/lib/credentials"
 import { sanitizeProjectForQaAi, sanitizeTaskForQaAi } from "@/lib/aiUtils"
 import { aiAnalyzeIssue } from "@/lib/aiClient"
@@ -39,6 +39,7 @@ import {
     sortTaskViewModels
 } from "@/lib/tasks"
 import { useLinearAutoSync } from "@/hooks/useLinearAutoSync"
+import { overlayOwnsKeyboard } from "@/lib/overlays"
 import { SkeletonList } from "@/components/ui/skeleton"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { TaskFilterBar } from "@/components/tasks/TaskFilterBar"
@@ -239,14 +240,28 @@ export default function TasksPage() {
                 event.preventDefault()
                 setIsShortcutModalOpen((value) => !value)
             }
-            if (event.key === "Escape") {
-                if (isShortcutModalOpen) setIsShortcutModalOpen(false)
-                else setDetailsId(null)
+            /*
+             * Escape peels exactly one layer. Dismissing the New Task modal used to
+             * ALSO deselect the task behind it — the inspector vanished for no
+             * visible reason — because this window listener fires for the same
+             * keypress the dialog is handling. A live layer owns the Escape; the
+             * board only takes the ones that reach it with nothing on top.
+             */
+            if (event.key === "Escape" && !overlayOwnsKeyboard()) {
+                setDetailsId(null)
             }
         }
-        window.addEventListener("keydown", handleKeyDown)
-        return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [isShortcutModalOpen])
+        /*
+         * Capture phase, deliberately. Radix closes on a document-level listener
+         * and React flushes that state change synchronously for a discrete event,
+         * so by the time a bubble-phase listener here runs the dialog is already
+         * marked closed and would look like "nothing on top". Capture on `window`
+         * runs before any document listener, i.e. while the layer stack still
+         * reflects what the user was actually looking at when they pressed the key.
+         */
+        window.addEventListener("keydown", handleKeyDown, true)
+        return () => window.removeEventListener("keydown", handleKeyDown, true)
+    }, [])
 
     const effectiveSource = filters.source === "all" ? sourceMode : filters.source
     const taskViewModels = useMemo(() => activeProject ? deriveTaskViewModels(activeProject) : [], [activeProject])
@@ -627,44 +642,37 @@ export default function TasksPage() {
             : false
 
     return (
-        <PageScaffold className="flex h-full max-w-none flex-col overflow-hidden pb-0 animate-in fade-in duration-500">
-            <CompactPageHeader
-                eyebrow="Delivery board"
+        <div className="flex h-full min-h-0 flex-col overflow-hidden animate-in fade-in duration-500">
+            <FullBleedHeader
                 title="Tasks"
-                description="Keep triage, active work, and release-ready issues in one calmer workspace."
                 summary={<InlineStatusSummary items={boardStatusText.split(" | ")} />}
+                status={
+                    <SegmentedControl
+                        value={sourceMode}
+                        onChange={(mode) => {
+                            const next = mode as typeof sourceMode
+                            setSourceMode(next)
+                            setFilters((current) => ({ ...current, source: next }))
+                        }}
+                        options={[
+                            { value: "manual", label: "Manual" },
+                            { value: "linear", label: "Linear" },
+                            { value: "jira", label: "Jira" },
+                        ]}
+                    />
+                }
                 actions={
-                    <ActionToolbar className="border-0 bg-transparent p-0 shadow-none">
-                        <div className="flex rounded-lg border border-ui bg-panel-muted p-1">
-                            {(["manual", "linear", "jira"] as const).map((mode) => (
-                                <Button
-                                    key={mode}
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                        setSourceMode(mode)
-                                        setFilters((current) => ({ ...current, source: mode }))
-                                    }}
-                                    className={cn(
-                                        "h-8 px-3 text-[11px] font-medium",
-                                        sourceMode === mode ? "bg-background text-foreground" : "text-muted-ui hover:text-foreground"
-                                    )}
-                                >
-                                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                                </Button>
-                            ))}
-                        </div>
-                        <Button
-                            onClick={() => {
-                                setNewTaskStatus(currentColumns[0]?.id || "todo")
-                                setIsNewTaskModalOpen(true)
-                            }}
-                            disabled={!activeProjectId}
-                            className="h-9 gap-2"
-                        >
-                            <Plus className="h-3.5 w-3.5" /> New Task
-                        </Button>
-                    </ActionToolbar>
+                    <Button
+                        onClick={() => {
+                            setNewTaskStatus(currentColumns[0]?.id || "todo")
+                            setIsNewTaskModalOpen(true)
+                        }}
+                        disabled={!activeProjectId}
+                        size="sm"
+                        className="gap-2"
+                    >
+                        <Plus className="h-3.5 w-3.5" /> New Task
+                    </Button>
                 }
             />
 
@@ -706,7 +714,9 @@ export default function TasksPage() {
                 onOpenShortcuts={() => setIsShortcutModalOpen(true)}
             />
 
-            <div className="flex min-h-0 flex-1">
+            {/* `relative` is the positioning context the inspector floats in when
+                the window is too narrow to seat it beside the board. */}
+            <div className="relative flex min-h-0 flex-1">
                 <div className="flex-1 overflow-hidden">
                     <div className="flex h-full min-h-0 flex-col p-4">
                         <div className="min-h-0 flex-1">
@@ -854,7 +864,7 @@ export default function TasksPage() {
             </Suspense>
 
             <Dialog open={isShortcutModalOpen} onOpenChange={setIsShortcutModalOpen}>
-                <DialogContent className="w-[380px] max-w-[380px]">
+                <DialogContent size="sm">
                     <DialogHeader>
                         <DialogTitle className="text-sm font-bold uppercase tracking-widest text-foreground">
                             Keyboard Shortcuts
@@ -872,6 +882,6 @@ export default function TasksPage() {
                     </div>
                 </DialogContent>
             </Dialog>
-        </PageScaffold>
+        </div>
     )
 }

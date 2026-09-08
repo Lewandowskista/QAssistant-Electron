@@ -9,11 +9,10 @@ import {
     Moon,
     Plus,
     Search,
-    Settings,
     Sun,
 } from "lucide-react"
 
-import { PRIMARY_ITEMS, UTILITY_ITEMS, matchesRole } from "@/lib/navigation"
+import { SETTINGS_ITEM, visibleGroups } from "@/lib/navigation"
 import { useTheme } from "@/hooks/useTheme"
 import { useProjectStore } from "@/store/useProjectStore"
 import { useUserStore } from "@/store/useUserStore"
@@ -44,10 +43,9 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
 
     const activeRole = (useUserStore((state) => state.profile?.activeRole) ?? "qa") as "qa" | "dev"
 
-    const navItems = useMemo(
-        () => [...PRIMARY_ITEMS, ...UTILITY_ITEMS].filter((item) => matchesRole(item, activeRole)),
-        [activeRole]
-    )
+    // Grouped exactly as the rail groups them, so searching and browsing teach
+    // the same map of the app.
+    const navGroups = useMemo(() => visibleGroups(activeRole), [activeRole])
 
     const run = (action: () => void) => {
         onOpenChange(false)
@@ -64,8 +62,8 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
             open={open}
             onOpenChange={onOpenChange}
             label="Command palette"
-            className="fixed left-1/2 top-[15vh] z-layer-dialog w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-ui bg-[hsl(var(--surface-overlay))] shadow-2xl"
-            overlayClassName="fixed inset-0 z-layer-overlay bg-black/60 backdrop-blur-sm"
+            className="app-modal-surface fixed left-1/2 top-[15vh] z-layer-dialog w-[calc(100vw-3rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-[1.4rem] border shadow-2xl"
+            overlayClassName="app-scrim"
         >
             <div className="flex items-center gap-3 border-b border-ui px-4">
                 <Search className="h-4 w-4 shrink-0 text-muted-ui" aria-hidden="true" />
@@ -82,16 +80,21 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                     No results. Try a page name like “Files” or an action like “New task”.
                 </Command.Empty>
 
-                <Command.Group heading="Go to" className={groupClass}>
-                    {navItems.map((item) => (
-                        <Command.Item key={item.href} value={`go to ${item.name}`} onSelect={() => run(() => navigate(item.href))} className={itemClass}>
-                            <item.icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                            <span>{item.name}</span>
-                        </Command.Item>
-                    ))}
-                    <Command.Item value="go to Settings" onSelect={() => run(() => navigate("/settings"))} className={itemClass}>
-                        <Settings className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                        <span>Settings</span>
+                {navGroups.map((group) => (
+                    <Command.Group key={group.id} heading={group.label} className={groupClass}>
+                        {group.items.map((item) => (
+                            <Command.Item key={item.href} value={`${group.label} ${item.name}`} onSelect={() => run(() => navigate(item.href))} className={itemClass}>
+                                <item.icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                                <span>{item.name}</span>
+                            </Command.Item>
+                        ))}
+                    </Command.Group>
+                ))}
+
+                <Command.Group heading="Workspace settings" className={groupClass}>
+                    <Command.Item value={`go to ${SETTINGS_ITEM.name}`} onSelect={() => run(() => navigate(SETTINGS_ITEM.href))} className={itemClass}>
+                        <SETTINGS_ITEM.icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span>{SETTINGS_ITEM.name}</span>
                     </Command.Item>
                 </Command.Group>
 

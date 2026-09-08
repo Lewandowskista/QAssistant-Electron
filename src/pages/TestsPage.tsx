@@ -33,7 +33,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CompactPageHeader, InlineStatusSummary, PageScaffold } from "@/components/ui/workspace"
+import { FullBleedHeader, InlineStatusSummary } from "@/components/ui/workspace"
 import {
     Select,
     SelectContent,
@@ -558,22 +558,12 @@ export default function TestsPage() {
 
     return (
         <>
-            <PageScaffold className="flex h-full max-w-none flex-col overflow-hidden pb-0 animate-in fade-in duration-500">
-                <CompactPageHeader
-                    eyebrow="QA workflow"
+            <div className="flex h-full min-h-0 flex-col overflow-hidden animate-in fade-in duration-500">
+                <FullBleedHeader
                     title="Tests"
-                    description="Generate, run, review, and package test coverage without jumping between disconnected tools."
                     summary={<InlineStatusSummary items={[`${filteredPlans.length} visible plans`, `${totalCaseCount} cases`, testsNextAction]} />}
                 />
-                <div className="flex-none space-y-3 border-b app-divider bg-[hsl(var(--surface-header)/0.78)] px-6 py-4">
-                    <div className="hidden">
-                        <div className="min-w-[240px]">
-                            <h1 className="text-xl font-semibold tracking-tight text-foreground">Tests</h1>
-                            <p className="mt-1 text-xs text-soft">
-                                {filteredPlans.length} visible plans · {totalCaseCount} cases · {testsNextAction}
-                            </p>
-                        </div>
-                    </div>
+                <div className="flex-none border-b app-divider bg-[hsl(var(--surface-header)/0.4)] px-6 py-1.5">
                     <SubtabBar
                         value={activeSubTab}
                         onChange={(value) => setActiveSubTab(value as SubTab)}
@@ -1476,7 +1466,7 @@ export default function TestsPage() {
                         onOpenChange={setImportResultsDialogOpen}
                     />
                 </Suspense>
-            </PageScaffold>
+            </div>
         </>
     )
 }

@@ -271,7 +271,7 @@ export function TaskDetailsSidebar({
             </div>
 
             <Tabs value={activeTab} onValueChange={loadTabContent} variant="underline" className="flex min-h-0 flex-1 flex-col">
-                <div className="overflow-x-auto border-b border-ui custom-scrollbar">
+                <div className="overflow-x-auto border-b border-ui no-scrollbar">
                     <TabsList aria-label="Task details sections">
                         <TabsTrigger value="overview">Overview</TabsTrigger>
                         <TabsTrigger value="collaboration">Collaboration</TabsTrigger>
@@ -284,10 +284,10 @@ export function TaskDetailsSidebar({
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-6 custom-scrollbar">
                     <TabsContent value="overview" className="m-0 space-y-5">
-                        <div className="flex items-center justify-between">
-                            <SectionTitle>Overview</SectionTitle>
-                            <Button variant="outline" className="border-ui text-foreground" onClick={() => setIsEditing((value) => !value)}>
-                                {isEditing ? "Cancel Edit" : "Edit Task"}
+                        {/* No "Overview" heading here — the active tab already says so. */}
+                        <div className="flex items-center justify-end">
+                            <Button size="sm" variant="outline" className="border-ui text-foreground" onClick={() => setIsEditing((value) => !value)}>
+                                {isEditing ? "Cancel edit" : "Edit task"}
                             </Button>
                         </div>
                         {isEditing ? (
@@ -295,7 +295,7 @@ export function TaskDetailsSidebar({
                                 <Input value={String(draft.title || "")} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="border-ui bg-panel-muted text-sm" />
                                 <Textarea value={String(draft.acceptanceCriteria || "")} onChange={(event) => setDraft((current) => ({ ...current, acceptanceCriteria: event.target.value }))} placeholder="Acceptance criteria…" className="min-h-[90px] border-ui bg-panel-muted text-sm" />
                                 <Textarea value={String(draft.description || "")} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Description…" className="min-h-[140px] border-ui bg-panel-muted text-sm" />
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="inspector-grid gap-4">
                                     <select aria-label="Task status" value={String(draft.status || selectedTask.status)} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as TaskStatus }))} className="h-10 rounded-xl border border-ui bg-panel-muted px-3 text-xs text-foreground">
                                         {currentColumns.map((column) => <option key={column.id} value={column.id}>{column.title}</option>)}
                                     </select>
@@ -321,7 +321,7 @@ export function TaskDetailsSidebar({
                                         <FormattedText content={selectedTask.description || "No description yet."} source={selectedTask.source} connectionId={selectedTask.connectionId} projectId={activeProject?.id} />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="inspector-grid gap-3">
                                     <DetailItem icon={User} label="ASSIGNEE" value={selectedTask.assignee || "Unassigned"} />
                                     <DetailItem icon={Calendar} label="DUE DATE" value={selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "No date"} />
                                     <DetailItem icon={Tag} label="LABELS" value={selectedTask.labels || "No labels"} />

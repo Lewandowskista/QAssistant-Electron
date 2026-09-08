@@ -98,16 +98,13 @@ export function SkeletonEditor() {
   )
 }
 
-/** Content page: compact header (eyebrow + title + summary) over stacked panels. */
+/** Content page: page bar (context + actions) over stacked panels. */
 export function SkeletonPage({ panels = 3 }: { panels?: number }) {
   return (
     <div className="page-scaffold animate-in fade-in duration-300">
-      <div className="compact-page-header">
-        <div className="space-y-2">
-          <Skeleton className="h-2.5 w-24 rounded" />
-          <Skeleton className="h-7 w-52 rounded" />
-          <Skeleton className="h-3 w-80 rounded" />
-        </div>
+      <div className="page-bar" data-inline>
+        <Skeleton className="h-3 w-64 rounded" />
+        <div className="flex-1" />
         <Skeleton className="h-9 w-32 rounded-xl" />
       </div>
       <div className="space-y-4">
@@ -127,9 +124,9 @@ export function SkeletonPage({ panels = 3 }: { panels?: number }) {
 export function SkeletonSplitPane() {
   return (
     <div className="flex h-full min-h-0 flex-col animate-in fade-in duration-300">
-      <div className="full-bleed-header">
+      <div className="page-bar">
         <Skeleton className="h-4 w-4 rounded" />
-        <Skeleton className="h-3.5 w-28 rounded" />
+        <Skeleton className="h-3 w-48 rounded" />
         <div className="flex-1" />
         <Skeleton className="h-8 w-28 rounded-xl" />
       </div>

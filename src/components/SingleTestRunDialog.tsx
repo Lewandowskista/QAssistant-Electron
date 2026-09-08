@@ -89,9 +89,9 @@ export default function SingleTestRunDialog({ open, onOpenChange, plan, testCase
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl">
-                <div className="h-2 bg-primary w-full" />
-                <div className="p-8">
+            <DialogContent size="lg" className="p-0">
+                <div className="h-1 w-full shrink-0 bg-primary" />
+                <div className="min-h-0 flex-1 overflow-y-auto p-6 custom-scrollbar">
                     <DialogHeader className="mb-6">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 text-brand mb-2">

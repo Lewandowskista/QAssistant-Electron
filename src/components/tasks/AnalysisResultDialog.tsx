@@ -3,12 +3,13 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogBody,
     DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import FormattedText from "@/components/FormattedText"
 import { Sparkles, Copy, Check } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 
 interface AnalysisResultDialogProps {
@@ -27,13 +28,6 @@ export default function AnalysisResultDialog({
     projectId,
 }: AnalysisResultDialogProps) {
     const [copied, setCopied] = useState(false)
-    const [isMac, setIsMac] = useState(() => navigator.userAgent.toUpperCase().includes('MAC'))
-
-    useEffect(() => {
-        window.electronAPI?.getSystemInfo?.().then((info) => {
-            if (info?.platform) setIsMac(info.platform === 'darwin')
-        })
-    }, [])
 
     const handleCopy = () => {
         if (!result) return
@@ -45,22 +39,22 @@ export default function AnalysisResultDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={`max-w-3xl ${isMac ? 'max-h-[75vh]' : 'max-h-[85vh]'} flex flex-col bg-app border-ui text-primary-foreground`}>
-                <DialogHeader className="flex flex-row items-center justify-between border-b border-ui pb-4 shrink-0">
+            <DialogContent size="xl">
+                <DialogHeader className="flex-row items-center justify-between border-b border-ui pb-4">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-qa-accent to-qa-accent-hover flex items-center justify-center shadow-lg shadow-qa-accent/20">
                             <Sparkles className="h-4 w-4 text-primary-foreground" />
                         </div>
                         <div>
-                            <DialogTitle className="text-lg font-bold">Issue Analysis</DialogTitle>
+                            <DialogTitle>Issue Analysis</DialogTitle>
                             <p className="text-xs text-muted-ui line-clamp-1">{taskTitle}</p>
                         </div>
                     </div>
                 </DialogHeader>
 
-                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar py-6">
+                <DialogBody className="py-6">
                     {result ? (
-                        <div className="prose prose-invert prose-sm max-w-none">
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
                             <FormattedText content={result} projectId={projectId} />
                         </div>
                     ) : (
@@ -68,9 +62,9 @@ export default function AnalysisResultDialog({
                             <p>No analysis result available.</p>
                         </div>
                     )}
-                </div>
+                </DialogBody>
 
-                <DialogFooter className="border-t border-ui pt-4 flex items-center justify-between shrink-0">
+                <DialogFooter className="flex-row items-center justify-between border-t border-ui pt-4">
                     <Button
                         variant="ghost"
                         size="sm"

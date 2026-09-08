@@ -381,7 +381,7 @@ export default function RunbooksPage() {
             </div>
 
             <Dialog open={isPromptOpen} onOpenChange={setIsPromptOpen}>
-                <DialogContent className="border-ui bg-panel sm:max-w-[425px]">
+                <DialogContent size="md">
                     <DialogHeader>
                         <DialogTitle className="text-foreground">{promptTitle}</DialogTitle>
                     </DialogHeader>

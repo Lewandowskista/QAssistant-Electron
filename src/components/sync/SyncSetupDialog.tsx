@@ -183,11 +183,11 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
             <DialogPrimitive.Portal>
                 <DialogPrimitive.Overlay
                     data-radix-dialog-overlay=""
-                    className="fixed inset-0 z-layer-dialog bg-black/60 backdrop-blur-sm"
+                    className="app-scrim"
                 />
                 <DialogPrimitive.Content
                     data-radix-dialog-content=""
-                    className="app-panel fixed left-1/2 top-1/2 z-layer-dialog w-[480px] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto"
+                    className="app-modal-surface fixed left-1/2 top-1/2 z-layer-dialog flex w-[calc(100vw-3rem)] max-w-[34rem] max-h-[min(86vh,56rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[1.4rem] border shadow-2xl shadow-black/30"
                 >
                     <div className="flex items-center gap-3 p-5 pb-4 border-b border-ui">
                         <div className="w-9 h-9 rounded-xl bg-qa-accent/10 flex items-center justify-center shrink-0">
@@ -207,7 +207,7 @@ export function SyncSetupDialog({ open, onClose }: SyncSetupDialogProps) {
                         </DialogPrimitive.Close>
                     </div>
 
-                    <div className="p-5 space-y-5">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
                         {auth.localMode ? (
                             <div className="rounded-xl border border-ui bg-panel p-4 space-y-2">
                                 <p className="text-sm font-semibold text-foreground">Running in local mode</p>

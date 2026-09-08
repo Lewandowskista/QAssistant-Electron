@@ -12,10 +12,17 @@ import {
   GripVertical,
   Minus,
   Microscope,
+  MoreHorizontal,
   Send,
   User,
 } from "lucide-react"
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/store/useProjectStore"
 import type { TaskViewModel } from "@/lib/tasks"
@@ -113,15 +120,37 @@ export const TaskCard = memo(function TaskCard({
   const PriorityIcon = config.icon
   const labels = labelList(task)
   const secondaryState = secondaryTaskState(taskView)
-  const metadataLabels = [...(task.components || []).slice(0, 1), ...labels.slice(0, 1)]
-  const hiddenMetaCount = Math.max((task.components?.length || 0) + labels.length - metadataLabels.length, 0)
+  // Components and labels frequently carry the same word ("orders"), which read
+  // as "orders • orders • +2" on the card. De-duplicate before slicing.
+  const metaTags = [...new Set([...(task.components || []), ...labels])]
+  const metadataLabels = metaTags.slice(0, 2)
+  const hiddenMetaCount = Math.max(metaTags.length - metadataLabels.length, 0)
+
+  /*
+   * A real focusable control, not a bare `div onClick`. The board was
+   * mouse-only: no card could be reached with Tab, so the inspector — the
+   * primary way to read or edit a task — had no keyboard route into it at all.
+   * The drag overlay copy is inert, so it stays out of the tab order.
+   */
+  const interactive = Boolean(onClick) && !isOverlay
 
   return (
     <div
       onClick={onClick}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-pressed={interactive ? isSelected : undefined}
+      onKeyDown={interactive ? (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return
+        // Space scrolls the column otherwise, and both keys would fall through
+        // to the board's own handlers.
+        event.preventDefault()
+        onClick?.()
+      } : undefined}
       className={cn(
         "group relative overflow-hidden rounded-2xl border border-ui bg-panel p-4 shadow-sm transition-[border-color,background-color,box-shadow,transform]",
         "hover:border-ui-strong hover:bg-[hsl(var(--surface-card-alt)/0.92)]",
+        interactive && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         isSelected && "border-primary/40 ring-1 ring-primary/20 bg-[hsl(var(--surface-selected)/0.75)]",
         isOverlay && "scale-[1.02] border-primary/40 shadow-lg opacity-95"
       )}
@@ -139,79 +168,60 @@ export const TaskCard = memo(function TaskCard({
             </span>
           </div>
 
-          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            <button
-              type="button"
-              aria-label="Copy task reference"
-              className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-foreground"
-              onClick={(event) => {
-                event.stopPropagation()
-                onCopyReference?.()
-              }}
-            >
-              <Copy className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              aria-label="Analyze issue"
-              className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-primary"
-              onClick={(event) => {
-                event.stopPropagation()
-                onAnalyze?.()
-              }}
-            >
-              <Microscope className="h-3 w-3" />
-            </button>
-            {task.source !== "manual" && task.ticketUrl ? (
-              <button
-                type="button"
-                aria-label="Open source ticket"
-                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-state-info"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onOpenExternal?.()
-                }}
-              >
-                <ExternalLink className="h-3 w-3" />
-              </button>
-            ) : null}
-            {onCreateHandoff && !taskView?.hasActiveHandoff ? (
-              <button
-                type="button"
-                aria-label="Create handoff"
-                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-primary"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onCreateHandoff()
-                }}
-              >
-                <Send className="h-3 w-3" />
-              </button>
-            ) : null}
-            {taskView?.hasActiveHandoff ? (
-              <button
-                type="button"
-                aria-label="Open handoff"
-                className="rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-primary"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onOpenHandoff?.()
-                }}
-              >
-                <AlertTriangle className="h-3 w-3" />
-              </button>
-            ) : null}
+          {/*
+            One menu, not a row of five. Every card previously grew a strip of
+            up to five bordered icon buttons on hover — copy, analyse, open
+            ticket, handoff, drag — so moving the pointer across a column lit up
+            twenty-five little controls in sequence, none of them labelled. The
+            grab handle stays out (dragging must be direct); the rest are named
+            items behind one affordance.
+          */}
+          <div className="flex items-center gap-1">
             {!dragDisabled && dragHandleProps ? (
               <button
                 type="button"
                 aria-label="Drag task"
-                className="cursor-grab rounded-lg border border-ui bg-background p-1 text-muted-ui hover:text-foreground"
+                className="cursor-grab rounded-lg p-1 text-muted-ui opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
                 onClick={(event) => event.stopPropagation()}
                 {...dragHandleProps}
               >
-                <GripVertical className="h-3 w-3" />
+                <GripVertical className="h-3.5 w-3.5" />
               </button>
             ) : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`Actions for ${task.title}`}
+                  className="rounded-lg p-1 text-muted-ui opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52" onClick={(event) => event.stopPropagation()}>
+                <DropdownMenuItem onSelect={() => onAnalyze?.()}>
+                  <Microscope className="mr-2 h-3.5 w-3.5" /> Analyze issue
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onCopyReference?.()}>
+                  <Copy className="mr-2 h-3.5 w-3.5" /> Copy reference
+                </DropdownMenuItem>
+                {taskView?.hasActiveHandoff ? (
+                  <DropdownMenuItem onSelect={() => onOpenHandoff?.()}>
+                    <AlertTriangle className="mr-2 h-3.5 w-3.5" /> Open handoff
+                  </DropdownMenuItem>
+                ) : onCreateHandoff ? (
+                  <DropdownMenuItem onSelect={() => onCreateHandoff()}>
+                    <Send className="mr-2 h-3.5 w-3.5" /> Create handoff
+                  </DropdownMenuItem>
+                ) : null}
+                {task.source !== "manual" && task.ticketUrl ? (
+                  <DropdownMenuItem onSelect={() => onOpenExternal?.()}>
+                    <ExternalLink className="mr-2 h-3.5 w-3.5" /> Open source ticket
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

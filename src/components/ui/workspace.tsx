@@ -13,70 +13,76 @@ export function PageScaffold({
   return <div className={cn("page-scaffold", className)}>{children}</div>
 }
 
-export function CompactPageHeader({
-  eyebrow,
-  title,
-  description,
-  summary,
-  actions,
-  className,
-}: {
-  eyebrow?: string
-  title: string
-  description?: ReactNode
-  summary?: ReactNode
-  actions?: ReactNode
-  className?: string
-}) {
-  return (
-    <header className={cn("compact-page-header", className)}>
-      <div className="space-y-2">
-        {eyebrow ? <p className="app-section-label">{eyebrow}</p> : null}
-        <div className="space-y-2">
-          <h1 className="compact-page-title">{title}</h1>
-          {description ? <div className="compact-page-description">{description}</div> : null}
-        </div>
-        {summary ? <div className="inline-status-summary">{summary}</div> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-    </header>
-  )
-}
-
-export function FullBleedHeader({
+/**
+ * The one page header.
+ *
+ * The workspace topbar already names the active page and the active project,
+ * on every route. Pages used to name themselves again underneath it — often
+ * with an eyebrow and a sentence of description too — so the task board opened
+ * with "Tasks" written twice, "Delivery board" above it, and three bands of
+ * chrome before a single card. Identity now lives in exactly one place (the
+ * topbar) and this bar carries only what is page-specific: context, live
+ * status, and the page's actions. A page with none of those renders no bar at
+ * all rather than an empty strip.
+ *
+ * `title` is still required so callers read naturally and the bar can name
+ * itself for assistive tech, but it is deliberately not painted a second time.
+ */
+function PageHeader({
   icon: Icon,
   title,
   description,
   status,
+  summary,
   actions,
+  inline,
   className,
 }: {
   icon?: LucideIcon
   title: string
   description?: ReactNode
-  /** Inline status content rendered between the title and the right-aligned actions. */
+  /** Inline status content rendered before the right-aligned actions. */
   status?: ReactNode
+  summary?: ReactNode
   actions?: ReactNode
+  /** Inside a padded PageScaffold, drop the band's own background. */
+  inline?: boolean
   className?: string
 }) {
+  const context = summary ?? description
+  if (!context && !status && !actions) return null
+
   return (
-    <header className={cn("full-bleed-header", className)}>
-      {/* Same 32px icon chip the topbar uses, so this band's title shares a
-          left edge with the topbar's title directly above it. */}
-      {Icon ? (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-ui bg-panel-muted">
-          <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-        </div>
-      ) : null}
-      <div className="flex min-w-0 items-baseline gap-2">
-        <h1 className="full-bleed-header-title truncate">{title}</h1>
-        {description ? <span className="full-bleed-header-eyebrow truncate">{description}</span> : null}
-      </div>
+    <header
+      aria-label={`${title} toolbar`}
+      data-inline={inline || undefined}
+      className={cn("page-bar", className)}
+    >
+      {Icon && !inline ? <Icon className="h-4 w-4 shrink-0 text-muted-ui" aria-hidden="true" /> : null}
+      {context ? <div className="page-bar-context">{context}</div> : null}
       <div className="flex-1" />
-      {status ? <div className="flex items-center gap-2">{status}</div> : null}
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {status ? <div className="flex shrink-0 items-center gap-2">{status}</div> : null}
+      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
   )
+}
+
+type PageHeaderProps = Parameters<typeof PageHeader>[0]
+
+/** Header for a page that owns its own full-height shell. */
+export function FullBleedHeader(props: Omit<PageHeaderProps, "inline">) {
+  return <PageHeader {...props} />
+}
+
+/**
+ * Header for a page rendered inside a padded {@link PageScaffold}. `eyebrow`
+ * is accepted and ignored — it duplicated the topbar's page name.
+ */
+export function CompactPageHeader({
+  eyebrow: _eyebrow,
+  ...props
+}: Omit<PageHeaderProps, "inline"> & { eyebrow?: string }) {
+  return <PageHeader {...props} inline />
 }
 
 export function ActionToolbar({

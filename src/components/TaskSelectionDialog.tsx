@@ -77,7 +77,7 @@ export default function TaskSelectionDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl bg-app border-ui text-foreground">
+            <DialogContent size="lg">
                 <DialogHeader>
                     <DialogTitle className="text-xl font-black text-brand">Select Context Issues</DialogTitle>
                 </DialogHeader>

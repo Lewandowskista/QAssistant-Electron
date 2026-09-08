@@ -55,6 +55,8 @@
     --surface-overlay: 222 26% 7%;
     --surface-elevated: 218 18% 17%;
     --surface-selected: 217 31% 19%;
+    /* Single dimming value behind every modal surface — see .app-scrim. */
+    --scrim: 222 47% 3% / 0.66;
 
     --border-subtle: 218 18% 18%;
     --border-default: 217 19% 24%;
@@ -153,6 +155,7 @@
     --surface-overlay: 210 28% 99%;
     --surface-elevated: 210 22% 94%;
     --surface-selected: 201 100% 95%;
+    --scrim: 222 40% 20% / 0.38;
 
     --border-subtle: 214 24% 90%;
     --border-default: 214 24% 84%;
@@ -301,6 +304,47 @@
 
   .app-titlebar {
     @apply backdrop-blur-xl;
+    background-color: hsl(var(--surface-header) / 0.86);
+    box-shadow: inset 0 -1px 0 hsl(var(--border-default));
+  }
+
+  /*
+   * Overlay layer, shared by every modal surface in the app.
+   *
+   * `.app-scrim` is the single dimming backdrop: one opacity, one blur, one
+   * fade. Modals, drawers and the command palette all use it, so opening any
+   * of them dims the workspace by exactly the same amount and stacking two
+   * never produces a double-dark backdrop from mismatched values.
+   *
+   * `.app-modal-surface` is the shared skin — same ground, border and text
+   * colour whether the modal is a 26rem confirm or a 58rem reader. Dialogs
+   * must NOT re-declare bg/border/text: doing that is what previously let
+   * `text-primary-foreground` (white) leak onto a near-white light-theme
+   * surface and hide a dialog's own title.
+   */
+  .app-scrim {
+    @apply fixed inset-0 z-layer-dialog backdrop-blur-sm;
+    background-color: hsl(var(--scrim));
+  }
+
+  .app-scrim[data-state="open"] {
+    @apply animate-in fade-in-0;
+  }
+
+  .app-scrim[data-state="closed"] {
+    @apply animate-out fade-out-0;
+  }
+
+  .app-modal-surface {
+    background-color: hsl(var(--surface-overlay));
+    border-color: hsl(var(--border-default));
+    color: hsl(var(--text-primary));
+  }
+
+  /* Same h-14 band as .workspace-topbar, so a drawer's title lands on the
+     baseline of the page title it covers. */
+  .drawer-header {
+    @apply flex h-14 shrink-0 items-center gap-3 px-4;
     background-color: hsl(var(--surface-header) / 0.86);
     box-shadow: inset 0 -1px 0 hsl(var(--border-default));
   }
@@ -542,43 +586,31 @@
   }
 
   /*
-   * Sticky title bar for full-bleed pages (those that own their full-height
-   * shell and can't use page-scaffold/compact-page-header). Standardizes the
-   * icon + title + actions row that several pages previously hand-rolled.
+   * The single page bar (see ui/workspace PageHeader). One band height across
+   * every page, so the workspace has exactly two fixed rows of chrome — the
+   * topbar and this — before content starts, whatever route you are on.
+   *
+   * `data-inline` is the variant used inside a padded PageScaffold: same row,
+   * no band background, since it is not flush with the topbar there.
    */
-  .full-bleed-header {
-    @apply flex h-14 shrink-0 items-center gap-3 px-6;
+  .page-bar {
+    @apply flex min-h-[3rem] shrink-0 flex-wrap items-center gap-x-4 gap-y-2 px-6 py-2;
     background-color: hsl(var(--surface-header) / 0.6);
     box-shadow: inset 0 -1px 0 hsl(var(--border-default));
   }
 
-  .full-bleed-header-title {
-    @apply text-sm font-semibold tracking-tight;
-    color: hsl(var(--text-primary));
+  .page-bar[data-inline] {
+    @apply px-0 pt-0;
+    background-color: transparent;
   }
 
-  .full-bleed-header-eyebrow {
-    @apply text-[11px] leading-4;
+  .page-bar-context {
+    @apply min-w-0 truncate text-xs leading-5;
     color: hsl(var(--text-muted));
   }
 
   .page-grid {
     @apply grid gap-4;
-  }
-
-  .compact-page-header {
-    @apply flex flex-col gap-4 border-b pb-4 md:flex-row md:items-end md:justify-between;
-    border-color: hsl(var(--border-default));
-  }
-
-  .compact-page-title {
-    @apply text-[1.75rem] font-semibold tracking-tight text-balance;
-    color: hsl(var(--text-primary));
-  }
-
-  .compact-page-description {
-    @apply max-w-3xl text-sm leading-6;
-    color: hsl(var(--text-muted));
   }
 
   .inline-status-summary {
@@ -596,12 +628,52 @@
     border-color: hsl(var(--border-default));
   }
 
-  .filter-disclosure {
-    @apply rounded-2xl border;
-    background-color: hsl(var(--surface-card) / 0.88);
-    border-color: hsl(var(--border-default));
+  /*
+   * Board toolbar + its facet drawer. Both are flush bands rather than the
+   * floating rounded card the filters used to sit in: a card there read as
+   * page content and pushed the first row of task cards a further 24px down,
+   * on a surface where vertical space is the whole point.
+   */
+  .board-toolbar {
+    @apply flex flex-wrap items-center gap-2 px-6 py-2;
+    background-color: hsl(var(--surface-header) / 0.4);
+    box-shadow: inset 0 -1px 0 hsl(var(--border-default));
   }
 
+  .board-filter-panel {
+    @apply px-6 py-4;
+    background-color: hsl(var(--surface-card-alt) / 0.5);
+    box-shadow: inset 0 -1px 0 hsl(var(--border-default));
+  }
+
+  .filter-toggle {
+    @apply inline-flex h-8 items-center rounded-lg border px-3 text-xs font-medium transition-[background-color,color,border-color];
+    background-color: hsl(var(--surface-card) / 0.6);
+    border-color: hsl(var(--border-default));
+    color: hsl(var(--text-secondary));
+  }
+
+  .filter-toggle:hover {
+    color: hsl(var(--text-primary));
+    border-color: hsl(var(--border-strong));
+  }
+
+  .filter-toggle[data-pressed] {
+    background-color: hsl(var(--surface-selected));
+    border-color: hsl(var(--accent-primary) / 0.45);
+    color: hsl(var(--text-primary));
+  }
+
+  .filter-field-label {
+    @apply text-xs font-medium;
+    color: hsl(var(--text-muted));
+  }
+
+  /*
+   * The inspector: edge-anchored like a drawer, but deliberately NOT modal —
+   * you keep working the board with it open. See ui/drawer for the three
+   * overlay kinds and why this one is not one of them.
+   */
   .inspector-drawer {
     /* Width follows the window: 520px was ~37% of a laptop display and cramped
        the tabbed task detail. Clamped so it never squeezes the board below
@@ -611,6 +683,41 @@
     max-width: 100%;
     background: linear-gradient(180deg, hsl(var(--surface-card)) 0%, hsl(var(--surface-overlay)) 100%);
     border-color: hsl(var(--border-default));
+    container-type: inline-size;
+    container-name: inspector;
+  }
+
+  /* A container query, not a media query: the inspector can be 440px wide
+     inside a 1920px window, so its internals must respond to their own box. */
+  .inspector-grid {
+    @apply grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @container inspector (max-width: 30rem) {
+    .inspector-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /*
+   * Below this width there is no honest way to show a kanban board and a
+   * 440px inspector side by side — the board was left with a single partly
+   * visible column, so opening a task effectively hid the board it came from.
+   * Narrow windows get the inspector floated over the board instead: the
+   * columns keep their layout and reappear intact the moment it closes.
+   * It stays non-modal (no scrim, board still clickable) — only its
+   * positioning changes.
+   */
+  @media (max-width: 1279px) {
+    .inspector-drawer {
+      position: absolute;
+      inset-block: 0;
+      right: 0;
+      z-index: 120; /* Z.DRAWER — above the board, below any modal. */
+      width: min(440px, 100%);
+      box-shadow: var(--shadow-lg), -24px 0 48px -36px hsl(var(--scrim));
+    }
   }
 
   .dense-list {
@@ -1032,6 +1139,15 @@
 
 /* Keep scroll momentum inside scrollable panels (no scroll-chaining to the app
  * behind drawers, dialogs, command palette, and inspector panes). */
+/* Scrollable, but without the bar taking a visible slice of a 40px tab strip. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .custom-scrollbar {
   overscroll-behavior: contain;
 }

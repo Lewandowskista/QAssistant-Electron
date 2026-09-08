@@ -460,7 +460,7 @@ function DeploymentsContent() {
 
             {/* Workflow Dispatch Dialog */}
             <Dialog open={showDispatch} onOpenChange={(next) => { if (!next) setShowDispatch(false) }}>
-                <DialogContent className="w-80 bg-panel-muted border border-ui p-5">
+                <DialogContent size="sm">
                     <DialogHeader>
                         <DialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
                             <Play className="h-4 w-4 text-brand" /> Run workflow

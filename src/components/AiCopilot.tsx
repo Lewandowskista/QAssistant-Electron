@@ -27,7 +27,7 @@ import { useFlakinessStats } from "@/store/useProjectStore"
 import { SegmentedControl } from "@/components/ui/segmented-control"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
-import { SideDrawerHeader } from "@/components/ui/side-drawer-header"
+import { Drawer, DrawerContent, DrawerHeader } from "@/components/ui/drawer"
 import type { AiContextSelection, AiRole, AiTaskComment, ProjectAiContext } from "@/types/ai"
 import type { AiCopilotHistoryEntry, Checklist, HandoffPacket, Project, QaEnvironment, Task, TestDataGroup, TestPlan } from "@/types/project"
 import { useSettingsStore } from "@/store/useSettingsStore"
@@ -535,30 +535,12 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
     }
 
     return (
-        <>
-            <div
-                className={cn(
-                    "fixed inset-0 z-layer-overlay transition-opacity duration-300",
-                    open ? "opacity-100 bg-black/60 backdrop-blur-sm" : "opacity-0 pointer-events-none"
-                )}
-                onClick={onClose}
-            />
-
-            <div
-                className={cn(
-                    "fixed top-0 right-0 h-full z-layer-drawer flex flex-col app-region-no-drag",
-                    "w-[480px] border-l transition-all duration-300 ease-in-out",
-                    open
-                        ? "translate-x-0 opacity-100 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]"
-                        : "translate-x-full opacity-0 invisible pointer-events-none"
-                )}
-                style={{ background: "hsl(var(--surface-overlay))", borderColor: "hsl(var(--border-default))" }}
-            >
-                <SideDrawerHeader
+        <Drawer open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+            <DrawerContent size="lg" aria-describedby={undefined}>
+                <DrawerHeader
                     icon={Sparkles}
                     title={roleContent.title}
                     subtitle={activeProject ? activeProject.name : "No project selected"}
-                    onClose={onClose}
                     actions={
                     <div className="flex items-center gap-1">
                         <Button
@@ -972,20 +954,20 @@ export default function AiCopilot({ open, onClose }: AiCopilotProps) {
                         {roleContent.footer}
                     </p>
                 </div>
-            </div>
 
-            {messages.length > 3 && (
-                <button
-                    onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })}
-                    aria-label="Scroll to latest message"
-                    className={cn(
-                        "fixed bottom-24 right-4 z-layer-drawer w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg transition-all app-region-no-drag",
-                        open ? "opacity-100" : "opacity-0 pointer-events-none"
-                    )}
-                >
-                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                </button>
-            )}
-        </>
+                {/* Anchored to the drawer, not the window: as a `fixed` element it
+                    used to hover over page content whenever the drawer was narrower
+                    than the viewport edge it was pinned to. */}
+                {messages.length > 3 && (
+                    <button
+                        onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })}
+                        aria-label="Scroll to latest message"
+                        className="absolute bottom-24 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
+                    >
+                        <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                )}
+            </DrawerContent>
+        </Drawer>
     )
 }
