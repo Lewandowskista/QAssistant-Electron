@@ -390,7 +390,7 @@ export default function EnvironmentsPage() {
 
             {/* Add Environment Modal */}
             <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-                <DialogContent className="bg-panel border-ui sm:max-w-[400px]">
+                <DialogContent size="sm">
                     <DialogHeader>
                         <DialogTitle className="text-foreground text-sm font-semibold">Add environment</DialogTitle>
                     </DialogHeader>
@@ -418,7 +418,7 @@ export default function EnvironmentsPage() {
 
             {/* Delete Confirmation Modal */}
             <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-                <DialogContent className="bg-panel border-state-danger-border sm:max-w-[400px]">
+                <DialogContent size="sm">
                     <DialogHeader>
                         <DialogTitle className="text-state-danger text-sm font-semibold">Delete environment</DialogTitle>
                     </DialogHeader>

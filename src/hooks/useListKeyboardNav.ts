@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 
+import { overlayOwnsKeyboard } from '@/lib/overlays'
+
 interface UseListKeyboardNavOptions<T> {
     items: T[]
     onSelect?: (item: T, index: number) => void
@@ -28,6 +30,14 @@ export function useListKeyboardNav<T>({
         // Don't intercept when typing in inputs
         const target = e.target as HTMLElement
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+        /*
+         * These bindings live on `window`, so they fire for keys an overlay is
+         * already handling. While a dialog or menu is up it owns the keyboard:
+         * otherwise "j" scrolled the list behind an open modal, and Escape both
+         * closed the modal and cleared the list's selection in one press.
+         */
+        if (overlayOwnsKeyboard()) return
 
         switch (e.key) {
             case 'j': {
@@ -72,8 +82,10 @@ export function useListKeyboardNav<T>({
     }, [enabled, items, activeIndex, onSelect, onOpen, onEscape])
 
     useEffect(() => {
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
+        // Capture phase so the overlay check above sees the layer stack as it was
+        // when the key was pressed, not after Radix has already torn a layer down.
+        window.addEventListener('keydown', handleKeyDown, true)
+        return () => window.removeEventListener('keydown', handleKeyDown, true)
     }, [handleKeyDown])
 
     return { activeIndex, setActiveIndex }

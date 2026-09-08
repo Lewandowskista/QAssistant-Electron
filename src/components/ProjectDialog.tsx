@@ -63,7 +63,7 @@ export function ProjectDialog({ open, onOpenChange, project }: ProjectDialogProp
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px] bg-panel border-ui">
+            <DialogContent size="md">
                 <DialogHeader>
                     <DialogTitle>{project ? "Edit Project" : "New Project"}</DialogTitle>
                 </DialogHeader>

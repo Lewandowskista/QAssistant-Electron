@@ -64,7 +64,7 @@ export default function TestRunDialog({ open, onOpenChange, activePlan, activePr
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent size="md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <PlayCircle className="h-5 w-5 text-brand" />

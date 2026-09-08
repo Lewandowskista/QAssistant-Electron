@@ -47,11 +47,11 @@ export function ConfirmDialog({
             <AlertDialogPrimitive.Portal>
                 <AlertDialogPrimitive.Overlay
                     data-radix-dialog-overlay=""
-                    className="fixed inset-0 z-layer-confirm bg-black/60 backdrop-blur-sm"
+                    className="app-scrim z-layer-confirm"
                 />
                 <AlertDialogPrimitive.Content
                     data-radix-dialog-content=""
-                    className="app-panel fixed left-1/2 top-1/2 z-layer-confirm w-[400px] -translate-x-1/2 -translate-y-1/2 p-6"
+                    className="app-modal-surface fixed left-1/2 top-1/2 z-layer-confirm w-[calc(100vw-3rem)] max-w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-[1.4rem] border p-6 shadow-2xl shadow-black/30"
                 >
                     <div className="flex items-start gap-4 mb-6">
                         <div className={cn(

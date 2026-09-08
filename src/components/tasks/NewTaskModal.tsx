@@ -150,12 +150,12 @@ export function NewTaskModal({ isOpen, onOpenChange, activeProject, currentColum
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[92vh] overflow-hidden border-ui bg-panel p-0 shadow-2xl sm:max-w-[760px]">
+            <DialogContent size="lg" className="p-0">
                 <DialogHeader className="border-b border-ui p-6 pb-4">
                     <DialogTitle className="text-xl font-bold tracking-tight text-foreground">Create Task</DialogTitle>
                 </DialogHeader>
 
-                <div className="max-h-[calc(92vh-140px)] space-y-6 overflow-y-auto p-6">
+                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6 custom-scrollbar">
                     <section className="space-y-3">
                         <div className="flex items-center justify-between">
                             <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-ui">Source</Label>

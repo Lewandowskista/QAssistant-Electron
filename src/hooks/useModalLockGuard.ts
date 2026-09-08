@@ -1,31 +1,9 @@
 import { useEffect } from 'react'
 
-/**
- * Selectors that indicate a Radix modal/popover layer is genuinely open.
- *
- * Deliberately narrow: `[data-state="open"]` alone is unusable here because Radix
- * also stamps it on *triggers*, accordions and collapsibles, so a closed menu whose
- * button is still marked open would look like a live layer forever. These match only
- * rendered layer content.
- */
-export const OPEN_LAYER_SELECTORS = [
-    '[role="dialog"]',
-    '[role="alertdialog"]',
-    '[data-radix-popper-content-wrapper]',
-    '[data-radix-menu-content]',
-    '[data-radix-select-content]',
-    /*
-     * Deliberately NOT '[data-radix-focus-guard]'. Radix's focus guards are
-     * body-level spans removed by the same reference counting that strands
-     * `body { pointer-events: none }`. When a layer fails to deregister, the
-     * guards leak too — so treating them as evidence of an open layer would make
-     * this guard permanently believe a layer is open, in exactly the case it
-     * exists to fix. Every selector here is scoped to layer *content*, which is
-     * unmounted with the layer.
-     */
-] as const
+import { hasOpenLayer } from '@/lib/overlays'
 
-const OPEN_LAYER_SELECTOR = OPEN_LAYER_SELECTORS.join(',')
+// Re-exported so existing importers (and the guard's tests) keep one entry point.
+export { OPEN_LAYER_SELECTORS, hasOpenLayer, type LayerScope } from '@/lib/overlays'
 
 // 200ms x CLEAN_POLLS_REQUIRED bounds how long input stays dead if a lock is
 // orphaned. Kept short because that window is a visible freeze to the user, but not
@@ -39,15 +17,6 @@ const POLL_MS = 200
  * *next* dialog non-modal. Requiring the condition to persist rides out that gap.
  */
 export const CLEAN_POLLS_REQUIRED = 3
-
-/** Scope abstraction so the query can be exercised without a DOM in tests. */
-export interface LayerScope {
-    querySelector(selectors: string): unknown
-}
-
-export function hasOpenLayer(scope: LayerScope = document): boolean {
-    return scope.querySelector(OPEN_LAYER_SELECTOR) !== null
-}
 
 /**
  * Whether an orphaned lock should be cleared: the body is locked but nothing is

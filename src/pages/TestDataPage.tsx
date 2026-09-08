@@ -334,7 +334,7 @@ export default function TestDataPage() {
 
             {/* Group Modal */}
             <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
-                <DialogContent className="bg-panel border-qa-border sm:max-w-[400px] rounded-[2rem]">
+                <DialogContent size="sm">
                     <DialogHeader>
                         <DialogTitle className="text-qa-text font-semibold tracking-tight">
                             {editingGroupId ? 'Update data group' : 'Create new data group'}
@@ -389,7 +389,7 @@ export default function TestDataPage() {
 
             {/* Entry Modal */}
             <Dialog open={isEntryModalOpen} onOpenChange={setIsEntryModalOpen}>
-                <DialogContent className="bg-panel border-qa-border sm:max-w-[500px] rounded-[2rem]">
+                <DialogContent size="md">
                     <DialogHeader>
                         <DialogTitle className="text-qa-text font-semibold tracking-tight">
                             {editingEntryId ? 'Update data entry' : 'Add new entry'}

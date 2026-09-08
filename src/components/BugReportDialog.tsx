@@ -153,9 +153,9 @@ ${description}
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl bg-card border shadow-2xl overflow-hidden p-0">
-                <div className="h-2 bg-red-500 w-full" />
-                <div className="p-8 space-y-6">
+            <DialogContent size="md" className="p-0">
+                <div className="h-1 w-full shrink-0 bg-state-danger" />
+                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6 custom-scrollbar">
                     <DialogHeader>
                         <div className="flex items-center gap-3 text-state-danger mb-2">
                             <div className="p-2 bg-state-danger-soft rounded-lg">

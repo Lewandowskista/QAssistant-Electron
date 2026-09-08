@@ -1,6 +1,11 @@
-import { useState } from 'react'
 import { GitHubRepo } from '@/types/github'
 import { ChevronDown, Lock, Globe, Loader2 } from 'lucide-react'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { formatTimeAgo } from '@/lib/utils'
 
@@ -11,54 +16,53 @@ interface RepoSelectorProps {
     loading?: boolean
 }
 
+/**
+ * On DropdownMenu rather than a hand-rolled panel: the previous version pinned
+ * a full-screen click-catcher div behind itself to close on outside click,
+ * which left it with no Escape, no focus trap, no arrow-key navigation, and a
+ * transparent layer covering the app that other overlays had to stack around.
+ */
 export function RepoSelector({ repos, selectedRepo, onSelect, loading }: RepoSelectorProps) {
-    const [open, setOpen] = useState(false)
-
     return (
-        <div className="relative">
-            <button
-                onClick={() => setOpen(prev => !prev)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-ui bg-panel-muted hover:bg-elevated transition-colors text-xs font-semibold text-foreground min-w-[200px]"
-            >
-                {selectedRepo ? (
-                    <>
-                        {selectedRepo.private ? <Lock className="h-3 w-3 text-muted-ui" /> : <Globe className="h-3 w-3 text-muted-ui" />}
-                        <span className="truncate flex-1 text-left">{selectedRepo.fullName}</span>
-                    </>
-                ) : (
-                    <span className="text-muted-ui">Select repository…</span>
-                )}
-                <ChevronDown className="h-3 w-3 text-muted-ui shrink-0" />
-            </button>
-            {open && (
-                <>
-                    <div className="fixed inset-0 z-layer-sticky" onClick={() => setOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-layer-dropdown w-80 max-h-80 overflow-y-auto bg-panel-muted border border-ui rounded-lg shadow-xl custom-scrollbar">
-                        {loading ? (
-                            <div className="p-4 flex items-center justify-center">
-                                <Loader2 className="h-4 w-4 text-brand animate-spin" />
-                            </div>
-                        ) : repos.length === 0 ? (
-                            <div className="p-4 text-xs text-muted-ui text-center">No repositories found</div>
-                        ) : repos.map(repo => (
-                            <button
-                                key={repo.id}
-                                onClick={() => { onSelect(repo); setOpen(false) }}
-                                className={cn(
-                                    "w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-elevated transition-colors text-left",
-                                    selectedRepo?.id === repo.id && "bg-selected"
-                                )}
-                            >
-                                {repo.private ? <Lock className="h-3 w-3 text-muted-ui shrink-0" /> : <Globe className="h-3 w-3 text-muted-ui shrink-0" />}
-                                <div className="flex flex-col min-w-0 flex-1">
-                                    <span className="font-semibold text-foreground truncate">{repo.fullName}</span>
-                                    <span className="text-[11px] text-muted-ui">{repo.defaultBranch} · {formatTimeAgo(repo.updatedAt)}</span>
-                                </div>
-                            </button>
-                        ))}
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    aria-label="Select repository"
+                    className="flex min-w-[200px] items-center gap-2 rounded-md border border-ui bg-panel-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-elevated"
+                >
+                    {selectedRepo ? (
+                        <>
+                            {selectedRepo.private ? <Lock className="h-3 w-3 text-muted-ui" /> : <Globe className="h-3 w-3 text-muted-ui" />}
+                            <span className="flex-1 truncate text-left">{selectedRepo.fullName}</span>
+                        </>
+                    ) : (
+                        <span className="flex-1 text-left text-muted-ui">Select repository…</span>
+                    )}
+                    <ChevronDown className="h-3 w-3 shrink-0 text-muted-ui" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 w-80 overflow-y-auto custom-scrollbar">
+                {loading ? (
+                    <div className="flex items-center justify-center p-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-brand" />
                     </div>
-                </>
-            )}
-        </div>
+                ) : repos.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-muted-ui">No repositories found</div>
+                ) : repos.map(repo => (
+                    <DropdownMenuItem
+                        key={repo.id}
+                        onSelect={() => onSelect(repo)}
+                        className={cn("gap-2 text-xs", selectedRepo?.id === repo.id && "bg-selected")}
+                    >
+                        {repo.private ? <Lock className="h-3 w-3 shrink-0 text-muted-ui" /> : <Globe className="h-3 w-3 shrink-0 text-muted-ui" />}
+                        <div className="flex min-w-0 flex-1 flex-col">
+                            <span className="truncate font-semibold text-foreground">{repo.fullName}</span>
+                            <span className="text-[11px] text-muted-ui">{repo.defaultBranch} · {formatTimeAgo(repo.updatedAt)}</span>
+                        </div>
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }

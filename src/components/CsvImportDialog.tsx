@@ -73,7 +73,7 @@ export function CsvImportDialog({ open, onOpenChange, onImport }: CsvImportDialo
             onOpenChange(val)
             if (!val) setTimeout(defaultState, 300)
         }}>
-            <DialogContent className="sm:max-w-[700px] bg-app border-ui text-foreground p-0 overflow-hidden flex flex-col max-h-[85vh]">
+            <DialogContent size="lg" className="p-0">
                 <DialogHeader className="p-6 pb-4 border-b border-ui flex-none">
                     <DialogTitle className="text-xl font-black flex items-center gap-2">
                         <FileSpreadsheet className="h-5 w-5 text-brand" />

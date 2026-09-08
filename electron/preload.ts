@@ -33,6 +33,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('window-maximized-status', listener);
     return () => ipcRenderer.removeListener('window-maximized-status', listener);
   },
+  onFullScreenStatus: (callback: (status: boolean) => void) => {
+    const listener = (_event: any, value: boolean) => callback(value);
+    ipcRenderer.on('window-fullscreen-status', listener);
+    return () => ipcRenderer.removeListener('window-fullscreen-status', listener);
+  },
   onCommandPalette: (callback: () => void) => {
     const listener = () => callback();
     ipcRenderer.on('open-command-palette', listener);

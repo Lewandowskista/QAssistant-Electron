@@ -115,7 +115,7 @@ export function QaPairImportDialog({ open, onOpenChange, onImport }: QaPairImpor
 
     return (
         <Dialog open={open} onOpenChange={val => { onOpenChange(val); if (!val) setTimeout(reset, 300) }}>
-            <DialogContent className="sm:max-w-[640px] bg-app border-ui text-foreground p-0 overflow-hidden flex flex-col max-h-[85vh]">
+            <DialogContent size="lg" className="p-0">
                 <DialogHeader className="p-6 pb-4 border-b border-ui flex-none">
                     <DialogTitle className="text-lg font-black flex items-center gap-2">
                         <FileSpreadsheet className="h-5 w-5 text-brand" />

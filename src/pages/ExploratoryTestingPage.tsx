@@ -64,14 +64,14 @@ function ObservationThumbnail({ filePath }: { filePath: string }) {
                 className="mt-1.5 h-[60px] w-[80px] object-cover rounded cursor-pointer border border-border hover:border-primary/50 transition-colors"
                 onClick={() => setExpanded(true)}
             />
-            {expanded && (
-                <div
-                    className="fixed inset-0 z-layer-dialog flex items-center justify-center bg-black/80"
-                    onClick={() => setExpanded(false)}
-                >
-                    <img src={dataUrl} alt="screenshot full" className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
-                </div>
-            )}
+            {/* A real modal rather than a bare `fixed` div: Escape closes it, focus
+                is trapped and restored, and it shares the app's one scrim. */}
+            <Dialog open={expanded} onOpenChange={setExpanded}>
+                <DialogContent size="xl" className="bg-transparent p-0 shadow-none" hideClose>
+                    <DialogTitle className="sr-only">Screenshot preview</DialogTitle>
+                    <img src={dataUrl} alt="Observation screenshot, full size" className="max-h-[80vh] w-full rounded-[1.4rem] object-contain shadow-2xl" />
+                </DialogContent>
+            </Dialog>
         </>
     )
 }
@@ -500,7 +500,7 @@ export default function ExploratoryTestingPage() {
 
             {/* New session dialog */}
             <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
-                <DialogContent className="sm:max-w-[440px]">
+                <DialogContent size="md">
                     <DialogHeader>
                         <DialogTitle>Start exploratory session</DialogTitle>
                     </DialogHeader>
@@ -549,7 +549,7 @@ export default function ExploratoryTestingPage() {
 
             {/* Bug filing dialog */}
             <Dialog open={bugDialogOpen} onOpenChange={setBugDialogOpen}>
-                <DialogContent className="sm:max-w-[440px]">
+                <DialogContent size="md">
                     <DialogHeader>
                         <DialogTitle>File bug from observation</DialogTitle>
                     </DialogHeader>

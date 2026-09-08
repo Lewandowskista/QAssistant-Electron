@@ -10,8 +10,11 @@ export function DetailItem({ icon: Icon, label, value }: { icon?: any, label: st
                 {Icon && <Icon className="h-3.5 w-3.5 text-muted-ui" />}
                 <span className="text-[11px] font-bold text-muted-ui">{label}</span>
             </div>
-            <div className="flex items-center h-full flex-1">
-                <span className="text-[11px] font-bold text-foreground truncate">{value}</span>
+            {/* min-w-0: without it a flex child refuses to shrink below its
+                content, so `truncate` never engages and a long label list ran
+                straight over the next cell in the grid. */}
+            <div className="flex h-full min-w-0 flex-1 items-center">
+                <span className="truncate text-[11px] font-bold text-foreground" title={value}>{value}</span>
             </div>
         </div>
     )
